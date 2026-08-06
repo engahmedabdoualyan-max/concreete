@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, ReactNode } from 'react';
+import { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { arTranslations, enTranslations, urTranslations } from './translations';
 
 export type Lang = 'ar' | 'en' | 'ur';
@@ -44,7 +44,7 @@ export function LangProvider({ children }: { children: ReactNode }) {
     return translations[lang][key] || key;
   };
 
-  React.useEffect(() => {
+  useEffect(() => {
     localStorage.setItem('fimtosoft_lang', lang);
   }, [lang]);
 
