@@ -70,7 +70,7 @@ function plantMins(i: string, e: string): number {
 
 export default function Dashboard() {
   const navigate = useNavigate();
-  const { currentUser, login, register, verifyAndActivate, generatedCode, logout } = useAuth();
+  const { currentUser, login, register, verifyAndActivate, generatedCode, logout, loginAsGuest } = useAuth();
   const [showLogin, setShowLogin] = useState(!currentUser);
   const [tab, setTab] = useState<'login' | 'register' | 'verify'>('login');
   const [error, setError] = useState('');
@@ -283,6 +283,13 @@ export default function Dashboard() {
                 </div>
                 {error && <p className="text-red-400 text-sm text-center">{error}</p>}
                 <button type="submit" className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3 rounded-lg transition">🔓 Login</button>
+                <button
+                  type="button"
+                  onClick={() => { loginAsGuest(); setShowLogin(false); }}
+                  className="w-full bg-slate-600/30 hover:bg-slate-600/50 border border-slate-500/40 text-slate-300 font-bold py-3 rounded-lg transition text-sm mt-2"
+                >
+                  👤 Continue as Guest
+                </button>
                 <p className="text-center text-sm text-slate-400 mt-3">
                   Don't have an account? <span className="text-blue-400 cursor-pointer underline font-bold" onClick={() => { setTab('register'); setError(''); }}>Register Free</span>
                 </p>

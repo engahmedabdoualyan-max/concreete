@@ -23,6 +23,7 @@ interface AuthContextType {
   login: (username: string, password: string) => Promise<boolean>;
   register: (user: UserSession) => Promise<{ success: boolean; code: string; emailSent: boolean }>;
   verifyAndActivate: (code: string) => Promise<boolean>;
+  loginAsGuest: () => void;
   logout: () => void;
   generatedCode: string;
   tempUser: UserSession | null;
@@ -133,9 +134,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem('currentUserSession');
   };
 
+  const loginAsGuest = () => {
+    const guest: UserSession = {
+      username: 'guest',
+      password: '',
+      country: 'Guest',
+      city: 'Guest',
+      plantName: 'Guest Session',
+      phone: '',
+      email: '',
+      status: 'GUEST',
+    };
+    setCurrentUser(guest);
+    localStorage.setItem('currentUserSession', JSON.stringify(guest));
+  };
+
   return (
     <AuthContext.Provider value={{
-      currentUser, registeredUsers, login, register, verifyAndActivate, logout, generatedCode, tempUser, emailSending
+      currentUser, registeredUsers, login, register, verifyAndActivate, loginAsGuest, logout, generatedCode, tempUser, emailSending
     }}>
       {children}
     </AuthContext.Provider>
