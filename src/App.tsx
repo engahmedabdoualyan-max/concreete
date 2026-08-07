@@ -13,6 +13,7 @@ import Schedule from './pages/Schedule';
 import Orders from './pages/Orders';
 import ResearchDevelopment from './pages/ResearchDevelopment';
 import LoginRegister from './components/LoginRegister';
+import FloatingActions from './components/FloatingActions';
 import Admin from './pages/Admin';
 
 export default function App() {
@@ -37,6 +38,7 @@ export default function App() {
           <Route path="/orders" element={<Orders />} />
           <Route path="/rnd" element={<ResearchDevelopment />} />
         </Routes>
+        <FloatingActions />
       </HashRouter>
     </AdminProvider>
     </AuthProvider>

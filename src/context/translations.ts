@@ -164,6 +164,25 @@ export interface Translations {
   modEvaluation: string;
   modRnd: string;
   saveSuccess: string;
+  floatingFeatures: string;
+  floatingRateUs: string;
+  floatingContactUs: string;
+  featuresTitle: string;
+  ftOperations: string;
+  ftProduction: string;
+  ftSchedule: string;
+  ftWorkshop: string;
+  ftMixing: string;
+  ftEvaluation: string;
+  ftOrders: string;
+  ftAdmin: string;
+  rateTitle: string;
+  rateThanks: string;
+  message: string;
+  send: string;
+  sendSuccess: string;
+  fillAllFields: string;
+  close: string;
 }
 
 export const enTranslations: Partial<Translations> = {
@@ -330,6 +349,25 @@ export const enTranslations: Partial<Translations> = {
   modEvaluation: 'Evaluation',
   modRnd: 'R&D',
   saveSuccess: 'Saved successfully',
+  floatingFeatures: 'Features',
+  floatingRateUs: 'Rate Us',
+  floatingContactUs: 'Contact Us',
+  featuresTitle: 'Site Features',
+  ftOperations: 'Real-time tracking of concrete trips and fleet vehicles',
+  ftProduction: 'Manage daily production batches and raw materials',
+  ftSchedule: 'Smart daily pouring schedule with time estimates',
+  ftWorkshop: 'Fleet maintenance, fuel, spare parts and warehouse management',
+  ftMixing: 'Mixing & quality control with batch records',
+  ftEvaluation: 'Performance evaluation and detailed reports',
+  ftOrders: 'Manage client orders and deliveries',
+  ftAdmin: 'Admin panel for factory data and user permissions',
+  rateTitle: 'Rate Us',
+  rateThanks: 'Thank you for your rating',
+  message: 'Message',
+  send: 'Send',
+  sendSuccess: 'Message sent successfully',
+  fillAllFields: 'Please fill in your email, phone and message',
+  close: 'Close',
 };
 
 //AR
@@ -497,6 +535,25 @@ export const arTranslations: Partial<Translations> = {
   modEvaluation: 'التقييم',
   modRnd: 'البحث والتطوير',
   saveSuccess: 'تم الحفظ بنجاح',
+  floatingFeatures: 'مميزات الموقع',
+  floatingRateUs: 'قيمنا',
+  floatingContactUs: 'اتصل بنا',
+  featuresTitle: 'مميزات الموقع',
+  ftOperations: 'متابعة لحظية لرحلات الخرسانة وأسطول المركبات',
+  ftProduction: 'إدارة ورديات الإنتاج اليومية والمواد الخام',
+  ftSchedule: 'جدول الصب الذكي اليومي مع تقدير الأوقات',
+  ftWorkshop: 'إدارة صيانة الأسطول والوقود وقطع الغيار والمخزن',
+  ftMixing: 'الخلط ومراقبة الجودة مع سجلات الدفعات',
+  ftEvaluation: 'تقييم الأداء وتقارير مفصلة',
+  ftOrders: 'إدارة طلبات العملاء والتسليمات',
+  ftAdmin: 'لوحة إدارة لبيانات المصنع وصلاحيات المستخدمين',
+  rateTitle: 'قيمنا',
+  rateThanks: 'شكراً لتقييمك',
+  message: 'الرسالة',
+  send: 'إرسال',
+  sendSuccess: 'تم إرسال رسالتك بنجاح',
+  fillAllFields: 'يرجى إدخال البريد الإلكتروني ورقم الهاتف والرسالة',
+  close: 'إغلاق',
 };
 
 //RU
