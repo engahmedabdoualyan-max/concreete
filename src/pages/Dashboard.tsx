@@ -311,7 +311,7 @@ export default function Dashboard() {
       {/* ===== HEADER ===== */}
       <header className="bg-[#1e293b] border-b border-[#334155] px-6 py-4 sticky top-0 z-10 flex flex-col md:flex-row md:items-center justify-between gap-3">
         <div className="flex items-center gap-4">
-          <BrandLogo size={52} rounded="rounded-xl" />
+          <BrandLogo width={72} rounded="rounded-xl" />
           <div>
             <h1 className="text-lg font-bold text-white tracking-tight">Technical Management Program for Concrete Plants</h1>
             <p className="text-xs text-emerald-500 font-medium">Design and Development by Dr. Ahmad Abdo Alyan</p>

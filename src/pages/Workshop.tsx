@@ -256,7 +256,7 @@ export default function Workshop() {
       <div className="bg-[#1e293b] border-b border-[#334155] px-6 py-4 flex flex-col md:flex-row md:items-center justify-between gap-3">
         <div><h1 className="text-xl font-bold text-white">{t('fleetMaintenanceManager')}</h1><p className="text-xs text-slate-400">{t('workshopSubtitle')}</p></div>
         <div className="flex gap-3 items-center flex-wrap">
-          <BrandLogo />
+          <BrandLogo width={56} />
           <Link to="/" className="text-slate-400 text-xs border border-[#334155] px-3 py-2 rounded hover:text-white hover:bg-[#334155] transition">{t('backToDashboard')}</Link>
           <QuickJump />
           <LangSelector />

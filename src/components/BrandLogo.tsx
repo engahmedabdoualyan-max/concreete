@@ -2,7 +2,7 @@ import siteLogo from '../assets/logos/logo.png';
 
 const LOGO_ASPECT = 240 / 175;
 
-export default function BrandLogo({ size = 40, width, height, rounded = 'rounded-lg', fill = false }: {
+export default function BrandLogo({ size = 40, width, height, rounded = 'rounded-lg', fill = true }: {
   size?: number;
   width?: number;
   height?: number;
