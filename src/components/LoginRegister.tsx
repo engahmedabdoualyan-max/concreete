@@ -2,6 +2,7 @@ import { useState, type FormEventHandler } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { UserSession } from '../context/AuthContext';
+import BrandLogo from './BrandLogo';
 
 export default function LoginRegister() {
   const [isLogin, setIsLogin] = useState(true);
@@ -130,9 +131,7 @@ export default function LoginRegister() {
       <div className="max-w-md w-full space-y-8">
         <div>
           <div className="flex justify-center">
-            <div className="w-20 h-20 bg-gradient-to-br from-blue-600 to-blue-800 rounded-2xl flex items-center justify-center shadow-lg">
-              <span className="text-3xl">🏗️</span>
-            </div>
+            <BrandLogo size={80} rounded="rounded-2xl" />
           </div>
           <h2 className="mt-6 text-center text-3xl font-extrabold text-white">
             {isLogin ? 'تسجيل الدخول' : 'إنشاء حساب'}

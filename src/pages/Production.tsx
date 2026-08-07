@@ -5,6 +5,7 @@ import { loadInventory, saveInventory, loadDeliveries, saveDeliveries, loadProdu
 import DatePicker from '../components/DatePicker';
 import QuickJump from '../components/QuickJump';
 import LangSelector from '../components/LangSelector';
+import BrandLogo from '../components/BrandLogo';
 
 interface Delivery { date: string; material: string; qty: number; invoice: string; }
 interface ProdRun { date: string; time: string; recipe: string; volume: number; cementUsed: number; sandUsed: number; gravelUsed: number; }
@@ -284,6 +285,7 @@ export default function Production() {
     <div className="min-h-screen bg-[#0f172a] text-[#f1f5f9]">
       <div className="bg-gradient-to-br from-[#0f1729] to-[#1a2332] border-b border-[#2a3a5c] px-6 py-2.5 flex flex-wrap justify-between items-center gap-x-3 gap-y-1.5 sticky top-0 z-50 shadow-lg">
         <div className="flex flex-wrap items-center gap-3">
+          <BrandLogo />
           <Link to="/" className="text-slate-400 text-xs border border-[#2a3a5c] px-2.5 py-1 rounded hover:text-white">← Dashboard</Link>
           <QuickJump /> <LangSelector />
           <h1 className="text-sm font-bold text-white">🏭 Concrete Production & Material Inventory</h1>

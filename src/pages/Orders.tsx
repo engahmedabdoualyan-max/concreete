@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { loadOrders, saveOrders } from '../firebase/firestore';
 import QuickJump from '../components/QuickJump';
 import LangSelector from '../components/LangSelector';
+import BrandLogo from '../components/BrandLogo';
 import DatePicker from '../components/DatePicker';
 import EInvoice from '../components/EInvoice';
 
@@ -274,6 +275,7 @@ export default function Orders() {
       {/* Header */}
       <div className="bg-gradient-to-br from-[#0f1729] to-[#1a2332] border-b border-[#2a3a5c] px-6 py-2.5 flex flex-wrap justify-between items-center gap-x-3 gap-y-1.5 sticky top-0 z-50 shadow-lg">
         <div className="flex flex-wrap items-center gap-3">
+          <BrandLogo />
           <Link to="/" className="text-slate-400 text-xs border border-[#2a3a5c] px-2 py-1 rounded hover:text-white">← Dashboard</Link>
           <QuickJump />
           <LangSelector />

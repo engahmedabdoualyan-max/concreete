@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import { loadPayments, savePayments, loadPurchaseOrders, savePurchaseOrders, loadInventory, loadOrders } from '../firebase/firestore';
 import QuickJump from '../components/QuickJump';
 import LangSelector from '../components/LangSelector';
+import BrandLogo from '../components/BrandLogo';
 import DatePicker from '../components/DatePicker';
 
 interface Payment { id: number; date: string; client: string; orderNo: string; amount: number; method: string; status: 'paid' | 'partial' | 'pending'; note: string; link?: string; qr?: string; ref?: string; }
@@ -131,6 +132,7 @@ export default function Finance() {
     <div className="min-h-screen bg-[#0f172a] text-[#f1f5f9]">
       <div className="bg-gradient-to-br from-[#0f1729] to-[#1a2332] border-b border-[#2a3a5c] px-6 py-2.5 flex flex-wrap justify-between items-center gap-x-3 gap-y-1.5 sticky top-0 z-50 shadow-lg">
         <div className="flex flex-wrap items-center gap-3">
+          <BrandLogo />
           <Link to="/" className="text-slate-400 text-xs border border-[#2a3a5c] px-2.5 py-1 rounded hover:text-white transition">← Dashboard</Link>
           <QuickJump /> <LangSelector />
           <h1 className="text-sm font-bold text-white">💰 Finance: Payments & Auto Reorder</h1>
