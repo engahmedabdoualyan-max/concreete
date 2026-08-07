@@ -1,175 +1,216 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { useLang } from './LangContext';
+import { useAuth } from './AuthContext';
 
-// ======================== أنواع البيانات ========================
-interface ProjectData {
-  id: string;
+export type UserRole = 'owner' | 'manager' | 'operator' | 'quality' | 'maintenance' | 'viewer';
+export type ModuleKey = 'operations' | 'production' | 'workshop' | 'mixing' | 'schedule' | 'orders' | 'evaluation' | 'rnd';
+
+export const ROLE_KEYS: UserRole[] = ['owner', 'manager', 'operator', 'quality', 'maintenance', 'viewer'];
+export const MODULE_KEYS: ModuleKey[] = ['operations', 'production', 'workshop', 'mixing', 'schedule', 'orders', 'evaluation', 'rnd'];
+
+export interface PlantProfile {
   name: string;
-  description: string;
-  icon: string;
-  color: string;
-  status: 'active' | 'coming_soon' | 'planned';
-  url: string;
+  manager: string;
+  address: string;
+  city: string;
+  country: string;
+  phone: string;
+  email: string;
+  licenseNumber: string;
+  capacityM3: string;
+  mixerCount: string;
+  truckCount: string;
+  foundingYear: string;
+  notes: string;
 }
 
-interface AdminContent {
-  companyName: string;
-  companyTagline: string;
-  companyDescription: string;
-  aboutUsText: string;
-  contactPhone: string;
-  contactEmail: string;
-  projects: ProjectData[];
+export interface ManagedUser {
+  username: string;
+  password: string;
+  name: string;
+  email: string;
+  phone: string;
+  plantName: string;
+  country: string;
+  city: string;
+  role: UserRole;
+  isActive: boolean;
+  permissions: Record<ModuleKey, boolean>;
 }
 
-// ======================== البيانات الافتراضية ========================
-const DEFAULT_CONTENT: AdminContent = {
-  companyName: 'فيمتو سوفت للخدمات التكنولوجية',
-  companyTagline: 'حلول متكاملة للتكنولوجيا الحياتية',
-  companyDescription: 'منذ 2003، نقدم حلولاً رقمية متطورة في مجالات متعددة: برمجيات تفاعلية، شبكات وبنية تحتية، أنظمة أمنية، كمبيوتر فيجن، حلول مرورية، وأنظمة متكاملة.',
-  aboutUsText: 'فيمتو سوفت شركة مصرية تأسست عام 2003، ونعمل حالياً في المملكة العربية السعودية. نقدم حلولاً تكنولوجية متكاملة في مجالات متعددة، تشمل برمجيات إدارة المصانع (ERP)، أنظمة الأمن والمراقبة، شبكات البنية التحتية، الذكاء الاصطناعي والرؤية الآلية، والحلول المرورية الذكية.',
-  contactPhone: '+20 100 100 6627',
-  contactEmail: 'info@fimtosoft.com',
-  projects: [
-    {
-      id: 'concrete',
-      name: '🏗️ ERP Concrete',
-      description: 'نظام متكامل لإدارة مصانع الخرسانة (إنتاج، مخزون، صيانة، جودة)',
-      icon: '🏗️',
-      color: 'from-blue-600 to-blue-800',
-      status: 'active',
-      url: '/',
-    },
-    {
-      id: 'asphalt',
-      name: '🛣️ ERP Asphalt',
-      description: 'نظام متكامل لإدارة مصانع الأسفلت (إنتاج، مخزون، صيانة)',
-      icon: '🛣️',
-      color: 'from-slate-600 to-slate-800',
-      status: 'coming_soon',
-      url: '/asphalt',
-    },
-    {
-      id: 'automation',
-      name: '🏭 أتمتة المحطات',
-      description: 'تحويل محطات الخرسانة من تشغيل يدوي إلى أنظمة محوسبة متكاملة',
-      icon: '🤖',
-      color: 'from-emerald-600 to-emerald-800',
-      status: 'active',
-      url: '/automation',
-    },
-    {
-      id: 'maintenance',
-      name: '🔧 صيانة المحطات',
-      description: 'صيانة دورية وطوارئ لمحطات الخرسانة والأسفلت',
-      icon: '🔧',
-      color: 'from-orange-600 to-orange-800',
-      status: 'active',
-      url: '/maintenance',
-    },
-    {
-      id: 'webdesign',
-      name: '🌐 تصميم مواقع',
-      description: 'تصميم وتطوير مواقع ويب احترافية باستخدام أحدث التقنيات',
-      icon: '🌐',
-      color: 'from-purple-600 to-purple-800',
-      status: 'coming_soon',
-      url: '/webdesign',
-    },
-    {
-      id: 'firealarm',
-      name: '🔥 أنظمة إنذار',
-      description: 'أنظمة إنذار وكاميرات مراقبة متكاملة للمصانع والمنشآت',
-      icon: '🔥',
-      color: 'from-red-600 to-red-800',
-      status: 'planned',
-      url: '/firealarm',
-    },
-    {
-      id: 'networks',
-      name: '🖥️ شبكات وبنية تحتية',
-      description: 'شبكات لاسلكية، خوادم، تخزين سحابي، وأمن معلومات',
-      icon: '🖥️',
-      color: 'from-cyan-600 to-cyan-800',
-      status: 'planned',
-      url: '/networks',
-    },
-    {
-      id: 'computervision',
-      name: '👁️ كمبيوتر فيجن',
-      description: 'رؤية آلية وذكاء اصطناعي للكشف والتحليل الذكي',
-      icon: '👁️',
-      color: 'from-pink-600 to-pink-800',
-      status: 'planned',
-      url: '/computervision',
-    },
-    {
-      id: 'traffic',
-      name: '🚦 حلول مرورية',
-      description: 'أنظمة إدارة حركة ذكية ولوحات إرشادية رقمية',
-      icon: '🚦',
-      color: 'from-yellow-600 to-yellow-800',
-      status: 'planned',
-      url: '/traffic',
-    },
-  ],
+export const DEFAULT_PLANT: PlantProfile = {
+  name: '',
+  manager: '',
+  address: '',
+  city: '',
+  country: '',
+  phone: '',
+  email: '',
+  licenseNumber: '',
+  capacityM3: '',
+  mixerCount: '',
+  truckCount: '',
+  foundingYear: '',
+  notes: '',
 };
 
+export function rolePermissions(role: UserRole): Record<ModuleKey, boolean> {
+  const all = (): Record<ModuleKey, boolean> => ({
+    operations: true, production: true, workshop: true, mixing: true,
+    schedule: true, orders: true, evaluation: true, rnd: true,
+  });
+  const none = (): Record<ModuleKey, boolean> => ({
+    operations: false, production: false, workshop: false, mixing: false,
+    schedule: false, orders: false, evaluation: false, rnd: false,
+  });
+  switch (role) {
+    case 'owner':
+    case 'manager':
+      return all();
+    case 'operator':
+      return { ...none(), operations: true, production: true, schedule: true, orders: true };
+    case 'quality':
+      return { ...none(), mixing: true, evaluation: true };
+    case 'maintenance':
+      return { ...none(), workshop: true };
+    case 'viewer':
+      return none();
+  }
+}
+
+const DEFAULT_USERS: ManagedUser[] = [
+  {
+    username: 'admin',
+    password: 'admin123',
+    name: 'Plant Owner',
+    email: '',
+    phone: '',
+    plantName: 'Concrete Plant',
+    country: 'Other',
+    city: 'Other',
+    role: 'owner',
+    isActive: true,
+    permissions: rolePermissions('owner'),
+  },
+];
+
 interface AdminContextType {
-  content: AdminContent;
-  updateContent: (newContent: AdminContent) => void;
-  resetToDefault: () => void;
+  plant: PlantProfile;
+  savePlant: (p: PlantProfile) => void;
+  users: ManagedUser[];
+  addUser: (u: ManagedUser) => boolean;
+  updateUser: (u: ManagedUser) => void;
+  deleteUser: (username: string) => void;
+  canAccess: (module: string) => boolean;
+  canManageAdmin: () => boolean;
   isLoading: boolean;
 }
 
 const AdminContext = createContext<AdminContextType | undefined>(undefined);
 
-const STORAGE_KEY = 'fimtosoft_admin_content';
+const PLANT_KEY = 'concrete_admin_plant';
+const USERS_KEY = 'concrete_admin_users';
+
+function syncRegistered(user: ManagedUser, remove: boolean) {
+  try {
+    const saved = localStorage.getItem('registeredUsers');
+    const list: Array<Record<string, unknown>> = saved ? JSON.parse(saved) : [];
+    const filtered = list.filter(x => String(x.username).toLowerCase() !== user.username.toLowerCase());
+    if (!remove) {
+      filtered.push({
+        username: user.username,
+        password: user.password,
+        country: user.country || 'Other',
+        city: user.city || 'Other',
+        plantName: user.plantName || user.name || 'Concrete Plant',
+        phone: user.phone || '',
+        email: user.email || '',
+        status: user.isActive ? 'MANAGED' : 'INACTIVE',
+      });
+    }
+    localStorage.setItem('registeredUsers', JSON.stringify(filtered));
+  } catch {}
+}
 
 export function AdminProvider({ children }: { children: ReactNode }) {
-  const [content, setContent] = useState<AdminContent>(DEFAULT_CONTENT);
+  const { currentUser } = useAuth();
+  const [plant, setPlant] = useState<PlantProfile>(DEFAULT_PLANT);
+  const [users, setUsers] = useState<ManagedUser[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // تحميل البيانات من localStorage عند بدء التشغيل
   useEffect(() => {
     try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        // دمج مع البيانات الافتراضية لضمان وجود جميع الحقول
-        setContent({
-          ...DEFAULT_CONTENT,
-          ...parsed,
-          projects: parsed.projects || DEFAULT_CONTENT.projects,
-        });
+      const savedPlant = localStorage.getItem(PLANT_KEY);
+      if (savedPlant) setPlant({ ...DEFAULT_PLANT, ...JSON.parse(savedPlant) });
+    } catch {}
+    try {
+      const savedUsers = localStorage.getItem(USERS_KEY);
+      if (savedUsers) {
+        const parsed = JSON.parse(savedUsers) as ManagedUser[];
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setUsers(parsed);
+          setIsLoading(false);
+          return;
+        }
       }
-    } catch (error) {
-      console.warn('Failed to load admin content, using defaults');
+      setUsers(DEFAULT_USERS);
+      DEFAULT_USERS.forEach(u => syncRegistered(u, false));
+    } catch {
+      setUsers(DEFAULT_USERS);
+      DEFAULT_USERS.forEach(u => syncRegistered(u, false));
     }
     setIsLoading(false);
   }, []);
 
-  // حفظ البيانات عند تغييرها
-  const updateContent = (newContent: AdminContent) => {
-    setContent(newContent);
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(newContent));
-    } catch (error) {
-      console.warn('Failed to save admin content');
-    }
+  const savePlant = (p: PlantProfile) => {
+    setPlant(p);
+    try { localStorage.setItem(PLANT_KEY, JSON.stringify(p)); } catch {}
   };
 
-  const resetToDefault = () => {
-    setContent(DEFAULT_CONTENT);
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(DEFAULT_CONTENT));
-    } catch (error) {
-      console.warn('Failed to reset admin content');
-    }
+  const addUser = (u: ManagedUser): boolean => {
+    if (users.some(x => x.username.toLowerCase() === u.username.toLowerCase())) return false;
+    const next = [...users, u];
+    setUsers(next);
+    try { localStorage.setItem(USERS_KEY, JSON.stringify(next)); } catch {}
+    syncRegistered(u, false);
+    return true;
+  };
+
+  const updateUser = (u: ManagedUser) => {
+    const next = users.map(x => x.username.toLowerCase() === u.username.toLowerCase() ? u : x);
+    setUsers(next);
+    try { localStorage.setItem(USERS_KEY, JSON.stringify(next)); } catch {}
+    syncRegistered(u, false);
+  };
+
+  const deleteUser = (username: string) => {
+    const target = users.find(x => x.username.toLowerCase() === username.toLowerCase());
+    const next = users.filter(x => x.username.toLowerCase() !== username.toLowerCase());
+    setUsers(next);
+    try { localStorage.setItem(USERS_KEY, JSON.stringify(next)); } catch {}
+    if (target) syncRegistered(target, true);
+  };
+
+  const canAccess = (module: string): boolean => {
+    if (!currentUser) return false;
+    if (currentUser.status === 'GUEST') return true;
+    const norm = (module === 'operation' ? 'operations' : module) as ModuleKey;
+    const u = users.find(x => x.username.toLowerCase() === currentUser.username.toLowerCase());
+    if (!u) return true;
+    if (!u.isActive) return false;
+    if (u.role === 'owner' || u.role === 'manager') return true;
+    return !!u.permissions[norm];
+  };
+
+  const canManageAdmin = (): boolean => {
+    if (!currentUser) return false;
+    if (currentUser.status === 'GUEST') return true;
+    const u = users.find(x => x.username.toLowerCase() === currentUser.username.toLowerCase());
+    if (!u) return true;
+    return u.isActive && (u.role === 'owner' || u.role === 'manager');
   };
 
   return (
-    <AdminContext.Provider value={{ content, updateContent, resetToDefault, isLoading }}>
+    <AdminContext.Provider value={{ plant, savePlant, users, addUser, updateUser, deleteUser, canAccess, canManageAdmin, isLoading }}>
       {children}
     </AdminContext.Provider>
   );

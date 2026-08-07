@@ -116,9 +116,57 @@ export interface Translations {
   warehouse: string;
   warehouseInventory: string;
   workshopSubtitle: string;
+  adminPanelTitle: string;
+  adminPanelSubtitle: string;
+  tabOverview: string;
+  tabPlantData: string;
+  tabUsers: string;
+  plantName: string;
+  managerName: string;
+  address: string;
+  city: string;
+  country: string;
+  phone: string;
+  email: string;
+  licenseNumber: string;
+  capacityM3: string;
+  mixerCount: string;
+  truckCount: string;
+  foundingYear: string;
+  notes: string;
+  addUser: string;
+  editUser: string;
+  deleteUser: string;
+  username: string;
+  password: string;
+  fullName: string;
+  role: string;
+  ownerRole: string;
+  managerRole: string;
+  operatorRole: string;
+  qualityRole: string;
+  maintenanceRole: string;
+  viewerRole: string;
+  permissions: string;
+  module: string;
+  isActive: string;
+  noUsers: string;
+  userAdded: string;
+  userUpdated: string;
+  userDeleted: string;
+  plantSaved: string;
+  modOperations: string;
+  modProduction: string;
+  modWorkshop: string;
+  modMixing: string;
+  modSchedule: string;
+  modOrders: string;
+  modEvaluation: string;
+  modRnd: string;
+  saveSuccess: string;
 }
 
-export const enTranslations: Translations = {
+export const enTranslations: Partial<Translations> = {
   accessDenied: 'Access Denied',
   actions: 'Actions',
   addWarehouseItem: 'Add Warehouse Item',
@@ -234,10 +282,58 @@ export const enTranslations: Translations = {
   warehouse: 'Warehouse',
   warehouseInventory: 'Warehouse Inventory',
   workshopSubtitle: 'Fleet maintenance, fuel, spare parts and warehouse management',
+  adminPanelTitle: 'Plant Administration Panel',
+  adminPanelSubtitle: 'Manage factory data, users and permissions',
+  tabOverview: 'Overview',
+  tabPlantData: 'Factory Data',
+  tabUsers: 'Users & Permissions',
+  plantName: 'Factory Name',
+  managerName: 'Factory Manager',
+  address: 'Address',
+  city: 'City',
+  country: 'Country',
+  phone: 'Phone',
+  email: 'Email',
+  licenseNumber: 'License Number',
+  capacityM3: 'Production Capacity (m³/hour)',
+  mixerCount: 'Number of Mixers',
+  truckCount: 'Number of Mixer Trucks',
+  foundingYear: 'Founding Year',
+  notes: 'Notes',
+  addUser: 'Add User',
+  editUser: 'Edit User',
+  deleteUser: 'Delete User',
+  username: 'Username',
+  password: 'Password',
+  fullName: 'Full Name',
+  role: 'Role',
+  ownerRole: 'Owner',
+  managerRole: 'Manager',
+  operatorRole: 'Operator',
+  qualityRole: 'Quality',
+  maintenanceRole: 'Maintenance',
+  viewerRole: 'Viewer',
+  permissions: 'Permissions',
+  module: 'Module',
+  isActive: 'Active',
+  noUsers: 'No users yet',
+  userAdded: 'User added successfully',
+  userUpdated: 'User updated successfully',
+  userDeleted: 'User deleted',
+  plantSaved: 'Factory data saved successfully',
+  modOperations: 'Operations',
+  modProduction: 'Production',
+  modWorkshop: 'Workshop',
+  modMixing: 'Mixing & Quality',
+  modSchedule: 'Schedule',
+  modOrders: 'Orders',
+  modEvaluation: 'Evaluation',
+  modRnd: 'R&D',
+  saveSuccess: 'Saved successfully',
 };
 
 //AR
-export const arTranslations: Translations = {
+export const arTranslations: Partial<Translations> = {
   accessDenied: 'غير مصرح بالدخول',
   actions: 'إجراءات',
   addWarehouseItem: 'إضافة صنف للمخزن',
@@ -353,10 +449,58 @@ export const arTranslations: Translations = {
   warehouse: 'المخزن',
   warehouseInventory: 'مخزون المستودع',
   workshopSubtitle: 'إدارة صيانة الأسطول والوقود وقطع الغيار والمخزن',
+  adminPanelTitle: 'لوحة إدارة المصنع',
+  adminPanelSubtitle: 'إدارة بيانات المصنع والمستخدمين والصلاحيات',
+  tabOverview: 'نظرة عامة',
+  tabPlantData: 'بيانات المصنع',
+  tabUsers: 'المستخدمون والصلاحيات',
+  plantName: 'اسم المصنع',
+  managerName: 'مدير المصنع',
+  address: 'العنوان',
+  city: 'المدينة',
+  country: 'الدولة',
+  phone: 'الهاتف',
+  email: 'البريد الإلكتروني',
+  licenseNumber: 'رقم الترخيص',
+  capacityM3: 'طاقة الإنتاج (م³/ساعة)',
+  mixerCount: 'عدد الخلاطات',
+  truckCount: 'عدد سيارات الخلاطة',
+  foundingYear: 'سنة التأسيس',
+  notes: 'ملاحظات',
+  addUser: 'إضافة مستخدم',
+  editUser: 'تعديل مستخدم',
+  deleteUser: 'حذف مستخدم',
+  username: 'اسم المستخدم',
+  password: 'كلمة المرور',
+  fullName: 'الاسم الكامل',
+  role: 'الدور',
+  ownerRole: 'مالك',
+  managerRole: 'مدير',
+  operatorRole: 'مشغل',
+  qualityRole: 'جودة',
+  maintenanceRole: 'صيانة',
+  viewerRole: 'مشاهد',
+  permissions: 'الصلاحيات',
+  module: 'الوحدة',
+  isActive: 'نشط',
+  noUsers: 'لا يوجد مستخدمون بعد',
+  userAdded: 'تمت إضافة المستخدم بنجاح',
+  userUpdated: 'تم تحديث المستخدم بنجاح',
+  userDeleted: 'تم حذف المستخدم',
+  plantSaved: 'تم حفظ بيانات المصنع بنجاح',
+  modOperations: 'العمليات',
+  modProduction: 'الإنتاج',
+  modWorkshop: 'الورشة',
+  modMixing: 'الخلط والجودة',
+  modSchedule: 'الجدولة',
+  modOrders: 'الطلبات',
+  modEvaluation: 'التقييم',
+  modRnd: 'البحث والتطوير',
+  saveSuccess: 'تم الحفظ بنجاح',
 };
 
 //RU
-export const ruTranslations: Translations = {
+export const ruTranslations: Partial<Translations> = {
   accessDenied: 'Доступ запрещён',
   actions: 'Действия',
   addWarehouseItem: 'Добавить товар на склад',
@@ -475,7 +619,7 @@ export const ruTranslations: Translations = {
 };
 
 //DE
-export const deTranslations: Translations = {
+export const deTranslations: Partial<Translations> = {
   accessDenied: 'Zugriff verweigert',
   actions: 'Aktionen',
   addWarehouseItem: 'Lagerartikel hinzufügen',
@@ -594,7 +738,7 @@ export const deTranslations: Translations = {
 };
 
 //IT
-export const itTranslations: Translations = {
+export const itTranslations: Partial<Translations> = {
   accessDenied: 'Accesso negato',
   actions: 'Azioni',
   addWarehouseItem: 'Aggiungi articolo al magazzino',
@@ -713,7 +857,7 @@ export const itTranslations: Translations = {
 };
 
 //HI
-export const hiTranslations: Translations = {
+export const hiTranslations: Partial<Translations> = {
   accessDenied: 'प्रवेश अस्वीकृत',
   actions: 'कार्रवाइयाँ',
   addWarehouseItem: 'गोदाम वस्तु जोड़ें',
@@ -832,7 +976,7 @@ export const hiTranslations: Translations = {
 };
 
 //UR
-export const urTranslations: Translations = {
+export const urTranslations: Partial<Translations> = {
   accessDenied: 'رسائی سے انکار',
   actions: 'کارروائیاں',
   addWarehouseItem: 'گودام کی شے شامل کریں',
@@ -951,7 +1095,7 @@ export const urTranslations: Translations = {
 };
 
 //JA
-export const jaTranslations: Translations = {
+export const jaTranslations: Partial<Translations> = {
   accessDenied: 'アクセス拒否',
   actions: '操作',
   addWarehouseItem: '倉庫アイテムを追加',
@@ -1070,7 +1214,7 @@ export const jaTranslations: Translations = {
 };
 
 //ZH
-export const zhTranslations: Translations = {
+export const zhTranslations: Partial<Translations> = {
   accessDenied: '拒绝访问',
   actions: '操作',
   addWarehouseItem: '添加仓库物品',
@@ -1188,7 +1332,7 @@ export const zhTranslations: Translations = {
   workshopSubtitle: '车队维护、燃料、备件和仓库管理',
 };
 
-export const translations: Record<Lang, Translations> = {
+export const translations: Record<Lang, Partial<Translations>> = {
   en: enTranslations,
   ar: arTranslations,
   ru: ruTranslations,

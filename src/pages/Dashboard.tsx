@@ -1,6 +1,7 @@
 import { useState, useEffect, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth, type UserSession } from '../context/AuthContext';
+import { useAdmin } from '../context/AdminContext';
 import { loadTrips } from '../firebase/firestore';
 import QuickJump from '../components/QuickJump';
 import LangSelector from '../components/LangSelector';
@@ -71,6 +72,7 @@ function plantMins(i: string, e: string): number {
 export default function Dashboard() {
   const navigate = useNavigate();
   const { currentUser, login, register, verifyAndActivate, generatedCode, logout, loginAsGuest } = useAuth();
+  const { canAccess, canManageAdmin } = useAdmin();
   const [showLogin, setShowLogin] = useState(!currentUser);
   const [tab, setTab] = useState<'login' | 'register' | 'verify'>('login');
   const [error, setError] = useState('');
@@ -313,12 +315,14 @@ export default function Dashboard() {
               <span className="bg-emerald-500/15 text-emerald-500 text-xs px-3 py-1.5 rounded-lg font-bold border border-emerald-500/30">
                 🟢 {currentUser.plantName} (Free Trial)
               </span>
-              <button
-                onClick={() => navigate('/admin')}
-                className="bg-purple-500/20 text-purple-400 text-xs px-3 py-1.5 rounded-lg font-bold border border-purple-500/30 hover:bg-purple-500/30 transition-colors"
-              >
-                Admin Panel
-              </button>
+              {canManageAdmin() && (
+                <button
+                  onClick={() => navigate('/admin')}
+                  className="bg-purple-500/20 text-purple-400 text-xs px-3 py-1.5 rounded-lg font-bold border border-purple-500/30 hover:bg-purple-500/30 transition-colors"
+                >
+                  Admin Panel
+                </button>
+              )}
               <button
                 onClick={() => { logout(); navigate('/'); }}
                 className="bg-red-500/20 text-red-400 text-xs px-3 py-1.5 rounded-lg font-bold border border-red-500/30 hover:bg-red-500/30 transition-colors"
@@ -339,7 +343,7 @@ export default function Dashboard() {
         <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr_280px] gap-8 max-w-[1100px] w-full items-center mb-8">
           {/* Left modules */}
           <div className="flex flex-col gap-6">
-            {LEFT_MODULES.map(m => (
+            {LEFT_MODULES.filter(m => canAccess(m.module)).map(m => (
               <button key={m.module} onClick={() => go(m.module)} className={`${m.color} py-6 px-4 rounded-lg text-white font-bold text-sm text-center cursor-pointer transition-all duration-200 hover:-translate-y-1 shadow-lg hover:shadow-xl min-h-[80px] flex items-center justify-center`}>
                 {m.label}
               </button>
@@ -348,9 +352,11 @@ export default function Dashboard() {
 
           {/* Center hero */}
           <div className="flex flex-col gap-6 justify-center">
-            <button onClick={() => go('schedule')} className="bg-cyan-500 hover:bg-cyan-600 py-6 px-4 rounded-lg text-white font-bold text-sm text-center cursor-pointer transition-all duration-200 hover:-translate-y-1 shadow-lg hover:shadow-xl min-h-[60px] flex items-center justify-center">
-              📅 Smart Daily Pouring Schedule (جدول الصب الذكي)
-            </button>
+            {canAccess('schedule') && (
+              <button onClick={() => go('schedule')} className="bg-cyan-500 hover:bg-cyan-600 py-6 px-4 rounded-lg text-white font-bold text-sm text-center cursor-pointer transition-all duration-200 hover:-translate-y-1 shadow-lg hover:shadow-xl min-h-[60px] flex items-center justify-center">
+                📅 Smart Daily Pouring Schedule (جدول الصب الذكي)
+              </button>
+            )}
             <div className="bg-gradient-to-br from-blue-900 to-[#0f172a] border-2 border-blue-600 rounded-xl p-10 text-center shadow-2xl min-h-[220px] flex flex-col gap-4 justify-center">
               <h2 className="text-xl lg:text-2xl font-extrabold text-white leading-relaxed">
                 Welcome to the<br />Technical Management Program<br />for Concrete Plants
@@ -363,7 +369,7 @@ export default function Dashboard() {
 
           {/* Right modules */}
           <div className="flex flex-col gap-6">
-            {RIGHT_MODULES.map(m => (
+            {RIGHT_MODULES.filter(m => canAccess(m.module)).map(m => (
               <button key={m.module} onClick={() => go(m.module)} className={`${m.color} py-6 px-4 rounded-lg text-white font-bold text-sm text-center cursor-pointer transition-all duration-200 hover:-translate-y-1 shadow-lg hover:shadow-xl min-h-[80px] flex items-center justify-center`}>
                 {m.label}
               </button>
