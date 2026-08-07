@@ -54,8 +54,12 @@ export default function FimtoFooter() {
         <div>
           <h4 className="text-white font-bold text-sm uppercase tracking-wider mb-4">Our Locations</h4>
           <ul className="space-y-2 text-sm text-slate-400">
-            <li>📍 Cairo, Egypt</li>
-            <li>📍 Riyadh, Saudi Arabia</li>
+            <li>
+              <span className="inline-block w-6 text-center" title="Egypt">🇪🇬</span> Cairo, Egypt
+            </li>
+            <li>
+              <span className="inline-block w-6 text-center" title="Saudi Arabia">🇸🇦</span> Riyadh, Saudi Arabia
+            </li>
           </ul>
         </div>
       </div>
