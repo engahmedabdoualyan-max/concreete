@@ -12,6 +12,9 @@ import Production from './pages/Production';
 import Schedule from './pages/Schedule';
 import Orders from './pages/Orders';
 import ResearchDevelopment from './pages/ResearchDevelopment';
+import Governance from './pages/Governance';
+import Finance from './pages/Finance';
+import MultiPlant from './pages/MultiPlant';
 import LoginRegister from './components/LoginRegister';
 import FloatingActions from './components/FloatingActions';
 import FimtoFooter from './components/FimtoFooter';
@@ -38,6 +41,9 @@ export default function App() {
           <Route path="/schedule" element={<Schedule />} />
           <Route path="/orders" element={<Orders />} />
           <Route path="/rnd" element={<ResearchDevelopment />} />
+          <Route path="/governance" element={<Governance />} />
+          <Route path="/finance" element={<Finance />} />
+          <Route path="/multiplant" element={<MultiPlant />} />
         </Routes>
         <FloatingActions />
         <FimtoFooter />

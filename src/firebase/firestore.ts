@@ -9,6 +9,7 @@ export const DEFAULT_QUOTA_MB = 300;
 export const USER_DATA_COLLECTIONS = [
   'trips', 'oeeLogs', 'recipes', 'calibrationLogs', 'inventory', 'deliveries',
   'productionRuns', 'qcRecords', 'assets', 'workshopConfig', 'customers', 'plantProfile',
+  'weighbridgeRecords', 'returnedConcrete', 'payments', 'purchaseOrders', 'rawStock',
 ];
 
 function userDocRef(userId: string) {
@@ -220,4 +221,92 @@ export async function savePlantProfile(userId: string, profile: any) {
 export async function loadPlantProfile(userId: string) {
   const snap = await getDoc(userDoc(userId, 'plantProfile'));
   return snap.exists() ? snap.data()?.data ?? { name: '', logo: '' } : { name: '', logo: '' };
+}
+
+// ====================== Weighbridge (Governance) ======================
+export async function saveWeighbridgeRecords(userId: string, records: any[]) {
+  await saveUserData(userId, 'weighbridgeRecords', records);
+}
+export async function loadWeighbridgeRecords(userId: string) {
+  return await loadUserData(userId, 'weighbridgeRecords');
+}
+
+// ====================== Returned Concrete (Governance) ======================
+export async function saveReturns(userId: string, records: any[]) {
+  await saveUserData(userId, 'returnedConcrete', records);
+}
+export async function loadReturns(userId: string) {
+  return await loadUserData(userId, 'returnedConcrete');
+}
+
+// ====================== Payments (Finance) ======================
+export async function savePayments(userId: string, records: any[]) {
+  await saveUserData(userId, 'payments', records);
+}
+export async function loadPayments(userId: string) {
+  return await loadUserData(userId, 'payments');
+}
+
+// ====================== Purchase Orders (Finance) ======================
+export async function savePurchaseOrders(userId: string, records: any[]) {
+  await saveUserData(userId, 'purchaseOrders', records);
+}
+export async function loadPurchaseOrders(userId: string) {
+  return await loadUserData(userId, 'purchaseOrders');
+}
+
+// ====================== Raw Material Stock (Reorder) ======================
+export async function saveRawStock(userId: string, stock: any) {
+  await saveUserData(userId, 'rawStock', stock);
+}
+export async function loadRawStock(userId: string) {
+  return await loadUserData(userId, 'rawStock');
+}
+
+// ====================== Orders (Orders page) ======================
+export async function saveOrders(userId: string, records: any[]) {
+  await saveUserData(userId, 'orders', records);
+}
+export async function loadOrders(userId: string) {
+  return await loadUserData(userId, 'orders');
+}
+
+// ====================== Multi-Plant (owner) ======================
+export interface PlantSummary {
+  username: string;
+  plantName: string;
+  country: string;
+  city: string;
+  trips: number;
+  totalVolume: number;
+  inventory: Record<string, number>;
+  qcCount: number;
+  orders: any[];
+}
+
+export async function getAllPlantsSummary(): Promise<PlantSummary[]> {
+  const usersSnap = await getDocs(collection(db, 'users'));
+  const out: PlantSummary[] = [];
+  for (const u of usersSnap.docs) {
+    const data = u.data();
+    const username = String(u.id);
+    const [trips, inventory, qc, orders] = await Promise.all([
+      loadUserData(username, 'trips'),
+      loadUserData(username, 'inventory'),
+      loadUserData(username, 'qcRecords'),
+      loadUserData(username, 'orders'),
+    ]);
+    out.push({
+      username,
+      plantName: data?.plantName || data?.name || username,
+      country: data?.country || '—',
+      city: data?.city || '—',
+      trips: Array.isArray(trips) ? trips.length : 0,
+      totalVolume: Array.isArray(trips) ? trips.reduce((s: number, t: any) => s + (Number(t.qty) || 0), 0) : 0,
+      inventory: inventory && typeof inventory === 'object' ? inventory : {},
+      qcCount: Array.isArray(qc) ? qc.length : 0,
+      orders: Array.isArray(orders) ? orders : [],
+    });
+  }
+  return out;
 }

@@ -1,0 +1,233 @@
+import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
+import { loadWeighbridgeRecords, saveWeighbridgeRecords, loadReturns, saveReturns } from '../firebase/firestore';
+import QuickJump from '../components/QuickJump';
+import LangSelector from '../components/LangSelector';
+import DatePicker from '../components/DatePicker';
+
+interface WeighRecord {
+  id: number; date: string; time: string; plate: string; supplier: string;
+  material: string; gross: number; tare: number; net: number; expected: number;
+  notes: string; status: 'ok' | 'mismatch' | 'pending';
+}
+interface ReturnRecord {
+  id: number; date: string; truck: string; site: string; qty: number; reason: string;
+  disposition: 'recycle' | 'blocks' | 'dispose'; blockCode: string; blocksProduced: number; note: string;
+}
+
+const TOLERANCE_PCT = 3;
+const BLOCKS_PER_M3 = 80;
+
+export default function Governance() {
+  const { currentUser } = useAuth();
+  const [tab, setTab] = useState<'weigh' | 'returns'>('weigh');
+  const [weigh, setWeigh] = useState<WeighRecord[]>([]);
+  const [returns, setReturns] = useState<ReturnRecord[]>([]);
+  const [loaded, setLoaded] = useState(false);
+  const [wForm, setWForm] = useState({
+    date: new Date().toISOString().split('T')[0], time: '', plate: '', supplier: '',
+    material: 'cement', gross: '', tare: '', expected: '', notes: '',
+  });
+  const [rForm, setRForm] = useState({
+    date: new Date().toISOString().split('T')[0], truck: '', site: '', qty: '', reason: 'excess',
+    disposition: 'recycle' as 'recycle' | 'blocks' | 'dispose', blockCode: 'BLK-20x20x40', note: '',
+  });
+
+  useEffect(() => {
+    if (!currentUser) return;
+    Promise.all([loadWeighbridgeRecords(currentUser.username), loadReturns(currentUser.username)])
+      .then(([w, r]) => {
+        if (w?.length) setWeigh(w); else { const s = localStorage.getItem('plantWeigh'); if (s) setWeigh(JSON.parse(s)); }
+        if (r?.length) setReturns(r); else { const s = localStorage.getItem('plantReturns'); if (s) setReturns(JSON.parse(s)); }
+        setLoaded(true);
+      })
+      .catch(() => setLoaded(true));
+  }, [currentUser?.username]);
+
+  useEffect(() => { if (!loaded || !currentUser) return; localStorage.setItem('plantWeigh', JSON.stringify(weigh)); saveWeighbridgeRecords(currentUser.username, weigh).catch(() => {}); }, [weigh, loaded]);
+  useEffect(() => { if (!loaded || !currentUser) return; localStorage.setItem('plantReturns', JSON.stringify(returns)); saveReturns(currentUser.username, returns).catch(() => {}); }, [returns, loaded]);
+
+  const addWeigh = (e: React.FormEvent) => {
+    e.preventDefault();
+    const gross = Number(wForm.gross), tare = Number(wForm.tare);
+    const net = Math.max(0, gross - tare);
+    const expected = Number(wForm.expected) || 0;
+    const tolerance = expected * (TOLERANCE_PCT / 100);
+    const status: WeighRecord['status'] = expected === 0 ? 'pending' : (Math.abs(net - expected) <= tolerance ? 'ok' : 'mismatch');
+    setWeigh(prev => [...prev, { id: Date.now(), ...wForm, gross, tare, net, expected, status }]);
+    setWForm({ ...wForm, plate: '', supplier: '', gross: '', tare: '', expected: '', notes: '', time: '' });
+  };
+
+  const addReturn = (e: React.FormEvent) => {
+    e.preventDefault();
+    const qty = Number(rForm.qty) || 0;
+    const blocksProduced = rForm.disposition === 'blocks' ? Math.round(qty * BLOCKS_PER_M3) : 0;
+    setReturns(prev => [...prev, { id: Date.now(), ...rForm, qty, blocksProduced }]);
+    setRForm({ ...rForm, truck: '', site: '', qty: '', note: '' });
+  };
+
+  if (!currentUser) {
+    return (
+      <div className="min-h-screen bg-[#0f172a] flex items-center justify-center">
+        <div className="text-center"><p className="text-red-400 text-xl mb-4">🔒 Access Denied</p><Link to="/" className="text-blue-400 underline">Back to Login</Link></div>
+      </div>
+    );
+  }
+
+  const flagged = weigh.filter(w => w.status === 'mismatch').length;
+  const totalNet = weigh.reduce((s, w) => s + (w.net || 0), 0);
+  const totalReturned = returns.reduce((s, r) => s + r.qty, 0);
+  const recycledPct = returns.length ? ((returns.filter(r => r.disposition !== 'dispose').reduce((s, r) => s + r.qty, 0) / totalReturned) * 100 || 0) : 0;
+  const totalBlocks = returns.reduce((s, r) => s + (r.blocksProduced || 0), 0);
+
+  return (
+    <div className="min-h-screen bg-[#0f172a] text-[#f1f5f9]">
+      <div className="bg-gradient-to-br from-[#0f1729] to-[#1a2332] border-b border-[#2a3a5c] px-6 py-2.5 flex flex-wrap justify-between items-center gap-x-3 gap-y-1.5 sticky top-0 z-50 shadow-lg">
+        <div className="flex flex-wrap items-center gap-3">
+          <Link to="/" className="text-slate-400 text-xs border border-[#2a3a5c] px-2.5 py-1 rounded hover:text-white transition">← Dashboard</Link>
+          <QuickJump /> <LangSelector />
+          <h1 className="text-sm font-bold text-white">🛡️ Governance: Weighbridge & Returns</h1>
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="bg-emerald-500/15 text-emerald-500 text-xs px-3 py-1.5 rounded-lg font-bold border border-emerald-500/30">🟢 {currentUser.plantName}</span>
+        </div>
+      </div>
+
+      <div className="max-w-6xl mx-auto p-6">
+        <div className="grid grid-cols-2 gap-2 p-1 mb-5 bg-[#1e293b] rounded-xl border border-[#334155] max-w-md">
+          <button onClick={() => setTab('weigh')} className={`py-2 px-4 rounded-lg font-bold text-sm ${tab === 'weigh' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'}`}>⚖️ Weighbridge</button>
+          <button onClick={() => setTab('returns')} className={`py-2 px-4 rounded-lg font-bold text-sm ${tab === 'returns' ? 'bg-emerald-600 text-white' : 'text-slate-400 hover:text-white'}`}>♻️ Returned Concrete</button>
+        </div>
+
+        {tab === 'weigh' && (
+          <div className="grid grid-cols-1 lg:grid-cols-[380px_1fr] gap-6">
+            <div className="bg-[#1e293b] border border-[#334155] rounded-xl p-6">
+              <h3 className="text-lg font-bold text-white mb-1">⚖️ Gate Weighbridge Entry</h3>
+              <p className="text-xs text-slate-400 mb-4">Auto-records gross/tare and net weight from supplier trucks. Mismatch vs expected is flagged to prevent supplier fraud.</p>
+              <form onSubmit={addWeigh} className="space-y-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <DatePicker value={wForm.date} onChange={v => setWForm({ ...wForm, date: v })} label="Date" />
+                  <div><label className="text-xs text-slate-400 font-semibold">Time</label><input type="time" value={wForm.time} onChange={e => setWForm({ ...wForm, time: e.target.value })} className="w-full bg-[#334155] border border-[#475569] rounded-lg p-2.5 text-white text-sm [color-scheme:dark]" /></div>
+                </div>
+                <div><label className="text-xs text-slate-400 font-semibold">Vehicle Plate</label><input value={wForm.plate} onChange={e => setWForm({ ...wForm, plate: e.target.value })} placeholder="ABC 1234" className="w-full bg-[#334155] border border-[#475569] rounded-lg p-2.5 text-white text-sm" required /></div>
+                <div><label className="text-xs text-slate-400 font-semibold">Supplier</label><input value={wForm.supplier} onChange={e => setWForm({ ...wForm, supplier: e.target.value })} placeholder="Supplier name" className="w-full bg-[#334155] border border-[#475569] rounded-lg p-2.5 text-white text-sm" required /></div>
+                <div><label className="text-xs text-slate-400 font-semibold">Material</label>
+                  <select value={wForm.material} onChange={e => setWForm({ ...wForm, material: e.target.value })} className="w-full bg-[#334155] border border-[#475569] rounded-lg p-2.5 text-white text-sm">
+                    <option value="cement">Cement</option><option value="sand">Sand</option><option value="gravel">Gravel / Aggregate</option><option value="admixture">Admixture</option>
+                  </select>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  <div><label className="text-xs text-slate-400 font-semibold">Gross (kg)</label><input type="number" value={wForm.gross} onChange={e => setWForm({ ...wForm, gross: e.target.value })} className="w-full bg-[#334155] border border-[#475569] rounded-lg p-2 text-white text-sm" required /></div>
+                  <div><label className="text-xs text-slate-400 font-semibold">Tare (kg)</label><input type="number" value={wForm.tare} onChange={e => setWForm({ ...wForm, tare: e.target.value })} className="w-full bg-[#334155] border border-[#475569] rounded-lg p-2 text-white text-sm" required /></div>
+                  <div><label className="text-xs text-slate-400 font-semibold">Expected (kg)</label><input type="number" value={wForm.expected} onChange={e => setWForm({ ...wForm, expected: e.target.value })} className="w-full bg-[#334155] border border-[#475569] rounded-lg p-2 text-white text-sm" /></div>
+                </div>
+                <div><label className="text-xs text-slate-400 font-semibold">Notes</label><input value={wForm.notes} onChange={e => setWForm({ ...wForm, notes: e.target.value })} className="w-full bg-[#334155] border border-[#475569] rounded-lg p-2.5 text-white text-sm" /></div>
+                <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg">⚖️ Record Weighing</button>
+              </form>
+            </div>
+            <div>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+                <div className="bg-[#1e293b] rounded-xl p-4 border border-[#334155]"><p className="text-xs text-slate-400">Entries</p><p className="text-xl font-bold text-white">{weigh.length}</p></div>
+                <div className="bg-[#1e293b] rounded-xl p-4 border border-[#334155]"><p className="text-xs text-slate-400">Net received (t)</p><p className="text-xl font-bold text-blue-400">{(totalNet / 1000).toFixed(1)}</p></div>
+                <div className={`bg-[#1e293b] rounded-xl p-4 border ${flagged ? 'border-red-500/50' : 'border-[#334155]'}`}><p className="text-xs text-slate-400">Flagged mismatches</p><p className={`text-xl font-bold ${flagged ? 'text-red-400' : 'text-white'}`}>{flagged}</p></div>
+                <div className="bg-[#1e293b] rounded-xl p-4 border border-[#334155]"><p className="text-xs text-slate-400">Tolerance</p><p className="text-xl font-bold text-yellow-400">±{TOLERANCE_PCT}%</p></div>
+              </div>
+              <div className="bg-[#1e293b] border border-[#334155] rounded-xl overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs text-slate-300">
+                    <thead className="bg-[#334155] text-[10px]"><tr><th className="p-2">Date/Time</th><th className="p-2">Plate</th><th className="p-2">Supplier</th><th className="p-2">Material</th><th className="p-2">Gross</th><th className="p-2">Tare</th><th className="p-2">Net</th><th className="p-2">Status</th></tr></thead>
+                    <tbody>
+                      {weigh.map(w => {
+                        const diff = w.expected > 0 ? ((w.net - w.expected) / w.expected) * 100 : 0;
+                        return (
+                          <tr key={w.id} className="border-b border-[#334155]/30">
+                            <td className="p-2">{w.date} {w.time || ''}</td><td className="p-2 font-bold">{w.plate}</td><td className="p-2">{w.supplier}</td><td className="p-2">{w.material}</td>
+                            <td className="p-2">{(w.gross / 1000).toFixed(2)}t</td><td className="p-2">{(w.tare / 1000).toFixed(2)}t</td>
+                            <td className="p-2 font-bold text-blue-400">{(w.net / 1000).toFixed(2)}t</td>
+                            <td className="p-2">
+                              {w.status === 'ok' && <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-400">✓ OK ({diff.toFixed(1)}%)</span>}
+                              {w.status === 'mismatch' && <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-500/20 text-red-400">🚨 Diff {diff.toFixed(1)}%</span>}
+                              {w.status === 'pending' && <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-yellow-500/20 text-yellow-400">⏳ No expected</span>}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {tab === 'returns' && (
+          <div className="grid grid-cols-1 lg:grid-cols-[380px_1fr] gap-6">
+            <div className="bg-[#1e293b] border border-[#334155] rounded-xl p-6">
+              <h3 className="text-lg font-bold text-white mb-1">♻️ Returned Concrete Entry</h3>
+              <p className="text-xs text-slate-400 mb-4">Record surplus concrete returned from sites. Recycle it into the batching process or convert into interlock blocks — linked to inventory instead of unaccounted waste.</p>
+              <form onSubmit={addReturn} className="space-y-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <DatePicker value={rForm.date} onChange={v => setRForm({ ...rForm, date: v })} label="Date" />
+                  <div><label className="text-xs text-slate-400 font-semibold">Truck</label><input value={rForm.truck} onChange={e => setRForm({ ...rForm, truck: e.target.value })} placeholder="m05" className="w-full bg-[#334155] border border-[#475569] rounded-lg p-2.5 text-white text-sm" required /></div>
+                </div>
+                <div><label className="text-xs text-slate-400 font-semibold">Site</label><input value={rForm.site} onChange={e => setRForm({ ...rForm, site: e.target.value })} placeholder="Project site" className="w-full bg-[#334155] border border-[#475569] rounded-lg p-2.5 text-white text-sm" required /></div>
+                <div><label className="text-xs text-slate-400 font-semibold">Quantity returned (m³)</label><input type="number" step="0.5" value={rForm.qty} onChange={e => setRForm({ ...rForm, qty: e.target.value })} className="w-full bg-[#334155] border border-[#475569] rounded-lg p-2.5 text-white text-sm" required /></div>
+                <div><label className="text-xs text-slate-400 font-semibold">Reason</label>
+                  <select value={rForm.reason} onChange={e => setRForm({ ...rForm, reason: e.target.value })} className="w-full bg-[#334155] border border-[#475569] rounded-lg p-2.5 text-white text-sm">
+                    <option value="excess">Excess quantity</option><option value="cancel">Order cancelled</option><option value="reject">Rejected at site</option><option value="other">Other</option>
+                  </select>
+                </div>
+                <div><label className="text-xs text-slate-400 font-semibold">Disposition</label>
+                  <select value={rForm.disposition} onChange={e => setRForm({ ...rForm, disposition: e.target.value as any })} className="w-full bg-[#334155] border border-[#475569] rounded-lg p-2.5 text-white text-sm">
+                    <option value="recycle">🔄 Recycle into batching</option>
+                    <option value="blocks">🧱 Convert to interlock blocks</option>
+                    <option value="dispose">🗑️ Dispose (loss)</option>
+                  </select>
+                </div>
+                {rForm.disposition === 'blocks' && (
+                  <div><label className="text-xs text-slate-400 font-semibold">Block product (auto-approx {BLOCKS_PER_M3} blocks/m³)</label>
+                    <select value={rForm.blockCode} onChange={e => setRForm({ ...rForm, blockCode: e.target.value })} className="w-full bg-[#334155] border border-[#475569] rounded-lg p-2.5 text-white text-sm">
+                      <option value="BLK-20x20x40">BLK-20x20x40</option><option value="BLK-15x20x40">BLK-15x20x40</option>
+                    </select>
+                  </div>
+                )}
+                <div><label className="text-xs text-slate-400 font-semibold">Note</label><input value={rForm.note} onChange={e => setRForm({ ...rForm, note: e.target.value })} className="w-full bg-[#334155] border border-[#475569] rounded-lg p-2.5 text-white text-sm" /></div>
+                <button type="submit" className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-lg">♻️ Record Return</button>
+              </form>
+            </div>
+            <div>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+                <div className="bg-[#1e293b] rounded-xl p-4 border border-[#334155]"><p className="text-xs text-slate-400">Returned (m³)</p><p className="text-xl font-bold text-white">{totalReturned.toFixed(1)}</p></div>
+                <div className="bg-[#1e293b] rounded-xl p-4 border border-[#334155]"><p className="text-xs text-slate-400">Recovered %</p><p className="text-xl font-bold text-emerald-400">{recycledPct.toFixed(0)}%</p></div>
+                <div className="bg-[#1e293b] rounded-xl p-4 border border-[#334155]"><p className="text-xs text-slate-400">Blocks produced</p><p className="text-xl font-bold text-orange-400">{totalBlocks}</p></div>
+                <div className="bg-[#1e293b] rounded-xl p-4 border border-[#334155]"><p className="text-xs text-slate-400">Wasted (m³)</p><p className="text-xl font-bold text-red-400">{returns.filter(r => r.disposition === 'dispose').reduce((s, r) => s + r.qty, 0).toFixed(1)}</p></div>
+              </div>
+              <div className="bg-[#1e293b] border border-[#334155] rounded-xl overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs text-slate-300">
+                    <thead className="bg-[#334155] text-[10px]"><tr><th className="p-2">Date</th><th className="p-2">Truck</th><th className="p-2">Site</th><th className="p-2">Qty</th><th className="p-2">Reason</th><th className="p-2">Disposition</th><th className="p-2">Blocks</th></tr></thead>
+                    <tbody>
+                      {returns.map(r => (
+                        <tr key={r.id} className="border-b border-[#334155]/30">
+                          <td className="p-2">{r.date}</td><td className="p-2 font-bold">{r.truck}</td><td className="p-2">{r.site}</td>
+                          <td className="p-2 font-bold text-blue-400">{r.qty}</td><td className="p-2">{r.reason}</td>
+                          <td className="p-2">
+                            {r.disposition === 'recycle' && <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-400">🔄 Recycle</span>}
+                            {r.disposition === 'blocks' && <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-orange-500/20 text-orange-400">🧱 Blocks</span>}
+                            {r.disposition === 'dispose' && <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-500/20 text-red-400">🗑️ Dispose</span>}
+                          </td>
+                          <td className="p-2">{r.blocksProduced ? `${r.blocksProduced} ${r.blockCode}` : '—'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

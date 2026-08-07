@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { loadOrders, saveOrders } from '../firebase/firestore';
 import QuickJump from '../components/QuickJump';
 import LangSelector from '../components/LangSelector';
 import DatePicker from '../components/DatePicker';
@@ -79,20 +80,31 @@ export default function Orders() {
     notes: '',
   });
 
-  // Load orders from localStorage
+  // Load orders from localStorage + Firestore
   useEffect(() => {
-    const saved = localStorage.getItem(ORDERS_KEY);
-    if (saved) {
-      setOrders(JSON.parse(saved));
-    }
-  }, []);
+    if (!currentUser) return;
+    loadOrders(currentUser.username)
+      .then(data => {
+        if (data && Array.isArray(data) && data.length > 0) setOrders(data);
+        else {
+          const saved = localStorage.getItem(ORDERS_KEY);
+          if (saved) setOrders(JSON.parse(saved));
+        }
+      })
+      .catch(() => {
+        const saved = localStorage.getItem(ORDERS_KEY);
+        if (saved) setOrders(JSON.parse(saved));
+      });
+  }, [currentUser?.username]);
 
-  // Save orders to localStorage
+  // Save orders to localStorage + Firestore
   useEffect(() => {
+    if (!currentUser) return;
     if (orders.length > 0 || localStorage.getItem(ORDERS_KEY)) {
       localStorage.setItem(ORDERS_KEY, JSON.stringify(orders));
     }
-  }, [orders]);
+    if (orders.length > 0) saveOrders(currentUser.username, orders).catch(() => {});
+  }, [orders, currentUser?.username]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;

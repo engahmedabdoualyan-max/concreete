@@ -11,6 +11,9 @@ const PAGES = [
   { path: '/schedule', label: '📅 Pouring Schedule' },
   { path: '/orders', label: '📦 Orders' },
   { path: '/rnd', label: '🔬 R&D' },
+  { path: '/governance', label: '🛡️ Governance: Weighbridge & Returns' },
+  { path: '/finance', label: '💰 Finance: Payments & Reorder' },
+  { path: '/multiplant', label: '🏭 Multi-Plant Command Center' },
 ];
 
 export default function QuickJump() {

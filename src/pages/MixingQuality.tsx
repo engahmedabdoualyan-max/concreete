@@ -15,7 +15,7 @@ interface CalibrationCert {
 interface QCRecord { id: number; date: string; truck: string; design: string; slump: number; break7d: number; break28d: number; blade: string; bonNo: string; customer: string; site: string; mixDesignCode: string; }
 interface CompensatedResult { base: Recipe; water: number; admixture: number; temp: number; humidity: number; note: string; }
 
-type Tab = 'recipes' | 'calibration' | 'mixDesigner' | 'quality';
+type Tab = 'recipes' | 'calibration' | 'mixDesigner' | 'quality' | 'aiPredictor';
 
 const DEF_RECIPES: Recipe[] = [
   { code: 'C25', cement: 320, sand: 780, gravel: 1080, water: 160, admixture: 4.8 },
@@ -47,6 +47,10 @@ export default function MixingQuality() {
   });
   const [designerResult, setDesignerResult] = useState<CompensatedResult | null>(null);
   const [qcForm, setQcForm] = useState({ truck: 'm01', design: 'C30', slump: '', break7d: '', break28d: '', blade: 'Optimal', bonNo: '', customer: '', site: '', mixDesignCode: '' });
+  const [aiForm, setAiForm] = useState({ design: 'C30', slump: '12', break7d: '22' });
+  const [aiResult, setAiResult] = useState<{ predicted: number; target: number; margin: number; ok: boolean; confidence: number } | null>(null);
+  const [aiR2, setAiR2] = useState('—');
+  const [aiTrainSamples, setAiTrainSamples] = useState(0);
   
   // Filters
   const [fromDate, setFromDate] = useState('');
@@ -218,6 +222,74 @@ export default function MixingQuality() {
   const passed28d = filteredQC.filter(r => { const target = parseInt(r.design.replace('C', '')); return r.break28d >= target; }).length;
   const count = filteredQC.length || 1;
 
+  // ===== AI: multi-feature regression (design, slump, 7d) -> 28d =====
+  const solveLeastSquares = (rows: number[][], y: number[]): number[] | null => {
+    const n = rows[0].length;
+    const A = Array.from({ length: n }, () => new Array(n).fill(0));
+    const b = new Array(n).fill(0);
+    for (let i = 0; i < rows.length; i++) {
+      for (let j = 0; j < n; j++) {
+        for (let k = 0; k < n; k++) A[j][k] += rows[i][j] * rows[i][k];
+        b[j] += rows[i][j] * y[i];
+      }
+    }
+    for (let i = 0; i < n; i++) A[i].push(b[i]);
+    for (let col = 0; col < n; col++) {
+      let piv = col;
+      for (let r = col + 1; r < n; r++) if (Math.abs(A[r][col]) > Math.abs(A[piv][col])) piv = r;
+      [A[col], A[piv]] = [A[piv], A[col]];
+      if (Math.abs(A[col][col]) < 1e-10) return null;
+      for (let r = 0; r < n; r++) {
+        if (r === col) continue;
+        const f = A[r][col] / A[col][col];
+        for (let c = col; c <= n; c++) A[r][c] -= f * A[col][c];
+      }
+    }
+    return A.map((row, i) => row[n] / A[i][i]);
+  };
+
+  const trainModel = () => {
+    const samples = qcRecords.filter(r => r.break28d > 0 && r.break7d > 0 && r.slump > 0);
+    if (samples.length < 3) return null;
+    const rows = samples.map(r => [1, parseInt(r.design.replace('C', '')), r.slump, r.break7d]);
+    const ys = samples.map(r => r.break28d);
+    const beta = solveLeastSquares(rows, ys);
+    if (!beta) return null;
+    const mean = ys.reduce((s, v) => s + v, 0) / ys.length;
+    let ssTot = 0, ssRes = 0;
+    rows.forEach((row, i) => {
+      const pred = row.reduce((s, v, j) => s + v * beta[j], 0);
+      ssTot += (ys[i] - mean) ** 2;
+      ssRes += (ys[i] - pred) ** 2;
+    });
+    const r2 = ssTot > 0 ? 1 - ssRes / ssTot : 0;
+    return { beta, r2, samples: samples.length };
+  };
+
+  useEffect(() => {
+    const m = trainModel();
+    setAiTrainSamples(m ? m.samples : qcRecords.filter(r => r.break28d > 0 && r.break7d > 0 && r.slump > 0).length);
+    setAiR2(m ? Math.max(0, m.r2).toFixed(2) : '—');
+  }, [qcRecords]);
+
+  const predictStrength = (e: React.FormEvent) => {
+    e.preventDefault();
+    const m = trainModel();
+    const target = parseInt(aiForm.design.replace('C', ''));
+    if (!m) { setAiResult(null); return; }
+    const [b0, b1, b2, b3] = m.beta;
+    const predicted = b0 + b1 * target + b2 * Number(aiForm.slump) + b3 * Number(aiForm.break7d);
+    const margin = predicted - target;
+    setAiResult({
+      predicted: Math.max(0, predicted),
+      target,
+      margin,
+      ok: predicted >= target,
+      confidence: Math.max(0, m.r2),
+    });
+  };
+
+
   const exportRecipesCSV = () => {
     let csv = 'Code,Cement,Sand,Gravel,Water,Admixture\n';
     recipes.forEach(r => { csv += `${r.code},${r.cement},${r.sand},${r.gravel},${r.water},${r.admixture}\n`; });
@@ -252,6 +324,7 @@ export default function MixingQuality() {
           { id: 'calibration', label: '⚖️ Calibration', icon: '⚖️' },
           { id: 'mixDesigner', label: '🧮 Mix Designer', icon: '🧮' },
           { id: 'quality', label: '🔬 Quality Control', icon: '🔬' },
+          { id: 'aiPredictor', label: '🤖 AI Predictor', icon: '🤖' },
         ].map(t => (
           <button key={t.id} onClick={() => setTab(t.id as Tab)} className={`py-2 px-4 rounded-lg font-bold text-sm transition ${tab === t.id ? 'bg-blue-600 text-white' : 'bg-[#1e293b] text-slate-400 border border-[#334155] hover:bg-blue-600/30'}`}>
             {t.label}
@@ -456,6 +529,68 @@ export default function MixingQuality() {
                   </tbody>
                 </table>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* AI Predictor Tab */}
+        {tab === 'aiPredictor' && (
+          <div className="grid grid-cols-1 lg:grid-cols-[380px_1fr] gap-6">
+            <div className="bg-[#1e293b] border border-[#334155] rounded-xl p-6">
+              <h3 className="text-lg font-bold text-white mb-1">🤖 28-Day Strength Predictor</h3>
+              <p className="text-xs text-slate-400 mb-4">Multi-feature regression trained on your QC history (design + slump + 7-day → 28-day). Predicts strength BEFORE the consultant tests, protecting you from rejection fines.</p>
+              <form onSubmit={predictStrength} className="space-y-3">
+                <div><label className="text-xs text-slate-400 font-semibold">Design Strength</label>
+                  <select value={aiForm.design} onChange={e => setAiForm({ ...aiForm, design: e.target.value })} className="w-full bg-[#334155] border border-[#475569] rounded-lg p-2.5 text-white text-sm">
+                    <option value="C25">C25 (25 MPa)</option><option value="C30">C30 (30 MPa)</option><option value="C35">C35 (35 MPa)</option><option value="C40">C40 (40 MPa)</option>
+                  </select>
+                </div>
+                <div><label className="text-xs text-slate-400 font-semibold">Expected Slump (cm)</label><input type="number" step="0.5" value={aiForm.slump} onChange={e => setAiForm({ ...aiForm, slump: e.target.value })} className="w-full bg-[#334155] border border-[#475569] rounded-lg p-2.5 text-white text-sm" required /></div>
+                <div><label className="text-xs text-slate-400 font-semibold">Expected 7-Day (MPa)</label><input type="number" step="0.1" value={aiForm.break7d} onChange={e => setAiForm({ ...aiForm, break7d: e.target.value })} className="w-full bg-[#334155] border border-[#475569] rounded-lg p-2.5 text-white text-sm" required /></div>
+                <button type="submit" className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 rounded-lg">🔮 Predict 28-Day Strength</button>
+              </form>
+              <div className="mt-4 bg-[#0f172a] border border-[#334155] rounded-lg p-3 text-[11px] text-slate-400">
+                📚 Model trained on <b className="text-white">{aiTrainSamples}</b> QC samples.
+                {aiTrainSamples > 0 && <><br />Accuracy (R²): <b className="text-emerald-400">{aiR2}</b></>}
+                {aiTrainSamples < 3 && <><br /><span className="text-yellow-400">⚠️ Add at least 3 QC records for a reliable model.</span></>}
+              </div>
+            </div>
+            <div className="bg-[#1e293b] border border-[#334155] rounded-xl p-6">
+              <h3 className="text-lg font-bold text-white mb-4">📊 Prediction Result</h3>
+              {aiResult ? (
+                <div className="space-y-4">
+                  <div className={`rounded-xl p-5 border ${aiResult.ok ? 'bg-emerald-500/10 border-emerald-500/40' : 'bg-red-500/10 border-red-500/40'}`}>
+                    <p className="text-xs text-slate-400">Predicted 28-Day Compressive Strength</p>
+                    <p className={`text-4xl font-black ${aiResult.ok ? 'text-emerald-400' : 'text-red-400'}`}>{aiResult.predicted.toFixed(1)} MPa</p>
+                    <p className="text-xs mt-1 text-slate-300">
+                      Target: {aiResult.target} MPa → margin {aiResult.ok ? '+' : ''}{aiResult.margin.toFixed(1)} MPa
+                    </p>
+                    <p className={`text-sm font-bold mt-2 ${aiResult.ok ? 'text-emerald-400' : 'text-red-400'}`}>
+                      {aiResult.ok ? '✅ Likely to PASS — safe to pour' : '🚨 RISK OF REJECTION — adjust mix before pouring'}
+                    </p>
+                    {!aiResult.ok && (
+                      <div className="bg-red-900/30 border border-red-500/30 rounded-lg p-3 mt-3 text-xs text-red-200">
+                        <p className="font-bold mb-1">Recommended actions:</p>
+                        <p>• Reduce water (lower W/C) or add water-reducing admixture</p>
+                        <p>• Increase cement content or use higher-strength mix</p>
+                        <p>• Re-run Mix Designer with environment compensation and re-predict</p>
+                      </div>
+                    )}
+                  </div>
+                  <div className="bg-[#0f172a] rounded-lg p-4 border border-[#334155]">
+                    <p className="text-xs text-slate-400 mb-2">Confidence band (based on training residuals)</p>
+                    <div className="h-3 bg-[#334155] rounded-full overflow-hidden">
+                      <div className="h-full bg-gradient-to-r from-purple-500 to-emerald-500" style={{ width: `${Math.min(100, (aiResult.predicted / (aiResult.target * 1.3)) * 100)}%` }} />
+                    </div>
+                    <p className="text-[10px] text-slate-500 mt-1">Predicted is {((aiResult.predicted / aiResult.target) * 100).toFixed(0)}% of target</p>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-16">
+                  <p className="text-4xl mb-3">🔮</p>
+                  <p className="text-slate-500">Enter expected slump and 7-day result, then predict.</p>
+                </div>
+              )}
             </div>
           </div>
         )}

@@ -138,6 +138,21 @@ export default function Operations() {
   const [reportTo, setReportTo] = useState('');
   const [showBatching, setShowBatching] = useState(false);
   const [showMap, setShowMap] = useState(false);
+  const [showDispatch, setShowDispatch] = useState(false);
+  const [dispatch, setDispatch] = useState({ distance: '25', speed: '35', pourRate: '35', capacity: '10', totalLoad: '100', settingTime: '90', traffic: '1.3' });
+  const dispatchResult = (() => {
+    const dist = Number(dispatch.distance), spd = Number(dispatch.speed) || 1;
+    const pour = Number(dispatch.pourRate) || 1, cap = Number(dispatch.capacity) || 1;
+    const total = Number(dispatch.totalLoad) || 0, set = Number(dispatch.settingTime) || 90, tf = Number(dispatch.traffic) || 1;
+    const transitMin = (dist / spd) * 60 * tf;
+    const pourMin = (cap / pour) * 60;
+    const maxWait = set - transitMin;
+    const gap = Math.max(5, Math.min(pourMin + 5, Math.max(5, maxWait)));
+    const trucks = Math.ceil(total / cap);
+    const onRoute = Math.max(1, Math.round(transitMin / gap));
+    const queueTime = trucks * pourMin;
+    return { transitMin, pourMin, maxWait, gap, trucks, onRoute, queueTime, feasible: maxWait >= 0 };
+  })();
   const [batch, setBatch] = useState({ recipe: 'C30', qty: '10', truck: '', running: false, step: 0, pct: 0 });
   const batchTimer = useRef<number | null>(null);
   const mapTimer = useRef<number | null>(null);
@@ -382,6 +397,7 @@ export default function Operations() {
           <button onClick={() => { const t = new Date().toISOString().split('T')[0]; setReportFrom(t); setReportTo(t); setShowReport(true); }} className="bg-indigo-600 hover:bg-indigo-700 text-white text-sm px-4 py-2 rounded-lg font-medium">📂 Fleet Report</button>
           <button onClick={() => setShowBatching(true)} className="bg-cyan-600 hover:bg-cyan-700 text-white text-sm px-4 py-2 rounded-lg font-medium">🏭 Batching Panel</button>
           <button onClick={() => setShowMap(true)} className="bg-sky-600 hover:bg-sky-700 text-white text-sm px-4 py-2 rounded-lg font-medium">📍 Fleet Map</button>
+          <button onClick={() => setShowDispatch(true)} className="bg-violet-600 hover:bg-violet-700 text-white text-sm px-4 py-2 rounded-lg font-medium">🧠 Smart Dispatch</button>
           <button onClick={openAdd} className="bg-emerald-500 hover:bg-emerald-600 text-white text-sm px-4 py-2 rounded-lg font-medium">➕ New Trip</button>
         </div>
       </header>
@@ -612,6 +628,47 @@ export default function Operations() {
               </div>
               <button type="submit" className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3 rounded-lg transition">💾 Save Trip</button>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* 🧠 Smart Dispatch Panel */}
+      {showDispatch && (
+        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-[#1e293b] border border-[#334155] rounded-2xl w-full max-w-3xl p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-4 border-b border-[#334155] pb-3">
+              <h2 className="text-lg font-bold text-white">🧠 Smart Fleet Dispatch</h2>
+              <button onClick={() => setShowDispatch(false)} className="bg-red-500 hover:bg-red-600 text-white w-7 h-7 rounded-full font-bold text-sm">✕</button>
+            </div>
+            <p className="text-xs text-slate-400 mb-4">AI analyses route congestion (traffic factor) and site distance to suggest the optimal time gap between mixers — preventing queueing and concrete setting on site.</p>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
+              <div><label className="text-xs text-slate-400">Distance to site (km)</label><input type="number" value={dispatch.distance} onChange={e => setDispatch({ ...dispatch, distance: e.target.value })} className="w-full bg-[#334155] border border-[#475569] rounded-lg p-2 text-white text-sm" /></div>
+              <div><label className="text-xs text-slate-400">Avg speed (km/h)</label><input type="number" value={dispatch.speed} onChange={e => setDispatch({ ...dispatch, speed: e.target.value })} className="w-full bg-[#334155] border border-[#475569] rounded-lg p-2 text-white text-sm" /></div>
+              <div><label className="text-xs text-slate-400">Pour rate (m³/h)</label><input type="number" value={dispatch.pourRate} onChange={e => setDispatch({ ...dispatch, pourRate: e.target.value })} className="w-full bg-[#334155] border border-[#475569] rounded-lg p-2 text-white text-sm" /></div>
+              <div><label className="text-xs text-slate-400">Truck capacity (m³)</label><input type="number" value={dispatch.capacity} onChange={e => setDispatch({ ...dispatch, capacity: e.target.value })} className="w-full bg-[#334155] border border-[#475569] rounded-lg p-2 text-white text-sm" /></div>
+              <div><label className="text-xs text-slate-400">Total load (m³)</label><input type="number" value={dispatch.totalLoad} onChange={e => setDispatch({ ...dispatch, totalLoad: e.target.value })} className="w-full bg-[#334155] border border-[#475569] rounded-lg p-2 text-white text-sm" /></div>
+              <div><label className="text-xs text-slate-400">Setting start (min)</label><input type="number" value={dispatch.settingTime} onChange={e => setDispatch({ ...dispatch, settingTime: e.target.value })} className="w-full bg-[#334155] border border-[#475569] rounded-lg p-2 text-white text-sm" /></div>
+              <div><label className="text-xs text-slate-400">Traffic factor (1–3)</label><input type="number" step="0.1" value={dispatch.traffic} onChange={e => setDispatch({ ...dispatch, traffic: e.target.value })} className="w-full bg-[#334155] border border-[#475569] rounded-lg p-2 text-white text-sm" /></div>
+            </div>
+            <div className={`rounded-xl p-5 border mb-4 ${dispatchResult.feasible ? 'bg-violet-500/10 border-violet-500/40' : 'bg-red-500/10 border-red-500/40'}`}>
+              <p className="text-xs text-slate-400">⏱️ Suggested dispatch gap between mixers</p>
+              <p className="text-4xl font-black text-violet-300">{dispatchResult.gap.toFixed(0)} min</p>
+              {!dispatchResult.feasible && <p className="text-xs text-red-400 mt-1">🚨 Transit time exceeds concrete setting window — this pour is risky.</p>}
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+              {[
+                { label: 'Transit time', value: `${dispatchResult.transitMin.toFixed(0)} min` },
+                { label: 'Pour per truck', value: `${dispatchResult.pourMin.toFixed(0)} min` },
+                { label: 'Trucks needed', value: String(dispatchResult.trucks) },
+                { label: 'On route at once', value: String(dispatchResult.onRoute) },
+                { label: 'Total pour', value: `${dispatchResult.queueTime.toFixed(0)} min` },
+              ].map(k => (
+                <div key={k.label} className="bg-[#0f172a] rounded-lg p-3 text-center border border-[#334155]">
+                  <p className="text-[10px] text-slate-400">{k.label}</p><p className="text-lg font-bold text-white">{k.value}</p>
+                </div>
+              ))}
+            </div>
+            <button onClick={() => setShowDispatch(false)} className="mt-5 w-full bg-[#334155] hover:bg-[#475569] text-white font-bold py-3 rounded-lg">Close</button>
           </div>
         </div>
       )}
