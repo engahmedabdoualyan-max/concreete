@@ -3,13 +3,77 @@ import {
   doc, setDoc, getDoc, collection, getDocs, serverTimestamp,
 } from 'firebase/firestore';
 
+// ====================== Storage Quota ======================
+export const DEFAULT_QUOTA_MB = 300;
+
+export const USER_DATA_COLLECTIONS = [
+  'trips', 'oeeLogs', 'recipes', 'calibrationLogs', 'inventory', 'deliveries',
+  'productionRuns', 'qcRecords', 'assets', 'workshopConfig', 'customers', 'plantProfile',
+];
+
+function userDocRef(userId: string) {
+  return doc(db, 'users', userId);
+}
+
+// حساب الاستخدام الفعلي للمستخدم من كل مجموعات بياناته (بايت)
+export async function computeUserStorageBytes(userId: string): Promise<number> {
+  let total = 0;
+  for (const name of USER_DATA_COLLECTIONS) {
+    const snap = await getDoc(userDoc(userId, name));
+    if (snap.exists()) {
+      total += JSON.stringify(snap.data()).length;
+    }
+  }
+  return total;
+}
+
+// تحديث حقل الاستخدام في مستند المستخدم بعد كل حفظ
+export async function refreshStorageUsage(userId: string): Promise<void> {
+  try {
+    const used = await computeUserStorageBytes(userId);
+    const userSnap = await getDoc(userDocRef(userId));
+    const quota = userSnap.exists() ? (Number(userSnap.data()?.storageQuotaMB) || DEFAULT_QUOTA_MB) : DEFAULT_QUOTA_MB;
+    await setDoc(userDocRef(userId), {
+      storageUsedMB: parseFloat((used / (1024 * 1024)).toFixed(3)),
+      storageUsedBytes: used,
+      storageQuotaMB: quota,
+      overQuota: used > quota * 1024 * 1024,
+      lastUsageUpdate: serverTimestamp(),
+    }, { merge: true });
+  } catch { }
+}
+
+// الوضع الحالي لمساحة المستخدم
+export async function getStorageStatus(username: string) {
+  const snap = await getDoc(userDocRef(username.toLowerCase()));
+  const quotaMB = snap.exists() ? (Number(snap.data()?.storageQuotaMB) || DEFAULT_QUOTA_MB) : DEFAULT_QUOTA_MB;
+  let usedMB = snap.exists() ? Number(snap.data()?.storageUsedMB) || 0 : 0;
+  if (snap.exists() && !snap.data()?.storageUsedMB) {
+    await refreshStorageUsage(username.toLowerCase());
+    usedMB = await computeUserStorageBytes(username.toLowerCase()) / (1024 * 1024);
+  }
+  const usedBytes = usedMB * 1024 * 1024;
+  return {
+    quotaMB,
+    usedMB: parseFloat(usedMB.toFixed(3)),
+    remainingMB: Math.max(0, parseFloat((quotaMB - usedMB).toFixed(3))),
+    pct: quotaMB > 0 ? Math.min(100, (usedMB / quotaMB) * 100) : 0,
+    overQuota: usedBytes > quotaMB * 1024 * 1024,
+  };
+}
+
 // ====================== Users ======================
 export async function saveUser(user: any) {
-  await setDoc(doc(db, 'users', user.username.toLowerCase()), {
+  const userId = user.username.toLowerCase();
+  await setDoc(doc(db, 'users', userId), {
     ...user,
-    username: user.username.toLowerCase(),
+    username: userId,
+    storageQuotaMB: DEFAULT_QUOTA_MB,
+    storageUsedMB: 0,
+    storageUsedBytes: 0,
+    overQuota: false,
     createdAt: serverTimestamp(),
-  });
+  }, { merge: true });
 }
 
 export async function getUser(username: string) {
@@ -28,7 +92,32 @@ function userDoc(userId: string, collectionName: string) {
 }
 
 async function saveUserData(userId: string, collectionName: string, data: any) {
+  const userSnap = await getDoc(userDocRef(userId));
+  const quotaMB = userSnap.exists() ? (Number(userSnap.data()?.storageQuotaMB) || DEFAULT_QUOTA_MB) : DEFAULT_QUOTA_MB;
+  const usedBytes = userSnap.exists() ? Number(userSnap.data()?.storageUsedBytes) || 0 : 0;
+  const quotaBytes = quotaMB * 1024 * 1024;
+
+  const prevSnap = await getDoc(userDoc(userId, collectionName));
+  const oldLen = prevSnap.exists() ? JSON.stringify(prevSnap.data()).length : 0;
+  const newLen = JSON.stringify({ data, updatedAt: new Date().toISOString() }).length;
+  const projected = usedBytes + newLen - oldLen;
+
+  if (projected > quotaBytes) {
+    await setDoc(userDocRef(userId), {
+      storageUsedMB: parseFloat((usedBytes / (1024 * 1024)).toFixed(3)),
+      storageUsedBytes: usedBytes,
+      storageQuotaMB: quotaMB,
+      overQuota: true,
+      lastUsageUpdate: serverTimestamp(),
+    }, { merge: true });
+    try { localStorage.setItem('concrete_quota_over', '1'); } catch { }
+    return false;
+  }
+
   await setDoc(userDoc(userId, collectionName), { data, updatedAt: serverTimestamp() });
+  refreshStorageUsage(userId);
+  try { localStorage.removeItem('concrete_quota_over'); } catch { }
+  return true;
 }
 
 async function loadUserData(userId: string, collectionName: string) {

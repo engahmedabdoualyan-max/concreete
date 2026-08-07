@@ -151,6 +151,10 @@ export default function LoginRegister() {
         
         {!isLogin && !verificationCode ? (
           <form className="mt-8 space-y-6" onSubmit={handleRegister}>
+            <div className="bg-yellow-500/10 border border-dashed border-yellow-500 rounded-lg p-3 text-yellow-300 text-xs text-center">
+              💾 عند التسجيل يتم إنشاء <strong>قاعدة بيانات خاصة</strong> بحجم <strong>300 ميجا</strong><br />
+              إذا احتجت قاعدة أكبر تواصل مع المبرمج ✉️
+            </div>
             <div className="rounded-md shadow-sm space-y-4">
               <div>
                 <label htmlFor="username" className="block text-sm font-medium text-slate-300 mb-1">اسم المستخدم</label>

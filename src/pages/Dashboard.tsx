@@ -5,6 +5,7 @@ import { useAdmin } from '../context/AdminContext';
 import { loadTrips } from '../firebase/firestore';
 import QuickJump from '../components/QuickJump';
 import LangSelector from '../components/LangSelector';
+import QuotaBanner from '../components/QuotaBanner';
 
 interface Trip {
   id: number; plant: string; date: string; code: string; driver: string;
@@ -167,7 +168,9 @@ export default function Dashboard() {
             {tab === "register" && (
               <form onSubmit={handleRegister} className="space-y-3">
                 <div className="bg-yellow-500/10 border border-dashed border-yellow-500 rounded-lg p-3 text-yellow-300 text-xs text-center mb-3">
-                  🆓 Free Trial Registration — All features unlocked
+                  🆓 Free Trial Registration — All features unlocked<br />
+                  💾 Each account gets a private 300 MB storage database (قاعدة بيانات خاصة 300 ميجا)<br />
+                  <span className="text-yellow-400/80">إذا احتجت قاعدة أكبر تواصل مع المبرمج بعد التسجيل</span>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="flex flex-col">
@@ -337,6 +340,11 @@ export default function Dashboard() {
           )}
         </div>
       </header>
+
+      {/* ===== STORAGE QUOTA BANNER ===== */}
+      <div className="px-6 pt-4 max-w-[1100px] mx-auto w-full">
+        <QuotaBanner />
+      </div>
 
       {/* ===== MAIN ===== */}
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-80px)] p-8 bg-[radial-gradient(circle_at_center,#1e293b_0%,#0f172a_100%)]">

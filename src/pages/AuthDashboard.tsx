@@ -75,7 +75,7 @@ export default function AuthDashboard() {
     try {
       const success = await verifyAndActivate(verificationCode);
       if (success) {
-        setMessage('Account verified successfully!');
+        setMessage('Account verified successfully! Your private 300 MB database is ready (تم إنشاء مساحتك الخاصة 300 ميجا)');
         setMessageType('success');
         setVerificationCode('');
       } else {
@@ -289,6 +289,10 @@ export default function AuthDashboard() {
           {activeTab === 'register' && (
             <form onSubmit={handleRegister} className="max-w-md mx-auto">
               <h3 className="text-xl font-semibold text-white mb-6">Registration Form</h3>
+              <div className="bg-yellow-500/10 border border-dashed border-yellow-500 rounded-lg p-3 text-yellow-300 text-xs text-center mb-4">
+                💾 عند التسجيل يتم إنشاء <strong>قاعدة بيانات خاصة</strong> بحجم <strong>300 MB</strong><br />
+                إذا احتجت قاعدة أكبر تواصل مع المبرمج
+              </div>
               
               <div className="space-y-4">
                 <div>
