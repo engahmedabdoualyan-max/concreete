@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { loadTrips, saveTrips } from '../firebase/firestore';
@@ -84,6 +84,15 @@ const PLANT_SETTINGS: Record<string, { designCap: number; actualCap: number; mix
   'ALL': { designCap: 240, actualCap: 140, mixers: 10, pumps: 4 },
 };
 
+interface BatchRecipe { code: string; cement: number; sand: number; gravel: number; water: number; admixture: number; }
+const BATCH_RECIPES: BatchRecipe[] = [
+  { code: 'C25', cement: 320, sand: 780, gravel: 1080, water: 160, admixture: 4.8 },
+  { code: 'C30', cement: 350, sand: 750, gravel: 1100, water: 160, admixture: 5.5 },
+  { code: 'C35', cement: 380, sand: 720, gravel: 1120, water: 155, admixture: 6.2 },
+  { code: 'C40', cement: 420, sand: 680, gravel: 1140, water: 150, admixture: 7.5 },
+];
+const BATCH_STEPS = ['Weighing Cement', 'Weighing Sand', 'Weighing Gravel', 'Adding Water', 'Adding Admixture', 'Mixing Cycle', 'Discharging to Truck'];
+
 export default function Operations() {
   const { currentUser } = useAuth();
   const [trips, setTrips] = useState<Trip[]>(DEFAULT_TRIPS);
@@ -127,6 +136,13 @@ export default function Operations() {
   const [reportPlant, setReportPlant] = useState('ALL');
   const [reportFrom, setReportFrom] = useState('');
   const [reportTo, setReportTo] = useState('');
+  const [showBatching, setShowBatching] = useState(false);
+  const [showMap, setShowMap] = useState(false);
+  const [batch, setBatch] = useState({ recipe: 'C30', qty: '10', truck: '', running: false, step: 0, pct: 0 });
+  const batchTimer = useRef<number | null>(null);
+  const mapTimer = useRef<number | null>(null);
+  const [mapTick, setMapTick] = useState(0);
+  const mapRef = useRef<HTMLCanvasElement | null>(null);
 
   useEffect(() => {
     if (!currentUser || !tripsLoaded) return;
@@ -242,6 +258,101 @@ export default function Operations() {
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'operations_report.csv'; a.click();
   };
 
+  // 🏭 Automated batching simulation
+  const startBatch = () => {
+    const qty = Number(batch.qty) || 0;
+    if (qty <= 0) { alert('Enter a valid quantity (m³).'); return; }
+    if (!batch.truck) { alert('Enter the truck code to dispatch after batching.'); return; }
+    setBatch(prev => ({ ...prev, running: true, step: 0, pct: 0 }));
+    if (batchTimer.current) window.clearInterval(batchTimer.current);
+    batchTimer.current = window.setInterval(() => {
+      setBatch(prev => {
+        const nextStep = prev.step + 1;
+        const nextPct = Math.min(100, prev.pct + 100 / (BATCH_STEPS.length * 3));
+        if (nextStep >= BATCH_STEPS.length * 3 + 1) {
+          if (batchTimer.current) window.clearInterval(batchTimer.current);
+          // auto-create the trip
+          const recipe = BATCH_RECIPES.find(r => r.code === prev.recipe) || BATCH_RECIPES[1];
+          const now = new Date();
+          const pad = (n: number) => String(n).padStart(2, '0');
+          const nowTime = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+          const newTrip: Trip = {
+            id: Date.now(), plant: form.plant, date: now.toISOString().split('T')[0], code: prev.truck,
+            driver: 'Auto-Dispatch', qty, pump: '--', estTime: 40,
+            stationArr: nowTime, stationDep: nowTime, siteArr: '', siteDep: '',
+            siteName: '—', projectName: 'Auto-Batch', status: 'TRANSIT',
+          };
+          setTrips(prev2 => [...prev2, newTrip]);
+          setBatch({ recipe: prev.recipe, qty: prev.qty, truck: prev.truck, running: false, step: 0, pct: 100 });
+          return prev;
+        }
+        return { ...prev, step: nextStep, pct: nextPct };
+      });
+    }, 350);
+  };
+  const stopBatch = () => {
+    if (batchTimer.current) window.clearInterval(batchTimer.current);
+    setBatch(prev => ({ ...prev, running: false }));
+  };
+
+  // 📍 Fleet map: live trucks with geo positions
+  const activeTrips = trips.filter(t => t.siteGeo && parseGeo(t.siteGeo));
+  useEffect(() => {
+    if (!showMap) return;
+    const canvas = mapRef.current;
+    if (!canvas || activeTrips.length === 0) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    const W = canvas.width, H = canvas.height;
+    ctx.clearRect(0, 0, W, H);
+    ctx.fillStyle = '#0b1220';
+    ctx.fillRect(0, 0, W, H);
+    const plant = parseGeo(activeTrips[0].plant ? '26.4207,50.0888' : '26.4207,50.0888')!;
+    const lats = activeTrips.map(t => parseGeo(t.siteGeo!)!.lat);
+    const lngs = activeTrips.map(t => parseGeo(t.siteGeo!)!.lng);
+    const minLat = Math.min(plant.lat, ...lats), maxLat = Math.max(plant.lat, ...lats);
+    const minLng = Math.min(plant.lng, ...lngs), maxLng = Math.max(plant.lng, ...lngs);
+    const padX = 60;
+    const x = (lng: number) => padX + ((lng - minLng) / (maxLng - minLng || 1)) * (W - padX * 2);
+    const y = (lat: number) => H - 50 - ((lat - minLat) / (maxLat - minLat || 1)) * (H - 100);
+    // grid lines
+    ctx.strokeStyle = '#1e293b'; ctx.lineWidth = 1;
+    for (let i = 0; i <= 8; i++) { ctx.beginPath(); ctx.moveTo((W / 8) * i, 0); ctx.lineTo((W / 8) * i, H); ctx.stroke(); ctx.beginPath(); ctx.moveTo(0, (H / 8) * i); ctx.lineTo(W, (H / 8) * i); ctx.stroke(); }
+    // plant marker
+    ctx.fillStyle = '#f59e0b';
+    ctx.beginPath(); ctx.arc(x(plant.lng), y(plant.lat), 8, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#0b1220'; ctx.font = 'bold 10px sans-serif';
+    ctx.fillText('🏭 PLANT', x(plant.lng) - 18, y(plant.lat) - 12);
+    // route lines + trucks
+    activeTrips.forEach(t => {
+      const geo = parseGeo(t.siteGeo!)!;
+      ctx.strokeStyle = t.status === 'COMPLETED' ? '#10b981' : t.status === 'TRANSIT' ? '#3b82f6' : '#f59e0b';
+      ctx.lineWidth = 1.5; ctx.setLineDash([5, 4]);
+      ctx.beginPath(); ctx.moveTo(x(plant.lng), y(plant.lat)); ctx.lineTo(x(geo.lng), y(geo.lat)); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = '#0f172a';
+      ctx.beginPath(); ctx.arc(x(geo.lng), y(geo.lat), 9, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = t.status === 'COMPLETED' ? '#10b981' : t.status === 'TRANSIT' ? '#3b82f6' : '#f59e0b';
+      ctx.lineWidth = 2; ctx.stroke();
+      ctx.fillStyle = '#fff'; ctx.font = 'bold 9px monospace';
+      ctx.fillText(t.code, x(geo.lng) - 10, y(geo.lat) + 22);
+    });
+    const legend = '🟢 Completed   🔵 Transit   🟡 On Site';
+    ctx.fillStyle = '#94a3b8'; ctx.font = '10px sans-serif';
+    ctx.fillText(legend, 12, 16);
+  }, [showMap, mapTick, trips]);
+
+  useEffect(() => {
+    if (!showMap) return;
+    mapTimer.current = window.setInterval(() => setMapTick(t => t + 1), 5000);
+    return () => { if (mapTimer.current) window.clearInterval(mapTimer.current); };
+  }, [showMap]);
+
+  useEffect(() => () => {
+    if (batchTimer.current) window.clearInterval(batchTimer.current);
+    if (mapTimer.current) window.clearInterval(mapTimer.current);
+  }, []);
+
   if (!currentUser) {
     return (
       <div className="min-h-screen bg-[#0f172a] flex items-center justify-center">
@@ -269,6 +380,8 @@ export default function Operations() {
         <div className="flex gap-3 flex-wrap items-center">
           <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search truck code..." className="bg-[#334155] text-white text-sm px-3 py-2 rounded-lg border border-[#475569] outline-none focus:border-emerald-500 w-44" />
           <button onClick={() => { const t = new Date().toISOString().split('T')[0]; setReportFrom(t); setReportTo(t); setShowReport(true); }} className="bg-indigo-600 hover:bg-indigo-700 text-white text-sm px-4 py-2 rounded-lg font-medium">📂 Fleet Report</button>
+          <button onClick={() => setShowBatching(true)} className="bg-cyan-600 hover:bg-cyan-700 text-white text-sm px-4 py-2 rounded-lg font-medium">🏭 Batching Panel</button>
+          <button onClick={() => setShowMap(true)} className="bg-sky-600 hover:bg-sky-700 text-white text-sm px-4 py-2 rounded-lg font-medium">📍 Fleet Map</button>
           <button onClick={openAdd} className="bg-emerald-500 hover:bg-emerald-600 text-white text-sm px-4 py-2 rounded-lg font-medium">➕ New Trip</button>
         </div>
       </header>
@@ -499,6 +612,102 @@ export default function Operations() {
               </div>
               <button type="submit" className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3 rounded-lg transition">💾 Save Trip</button>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* 🏭 Automated Batching Panel */}
+      {showBatching && (
+        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-[#1e293b] border border-[#334155] rounded-2xl w-full max-w-2xl p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-4 border-b border-[#334155] pb-3">
+              <h2 className="text-lg font-bold text-white">🏭 Automated Batching Panel</h2>
+              <button onClick={() => { stopBatch(); setShowBatching(false); }} className="bg-red-500 hover:bg-red-600 text-white w-7 h-7 rounded-full font-bold text-sm">✕</button>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
+              <div><label className="text-xs text-slate-400">Mix Design</label>
+                <select value={batch.recipe} onChange={e => setBatch({ ...batch, recipe: e.target.value })} disabled={batch.running} className="w-full bg-[#334155] border border-[#475569] rounded-lg p-2 text-white text-sm">
+                  {BATCH_RECIPES.map(r => <option key={r.code} value={r.code}>{r.code}</option>)}
+                </select>
+              </div>
+              <div><label className="text-xs text-slate-400">Quantity (m³)</label><input type="number" min="1" value={batch.qty} onChange={e => setBatch({ ...batch, qty: e.target.value })} disabled={batch.running} className="w-full bg-[#334155] border border-[#475569] rounded-lg p-2 text-white text-sm" /></div>
+              <div><label className="text-xs text-slate-400">Dispatch Truck</label><input value={batch.truck} onChange={e => setBatch({ ...batch, truck: e.target.value })} disabled={batch.running} placeholder="m05" className="w-full bg-[#334155] border border-[#475569] rounded-lg p-2 text-white text-sm" /></div>
+            </div>
+            {batch.running && (
+              <div className="bg-[#0f172a] border border-[#334155] rounded-xl p-4 mb-4">
+                <div className="flex justify-between mb-2">
+                  <span className="text-sm font-bold text-cyan-400">{batch.running && BATCH_STEPS[Math.min(batch.step, BATCH_STEPS.length - 1)]}</span>
+                  <span className="text-sm font-bold text-white">{Math.round(batch.pct)}%</span>
+                </div>
+                <div className="h-3 bg-[#334155] rounded-full overflow-hidden mb-3">
+                  <div className="h-full bg-gradient-to-r from-cyan-500 to-emerald-500 transition-all duration-300" style={{ width: `${batch.pct}%` }} />
+                </div>
+                <div className="grid grid-cols-7 gap-1 text-center">
+                  {BATCH_STEPS.map((s, i) => (
+                    <div key={s} className={`text-[8px] font-bold py-1 rounded ${i < batch.step ? 'bg-emerald-500/30 text-emerald-300' : i === batch.step ? 'bg-cyan-500/40 text-cyan-200 animate-pulse' : 'bg-[#334155] text-slate-500'}`}>{s.split(' ')[0]}</div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {batch.running && (() => {
+              const r = BATCH_RECIPES.find(x => x.code === batch.recipe) || BATCH_RECIPES[1];
+              const qty = Number(batch.qty) || 0;
+              const kg = (v: number) => (v * qty).toFixed(0);
+              return (
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-2 mb-4">
+                  {[{ k: 'Cement', v: kg(r.cement), icon: '🧱' }, { k: 'Sand', v: kg(r.sand), icon: '🏖️' }, { k: 'Gravel', v: kg(r.gravel), icon: '⛰️' }, { k: 'Water', v: kg(r.water), icon: '💧' }, { k: 'Admixture', v: kg(r.admixture), icon: '🧪' }].map((d, i) => (
+                    <div key={d.k} className="bg-[#0f172a] rounded-lg p-2 text-center border border-[#334155]">
+                      <p className="text-lg">{d.icon}</p>
+                      <p className="text-[9px] text-slate-400">{d.k}</p>
+                      <p className={`text-sm font-bold ${i < batch.step ? 'text-emerald-400' : 'text-white'}`}>{d.v} kg</p>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
+            <div className="flex gap-2">
+              {!batch.running ? (
+                <button onClick={startBatch} className="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3 rounded-lg">▶ Start Batch</button>
+              ) : (
+                <button onClick={stopBatch} className="flex-1 bg-red-500 hover:bg-red-600 text-white font-bold py-3 rounded-lg">⏹ Stop</button>
+              )}
+              <button onClick={() => setShowBatching(false)} className="flex-1 bg-[#334155] hover:bg-[#475569] text-white font-bold py-3 rounded-lg">Close</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 📍 Fleet Map */}
+      {showMap && (
+        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-[#1e293b] border border-[#334155] rounded-2xl w-full max-w-4xl p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-4 border-b border-[#334155] pb-3">
+              <h2 className="text-lg font-bold text-white">📍 Live Fleet Map</h2>
+              <button onClick={() => setShowMap(false)} className="bg-red-500 hover:bg-red-600 text-white w-7 h-7 rounded-full font-bold text-sm">✕</button>
+            </div>
+            {activeTrips.length > 0 ? (
+              <>
+                <canvas ref={mapRef} width={820} height={420} className="w-full rounded-xl border border-[#334155]" />
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 mt-4">
+                  {activeTrips.map(t => {
+                    const geo = parseGeo(t.siteGeo!);
+                    return (
+                      <div key={t.id} className="bg-[#0f172a] rounded-lg p-3 border border-[#334155]">
+                        <div className="flex justify-between items-center">
+                          <span className="font-bold text-white text-sm">🚚 {t.code}</span>
+                          <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold ${t.status === 'COMPLETED' ? 'bg-emerald-500/20 text-emerald-400' : t.status === 'TRANSIT' ? 'bg-blue-500/20 text-blue-400' : 'bg-yellow-500/20 text-yellow-400'}`}>{t.status}</span>
+                        </div>
+                        <p className="text-[10px] text-slate-400 mt-1">📍 {geo ? `${geo.lat.toFixed(4)}, ${geo.lng.toFixed(4)}` : '—'}</p>
+                        <p className="text-[10px] text-slate-400">{t.siteName} — {t.projectName}</p>
+                        {geo && <a href={`https://www.google.com/maps?q=${geo.lat},${geo.lng}`} target="_blank" rel="noreferrer" className="text-sky-400 text-[10px] font-bold underline">Open in Google Maps ↗</a>}
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            ) : (
+              <p className="text-slate-500 text-center py-12">No trucks with coordinates yet. Add coordinates in trip form to see them here.</p>
+            )}
           </div>
         </div>
       )}
