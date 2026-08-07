@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import QuickJump from '../components/QuickJump';
 import LangSelector from '../components/LangSelector';
 import DatePicker from '../components/DatePicker';
+import EInvoice from '../components/EInvoice';
 
 interface Order {
   id: string;
@@ -49,6 +50,7 @@ export default function Orders() {
   const [showForm, setShowForm] = useState(false);
   const [editingOrder, setEditingOrder] = useState<Order | null>(null);
   const [filter, setFilter] = useState<'all' | 'pending' | 'scheduled' | 'completed'>('all');
+  const [invoiceFor, setInvoiceFor] = useState<Order | null>(null);
 
   const [form, setForm] = useState({
     orderDate: new Date().toISOString().split('T')[0],
@@ -824,6 +826,14 @@ export default function Orders() {
                               ✅ تم
                             </button>
                           )}
+                          {order.status === 'completed' && (
+                            <button
+                              onClick={() => setInvoiceFor(order)}
+                              className="bg-teal-600 hover:bg-teal-700 text-white px-2 py-1 rounded text-xs"
+                            >
+                              🧾 فاتورة
+                            </button>
+                          )}
                           <button
                             onClick={() => handleEdit(order)}
                             className="bg-orange-600 hover:bg-orange-700 text-white px-2 py-1 rounded text-xs"
@@ -858,6 +868,21 @@ export default function Orders() {
           </ul>
         </div>
       </div>
+      {invoiceFor && (
+        <EInvoice
+          invoiceNo={`INV-${invoiceFor.id.slice(0, 6).toUpperCase()}`}
+          date={invoiceFor.orderDate}
+          time={invoiceFor.orderTime}
+          customerName={invoiceFor.customerName}
+          customerCode={invoiceFor.customerCode}
+          customerPhone={invoiceFor.customerPhone}
+          projectName={invoiceFor.projectName}
+          orderType={invoiceFor.orderType}
+          quantity={invoiceFor.quantity}
+          concreteType={invoiceFor.concreteType}
+          onClose={() => setInvoiceFor(null)}
+        />
+      )}
     </div>
   );
 }

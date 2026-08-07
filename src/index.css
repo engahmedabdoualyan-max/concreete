@@ -6,3 +6,25 @@ body {
   margin: 0;
   padding: 0;
 }
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .invoice-sheet,
+  .invoice-sheet * {
+    visibility: visible;
+  }
+  .invoice-sheet {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    max-width: 100% !important;
+    margin: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+  .invoice-sheet button {
+    display: none !important;
+  }
+}

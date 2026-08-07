@@ -12,7 +12,8 @@ interface CalibrationCert {
   id: number; date: string; scaleType: string; target: number; measured: number; dev: number; status: string;
   reportFile: string; reportFileName: string; accreditation: string; accreditingBody: string; accreditationDate: string; notes: string;
 }
-interface QCRecord { id: number; date: string; truck: string; design: string; slump: number; break7d: number; break28d: number; blade: string; }
+interface QCRecord { id: number; date: string; truck: string; design: string; slump: number; break7d: number; break28d: number; blade: string; bonNo: string; customer: string; site: string; mixDesignCode: string; }
+interface CompensatedResult { base: Recipe; water: number; admixture: number; temp: number; humidity: number; note: string; }
 
 type Tab = 'recipes' | 'calibration' | 'mixDesigner' | 'quality';
 
@@ -42,9 +43,10 @@ export default function MixingQuality() {
   const [designerForm, setDesignerForm] = useState({
     targetStrength: '30', maxAggregateSize: '20', slump: '12', fineModulus: '2.6',
     cementType: 'OPC', aggregateType: 'Crushed', waterAbsorption: '1.5',
+    ambientTemp: '25', humidity: '60',
   });
-  const [designerResult, setDesignerResult] = useState<Recipe | null>(null);
-  const [qcForm, setQcForm] = useState({ truck: 'm01', design: 'C30', slump: '', break7d: '', break28d: '', blade: 'Optimal' });
+  const [designerResult, setDesignerResult] = useState<CompensatedResult | null>(null);
+  const [qcForm, setQcForm] = useState({ truck: 'm01', design: 'C30', slump: '', break7d: '', break28d: '', blade: 'Optimal', bonNo: '', customer: '', site: '', mixDesignCode: '' });
   
   // Filters
   const [fromDate, setFromDate] = useState('');
@@ -110,13 +112,15 @@ export default function MixingQuality() {
   };
   const deleteCalibration = (id: number) => { if (confirm('Delete?')) setCalibLogs(prev => prev.filter(c => c.id !== id)); };
 
-  // ============ Mix Designer Functions ============
+  // ============ Mix Designer Functions (with environment compensation) ============
   const calculateMixDesign = (e: React.FormEvent) => {
     e.preventDefault();
     const target = parseFloat(designerForm.targetStrength);
     const maxAgg = parseFloat(designerForm.maxAggregateSize);
     const slump = parseFloat(designerForm.slump);
     const fm = parseFloat(designerForm.fineModulus);
+    const temp = parseFloat(designerForm.ambientTemp) || 25;
+    const humidity = parseFloat(designerForm.humidity) || 60;
     let waterEstimate = 0;
     if (maxAgg <= 10) waterEstimate = slump <= 10 ? 180 : 205;
     else if (maxAgg <= 20) waterEstimate = slump <= 10 ? 160 : 185;
@@ -134,16 +138,76 @@ export default function MixingQuality() {
     const cementVol = cement / (cementDensity * 1000); const waterVol = waterEstimate / 1000; const coarseAggAbsVol = coarseAgg / (coarseAggDensity * 1000); const airVol = 0.02;
     const fineAggVol = 1 - cementVol - waterVol - coarseAggAbsVol - airVol;
     const sand = Math.round(fineAggVol * fineAggDensity * 1000);
-    const admixture = Math.round(cement * 1.2) / 100;
-    setDesignerResult({ code: `C${target}`, cement: Math.round(cement / 5) * 5, sand: Math.round(sand / 5) * 5, gravel: Math.round(coarseAgg / 5) * 5, water: Math.round(waterEstimate), admixture: parseFloat(admixture.toFixed(1)) });
+    const baseAdmix = Math.round(cement * 1.2) / 100;
+
+    // Environment compensation factors
+    const waterCorr = (temp - 25) * 0.6 + (60 - humidity) * 0.4;
+    const admixCorr = (temp - 25) * 0.05 + (60 - humidity) * 0.02;
+    const water = Math.round((waterEstimate + waterCorr) * 10) / 10;
+    const admixture = parseFloat((baseAdmix + admixCorr).toFixed(2));
+    const note = waterCorr > 1.5 ? '⚠️ Hot/dry weather: water & admixture increased to protect workability' : waterCorr < -1.5 ? '🧊 Cool/humid weather: water & admixture reduced' : '✓ Ambient conditions within standard range';
+
+    setDesignerResult({
+      base: { code: `C${target}`, cement: Math.round(cement / 5) * 5, sand: Math.round(sand / 5) * 5, gravel: Math.round(coarseAgg / 5) * 5, water: Math.round(waterEstimate), admixture: parseFloat(baseAdmix.toFixed(1)) },
+      water, admixture, temp, humidity, note,
+    });
+  };
+
+  const saveDesignAsRecipe = () => {
+    if (!designerResult) return;
+    const code = designerResult.base.code;
+    if (recipes.some(r => r.code === code)) { alert('❌ Recipe code already exists!'); return; }
+    setRecipes(prev => [...prev, { ...designerResult.base, water: designerResult.water, admixture: designerResult.admixture }]);
+    alert('✅ Saved as recipe ' + code);
   };
 
   // ============ QC Functions ============
   const addQCRecord = (e: React.FormEvent) => {
     e.preventDefault();
-    setQcRecords(prev => [...prev, { id: Date.now(), date: new Date().toISOString().split('T')[0], truck: qcForm.truck, design: qcForm.design, slump: +qcForm.slump, break7d: +qcForm.break7d, break28d: +qcForm.break28d, blade: qcForm.blade }]);
-    setQcForm({ truck: 'm01', design: 'C30', slump: '', break7d: '', break28d: '', blade: 'Optimal' });
+    setQcRecords(prev => [...prev, { id: Date.now(), date: new Date().toISOString().split('T')[0], truck: qcForm.truck, design: qcForm.design, slump: +qcForm.slump, break7d: +qcForm.break7d, break28d: +qcForm.break28d, blade: qcForm.blade, bonNo: qcForm.bonNo, customer: qcForm.customer, site: qcForm.site, mixDesignCode: qcForm.mixDesignCode }]);
+    setQcForm({ truck: 'm01', design: 'C30', slump: '', break7d: '', break28d: '', blade: 'Optimal', bonNo: '', customer: '', site: '', mixDesignCode: '' });
     alert('🔬 QC data saved!');
+  };
+
+  const printQCRecord = (r: QCRecord) => {
+    const target = parseInt(r.design.replace('C', ''));
+    const pass = r.break28d >= target;
+    const w = window.open('', '_blank', 'width=800,height=600');
+    if (!w) return;
+    w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Quality Report — ${r.bonNo || r.id}</title>
+      <style>
+        body{font-family:Arial,sans-serif;color:#0f172a;padding:32px;max-width:760px;margin:auto}
+        h1{font-size:20px;margin:0 0 4px}h2{font-size:13px;color:#64748b;font-weight:normal;margin:0 0 20px}
+        .head{display:flex;justify-content:space-between;border-bottom:3px solid #0f172a;padding-bottom:12px;margin-bottom:20px}
+        .grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 24px;margin-bottom:20px}
+        .field{font-size:12px}.field b{display:block;font-size:11px;color:#64748b;text-transform:uppercase}
+        table{width:100%;border-collapse:collapse;font-size:12px}
+        th,td{border:1px solid #cbd5e1;padding:8px 10px;text-align:left}
+        th{background:#f1f5f9;font-size:11px;text-transform:uppercase}
+        .pass{color:#16a34a;font-weight:bold}.fail{color:#dc2626;font-weight:bold}
+        .footer{margin-top:40px;display:flex;justify-content:space-between;font-size:11px;color:#64748b}
+      </style></head><body>
+      <div class="head">
+        <div><h1>🔬 Concrete Quality Test Report</h1><h2>Fimto Soft — Ready-Mix Concrete Plant</h2></div>
+        <div style="text-align:right"><div class="field" style="font-size:12px"><b>Report Date</b>${r.date}</div><div class="field" style="font-size:12px"><b>Ticket / Bon No</b>${r.bonNo || '—'}</div></div>
+      </div>
+      <div class="grid">
+        <div class="field"><b>Mix Design</b>${r.design}${r.mixDesignCode ? ' (' + r.mixDesignCode + ')' : ''}</div>
+        <div class="field"><b>Mixer Truck</b>${r.truck}</div>
+        <div class="field"><b>Customer</b>${r.customer || '—'}</div>
+        <div class="field"><b>Site / Project</b>${r.site || '—'}</div>
+      </div>
+      <table>
+        <tr><th>Test</th><th>Result</th><th>Requirement</th><th>Status</th></tr>
+        <tr><td>Slump Test</td><td>${r.slump} cm</td><td>Design slump</td><td>${r.slump >= 8 && r.slump <= 18 ? '<span class="pass">✓ Pass</span>' : '<span class="fail">✗ Check</span>'}</td></tr>
+        <tr><td>Compressive Strength — 7 Days</td><td>${r.break7d} MPa</td><td>≈ ${(target * 0.65).toFixed(1)} MPa</td><td>${r.break7d >= target * 0.65 ? '<span class="pass">✓ Pass</span>' : '<span class="fail">✗ Fail</span>'}</td></tr>
+        <tr><td>Compressive Strength — 28 Days</td><td>${r.break28d} MPa</td><td>${target} MPa</td><td>${pass ? '<span class="pass">✓ Pass</span>' : '<span class="fail">✗ Fail</span>'}</td></tr>
+      </table>
+      <p style="font-size:11px;color:#64748b;margin-top:16px">Blade condition: <b>${r.blade}</b></p>
+      <div class="footer"><span>Certified by Fimto Soft Technical Management</span><span>This report is linked to delivery ticket (bon) for traceability</span></div>
+      <script>window.onload=function(){window.print()}<\/script>
+      </body></html>`);
+    w.document.close();
   };
 
   // Filtered data
@@ -160,8 +224,8 @@ export default function MixingQuality() {
     const blob = new Blob([csv], { type: 'text/csv' }); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'recipes.csv'; a.click();
   };
   const exportQCCSV = () => {
-    let csv = 'Date,Truck,Design,Slump,7-Day,28-Day,Blade\n';
-    qcRecords.forEach(r => { csv += `${r.date},${r.truck},${r.design},${r.slump},${r.break7d},${r.break28d},${r.blade}\n`; });
+    let csv = 'Date,Truck,Design,Bon No,Customer,Site,Slump,7-Day,28-Day,Blade\n';
+    qcRecords.forEach(r => { csv += `${r.date},${r.truck},${r.design},${r.bonNo},${r.customer},${r.site},${r.slump},${r.break7d},${r.break28d},${r.blade}\n`; });
     const blob = new Blob([csv], { type: 'text/csv' }); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'quality_records.csv'; a.click();
   };
 
@@ -298,22 +362,39 @@ export default function MixingQuality() {
                 </div>
                 <div><label className="text-xs text-slate-400 font-semibold">Slump (cm)</label><input type="number" value={designerForm.slump} onChange={e => setDesignerForm({ ...designerForm, slump: e.target.value })} className="w-full bg-[#334155] border border-[#475569] rounded-lg p-2.5 text-white text-sm" required /></div>
                 <div><label className="text-xs text-slate-400 font-semibold">Fine Modulus</label><input type="number" step="0.1" value={designerForm.fineModulus} onChange={e => setDesignerForm({ ...designerForm, fineModulus: e.target.value })} className="w-full bg-[#334155] border border-[#475569] rounded-lg p-2.5 text-white text-sm" required /></div>
-                <button type="submit" className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3 rounded-lg">🧮 Calculate</button>
+                <div className="grid grid-cols-2 gap-3">
+                  <div><label className="text-xs text-slate-400 font-semibold">Ambient Temp (°C)</label><input type="number" value={designerForm.ambientTemp} onChange={e => setDesignerForm({ ...designerForm, ambientTemp: e.target.value })} className="w-full bg-[#334155] border border-[#475569] rounded-lg p-2.5 text-white text-sm" required /></div>
+                  <div><label className="text-xs text-slate-400 font-semibold">Humidity (%)</label><input type="number" value={designerForm.humidity} onChange={e => setDesignerForm({ ...designerForm, humidity: e.target.value })} className="w-full bg-[#334155] border border-[#475569] rounded-lg p-2.5 text-white text-sm" required /></div>
+                </div>
+                <button type="submit" className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3 rounded-lg">🧮 Calculate (with Environment Compensation)</button>
               </form>
             </div>
             <div className="bg-[#1e293b] border border-[#334155] rounded-xl p-6">
-              <h3 className="text-lg font-bold text-white mb-4">📊 Result</h3>
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-bold text-white mb-0">📊 Result</h3>
+                {designerResult && <button onClick={saveDesignAsRecipe} className="bg-blue-600 hover:bg-blue-700 text-white text-xs px-3 py-1.5 rounded font-bold">💾 Save as Recipe</button>}
+              </div>
               {designerResult ? (
                 <div className="space-y-3">
-                  <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-lg p-4">
-                    <p className="text-emerald-400 font-bold text-lg">{designerResult.code}</p>
+                  <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-lg p-4 flex justify-between items-center">
+                    <p className="text-emerald-400 font-bold text-lg">{designerResult.base.code}</p>
+                    <p className="text-xs text-slate-400">{designerResult.note}</p>
+                  </div>
+                  <div className="bg-[#0f172a] border border-[#334155] rounded-lg p-3">
+                    <p className="text-xs text-slate-400 mb-1">🌡️ Environment: {designerResult.temp}°C / {designerResult.humidity}% RH</p>
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div className="flex justify-between"><span className="text-slate-400">Base Water</span><b className="text-white">{designerResult.base.water} kg</b></div>
+                      <div className="flex justify-between"><span className="text-yellow-400">Adjusted Water</span><b className="text-yellow-300">{designerResult.water} kg</b></div>
+                      <div className="flex justify-between"><span className="text-slate-400">Base Admixture</span><b className="text-white">{designerResult.base.admixture} kg</b></div>
+                      <div className="flex justify-between"><span className="text-yellow-400">Adjusted Admixture</span><b className="text-yellow-300">{designerResult.admixture} kg</b></div>
+                    </div>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
-                    <div className="bg-[#0f172a] rounded-lg p-4"><p className="text-xs text-slate-400">Cement</p><p className="text-lg font-bold text-white">{designerResult.cement} kg</p></div>
-                    <div className="bg-[#0f172a] rounded-lg p-4"><p className="text-xs text-slate-400">Sand</p><p className="text-lg font-bold text-white">{designerResult.sand} kg</p></div>
-                    <div className="bg-[#0f172a] rounded-lg p-4"><p className="text-xs text-slate-400">Gravel</p><p className="text-lg font-bold text-white">{designerResult.gravel} kg</p></div>
-                    <div className="bg-[#0f172a] rounded-lg p-4"><p className="text-xs text-slate-400">Water</p><p className="text-lg font-bold text-white">{designerResult.water} kg</p></div>
-                    <div className="bg-[#0f172a] rounded-lg p-4"><p className="text-xs text-slate-400">Admixture</p><p className="text-lg font-bold text-white">{designerResult.admixture} kg</p></div>
+                    <div className="bg-[#0f172a] rounded-lg p-4"><p className="text-xs text-slate-400">Cement</p><p className="text-lg font-bold text-white">{designerResult.base.cement} kg</p></div>
+                    <div className="bg-[#0f172a] rounded-lg p-4"><p className="text-xs text-slate-400">Sand</p><p className="text-lg font-bold text-white">{designerResult.base.sand} kg</p></div>
+                    <div className="bg-[#0f172a] rounded-lg p-4"><p className="text-xs text-slate-400">Gravel</p><p className="text-lg font-bold text-white">{designerResult.base.gravel} kg</p></div>
+                    <div className="bg-[#0f172a] rounded-lg p-4"><p className="text-xs text-slate-400">Water (adjusted)</p><p className="text-lg font-bold text-yellow-300">{designerResult.water} kg</p></div>
+                    <div className="bg-[#0f172a] rounded-lg p-4"><p className="text-xs text-slate-400">Admixture (adjusted)</p><p className="text-lg font-bold text-yellow-300">{designerResult.admixture} kg</p></div>
                   </div>
                 </div>
               ) : (
@@ -329,6 +410,12 @@ export default function MixingQuality() {
             <div className="bg-[#1e293b] border border-[#334155] rounded-xl p-6">
               <h3 className="text-lg font-bold text-white mb-4">🔬 QC Record</h3>
               <form onSubmit={addQCRecord} className="space-y-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <div><label className="text-xs text-slate-400 font-semibold">Bon / Ticket No</label><input value={qcForm.bonNo} onChange={e => setQcForm({ ...qcForm, bonNo: e.target.value })} placeholder="BON-1024" className="w-full bg-[#334155] border border-[#475569] rounded-lg p-2.5 text-white text-sm" required /></div>
+                  <div><label className="text-xs text-slate-400 font-semibold">Mix Design Code</label><input value={qcForm.mixDesignCode} onChange={e => setQcForm({ ...qcForm, mixDesignCode: e.target.value })} placeholder="C30-v2" className="w-full bg-[#334155] border border-[#475569] rounded-lg p-2.5 text-white text-sm" /></div>
+                </div>
+                <div><label className="text-xs text-slate-400 font-semibold">Customer</label><input value={qcForm.customer} onChange={e => setQcForm({ ...qcForm, customer: e.target.value })} placeholder="Client name" className="w-full bg-[#334155] border border-[#475569] rounded-lg p-2.5 text-white text-sm" /></div>
+                <div><label className="text-xs text-slate-400 font-semibold">Site / Project</label><input value={qcForm.site} onChange={e => setQcForm({ ...qcForm, site: e.target.value })} placeholder="Project site" className="w-full bg-[#334155] border border-[#475569] rounded-lg p-2.5 text-white text-sm" /></div>
                 <div><label className="text-xs text-slate-400 font-semibold">Truck</label><select value={qcForm.truck} onChange={e => setQcForm({ ...qcForm, truck: e.target.value })} className="w-full bg-[#334155] border border-[#475569] rounded-lg p-2.5 text-white text-sm">{trucks.map(t => <option key={t} value={t}>{t}</option>)}</select></div>
                 <div><label className="text-xs text-slate-400 font-semibold">Design</label><select value={qcForm.design} onChange={e => setQcForm({ ...qcForm, design: e.target.value })} className="w-full bg-[#334155] border border-[#475569] rounded-lg p-2.5 text-white text-sm"><option value="C25">C25</option><option value="C30">C30</option><option value="C35">C35</option><option value="C40">C40</option></select></div>
                 <div><label className="text-xs text-slate-400 font-semibold">Slump (cm)</label><input type="number" value={qcForm.slump} onChange={e => setQcForm({ ...qcForm, slump: e.target.value })} className="w-full bg-[#334155] border border-[#475569] rounded-lg p-2.5 text-white text-sm" required /></div>
@@ -351,16 +438,18 @@ export default function MixingQuality() {
               <div className="grid grid-cols-2 gap-3 mb-4"><DatePicker value={fromDate} onChange={setFromDate} label="From" /><DatePicker value={toDate} onChange={setToDate} label="To" /></div>
               <div className="overflow-x-auto">
                 <table className="w-full text-xs text-slate-300">
-                  <thead className="bg-[#334155] text-[10px]"><tr><th className="p-2">Date</th><th className="p-2">Truck</th><th className="p-2">Design</th><th className="p-2">Slump</th><th className="p-2">7-Day</th><th className="p-2">28-Day</th><th className="p-2">Pass</th></tr></thead>
+                  <thead className="bg-[#334155] text-[10px]"><tr><th className="p-2">Date</th><th className="p-2">Bon No</th><th className="p-2">Customer</th><th className="p-2">Truck</th><th className="p-2">Design</th><th className="p-2">Slump</th><th className="p-2">7-Day</th><th className="p-2">28-Day</th><th className="p-2">Pass</th><th className="p-2">Report</th></tr></thead>
                   <tbody>
                     {filteredQC.map(r => {
                       const target = parseInt(r.design.replace('C', ''));
                       const pass = r.break28d >= target;
                       return (
                         <tr key={r.id} className="border-b border-[#334155]/30">
-                          <td className="p-2">{r.date}</td><td className="p-2 font-bold">{r.truck}</td><td className="p-2 text-blue-400">{r.design}</td>
+                          <td className="p-2">{r.date}</td><td className="p-2 font-bold text-cyan-400">{r.bonNo || '—'}</td>
+                          <td className="p-2">{r.customer || '—'}</td><td className="p-2 font-bold">{r.truck}</td><td className="p-2 text-blue-400">{r.design}</td>
                           <td className="p-2">{r.slump}</td><td className="p-2">{r.break7d}</td><td className="p-2">{r.break28d}</td>
                           <td className="p-2"><span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${pass ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'}`}>{pass ? '✓' : '✗'}</span></td>
+                          <td className="p-2"><button onClick={() => printQCRecord(r)} className="bg-sky-600 hover:bg-sky-700 text-white text-[10px] px-2 py-0.5 rounded">🖨️ Report</button></td>
                         </tr>
                       );
                     })}
