@@ -95,12 +95,12 @@ export default function DatePicker({ value, onChange, label, required }: DatePic
           </button>
         </label>
       )}
-      <div className="flex gap-2">
+      <div className="flex flex-wrap gap-2">
         {/* Day - اليوم */}
         <select
           value={components.day}
           onChange={handleDayChange}
-          className="flex-1 bg-[#334155] border border-[#475569] rounded-lg p-2.5 text-white text-sm outline-none focus:border-blue-500"
+          className="min-w-0 w-16 bg-[#334155] border border-[#475569] rounded-lg p-2.5 text-white text-sm outline-none focus:border-blue-500"
           required={required}
         >
           {Array.from({ length: maxDays }, (_, i) => i + 1).map(day => (
@@ -112,7 +112,7 @@ export default function DatePicker({ value, onChange, label, required }: DatePic
         <select
           value={components.month}
           onChange={handleMonthChange}
-          className="flex-1 bg-[#334155] border border-[#475569] rounded-lg p-2.5 text-white text-sm outline-none focus:border-blue-500"
+          className="min-w-0 flex-[2] bg-[#334155] border border-[#475569] rounded-lg p-2.5 text-white text-sm outline-none focus:border-blue-500"
           required={required}
         >
           {months.map((month, idx) => (
@@ -125,7 +125,7 @@ export default function DatePicker({ value, onChange, label, required }: DatePic
           type="number"
           value={components.year}
           onChange={handleYearChange}
-          className="flex-1 bg-[#334155] border border-[#475569] rounded-lg p-2.5 text-white text-sm outline-none focus:border-blue-500"
+          className="min-w-0 w-24 bg-[#334155] border border-[#475569] rounded-lg p-2.5 text-white text-sm outline-none focus:border-blue-500"
           required={required}
           placeholder="السنة"
         />

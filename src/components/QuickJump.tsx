@@ -19,7 +19,7 @@ export default function QuickJump() {
   const today = formatDate(new Date(), calendarType);
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex flex-wrap items-center gap-2">
       <select
         onChange={(e) => { if (e.target.value) navigate(e.target.value); }}
         className="bg-[#1e293b] text-slate-400 text-xs border border-[#334155] px-2 py-1.5 rounded hover:text-white cursor-pointer outline-none"
