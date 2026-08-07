@@ -159,6 +159,9 @@ export default function Dashboard() {
         <div className="fixed inset-0 z-[100] bg-[#0f172a]/85 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
           <div className="bg-[#1e293b] border border-[#334155] rounded-2xl w-full max-w-xl p-8 shadow-2xl max-h-[95vh] overflow-y-auto">
             <div className="text-center mb-6">
+              <div className="flex justify-center mb-4">
+                <BrandLogo width={200} fill rounded="rounded-2xl" />
+              </div>
               <h2 className="text-2xl font-extrabold text-white mb-2">
                 {tab === "login" ? "Welcome Back" : tab === "register" ? "Create Account" : "Verify Email"}
               </h2>
