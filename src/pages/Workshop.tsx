@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { useLang, Lang } from '../context/LangContext';
+import { useLang } from '../context/LangContext';
 import { loadAssets, saveAssets, loadWorkshopConfig, saveWorkshopConfig } from '../firebase/firestore';
 import QuickJump from '../components/QuickJump';
+import LangSelector from '../components/LangSelector';
 import DatePicker from '../components/DatePicker';
 
 // ======================= TYPES =======================
@@ -42,7 +43,7 @@ function loadLocal<T>(key: string, def: T): T { try { const s = localStorage.get
 
 export default function Workshop() {
   const { currentUser } = useAuth();
-  const { t, lang, setLang } = useLang();
+  const { t } = useLang();
   const [tab, setTab] = useState<Tab>('home');
   const [assets, setAssets] = useState<Asset[]>(DEF_ASSETS);
   const [config, setConfig] = useState(DEF_CONFIG);
@@ -256,9 +257,7 @@ export default function Workshop() {
         <div className="flex gap-3 items-center flex-wrap">
           <Link to="/" className="text-slate-400 text-xs border border-[#334155] px-3 py-2 rounded hover:text-white hover:bg-[#334155] transition">{t('backToDashboard')}</Link>
           <QuickJump />
-          <select value={lang} onChange={e=>setLang(e.target.value as Lang)} className="bg-[#1e293b] text-white text-xs border border-blue-500 px-2 py-1.5 rounded font-bold cursor-pointer outline-none">
-            <option value="ar">AR</option><option value="en">EN</option><option value="ur">UR</option>
-          </select>
+          <LangSelector />
           <span className="bg-emerald-500/15 text-emerald-500 text-xs px-3 py-1.5 rounded-lg font-bold border border-emerald-500/30">{currentUser.plantName}</span>
         </div>
       </div>

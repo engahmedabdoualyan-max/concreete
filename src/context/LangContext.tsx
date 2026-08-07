@@ -1,25 +1,7 @@
 import { createContext, useContext, useState, ReactNode, useEffect } from 'react';
-import { arTranslations, enTranslations, urTranslations } from './translations';
+import { translations, Lang, Translations } from './translations';
 
-export type Lang = 'ar' | 'en' | 'ur';
-
-interface Translations {
-  companyName: string;
-  companyTagline: string;
-  companyFounded: string;
-  companyDescription: string;
-  projectStatusActive: string;
-  projectStatusComingSoon: string;
-  projectStatusPlanned: string;
-  projectEnter: string;
-  projectUnderDevelopment: string;
-  aboutUs: string;
-  aboutUsText: string;
-  contactPhone: string;
-  contactEmail: string;
-  footerRights: string;
-  footerDesign: string;
-}
+export type { Lang };
 
 interface LangContextType {
   lang: Lang;
@@ -31,17 +13,12 @@ const LangContext = createContext<LangContextType | undefined>(undefined);
 
 export function LangProvider({ children }: { children: ReactNode }) {
   const [lang, setLang] = useState<Lang>(() => {
-    return (localStorage.getItem('fimtosoft_lang') as Lang) || 'ar';
+    const stored = localStorage.getItem('fimtosoft_lang') as Lang | null;
+    return stored && stored in translations ? stored : 'en';
   });
 
-  const translations: Record<Lang, Translations> = {
-    ar: arTranslations,
-    en: enTranslations,
-    ur: urTranslations,
-  };
-
   const t = (key: keyof Translations): string => {
-    return translations[lang][key] || key;
+    return translations[lang][key] || translations.en[key] || key;
   };
 
   useEffect(() => {
