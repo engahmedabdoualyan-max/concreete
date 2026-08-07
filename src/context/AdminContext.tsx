@@ -1,5 +1,9 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { useAuth } from './AuthContext';
+import {
+  savePlantProfileToSupabase, loadPlantProfileFromSupabase,
+  saveAdminUserToSupabase, deleteAdminUserFromSupabase, loadAdminUsersFromSupabase,
+} from '../supabase/supabase';
 
 export type UserRole = 'owner' | 'manager' | 'operator' | 'quality' | 'maintenance' | 'viewer';
 export type ModuleKey = 'operations' | 'production' | 'workshop' | 'mixing' | 'schedule' | 'orders' | 'evaluation' | 'rnd';
@@ -138,32 +142,76 @@ export function AdminProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    try {
-      const savedPlant = localStorage.getItem(PLANT_KEY);
-      if (savedPlant) setPlant({ ...DEFAULT_PLANT, ...JSON.parse(savedPlant) });
-    } catch {}
-    try {
-      const savedUsers = localStorage.getItem(USERS_KEY);
-      if (savedUsers) {
-        const parsed = JSON.parse(savedUsers) as ManagedUser[];
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          setUsers(parsed);
-          setIsLoading(false);
-          return;
-        }
+    let cancelled = false;
+    (async () => {
+      // 1) Try Supabase (source of truth when configured)
+      const [dbPlant, dbUsers] = await Promise.all([
+        loadPlantProfileFromSupabase('admin'),
+        loadAdminUsersFromSupabase(),
+      ]);
+      if (cancelled) return;
+      if (dbPlant) {
+        const mapped: PlantProfile = {
+          name: dbPlant.name || '', manager: dbPlant.manager || '', address: dbPlant.address || '',
+          city: dbPlant.city || '', country: dbPlant.country || '', phone: dbPlant.phone || '',
+          email: dbPlant.email || '', licenseNumber: dbPlant.license_number || '',
+          capacityM3: dbPlant.capacity_m3 || '', mixerCount: dbPlant.mixer_count || '',
+          truckCount: dbPlant.truck_count || '', foundingYear: dbPlant.founding_year || '',
+          notes: dbPlant.notes || '',
+        };
+        setPlant(mapped);
+        try { localStorage.setItem(PLANT_KEY, JSON.stringify(mapped)); } catch {}
+      } else {
+        try {
+          const savedPlant = localStorage.getItem(PLANT_KEY);
+          if (savedPlant) setPlant({ ...DEFAULT_PLANT, ...JSON.parse(savedPlant) });
+        } catch {}
       }
-      setUsers(DEFAULT_USERS);
-      DEFAULT_USERS.forEach(u => syncRegistered(u, false));
-    } catch {
-      setUsers(DEFAULT_USERS);
-      DEFAULT_USERS.forEach(u => syncRegistered(u, false));
-    }
-    setIsLoading(false);
+      if (dbUsers.length > 0) {
+        const mapped: ManagedUser[] = dbUsers.map(u => ({
+          username: u.username, password: u.password || '', name: u.name || '',
+          email: u.email || '', phone: u.phone || '', plantName: u.plant_name || '',
+          country: u.country || 'Other', city: u.city || 'Other',
+          role: (u.role as UserRole) || 'viewer',
+          isActive: u.is_active !== false,
+          permissions: (u.permissions || rolePermissions((u.role as UserRole) || 'viewer')) as Record<ModuleKey, boolean>,
+        }));
+        setUsers(mapped);
+        try { localStorage.setItem(USERS_KEY, JSON.stringify(mapped)); } catch {}
+        mapped.forEach(u => syncRegistered(u, false));
+        setIsLoading(false);
+        return;
+      }
+      try {
+        const savedUsers = localStorage.getItem(USERS_KEY);
+        if (savedUsers) {
+          const parsed = JSON.parse(savedUsers) as ManagedUser[];
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setUsers(parsed);
+            setIsLoading(false);
+            return;
+          }
+        }
+        setUsers(DEFAULT_USERS);
+        DEFAULT_USERS.forEach(u => syncRegistered(u, false));
+      } catch {
+        setUsers(DEFAULT_USERS);
+        DEFAULT_USERS.forEach(u => syncRegistered(u, false));
+      }
+      setIsLoading(false);
+    })();
+    return () => { cancelled = true; };
   }, []);
 
   const savePlant = (p: PlantProfile) => {
     setPlant(p);
     try { localStorage.setItem(PLANT_KEY, JSON.stringify(p)); } catch {}
+    savePlantProfileToSupabase({
+      username: 'admin', name: p.name, manager: p.manager, address: p.address,
+      city: p.city, country: p.country, phone: p.phone, email: p.email,
+      license_number: p.licenseNumber, capacity_m3: p.capacityM3, mixer_count: p.mixerCount,
+      truck_count: p.truckCount, founding_year: p.foundingYear, notes: p.notes,
+    }).catch(() => {});
   };
 
   const addUser = (u: ManagedUser): boolean => {
@@ -172,6 +220,11 @@ export function AdminProvider({ children }: { children: ReactNode }) {
     setUsers(next);
     try { localStorage.setItem(USERS_KEY, JSON.stringify(next)); } catch {}
     syncRegistered(u, false);
+    saveAdminUserToSupabase({
+      username: u.username, password: u.password, name: u.name, email: u.email,
+      phone: u.phone, plant_name: u.plantName, country: u.country, city: u.city,
+      role: u.role, is_active: u.isActive, permissions: u.permissions,
+    }).catch(() => {});
     return true;
   };
 
@@ -180,6 +233,11 @@ export function AdminProvider({ children }: { children: ReactNode }) {
     setUsers(next);
     try { localStorage.setItem(USERS_KEY, JSON.stringify(next)); } catch {}
     syncRegistered(u, false);
+    saveAdminUserToSupabase({
+      username: u.username, password: u.password, name: u.name, email: u.email,
+      phone: u.phone, plant_name: u.plantName, country: u.country, city: u.city,
+      role: u.role, is_active: u.isActive, permissions: u.permissions,
+    }).catch(() => {});
   };
 
   const deleteUser = (username: string) => {
@@ -188,6 +246,7 @@ export function AdminProvider({ children }: { children: ReactNode }) {
     setUsers(next);
     try { localStorage.setItem(USERS_KEY, JSON.stringify(next)); } catch {}
     if (target) syncRegistered(target, true);
+    deleteAdminUserFromSupabase(username).catch(() => {});
   };
 
   const canAccess = (module: string): boolean => {

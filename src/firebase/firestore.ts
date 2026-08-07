@@ -223,6 +223,25 @@ export async function loadPlantProfile(userId: string) {
   return snap.exists() ? snap.data()?.data ?? { name: '', logo: '' } : { name: '', logo: '' };
 }
 
+// ====================== Shared GPS (plant location) ======================
+// يُحفظ في plantProfile ويقرأه كل الأقسام (Operations, Maps, Admin)
+export async function savePlantGPS(userId: string, lat: number, lng: number) {
+  const prev = await loadPlantProfile(userId);
+  await savePlantProfile(userId, {
+    ...prev,
+    gpsLat: lat,
+    gpsLng: lng,
+    gpsUpdatedAt: new Date().toISOString(),
+  });
+}
+export async function loadPlantGPS(userId: string): Promise<{ lat: number; lng: number } | null> {
+  const profile = await loadPlantProfile(userId);
+  if (profile && typeof profile.gpsLat === 'number' && typeof profile.gpsLng === 'number') {
+    return { lat: profile.gpsLat, lng: profile.gpsLng };
+  }
+  return null;
+}
+
 // ====================== Weighbridge (Governance) ======================
 export async function saveWeighbridgeRecords(userId: string, records: any[]) {
   await saveUserData(userId, 'weighbridgeRecords', records);
@@ -278,6 +297,7 @@ export interface PlantSummary {
   country: string;
   city: string;
   trips: number;
+  tripList: any[];
   totalVolume: number;
   inventory: Record<string, number>;
   qcCount: number;
@@ -306,6 +326,7 @@ export async function getAllPlantsSummary(): Promise<PlantSummary[]> {
       country: data?.country || '—',
       city: data?.city || '—',
       trips: Array.isArray(trips) ? trips.length : 0,
+      tripList: Array.isArray(trips) ? trips : [],
       totalVolume: Array.isArray(trips) ? trips.reduce((s: number, t: any) => s + (Number(t.qty) || 0), 0) : 0,
       inventory: inventory && typeof inventory === 'object' ? inventory : {},
       qcCount: Array.isArray(qc) ? qc.length : 0,

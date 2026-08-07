@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { loadTrips, saveTrips, loadOrders } from '../firebase/firestore';
+import { loadTrips, saveTrips, loadOrders, loadPlantGPS } from '../firebase/firestore';
 import QuickJump from '../components/QuickJump';
 import LangSelector from '../components/LangSelector';
 import BrandLogo from '../components/BrandLogo';
@@ -148,6 +148,9 @@ export default function Operations() {
     if (!currentUser) return;
     loadOrders(currentUser.username).then(ords => {
       if (Array.isArray(ords)) setConfirmedOrders(ords.filter(o => o.status === 'scheduled'));
+    }).catch(() => {});
+    loadPlantGPS(currentUser.username).then(gps => {
+      if (gps) setPlantGeo(`${gps.lat},${gps.lng}`);
     }).catch(() => {});
   }, [currentUser?.username]);
   const applyAutoDistance = () => {
