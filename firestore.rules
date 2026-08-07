@@ -1,0 +1,15 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Users collection: app-level auth (login stored in DB, not Firebase Auth)
+    match /users/{username} {
+      allow read, write: if true;
+    }
+
+    // Per-user data documents: userData/{userId}/{collectionName}/data
+    match /userData/{userId}/{collectionName}/data {
+      allow read, write: if true;
+    }
+  }
+}
