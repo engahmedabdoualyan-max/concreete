@@ -131,7 +131,7 @@ export default function LoginRegister() {
       <div className="max-w-md w-full space-y-8">
         <div>
           <div className="flex justify-center">
-            <BrandLogo size={80} rounded="rounded-2xl" />
+            <BrandLogo width={220} fill rounded="rounded-2xl" />
           </div>
           <h2 className="mt-6 text-center text-3xl font-extrabold text-white">
             {isLogin ? 'تسجيل الدخول' : 'إنشاء حساب'}
