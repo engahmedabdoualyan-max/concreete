@@ -307,7 +307,7 @@ export default function Dashboard() {
           <h1 className="text-lg font-bold text-white tracking-tight">Technical Management Program for Concrete Plants</h1>
           <p className="text-xs text-emerald-500 font-medium">Design and Development by Dr. Ahmad Abdo Alyan</p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <QuickJump />
           <LangSelector />
           {currentUser ? (
