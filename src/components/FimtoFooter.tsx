@@ -4,7 +4,7 @@ const QUICK_LINKS = ['Home', 'About', 'Services', 'Contact'];
 
 export default function FimtoFooter() {
   return (
-    <footer className="w-full bg-[#0b1220] border-t border-[#334155] mt-12 py-12">
+    <footer className="w-full bg-[#0b1220] border-t border-[#334155] py-12">
       <div className="max-w-[1100px] mx-auto px-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-10">
         <div>
           <div className="flex items-center gap-3">
