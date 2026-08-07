@@ -1,6 +1,7 @@
 import siteLogo from '../assets/logos/logo.png';
 
 const LOGO_ASPECT = 240 / 175;
+const HOME_URL = 'https://concrete.fimtosoft.com/';
 
 export default function BrandLogo({ size = 40, width, height, rounded = 'rounded-lg', fill = true }: {
   size?: number;
@@ -12,11 +13,15 @@ export default function BrandLogo({ size = 40, width, height, rounded = 'rounded
   const w = width ?? size;
   const h = height ?? (fill ? w / LOGO_ASPECT : size);
   return (
-    <div
-      className={`${rounded} flex items-center justify-center overflow-hidden shadow-lg border border-slate-500/40 bg-white shrink-0`}
+    <a
+      href={HOME_URL}
+      target="_blank"
+      rel="noopener noreferrer"
+      title="concrete.fimtosoft.com"
+      className={`${rounded} flex items-center justify-center overflow-hidden shadow-lg border border-slate-500/40 bg-white shrink-0 hover:scale-105 transition-transform cursor-pointer`}
       style={{ width: w, height: h }}
     >
       <img src={siteLogo} alt="Site logo" className="w-full h-full object-contain" />
-    </div>
+    </a>
   );
 }
