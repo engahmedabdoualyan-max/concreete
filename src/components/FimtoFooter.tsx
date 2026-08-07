@@ -1,6 +1,11 @@
 import fimtoLogo from '../assets/logos/fimtosoftlogo.png';
 
-const QUICK_LINKS = ['Home', 'About', 'Services', 'Contact'];
+const QUICK_LINKS: { label: string; href?: string }[] = [
+  { label: 'Home', href: 'https://concrete.fimtosoft.com/' },
+  { label: 'About' },
+  { label: 'Services' },
+  { label: 'Contact' },
+];
 
 export default function FimtoFooter() {
   return (
@@ -31,8 +36,19 @@ export default function FimtoFooter() {
           <h4 className="text-white font-bold text-sm uppercase tracking-wider mb-4">Quick Links</h4>
           <ul className="space-y-2 text-sm">
             {QUICK_LINKS.map(l => (
-              <li key={l}>
-                <span className="text-slate-400 hover:text-emerald-500 cursor-pointer transition-colors">▸ {l}</span>
+              <li key={l.label}>
+                {l.href ? (
+                  <a
+                    href={l.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-slate-400 hover:text-emerald-500 cursor-pointer transition-colors"
+                  >
+                    ▸ {l.label}
+                  </a>
+                ) : (
+                  <span className="text-slate-400 hover:text-emerald-500 cursor-pointer transition-colors">▸ {l.label}</span>
+                )}
               </li>
             ))}
           </ul>
