@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useLang } from '../context/LangContext';
 import LangSelector from '../components/LangSelector';
 import QuickJump from '../components/QuickJump';
 
@@ -103,6 +104,7 @@ const PROJECTS: Project[] = [
 export default function Dashboard() {
   const navigate = useNavigate();
   const { currentUser } = useAuth();
+  const { lang } = useLang();
   const [projects] = useState<Project[]>(PROJECTS);
 
   const getStatusBadge = (status: Project['status']) => {
