@@ -11,5 +11,10 @@ service cloud.firestore {
     match /userData/{userId}/{collectionName}/data {
       allow read, write: if true;
     }
+
+    // Top-level per-user document (storage quota / usage tracking)
+    match /userData/{userId} {
+      allow read, write: if true;
+    }
   }
 }
