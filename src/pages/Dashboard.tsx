@@ -5,7 +5,6 @@ import { useAdmin } from '../context/AdminContext';
 import { loadTrips } from '../firebase/firestore';
 import QuickJump from '../components/QuickJump';
 import LangSelector from '../components/LangSelector';
-import FimtoFooter from '../components/FimtoFooter';
 
 interface Trip {
   id: number; plant: string; date: string; code: string; driver: string;
@@ -430,9 +429,6 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
-
-      {/* ===== FIMTO SOFT FOOTER ===== */}
-      <FimtoFooter />
     </div>
   );
 }
