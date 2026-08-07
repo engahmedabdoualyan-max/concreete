@@ -48,9 +48,11 @@ export default function MixingQuality() {
   const [designerResult, setDesignerResult] = useState<CompensatedResult | null>(null);
   const [qcForm, setQcForm] = useState({ truck: 'm01', design: 'C30', slump: '', break7d: '', break28d: '', blade: 'Optimal', bonNo: '', customer: '', site: '', mixDesignCode: '' });
   const [aiForm, setAiForm] = useState({ design: 'C30', slump: '12', break7d: '22' });
-  const [aiResult, setAiResult] = useState<{ predicted: number; target: number; margin: number; ok: boolean; confidence: number } | null>(null);
+  const [aiResult, setAiResult] = useState<{ predicted: number; target: number; margin: number; ok: boolean; confidence: number; rmse: number; band: number; reliability: 'high' | 'medium' | 'low' } | null>(null);
   const [aiR2, setAiR2] = useState('—');
+  const [aiRMSE, setAiRMSE] = useState('—');
   const [aiTrainSamples, setAiTrainSamples] = useState(0);
+  const [aiPredictions, setAiPredictions] = useState<{ id: number; date: string; design: string; slump: number; break7d: number; predicted: number; target: number; ok: boolean }[]>([]);
   
   // Filters
   const [fromDate, setFromDate] = useState('');
@@ -251,25 +253,37 @@ export default function MixingQuality() {
   const trainModel = () => {
     const samples = qcRecords.filter(r => r.break28d > 0 && r.break7d > 0 && r.slump > 0);
     if (samples.length < 3) return null;
-    const rows = samples.map(r => [1, parseInt(r.design.replace('C', '')), r.slump, r.break7d]);
     const ys = samples.map(r => r.break28d);
-    const beta = solveLeastSquares(rows, ys);
-    if (!beta) return null;
-    const mean = ys.reduce((s, v) => s + v, 0) / ys.length;
-    let ssTot = 0, ssRes = 0;
-    rows.forEach((row, i) => {
-      const pred = row.reduce((s, v, j) => s + v * beta[j], 0);
-      ssTot += (ys[i] - mean) ** 2;
-      ssRes += (ys[i] - pred) ** 2;
-    });
-    const r2 = ssTot > 0 ? 1 - ssRes / ssTot : 0;
-    return { beta, r2, samples: samples.length };
+    const designs = samples.map(r => parseInt(r.design.replace('C', '')));
+    const featBuilders: Array<[string, (r: any) => number][]> = [
+      [['design', r => parseInt(r.design.replace('C', ''))], ['slump', r => r.slump], ['7d', r => r.break7d]],
+      [['slump', r => r.slump], ['7d', r => r.break7d]],
+      [['7d', r => r.break7d]],
+    ];
+    let best: { beta: number[]; r2: number; rmse: number; samples: number; feats: string[] } | null = null;
+    for (const feats of featBuilders) {
+      const rows = samples.map(s => [1, ...feats.map(f => f[1](s))]);
+      const beta = solveLeastSquares(rows, ys);
+      if (!beta) continue;
+      const mean = ys.reduce((s, v) => s + v, 0) / ys.length;
+      let ssTot = 0, ssRes = 0;
+      rows.forEach((row, i) => {
+        const pred = row.reduce((s, v, j) => s + v * beta[j], 0);
+        ssTot += (ys[i] - mean) ** 2;
+        ssRes += (ys[i] - pred) ** 2;
+      });
+      const r2 = ssTot > 0 ? 1 - ssRes / ssTot : 0;
+      const rmse = Math.sqrt(ssRes / samples.length);
+      if (!best || r2 > best.r2) best = { beta, r2, rmse, samples: samples.length, feats: feats.map(f => f[0]) };
+    }
+    return best;
   };
 
   useEffect(() => {
     const m = trainModel();
     setAiTrainSamples(m ? m.samples : qcRecords.filter(r => r.break28d > 0 && r.break7d > 0 && r.slump > 0).length);
     setAiR2(m ? Math.max(0, m.r2).toFixed(2) : '—');
+    setAiRMSE(m ? m.rmse.toFixed(2) : '—');
   }, [qcRecords]);
 
   const predictStrength = (e: React.FormEvent) => {
@@ -277,16 +291,26 @@ export default function MixingQuality() {
     const m = trainModel();
     const target = parseInt(aiForm.design.replace('C', ''));
     if (!m) { setAiResult(null); return; }
-    const [b0, b1, b2, b3] = m.beta;
-    const predicted = b0 + b1 * target + b2 * Number(aiForm.slump) + b3 * Number(aiForm.break7d);
+    const feats = m.feats.map(f => {
+      if (f === 'design') return target;
+      if (f === 'slump') return Number(aiForm.slump);
+      return Number(aiForm.break7d);
+    });
+    const predicted = m.beta[0] + m.beta.slice(1).reduce((s, b, i) => s + b * (feats[i] || 0), 0);
     const margin = predicted - target;
+    const band = 1.96 * m.rmse;
+    const reliability: 'high' | 'medium' | 'low' = m.samples >= 15 && m.r2 > 0.7 ? 'high' : m.samples >= 8 && m.r2 > 0.5 ? 'medium' : 'low';
     setAiResult({
       predicted: Math.max(0, predicted),
       target,
       margin,
       ok: predicted >= target,
       confidence: Math.max(0, m.r2),
+      rmse: m.rmse,
+      band,
+      reliability,
     });
+    setAiPredictions(prev => [{ id: Date.now(), date: new Date().toISOString().split('T')[0], design: aiForm.design, slump: Number(aiForm.slump), break7d: Number(aiForm.break7d), predicted: Math.max(0, predicted), target, ok: predicted >= target }, ...prev].slice(0, 20));
   };
 
 
@@ -551,7 +575,8 @@ export default function MixingQuality() {
               </form>
               <div className="mt-4 bg-[#0f172a] border border-[#334155] rounded-lg p-3 text-[11px] text-slate-400">
                 📚 Model trained on <b className="text-white">{aiTrainSamples}</b> QC samples.
-                {aiTrainSamples > 0 && <><br />Accuracy (R²): <b className="text-emerald-400">{aiR2}</b></>}
+                {aiTrainSamples > 0 && <><br />Accuracy (R²): <b className="text-emerald-400">{aiR2}</b> · RMSE: <b className="text-sky-400">{aiRMSE} MPa</b></>}
+                {aiTrainSamples >= 8 && <><br />Reliability: {aiTrainSamples >= 15 ? <b className="text-emerald-400">🟢 High</b> : <b className="text-yellow-400">🟡 Medium</b>}</>}
                 {aiTrainSamples < 3 && <><br /><span className="text-yellow-400">⚠️ Add at least 3 QC records for a reliable model.</span></>}
               </div>
             </div>
@@ -577,12 +602,39 @@ export default function MixingQuality() {
                       </div>
                     )}
                   </div>
+                  {aiResult.reliability !== 'high' && (
+                    <p className={`text-[11px] font-bold ${aiResult.reliability === 'medium' ? 'text-yellow-400' : 'text-orange-400'}`}>
+                      🟡 {aiResult.reliability === 'medium' ? 'Medium reliability' : 'Low reliability'} — limited training data, confirm with a lab test.
+                    </p>
+                  )}
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="bg-[#0f172a] rounded-lg p-3 border border-[#334155] text-center">
+                      <p className="text-[10px] text-slate-400">R²</p><p className="text-lg font-bold text-emerald-400">{aiResult.confidence.toFixed(2)}</p>
+                    </div>
+                    <div className="bg-[#0f172a] rounded-lg p-3 border border-[#334155] text-center">
+                      <p className="text-[10px] text-slate-400">RMSE</p><p className="text-lg font-bold text-sky-400">{aiResult.rmse.toFixed(2)}</p>
+                    </div>
+                    <div className="bg-[#0f172a] rounded-lg p-3 border border-[#334155] text-center">
+                      <p className="text-[10px] text-slate-400">95% band ±</p><p className="text-lg font-bold text-purple-400">{aiResult.band.toFixed(1)} MPa</p>
+                    </div>
+                  </div>
                   <div className="bg-[#0f172a] rounded-lg p-4 border border-[#334155]">
-                    <p className="text-xs text-slate-400 mb-2">Confidence band (based on training residuals)</p>
+                    <p className="text-xs text-slate-400 mb-2">Confidence band — predicted range {Math.max(0, aiResult.predicted - aiResult.band).toFixed(1)} to {(aiResult.predicted + aiResult.band).toFixed(1)} MPa</p>
                     <div className="h-3 bg-[#334155] rounded-full overflow-hidden">
                       <div className="h-full bg-gradient-to-r from-purple-500 to-emerald-500" style={{ width: `${Math.min(100, (aiResult.predicted / (aiResult.target * 1.3)) * 100)}%` }} />
                     </div>
                     <p className="text-[10px] text-slate-500 mt-1">Predicted is {((aiResult.predicted / aiResult.target) * 100).toFixed(0)}% of target</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-400 mb-2">📜 Recent predictions ({aiPredictions.length})</p>
+                    <div className="bg-[#0f172a] border border-[#334155] rounded-lg overflow-hidden">
+                      {aiPredictions.slice(0, 6).map(p => (
+                        <div key={p.id} className="flex justify-between items-center px-3 py-2 border-b border-[#334155]/30 text-xs">
+                          <span className="text-slate-400">{p.date} · {p.design} · 7d {p.break7d}</span>
+                          <span className={`font-bold ${p.ok ? 'text-emerald-400' : 'text-red-400'}`}>{p.predicted.toFixed(1)} MPa {p.ok ? '✓' : '✗'}</span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 </div>
               ) : (

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { loadTrips, saveTrips } from '../firebase/firestore';
+import { loadTrips, saveTrips, loadOrders } from '../firebase/firestore';
 import QuickJump from '../components/QuickJump';
 import LangSelector from '../components/LangSelector';
 import DatePicker from '../components/DatePicker';
@@ -140,6 +140,25 @@ export default function Operations() {
   const [showMap, setShowMap] = useState(false);
   const [showDispatch, setShowDispatch] = useState(false);
   const [dispatch, setDispatch] = useState({ distance: '25', speed: '35', pourRate: '35', capacity: '10', totalLoad: '100', settingTime: '90', traffic: '1.3' });
+  const [plantGeo, setPlantGeo] = useState('24.7136,46.6753');
+  const [autoSite, setAutoSite] = useState('');
+  const [confirmedOrders, setConfirmedOrders] = useState<any[]>([]);
+  useEffect(() => {
+    if (!currentUser) return;
+    loadOrders(currentUser.username).then(ords => {
+      if (Array.isArray(ords)) setConfirmedOrders(ords.filter(o => o.status === 'scheduled'));
+    }).catch(() => {});
+  }, [currentUser?.username]);
+  const applyAutoDistance = () => {
+    const target = confirmedOrders.find(o => o.locationCoords && o.locationCoords.includes(','));
+    if (!target) { alert('No scheduled order with site GPS coordinates found. Fill distance manually or add coordinates to a scheduled order.'); return; }
+    const [slat, slng] = plantGeo.split(',').map(Number);
+    const [dlat, dlng] = target.locationCoords.split(',').map(Number);
+    if ([slat, slng, dlat, dlng].some(v => isNaN(v))) { alert('Invalid coordinates.'); return; }
+    const dist = calculateDistance(slat, slng, dlat, dlng);
+    setDispatch({ ...dispatch, distance: String(Math.round(dist * 10) / 10), totalLoad: String(Number(dispatch.totalLoad) || target.quantity || dispatch.totalLoad) });
+    setAutoSite(`${target.projectName || target.site || ''} (${dist.toFixed(1)} km)`);
+  };
   const dispatchResult = (() => {
     const dist = Number(dispatch.distance), spd = Number(dispatch.speed) || 1;
     const pour = Number(dispatch.pourRate) || 1, cap = Number(dispatch.capacity) || 1;
@@ -641,6 +660,11 @@ export default function Operations() {
               <button onClick={() => setShowDispatch(false)} className="bg-red-500 hover:bg-red-600 text-white w-7 h-7 rounded-full font-bold text-sm">✕</button>
             </div>
             <p className="text-xs text-slate-400 mb-4">AI analyses route congestion (traffic factor) and site distance to suggest the optimal time gap between mixers — preventing queueing and concrete setting on site.</p>
+            <div className="flex flex-wrap items-center gap-2 mb-4 bg-[#0f172a] border border-[#334155] rounded-lg p-3">
+              <div className="flex-1 min-w-[160px]"><label className="text-xs text-slate-400">Plant GPS (lat,lng)</label><input value={plantGeo} onChange={e => setPlantGeo(e.target.value)} placeholder="24.7136,46.6753" className="w-full bg-[#334155] border border-[#475569] rounded-lg p-2 text-white text-sm" /></div>
+              <button onClick={applyAutoDistance} className="bg-sky-600 hover:bg-sky-700 text-white text-xs px-3 py-2 rounded-lg font-bold mt-4">📡 Auto-fill distance from GPS site</button>
+              {autoSite && <span className="text-[10px] text-sky-300 mt-4">✔ {autoSite}</span>}
+            </div>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
               <div><label className="text-xs text-slate-400">Distance to site (km)</label><input type="number" value={dispatch.distance} onChange={e => setDispatch({ ...dispatch, distance: e.target.value })} className="w-full bg-[#334155] border border-[#475569] rounded-lg p-2 text-white text-sm" /></div>
               <div><label className="text-xs text-slate-400">Avg speed (km/h)</label><input type="number" value={dispatch.speed} onChange={e => setDispatch({ ...dispatch, speed: e.target.value })} className="w-full bg-[#334155] border border-[#475569] rounded-lg p-2 text-white text-sm" /></div>
@@ -667,6 +691,39 @@ export default function Operations() {
                   <p className="text-[10px] text-slate-400">{k.label}</p><p className="text-lg font-bold text-white">{k.value}</p>
                 </div>
               ))}
+            </div>
+            <div className="mb-4 bg-[#0f172a] border border-[#334155] rounded-xl overflow-hidden">
+              <div className="px-4 py-2.5 bg-[#1e293b] border-b border-[#334155] flex justify-between items-center">
+                <p className="text-xs font-bold text-white">📅 Today's Scheduled Orders — Dispatch Plan</p>
+                <span className="text-[10px] text-slate-400">{confirmedOrders.length} scheduled</span>
+              </div>
+              {confirmedOrders.length === 0 && <p className="p-4 text-xs text-slate-500">No scheduled (confirmed) orders yet. Orders move here once approved for execution.</p>}
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs text-slate-300">
+                  <thead className="bg-[#334155] text-[10px]"><tr><th className="p-2">Order</th><th className="p-2">Qty</th><th className="p-2">Distance</th><th className="p-2">Gap</th><th className="p-2">Trucks</th><th className="p-2">Start → Finish</th></tr></thead>
+                  <tbody>
+                    {confirmedOrders.map((o, idx) => {
+                      const qty = Number(o.quantity) || 0;
+                      const trucks = Math.ceil(qty / Number(dispatch.capacity));
+                      const pourMin = (Number(dispatch.capacity) / Number(dispatch.pourRate)) * 60;
+                      const dur = trucks * pourMin;
+                      const startH = 7 + idx; const startM = 30;
+                      const sTot = startH * 60 + startM; const eTot = sTot + dur;
+                      const fmt = (m: number) => `${Math.floor(m / 60) % 24}:${String(m % 60).padStart(2, '0')}`;
+                      return (
+                        <tr key={o.id || idx} className="border-b border-[#334155]/30">
+                          <td className="p-2 font-bold text-white">{o.customerName || o.projectName || o.id} <span className="text-[10px] text-slate-500">{o.concreteType} psi</span></td>
+                          <td className="p-2 text-blue-400">{qty} m³</td>
+                          <td className="p-2">{o.locationCoords ? '📍 GPS' : '—'}</td>
+                          <td className="p-2 font-bold text-violet-300">{dispatchResult.gap.toFixed(0)} min</td>
+                          <td className="p-2">{trucks}</td>
+                          <td className="p-2">{fmt(sTot)} → {fmt(eTot)} ({dur.toFixed(0)} min)</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             </div>
             <button onClick={() => setShowDispatch(false)} className="mt-5 w-full bg-[#334155] hover:bg-[#475569] text-white font-bold py-3 rounded-lg">Close</button>
           </div>

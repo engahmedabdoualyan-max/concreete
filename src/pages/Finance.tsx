@@ -1,13 +1,16 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import QRCode from 'qrcode';
 import { useAuth } from '../context/AuthContext';
-import { loadPayments, savePayments, loadPurchaseOrders, savePurchaseOrders, loadInventory } from '../firebase/firestore';
+import { loadPayments, savePayments, loadPurchaseOrders, savePurchaseOrders, loadInventory, loadOrders } from '../firebase/firestore';
 import QuickJump from '../components/QuickJump';
 import LangSelector from '../components/LangSelector';
 import DatePicker from '../components/DatePicker';
 
-interface Payment { id: number; date: string; client: string; orderNo: string; amount: number; method: string; status: 'paid' | 'partial' | 'pending'; note: string; }
+interface Payment { id: number; date: string; client: string; orderNo: string; amount: number; method: string; status: 'paid' | 'partial' | 'pending'; note: string; link?: string; qr?: string; ref?: string; }
 interface PO { id: number; date: string; material: string; qty: number; unit: string; supplier: string; unitPrice: number; total: number; status: 'open' | 'delivered'; reason: string; }
+
+const DEMAND_PER_M3 = { cement: 0.38, sand: 0.7, gravel: 1.05 }; // t per m³
 
 const MATERIALS = [
   { key: 'cement', name: 'Cement', unit: 't', minStock: 20, reorder: 40, supplier: 'Al-Farouk Cement' },
@@ -24,17 +27,24 @@ export default function Finance() {
   const [loaded, setLoaded] = useState(false);
   const [pForm, setPForm] = useState({ date: new Date().toISOString().split('T')[0], client: '', orderNo: '', amount: '', method: 'bank', status: 'paid' as Payment['status'], note: '' });
   const [checked, setChecked] = useState<Record<string, boolean>>({});
+  const [stock, setStock] = useState<Record<string, number>>({});
+  const [demandM3, setDemandM3] = useState(0);
 
   useEffect(() => {
     if (!currentUser) return;
-    Promise.all([loadPayments(currentUser.username), loadPurchaseOrders(currentUser.username), loadInventory(currentUser.username)])
-      .then(([p, po, inv]) => {
+    Promise.all([loadPayments(currentUser.username), loadPurchaseOrders(currentUser.username), loadInventory(currentUser.username), loadOrders(currentUser.username)])
+      .then(([p, po, inv, ords]) => {
         if (p?.length) setPayments(p); else { const s = localStorage.getItem('plantPayments'); if (s) setPayments(JSON.parse(s)); }
         if (po?.length) setPos(po); else { const s = localStorage.getItem('plantPOs'); if (s) setPos(JSON.parse(s)); }
         if (inv && typeof inv === 'object') {
+          setStock(inv);
           const init: Record<string, boolean> = {};
           MATERIALS.forEach(m => { init[m.key] = (Number(inv[m.key]) || 0) <= m.minStock; });
           setChecked(init);
+        }
+        if (Array.isArray(ords)) {
+          const scheduledM3 = ords.filter(o => o.status === 'scheduled').reduce((s: number, o: any) => s + (Number(o.quantity) || 0), 0);
+          setDemandM3(scheduledM3);
         }
         setLoaded(true);
       })
@@ -48,6 +58,22 @@ export default function Finance() {
     e.preventDefault();
     setPayments(prev => [...prev, { id: Date.now(), ...pForm, amount: Number(pForm.amount) } as any]);
     setPForm({ ...pForm, client: '', orderNo: '', amount: '', note: '' });
+  };
+
+  const generatePaymentRequest = async () => {
+    const amt = Number(pForm.amount);
+    if (!pForm.client || !amt) { alert('Enter client and amount to generate a payment request.'); return; }
+    const ref = 'PAY-' + Date.now().toString().slice(-8);
+    const link = `https://pay.fimtosoft.com/${ref}?amt=${amt}&client=${encodeURIComponent(pForm.client)}&method=${pForm.method}`;
+    const payload = JSON.stringify({ ref, amount: amt, currency: 'SAR', client: pForm.client, method: pForm.method, merchant: 'FimtoSoft Concrete', timestamp: new Date().toISOString() });
+    const qr = await QRCode.toDataURL(payload, { margin: 1, width: 200, color: { dark: '#000000', light: '#ffffff' } }).catch(() => '');
+    setPayments(prev => [{ id: Date.now(), date: new Date().toISOString().split('T')[0], client: pForm.client, orderNo: pForm.orderNo, amount: amt, method: pForm.method, status: 'pending', note: `Payment request ${ref}`, link, qr, ref }, ...prev]);
+    setPForm({ ...pForm, client: '', orderNo: '', amount: '', note: '' });
+  };
+
+  const confirmGateway = (id: number) => {
+    setPayments(prev => prev.map(p => p.id === id ? { ...p, status: 'paid' as const, note: `${p.note} · confirmed via ${p.method} gateway` } : p));
+    alert('✅ Payment confirmed (simulated mada/sadad/visa gateway webhook). Account balance updated instantly.');
   };
 
   const generatePOs = () => {
@@ -64,6 +90,29 @@ export default function Finance() {
   };
 
   const deliverPO = (id: number) => setPos(prev => prev.map(po => po.id === id ? { ...po, status: 'delivered' as const } : po));
+
+  const demandCoverage = (key: 'cement' | 'sand' | 'gravel') => {
+    const needed = demandM3 * DEMAND_PER_M3[key];
+    const current = Number(stock[key]) || 0;
+    const onOrder = pos.filter(po => po.status === 'open' && po.material === MATERIALS.find(m => m.key === key)?.name).reduce((s, po) => s + po.qty, 0);
+    return { needed, current, onOrder, short: Math.max(0, needed - current - onOrder) };
+  };
+
+  const genDemandPOs = () => {
+    const cov = [demandCoverage('cement'), demandCoverage('sand'), demandCoverage('gravel')];
+    const anyShort = cov.some(c => c.short > 0);
+    if (!demandM3) { alert('No scheduled orders for tomorrow found — nothing to cover.'); return; }
+    if (!anyShort) { alert('✅ Current stock + open POs already cover tomorrow\'s demand.'); return; }
+    const now = new Date().toISOString().split('T')[0];
+    const next = MATERIALS.filter((m, i) => cov[i].short > 0).map(m => {
+      const i = MATERIALS.indexOf(m);
+      const qty = Math.ceil(cov[i].short * 2) / 2;
+      const unitPrice = m.key === 'admixture' ? 12 : 650;
+      return { id: Date.now() + Math.random(), date: now, material: m.name, qty, unit: m.unit, supplier: m.supplier, unitPrice, total: Math.round(qty * unitPrice), status: 'open' as const, reason: `Tomorrow demand shortfall (${demandM3} m³ scheduled)` };
+    });
+    setPos(prev => [...next, ...prev]);
+    alert(`✅ Generated ${next.length} purchase order(s) to cover tomorrow's demand.`);
+  };
 
   if (!currentUser) {
     return (
@@ -119,6 +168,7 @@ export default function Finance() {
                 </div>
                 <div><label className="text-xs text-slate-400 font-semibold">Note</label><input value={pForm.note} onChange={e => setPForm({ ...pForm, note: e.target.value })} className="w-full bg-[#334155] border border-[#475569] rounded-lg p-2.5 text-white text-sm" /></div>
                 <button type="submit" className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-lg">💳 Record Payment</button>
+                <button type="button" onClick={generatePaymentRequest} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-lg">🔗 Generate Payment Request + QR (mada/sadad/visa)</button>
               </form>
             </div>
             <div>
@@ -131,7 +181,7 @@ export default function Finance() {
               <div className="bg-[#1e293b] border border-[#334155] rounded-xl overflow-hidden">
                 <div className="overflow-x-auto">
                   <table className="w-full text-xs text-slate-300">
-                    <thead className="bg-[#334155] text-[10px]"><tr><th className="p-2">Date</th><th className="p-2">Client</th><th className="p-2">Invoice</th><th className="p-2">Method</th><th className="p-2">Amount</th><th className="p-2">Status</th></tr></thead>
+                    <thead className="bg-[#334155] text-[10px]"><tr><th className="p-2">Date</th><th className="p-2">Client</th><th className="p-2">Invoice</th><th className="p-2">Method</th><th className="p-2">Amount</th><th className="p-2">Status</th><th className="p-2">Digital Pay</th></tr></thead>
                     <tbody>
                       {payments.map(p => (
                         <tr key={p.id} className="border-b border-[#334155]/30">
@@ -142,10 +192,32 @@ export default function Finance() {
                             {p.status === 'partial' && <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-yellow-500/20 text-yellow-400">⚠️ Partial</span>}
                             {p.status === 'pending' && <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-500/20 text-red-400">⏳ Pending</span>}
                           </td>
+                          <td className="p-2">
+                            {p.status === 'pending' && p.qr ? (
+                              <div className="flex items-center gap-2">
+                                <img src={p.qr} alt="payment qr" className="w-12 h-12 rounded border border-[#334155]" />
+                                <button onClick={() => confirmGateway(p.id)} className="text-[10px] bg-indigo-600 hover:bg-indigo-700 text-white px-2 py-1.5 rounded font-bold">Confirm (simulate gateway)</button>
+                              </div>
+                            ) : p.ref ? <span className="text-[10px] text-slate-500">{p.ref}</span> : '—'}
+                          </td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
+                </div>
+              </div>
+              <div className="bg-[#1e293b] border border-[#334155] rounded-xl p-4 mt-4">
+                <p className="text-xs font-bold text-white mb-2">🧾 Reconciliation — outstanding per client</p>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                  {Array.from(new Set(payments.map(p => p.client))).slice(0, 9).map(client => {
+                    const out = payments.filter(p => p.client === client && p.status !== 'paid').reduce((s, p) => s + p.amount, 0);
+                    return (
+                      <div key={client} className={`bg-[#0f172a] rounded-lg p-3 border ${out > 0 ? 'border-yellow-500/40' : 'border-emerald-500/30'}`}>
+                        <p className="text-[11px] text-slate-400 truncate">{client}</p>
+                        <p className={`text-sm font-bold ${out > 0 ? 'text-yellow-400' : 'text-emerald-400'}`}>{out > 0 ? `${out.toLocaleString()} SAR` : '✅ Clear'}</p>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             </div>
@@ -153,7 +225,32 @@ export default function Finance() {
         )}
 
         {tab === 'reorder' && (
-          <div className="grid grid-cols-1 lg:grid-cols-[380px_1fr] gap-6">
+          <div className="space-y-6">
+            <div className="bg-[#1e293b] border border-[#334155] rounded-xl p-6">
+              <h3 className="text-lg font-bold text-white mb-1">📅 Next-Day Demand Coverage</h3>
+              <p className="text-xs text-slate-400 mb-4">Consumes material based on tomorrow's scheduled (confirmed) orders and current stock + open POs. Alerts and PO drafts are generated automatically when the stock cannot cover tomorrow's commitments.</p>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
+                <div className="bg-[#0f172a] rounded-xl p-4 border border-[#334155]"><p className="text-xs text-slate-400">Scheduled tomorrow</p><p className="text-xl font-bold text-white">{demandM3.toFixed(0)} m³</p></div>
+                {(['cement', 'sand', 'gravel'] as const).map(k => {
+                  const c = demandCoverage(k);
+                  return (
+                    <div key={k} className={`bg-[#0f172a] rounded-xl p-4 border ${c.short > 0 ? 'border-red-500/50' : 'border-emerald-500/40'}`}>
+                      <p className="text-xs text-slate-400 capitalize">{k}</p>
+                      <p className="text-xl font-bold text-white">{c.needed.toFixed(1)}t <span className="text-[10px] text-slate-500">need</span></p>
+                      <p className="text-[10px] text-slate-400">have {c.current.toFixed(0)}t{c.onOrder > 0 ? ` + ${c.onOrder.toFixed(0)}t PO` : ''}</p>
+                      <p className={`text-[10px] font-bold ${c.short > 0 ? 'text-red-400' : 'text-emerald-400'}`}>{c.short > 0 ? `🚨 short ${c.short.toFixed(1)}t` : '✅ covered'}</p>
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button onClick={genDemandPOs} className="bg-orange-600 hover:bg-orange-700 text-white font-bold py-2.5 px-4 rounded-lg text-sm">⚡ Generate POs for tomorrow's shortfall</button>
+                <span className={`text-xs self-center font-bold ${demandCoverage('cement').short > 0 || demandCoverage('sand').short > 0 || demandCoverage('gravel').short > 0 ? 'text-red-400' : 'text-emerald-400'}`}>
+                  {demandCoverage('cement').short > 0 || demandCoverage('sand').short > 0 || demandCoverage('gravel').short > 0 ? '🚨 ALERT: stock will NOT cover tomorrow — reorder now' : '✅ Stock covers tomorrow\'s commitments'}
+                </span>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 lg:grid-cols-[380px_1fr] gap-6">
             <div className="bg-[#1e293b] border border-[#334155] rounded-xl p-6">
               <h3 className="text-lg font-bold text-white mb-1">📦 Material Reorder Alerts</h3>
               <p className="text-xs text-slate-400 mb-4">Live check against current raw stock. Materials below minimum are flagged — generate purchase orders in one click.</p>
@@ -198,6 +295,7 @@ export default function Finance() {
               </div>
             </div>
           </div>
+        </div>
         )}
       </div>
     </div>

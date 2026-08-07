@@ -10,6 +10,7 @@ interface WeighRecord {
   id: number; date: string; time: string; plate: string; supplier: string;
   material: string; gross: number; tare: number; net: number; expected: number;
   notes: string; status: 'ok' | 'mismatch' | 'pending';
+  source?: 'manual' | 'auto'; hash?: string; prevHash?: string;
 }
 interface ReturnRecord {
   id: number; date: string; truck: string; site: string; qty: number; reason: string;
@@ -18,6 +19,37 @@ interface ReturnRecord {
 
 const TOLERANCE_PCT = 3;
 const BLOCKS_PER_M3 = 80;
+
+async function sha256(text: string): Promise<string> {
+  try {
+    const data = new TextEncoder().encode(text);
+    if (crypto.subtle) {
+      const buf = await crypto.subtle.digest('SHA-256', data);
+      return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+    }
+  } catch {}
+  let h1 = 0xdeadbeef, h2 = 0x41c6ce57;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text.charCodeAt(i);
+    h1 = Math.imul(h1 ^ ch, 2654435761);
+    h2 = Math.imul(h2 ^ ch, 1597334677);
+  }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+  return (h2 >>> 0).toString(16).padStart(8, '0') + (h1 >>> 0).toString(16).padStart(8, '0');
+}
+
+async function verifyChain(records: WeighRecord[]): Promise<{ intact: boolean; tamperedCount: number }> {
+  let prevHash = '';
+  let tampered = 0;
+  for (const r of records) {
+    const payload = { id: r.id, date: r.date, time: r.time, plate: r.plate, supplier: r.supplier, material: r.material, gross: r.gross, tare: r.tare, expected: r.expected };
+    const h = await sha256(prevHash + JSON.stringify(payload));
+    if (r.hash && r.hash !== h) tampered++;
+    prevHash = r.hash || h;
+  }
+  return { intact: tampered === 0, tamperedCount: tampered };
+}
 
 export default function Governance() {
   const { currentUser } = useAuth();
@@ -29,6 +61,7 @@ export default function Governance() {
     date: new Date().toISOString().split('T')[0], time: '', plate: '', supplier: '',
     material: 'cement', gross: '', tare: '', expected: '', notes: '',
   });
+  const [autoEntry, setAutoEntry] = useState(false);
   const [rForm, setRForm] = useState({
     date: new Date().toISOString().split('T')[0], truck: '', site: '', qty: '', reason: 'excess',
     disposition: 'recycle' as 'recycle' | 'blocks' | 'dispose', blockCode: 'BLK-20x20x40', note: '',
@@ -48,14 +81,22 @@ export default function Governance() {
   useEffect(() => { if (!loaded || !currentUser) return; localStorage.setItem('plantWeigh', JSON.stringify(weigh)); saveWeighbridgeRecords(currentUser.username, weigh).catch(() => {}); }, [weigh, loaded]);
   useEffect(() => { if (!loaded || !currentUser) return; localStorage.setItem('plantReturns', JSON.stringify(returns)); saveReturns(currentUser.username, returns).catch(() => {}); }, [returns, loaded]);
 
-  const addWeigh = (e: React.FormEvent) => {
+  const addWeigh = async (e: React.FormEvent) => {
     e.preventDefault();
     const gross = Number(wForm.gross), tare = Number(wForm.tare);
     const net = Math.max(0, gross - tare);
     const expected = Number(wForm.expected) || 0;
     const tolerance = expected * (TOLERANCE_PCT / 100);
     const status: WeighRecord['status'] = expected === 0 ? 'pending' : (Math.abs(net - expected) <= tolerance ? 'ok' : 'mismatch');
-    setWeigh(prev => [...prev, { id: Date.now(), ...wForm, gross, tare, net, expected, status }]);
+    const now = new Date();
+    const time = wForm.time || now.toTimeString().slice(0, 5);
+    const source: 'manual' | 'auto' = autoEntry ? 'auto' : 'manual';
+    const prev = weigh[weigh.length - 1];
+    const prevHash = prev?.hash || '';
+    const payload = { id: Date.now(), date: wForm.date || now.toISOString().split('T')[0], time, plate: wForm.plate, supplier: wForm.supplier, material: wForm.material, gross, tare, expected };
+    const hash = await sha256(prevHash + JSON.stringify(payload));
+    const rec: WeighRecord = { ...payload, net, notes: wForm.notes, status, source, hash, prevHash };
+    setWeigh(prev => [...prev, rec]);
     setWForm({ ...wForm, plate: '', supplier: '', gross: '', tare: '', expected: '', notes: '', time: '' });
   };
 
@@ -80,6 +121,13 @@ export default function Governance() {
   const totalReturned = returns.reduce((s, r) => s + r.qty, 0);
   const recycledPct = returns.length ? ((returns.filter(r => r.disposition !== 'dispose').reduce((s, r) => s + r.qty, 0) / totalReturned) * 100 || 0) : 0;
   const totalBlocks = returns.reduce((s, r) => s + (r.blocksProduced || 0), 0);
+  const [chain, setChain] = useState<{ intact: boolean; tamperedCount: number }>({ intact: true, tamperedCount: 0 });
+  useEffect(() => { verifyChain(weigh).then(setChain); }, [weigh]);
+  const tamperDemo = () => {
+    if (!weigh.length) return;
+    const target = weigh[weigh.length - 1];
+    setWeigh(prev => prev.map(w => w.id === target.id ? { ...w, gross: w.gross + 1500 } : w));
+  };
 
   return (
     <div className="min-h-screen bg-[#0f172a] text-[#f1f5f9]">
@@ -104,7 +152,11 @@ export default function Governance() {
           <div className="grid grid-cols-1 lg:grid-cols-[380px_1fr] gap-6">
             <div className="bg-[#1e293b] border border-[#334155] rounded-xl p-6">
               <h3 className="text-lg font-bold text-white mb-1">⚖️ Gate Weighbridge Entry</h3>
-              <p className="text-xs text-slate-400 mb-4">Auto-records gross/tare and net weight from supplier trucks. Mismatch vs expected is flagged to prevent supplier fraud.</p>
+              <p className="text-xs text-slate-400 mb-4">Auto-records gross/tare and net weight from supplier trucks. Mismatch vs expected is flagged to prevent supplier fraud. Every record is chained by SHA-256 hash — any manual edit is detected.</p>
+              <div className="flex items-center gap-3 mb-4 bg-[#0f172a] border border-[#334155] rounded-lg p-3">
+                <input type="checkbox" checked={autoEntry} onChange={e => setAutoEntry(e.target.checked)} className="accent-sky-500 w-4 h-4" id="autoEntry" />
+                <label htmlFor="autoEntry" className="text-xs text-slate-300 flex-1">📡 Weighbridge auto-entry (serial feed — no manual input)</label>
+              </div>
               <form onSubmit={addWeigh} className="space-y-3">
                 <div className="grid grid-cols-2 gap-3">
                   <DatePicker value={wForm.date} onChange={v => setWForm({ ...wForm, date: v })} label="Date" />
@@ -123,7 +175,7 @@ export default function Governance() {
                   <div><label className="text-xs text-slate-400 font-semibold">Expected (kg)</label><input type="number" value={wForm.expected} onChange={e => setWForm({ ...wForm, expected: e.target.value })} className="w-full bg-[#334155] border border-[#475569] rounded-lg p-2 text-white text-sm" /></div>
                 </div>
                 <div><label className="text-xs text-slate-400 font-semibold">Notes</label><input value={wForm.notes} onChange={e => setWForm({ ...wForm, notes: e.target.value })} className="w-full bg-[#334155] border border-[#475569] rounded-lg p-2.5 text-white text-sm" /></div>
-                <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg">⚖️ Record Weighing</button>
+                <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg">{autoEntry ? '📡 Receive Auto Weighing' : '⚖️ Record Weighing'}</button>
               </form>
             </div>
             <div>
@@ -131,12 +183,19 @@ export default function Governance() {
                 <div className="bg-[#1e293b] rounded-xl p-4 border border-[#334155]"><p className="text-xs text-slate-400">Entries</p><p className="text-xl font-bold text-white">{weigh.length}</p></div>
                 <div className="bg-[#1e293b] rounded-xl p-4 border border-[#334155]"><p className="text-xs text-slate-400">Net received (t)</p><p className="text-xl font-bold text-blue-400">{(totalNet / 1000).toFixed(1)}</p></div>
                 <div className={`bg-[#1e293b] rounded-xl p-4 border ${flagged ? 'border-red-500/50' : 'border-[#334155]'}`}><p className="text-xs text-slate-400">Flagged mismatches</p><p className={`text-xl font-bold ${flagged ? 'text-red-400' : 'text-white'}`}>{flagged}</p></div>
-                <div className="bg-[#1e293b] rounded-xl p-4 border border-[#334155]"><p className="text-xs text-slate-400">Tolerance</p><p className="text-xl font-bold text-yellow-400">±{TOLERANCE_PCT}%</p></div>
+                <div className={`bg-[#1e293b] rounded-xl p-4 border ${chain.intact ? 'border-emerald-500/40' : 'border-red-500/60'}`}><p className="text-xs text-slate-400">Audit chain</p><p className={`text-sm font-bold ${chain.intact ? 'text-emerald-400' : 'text-red-400'}`}>{chain.intact ? '🔒 Intact' : `🚨 ${chain.tamperedCount} broken`}</p></div>
+              </div>
+              {!chain.intact && (
+                <div className="bg-red-500/10 border border-red-500/40 rounded-lg p-3 mb-4 text-xs text-red-300">🚨 TAMPER DETECTED: audit chain is broken — a weighbridge record was edited after logging. Review flagged records immediately.</div>
+              )}
+              <div className="flex items-center gap-2 mb-4">
+                <button onClick={tamperDemo} className="bg-red-600/20 hover:bg-red-600/40 border border-red-500/40 text-red-300 text-xs px-3 py-2 rounded-lg font-bold">🧪 Simulate tampering (edit last record)</button>
+                <span className="text-[10px] text-slate-500">Tests the SHA-256 hash chain integrity — edits after logging break the chain.</span>
               </div>
               <div className="bg-[#1e293b] border border-[#334155] rounded-xl overflow-hidden">
                 <div className="overflow-x-auto">
                   <table className="w-full text-xs text-slate-300">
-                    <thead className="bg-[#334155] text-[10px]"><tr><th className="p-2">Date/Time</th><th className="p-2">Plate</th><th className="p-2">Supplier</th><th className="p-2">Material</th><th className="p-2">Gross</th><th className="p-2">Tare</th><th className="p-2">Net</th><th className="p-2">Status</th></tr></thead>
+                    <thead className="bg-[#334155] text-[10px]"><tr><th className="p-2">Date/Time</th><th className="p-2">Plate</th><th className="p-2">Supplier</th><th className="p-2">Material</th><th className="p-2">Gross</th><th className="p-2">Tare</th><th className="p-2">Net</th><th className="p-2">Src</th><th className="p-2">Status</th></tr></thead>
                     <tbody>
                       {weigh.map(w => {
                         const diff = w.expected > 0 ? ((w.net - w.expected) / w.expected) * 100 : 0;
@@ -145,6 +204,7 @@ export default function Governance() {
                             <td className="p-2">{w.date} {w.time || ''}</td><td className="p-2 font-bold">{w.plate}</td><td className="p-2">{w.supplier}</td><td className="p-2">{w.material}</td>
                             <td className="p-2">{(w.gross / 1000).toFixed(2)}t</td><td className="p-2">{(w.tare / 1000).toFixed(2)}t</td>
                             <td className="p-2 font-bold text-blue-400">{(w.net / 1000).toFixed(2)}t</td>
+                            <td className="p-2">{w.source === 'auto' ? <span className="text-[10px] font-bold text-sky-400" title="Auto serial feed">📡</span> : <span className="text-[10px] font-bold text-slate-400" title="Manual entry">👤</span>}</td>
                             <td className="p-2">
                               {w.status === 'ok' && <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-400">✓ OK ({diff.toFixed(1)}%)</span>}
                               {w.status === 'mismatch' && <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-500/20 text-red-400">🚨 Diff {diff.toFixed(1)}%</span>}

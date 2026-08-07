@@ -282,6 +282,8 @@ export interface PlantSummary {
   inventory: Record<string, number>;
   qcCount: number;
   orders: any[];
+  payments: any[];
+  pos: any[];
 }
 
 export async function getAllPlantsSummary(): Promise<PlantSummary[]> {
@@ -290,11 +292,13 @@ export async function getAllPlantsSummary(): Promise<PlantSummary[]> {
   for (const u of usersSnap.docs) {
     const data = u.data();
     const username = String(u.id);
-    const [trips, inventory, qc, orders] = await Promise.all([
+    const [trips, inventory, qc, orders, payments, pos] = await Promise.all([
       loadUserData(username, 'trips'),
       loadUserData(username, 'inventory'),
       loadUserData(username, 'qcRecords'),
       loadUserData(username, 'orders'),
+      loadUserData(username, 'payments'),
+      loadUserData(username, 'purchaseOrders'),
     ]);
     out.push({
       username,
@@ -306,6 +310,8 @@ export async function getAllPlantsSummary(): Promise<PlantSummary[]> {
       inventory: inventory && typeof inventory === 'object' ? inventory : {},
       qcCount: Array.isArray(qc) ? qc.length : 0,
       orders: Array.isArray(orders) ? orders : [],
+      payments: Array.isArray(payments) ? payments : [],
+      pos: Array.isArray(pos) ? pos : [],
     });
   }
   return out;
