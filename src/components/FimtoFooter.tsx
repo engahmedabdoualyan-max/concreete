@@ -1,3 +1,5 @@
+import fimtoLogo from '../assets/logos/fimtosoftlogo.png';
+
 const QUICK_LINKS = ['Home', 'About', 'Services', 'Contact'];
 
 export default function FimtoFooter() {
@@ -5,8 +7,17 @@ export default function FimtoFooter() {
     <footer className="w-full bg-[#0b1220] border-t border-[#334155] mt-12 py-12">
       <div className="max-w-[1100px] mx-auto px-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-10">
         <div>
-          <h3 className="text-white font-extrabold text-xl tracking-tight">Fimto Soft</h3>
-          <p className="text-emerald-500 text-sm font-semibold mt-1">Integrated Tech Solutions</p>
+          <div className="flex items-center gap-3">
+            <img
+              src={fimtoLogo}
+              alt="Fimto Soft logo"
+              className="h-12 w-12 rounded-xl object-contain bg-white p-1 shadow-lg"
+            />
+            <div>
+              <h3 className="text-white font-extrabold text-xl tracking-tight">Fimto Soft</h3>
+              <p className="text-emerald-500 text-sm font-semibold mt-0.5">Integrated Tech Solutions</p>
+            </div>
+          </div>
           <p className="text-slate-400 text-sm leading-relaxed mt-4">
             We provide comprehensive software solutions including advanced interactive ERP systems, maintenance and
             development of ready-mix concrete plants, web design and development, distinguished digital marketing,
