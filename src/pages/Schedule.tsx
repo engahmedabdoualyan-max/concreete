@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { loadOrders, saveOrders } from '../firebase/firestore';
 import QuickJump from '../components/QuickJump';
 import LangSelector from '../components/LangSelector';
 import BrandLogo from '../components/BrandLogo';
@@ -420,16 +421,22 @@ export default function Schedule() {
   };
 
   // Import from Orders
-  const handleImportFromOrders = (importType: 'all' | 'pending' = 'all') => {
+  const handleImportFromOrders = async (importType: 'all' | 'pending' = 'all') => {
     const ordersKey = 'concrete_plant_orders';
-    const savedOrders = localStorage.getItem(ordersKey);
+    let orders: any[] = [];
+    if (currentUser) {
+      const fbOrders = await loadOrders(currentUser.username).catch(() => null);
+      if (Array.isArray(fbOrders) && fbOrders.length) orders = fbOrders;
+    }
+    if (!orders.length) {
+      const savedOrders = localStorage.getItem(ordersKey);
+      if (savedOrders) { try { orders = JSON.parse(savedOrders); } catch { orders = []; } }
+    }
 
-    if (!savedOrders) {
+    if (!orders.length) {
       toast('لا توجد طلبات في النظام', 'error');
       return;
     }
-
-    const orders = JSON.parse(savedOrders);
 
     // Filter orders based on import type
     let ordersToImport = orders.filter((o: any) =>
@@ -486,6 +493,7 @@ export default function Schedule() {
       return o;
     });
     localStorage.setItem(ordersKey, JSON.stringify(updatedOrders));
+    if (currentUser) saveOrders(currentUser.username, updatedOrders).catch(() => {});
 
     toast(`تم استيراد ${uniqueNewCustomers.length} طلب(ات) بنجاح`, 'success');
     setShowImportModal(false);

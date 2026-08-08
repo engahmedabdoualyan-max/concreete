@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { loadOrders } from '../firebase/firestore';
 import DatePicker from '../components/DatePicker';
 import QuickJump from '../components/QuickJump';
 import LangSelector from '../components/LangSelector';
@@ -111,8 +112,16 @@ export default function Evaluation() {
     if (tripsData) setTrips(JSON.parse(tripsData));
 
     // Load orders
-    const ordersData = localStorage.getItem('concrete_plant_orders');
-    if (ordersData) setOrders(JSON.parse(ordersData));
+    loadOrders(currentUser.username).then(fbOrders => {
+      if (Array.isArray(fbOrders) && fbOrders.length) setOrders(fbOrders);
+      else {
+        const ordersData = localStorage.getItem('concrete_plant_orders');
+        if (ordersData) setOrders(JSON.parse(ordersData));
+      }
+    }).catch(() => {
+      const ordersData = localStorage.getItem('concrete_plant_orders');
+      if (ordersData) setOrders(JSON.parse(ordersData));
+    });
 
     // Load mixing stations
     const stationsData = localStorage.getItem('ws_stations');
