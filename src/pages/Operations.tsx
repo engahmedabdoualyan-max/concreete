@@ -5,6 +5,7 @@ import { loadTrips, saveTrips, loadOrders, loadPlantGPS } from '../firebase/fire
 import QuickJump from '../components/QuickJump';
 import LangSelector from '../components/LangSelector';
 import BrandLogo from '../components/BrandLogo';
+import PlantLogo from '../components/PlantLogo';
 import DatePicker from '../components/DatePicker';
 
 interface Trip {
@@ -409,6 +410,7 @@ export default function Operations() {
           <h1 className="text-sm font-bold text-white">🚛 Mixer Truck & Concrete Operations Tracker</h1>
         </div>
         <div className="flex flex-wrap items-center gap-3">
+          <PlantLogo username={currentUser.username} height={32} />
           <span className="bg-emerald-500/15 text-emerald-500 text-xs px-3 py-1.5 rounded-lg font-bold border border-emerald-500/30">🟢 {currentUser.plantName}</span>
           <p className="text-[10px] text-emerald-500/80">Design by Dr. Ahmad Abdo Alyan</p>
         </div>

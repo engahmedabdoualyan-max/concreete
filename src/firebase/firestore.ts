@@ -10,6 +10,7 @@ export const USER_DATA_COLLECTIONS = [
   'trips', 'oeeLogs', 'recipes', 'calibrationLogs', 'inventory', 'deliveries',
   'productionRuns', 'qcRecords', 'assets', 'workshopConfig', 'customers', 'plantProfile',
   'weighbridgeRecords', 'returnedConcrete', 'payments', 'purchaseOrders', 'rawStock',
+  'plants', 'blockPlants',
 ];
 
 function userDocRef(userId: string) {
@@ -221,6 +222,32 @@ export async function savePlantProfile(userId: string, profile: any) {
 export async function loadPlantProfile(userId: string) {
   const snap = await getDoc(userDoc(userId, 'plantProfile'));
   return snap.exists() ? snap.data()?.data ?? { name: '', logo: '' } : { name: '', logo: '' };
+}
+
+// ====================== Plant Logo ======================
+export async function savePlantLogo(userId: string, logoDataUrl: string) {
+  const prev = await loadPlantProfile(userId);
+  await savePlantProfile(userId, { ...prev, logo: logoDataUrl, logoUpdatedAt: new Date().toISOString() });
+}
+export async function loadPlantLogo(userId: string): Promise<string> {
+  const profile = await loadPlantProfile(userId);
+  return profile?.logo || '';
+}
+
+// ====================== Plants (multi-site) ======================
+export async function savePlants(userId: string, plants: any[]) {
+  await saveUserData(userId, 'plants', plants);
+}
+export async function loadPlants(userId: string) {
+  return await loadUserData(userId, 'plants');
+}
+
+// ====================== Block Factories (block production lines) ======================
+export async function saveBlockPlants(userId: string, blockPlants: any[]) {
+  await saveUserData(userId, 'blockPlants', blockPlants);
+}
+export async function loadBlockPlants(userId: string) {
+  return await loadUserData(userId, 'blockPlants');
 }
 
 // ====================== Shared GPS (plant location) ======================

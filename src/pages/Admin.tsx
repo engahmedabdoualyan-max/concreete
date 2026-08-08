@@ -5,13 +5,14 @@ import { useLang } from '../context/LangContext';
 import type { Translations } from '../context/translations';
 import { useNavigate } from 'react-router-dom';
 import LangSelector from '../components/LangSelector';
-import { loadPlantGPS, savePlantGPS, getAllPlantsSummary, type PlantSummary } from '../firebase/firestore';
+import { loadPlantGPS, savePlantGPS, getAllPlantsSummary, loadPlantLogo, savePlantLogo, loadPlants, loadBlockPlants, type PlantSummary } from '../firebase/firestore';
 import { loadGpsLocationsFromSupabase } from '../supabase/supabase';
 import FactoryData from '../components/FactoryData';
+import PlantsManager from '../components/PlantsManager';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
-type Tab = 'overview' | 'plant' | 'users' | 'sections' | 'gps' | 'factory';
+type Tab = 'overview' | 'plant' | 'plants' | 'users' | 'sections' | 'gps' | 'factory';
 
 const ROLE_EMOJIS: Record<UserRole, string> = {
   owner: '👑',
@@ -89,6 +90,9 @@ export default function AdminPanel() {
   const [summary, setSummary] = useState<PlantSummary[]>([]);
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [supaGps, setSupaGps] = useState<Array<{ username: string; label: string; lat: number; lng: number }>>([]);
+  const [logo, setLogo] = useState('');
+  const [plantCount, setPlantCount] = useState(0);
+  const [blockCount, setBlockCount] = useState(0);
   const mapRef = useRef<HTMLDivElement | null>(null);
   const mapObjRef = useRef<L.Map | null>(null);
 
@@ -99,6 +103,11 @@ export default function AdminPanel() {
     }).catch(() => {});
     loadGpsLocationsFromSupabase().then(rows => {
       setSupaGps(rows.map(r => ({ username: r.username, label: r.label, lat: r.lat, lng: r.lng })));
+    }).catch(() => {});
+    loadPlantLogo(currentUser.username).then(l => setLogo(l)).catch(() => {});
+    Promise.all([loadPlants(currentUser.username), loadBlockPlants(currentUser.username)]).then(([p, b]) => {
+      if (Array.isArray(p)) setPlantCount(p.length);
+      if (Array.isArray(b)) setBlockCount(b.length);
     }).catch(() => {});
   }, [currentUser?.username]);
 
@@ -133,6 +142,35 @@ export default function AdminPanel() {
       setSummary(s);
     } catch {}
     setSummaryLoading(false);
+  };
+
+  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !currentUser) return;
+    if (!file.type.startsWith('image/')) { showToast('⚠️ Please select an image file.'); return; }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        const MAX = 300;
+        const scale = Math.min(1, MAX / Math.max(img.width, img.height));
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.max(1, Math.round(img.width * scale));
+        canvas.height = Math.max(1, Math.round(img.height * scale));
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+        setLogo(dataUrl);
+        savePlantLogo(currentUser!.username, dataUrl).then(() => showToast('✅ Plant logo uploaded & shared across the site.')).catch(() => showToast('⚠️ Could not save logo.'));
+      };
+      img.onerror = () => showToast('⚠️ Could not read image.');
+      img.src = String(reader.result);
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
   };
 
   useEffect(() => {
@@ -229,7 +267,8 @@ export default function AdminPanel() {
   const tabs: { key: Tab; label: string; emoji: string }[] = [
     { key: 'overview', label: t('tabOverview'), emoji: '📊' },
     { key: 'plant', label: t('tabPlantData'), emoji: '🏭' },
-    { key: 'factory', label: 'Factory Assets & Stock', emoji: '🚛' },
+    { key: 'plants', label: 'Plants & Block Lines', emoji: '🏗️' },
+    { key: 'factory', label: 'Fleet, Stock & Config', emoji: '🚛' },
     { key: 'users', label: t('tabUsers'), emoji: '👥' },
     { key: 'sections', label: 'Sections Overview', emoji: '🧩' },
     { key: 'gps', label: 'GPS Map', emoji: '🗺️' },
@@ -278,11 +317,20 @@ export default function AdminPanel() {
 
         {tab === 'overview' && (
           <div className="space-y-6">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="bg-[#1e293b] rounded-2xl border border-[#334155] p-6">
-                <p className="text-xs text-slate-400 font-semibold mb-1">🏭 {t('plantName')}</p>
-                <p className="text-lg font-bold text-white truncate">{plant.name || '—'}</p>
+            <div className="bg-[#1e293b] rounded-2xl border border-[#334155] p-6 flex flex-col md:flex-row items-center gap-5">
+              {logo ? (
+                <img src={logo} alt="Plant logo" className="h-20 w-auto object-contain rounded-xl bg-white p-1" />
+              ) : (
+                <div className="h-20 w-28 rounded-xl bg-[#0f172a] border border-dashed border-[#334155] flex items-center justify-center text-[10px] text-slate-500">No logo yet</div>
+              )}
+              <div className="text-center md:text-left">
+                <p className="text-2xl font-bold text-white">🏭 {plant.name || '—'}</p>
+                <p className="text-sm text-slate-400 mt-1">{plant.city || '—'}{plant.city && plant.country ? ', ' : ''}{plant.country || ''} · 📏 {plant.capacityM3 || '—'} m³ · 🎛️ {plant.mixerCount || '0'} mixers · 🚛 {plant.truckCount || '0'} trucks</p>
               </div>
+              <button onClick={() => setTab('plant')} className="md:ml-auto bg-blue-600/20 text-blue-400 border border-blue-500/50 hover:bg-blue-600/30 px-4 py-2 rounded-lg font-bold text-sm transition-colors">✏️ Edit Plant & Logo</button>
+            </div>
+
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div className="bg-[#1e293b] rounded-2xl border border-[#334155] p-6">
                 <p className="text-xs text-slate-400 font-semibold mb-1">📍 {t('location')}</p>
                 <p className="text-lg font-bold text-white truncate">{plant.city || '—'}{plant.city && plant.country ? ', ' : ''}{plant.country || ''}</p>
@@ -292,8 +340,12 @@ export default function AdminPanel() {
                 <p className="text-lg font-bold text-white truncate">{plant.capacityM3 || '—'}</p>
               </div>
               <div className="bg-[#1e293b] rounded-2xl border border-[#334155] p-6">
-                <p className="text-xs text-slate-400 font-semibold mb-1">📅 {t('foundingYear')}</p>
-                <p className="text-lg font-bold text-white truncate">{plant.foundingYear || '—'}</p>
+                <p className="text-xs text-slate-400 font-semibold mb-1">🏗️ Ready-Mix Plants</p>
+                <p className="text-lg font-bold text-white truncate">{plantCount}</p>
+              </div>
+              <div className="bg-[#1e293b] rounded-2xl border border-[#334155] p-6">
+                <p className="text-xs text-slate-400 font-semibold mb-1">🧱 Block Lines</p>
+                <p className="text-lg font-bold text-white truncate">{blockCount}</p>
               </div>
               <div className="bg-[#1e293b] rounded-2xl border border-[#334155] p-6">
                 <p className="text-xs text-slate-400 font-semibold mb-1">🎛️ {t('mixerCount')}</p>
@@ -344,6 +396,37 @@ export default function AdminPanel() {
         {tab === 'plant' && (
           <form onSubmit={handleSavePlant} className="bg-[#1e293b] rounded-2xl border border-[#334155] p-8">
             <h2 className="text-xl font-bold text-white mb-6">🏭 {t('tabPlantData')}</h2>
+            <div className="bg-[#0f172a] border border-[#334155] rounded-xl p-4 mb-6">
+              <div className="flex items-center gap-4 flex-wrap">
+                {logo ? (
+                  <img src={logo} alt="Plant logo" className="h-20 w-auto object-contain rounded-xl bg-white p-1" />
+                ) : (
+                  <div className="h-20 w-28 rounded-xl bg-[#1e293b] border border-dashed border-[#334155] flex items-center justify-center text-[10px] text-slate-500">No logo yet</div>
+                )}
+                <div className="flex-1 min-w-[220px]">
+                  <p className="font-bold text-white text-sm">🖼️ Plant Logo</p>
+                  <p className="text-xs text-slate-400 mt-1">Upload the factory logo — it is shared with the whole site (Operations, Dashboard & this panel).</p>
+                  <div className="mt-3 flex gap-2">
+                    <label className="bg-blue-600/20 text-blue-400 border border-blue-500/50 hover:bg-blue-600/30 text-xs px-4 py-2 rounded-lg font-bold cursor-pointer transition-colors inline-block">
+                      📤 {logo ? 'Replace Logo' : 'Upload Logo'}
+                      <input type="file" accept="image/*" onChange={handleLogoUpload} className="hidden" />
+                    </label>
+                    {logo && (
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          setLogo('');
+                          try { await savePlantLogo(currentUser!.username, ''); showToast('✅ Plant logo removed.'); } catch { showToast('⚠️ Could not remove logo.'); }
+                        }}
+                        className="bg-red-600/20 text-red-400 border border-red-500/30 hover:bg-red-600/30 text-xs px-4 py-2 rounded-lg font-bold transition-colors"
+                      >
+                        🗑️ Remove
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               <Field label={t('plantName')} value={plantForm.name} onChange={v => setPlantForm({ ...plantForm, name: v })} />
               <Field label={t('managerName')} value={plantForm.manager} onChange={v => setPlantForm({ ...plantForm, manager: v })} />
@@ -585,6 +668,10 @@ export default function AdminPanel() {
               })
             )}
           </div>
+        )}
+
+        {tab === 'plants' && (
+          <PlantsManager onToast={showToast} />
         )}
 
         {tab === 'factory' && (
