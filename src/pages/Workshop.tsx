@@ -9,7 +9,7 @@ import BrandLogo from '../components/BrandLogo';
 import DatePicker from '../components/DatePicker';
 
 // ======================= TYPES =======================
-interface Asset { id: string; plate: string; chassis: string; type: string; status: string; driver: string; initOdo: number; engHours: number; regExpiry: string; insExpiry: string; opcardExpiry: string; authExpiry: string; gpsId: string; tare: string; gross: string; }
+interface Asset { id: string; plate: string; chassis: string; type: string; status: string; driver: string; initOdo: number; engHours: number; regExpiry: string; insExpiry: string; opcardExpiry: string; authExpiry: string; gpsId: string; tare: string; gross: string; gpsLat?: number; gpsLng?: number; productionRate?: number; capacity?: number; model?: string; year?: string; manufacturer?: string; }
 interface FuelLog { id: number; date: string; assetId: string; odoReading: number; liters: number; costPerLiter: number; totalCost: number; fuelType: string; station: string; invoice: string; notes: string; }
 interface OilLog { id: number; date: string; assetId: string; oilType: string; brand: string; quantity: number; unit: string; cost: number; odoReading: number; nextChangeOdo: number; notes: string; }
 interface SparePartLog { id: number; date: string; assetId: string; partName: string; partNumber: string; quantity: number; unitCost: number; totalCost: number; supplier: string; invoice: string; warranty: string; notes: string; }
