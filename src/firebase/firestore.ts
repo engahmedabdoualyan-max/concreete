@@ -10,7 +10,7 @@ export const USER_DATA_COLLECTIONS = [
   'trips', 'oeeLogs', 'recipes', 'calibrationLogs', 'inventory', 'deliveries',
   'productionRuns', 'qcRecords', 'assets', 'workshopConfig', 'customers', 'plantProfile',
   'weighbridgeRecords', 'returnedConcrete', 'payments', 'purchaseOrders', 'rawStock',
-  'plants', 'blockPlants', 'gpsConfig', 'gpsHistory',
+  'plants', 'blockPlants', 'gpsConfig', 'gpsHistory', 'livePositions',
 ];
 
 function userDocRef(userId: string) {
@@ -260,6 +260,36 @@ export async function saveGpsHistory(userId: string, entry: { vehicle: string; d
 }
 export async function loadGpsHistory(userId: string) {
   return await loadUserData(userId, 'gpsHistory');
+}
+
+// ====================== Driver Live Location (mobile fallback GPS) ======================
+export interface LivePosEntry {
+  assetId: string;
+  lat: number;
+  lng: number;
+  ts: number;
+  speed?: number;
+  accuracy?: number;
+}
+export async function saveLivePosition(userId: string, entry: LivePosEntry) {
+  const list = (await loadUserData(userId, 'livePositions')) || [];
+  const next = list.filter((e: any) => e.assetId !== entry.assetId);
+  next.push(entry);
+  await saveUserData(userId, 'livePositions', next);
+}
+export async function loadLivePositions(userId: string): Promise<LivePosEntry[]> {
+  return (await loadUserData(userId, 'livePositions')) || [];
+}
+export async function getAllLivePositions(): Promise<Array<LivePosEntry & { username: string; plantName: string }>> {
+  const usersSnap = await getDocs(collection(db, 'users'));
+  const out: Array<LivePosEntry & { username: string; plantName: string }> = [];
+  for (const u of usersSnap.docs) {
+    const data = u.data();
+    const username = String(u.id);
+    const live = await loadUserData(username, 'livePositions');
+    if (Array.isArray(live)) live.forEach((e: LivePosEntry) => out.push({ ...e, username, plantName: data?.plantName || data?.name || username }));
+  }
+  return out;
 }
 
 // ====================== Plants (multi-site) ======================

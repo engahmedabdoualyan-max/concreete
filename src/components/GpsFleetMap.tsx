@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { loadAssets, saveAssets, loadGpsConfig, loadPlantGPS, savePlantGPS, getAllPlantsSummary, loadGpsHistory, saveGpsHistory, type PlantSummary } from '../firebase/firestore';
+import { loadAssets, saveAssets, loadGpsConfig, loadPlantGPS, savePlantGPS, getAllPlantsSummary, loadGpsHistory, saveGpsHistory, getAllLivePositions, type PlantSummary } from '../firebase/firestore';
 import { loadGpsLocationsFromSupabase, saveGpsLocationToSupabase } from '../supabase/supabase';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -31,6 +31,7 @@ export default function GpsFleetMap({ onToast }: { onToast: (msg: string) => voi
   const [supaGps, setSupaGps] = useState<Array<{ username: string; label: string; lat: number; lng: number }>>([]);
   const [cfg, setCfg] = useState<any>({ server: '', username: '', password: '', liveEnabled: false, refreshSec: 15 });
   const [live, setLive] = useState<Record<string, { lat: number; lng: number; fixTime: string; speed?: number }>>({});
+  const [driverLive, setDriverLive] = useState<Array<{ username: string; plantName: string; assetId: string; lat: number; lng: number; ts: number; speed?: number }>>([]);
   const [liveState, setLiveState] = useState<'off' | 'connecting' | 'on' | 'error'>('off');
   const [liveMsg, setLiveMsg] = useState('');
   const [lastPoll, setLastPoll] = useState<number | null>(null);
@@ -62,7 +63,13 @@ export default function GpsFleetMap({ onToast }: { onToast: (msg: string) => voi
     loadAssets(currentUser.username).then(a => { if (Array.isArray(a)) { assetsRef.current = a; setAssets(a); } }).catch(() => {});
     loadGpsLocationsFromSupabase().then(rows => setSupaGps(rows.map(r => ({ username: r.username, label: r.label, lat: r.lat, lng: r.lng })))).catch(() => {});
     getAllPlantsSummary().then(s => setSummary(s)).catch(() => {});
+    getAllLivePositions().then(d => setDriverLive(d)).catch(() => {});
   }, [currentUser?.username]);
+
+  useEffect(() => {
+    const t = setInterval(() => { getAllLivePositions().then(d => setDriverLive(d)).catch(() => {}); }, 15000);
+    return () => clearInterval(t);
+  }, []);
 
   useEffect(() => {
     if (!currentUser || !cfg.liveEnabled || !cfg.server) return;
@@ -125,8 +132,18 @@ export default function GpsFleetMap({ onToast }: { onToast: (msg: string) => voi
     if (plantGps) markerLayer.current.addLayer(L.marker([plantGps.lat, plantGps.lng], { icon: plantIcon }).bindPopup('<b>🏭 Plant HQ</b>'));
 
     const allAssets = Array.isArray(assets) ? assets : [];
-    const filtered = allAssets.filter(a => {
-      if (!(typeof a.gpsLat === 'number' && typeof a.gpsLng === 'number')) return false;
+    const freshDriver = (Array.isArray(driverLive) ? driverLive : []).filter(d => Date.now() - (d.ts || 0) < 180000);
+    const posFor = (a: any) => {
+      const s = a.gpsId && live[a.gpsId];
+      if (s) return { lat: s.lat, lng: s.lng, src: 'tracker' as const };
+      const d = freshDriver.find(x => x.assetId === a.id);
+      if (d) return { lat: d.lat, lng: d.lng, src: 'driver' as const, who: `${d.username}${d.plantName ? ' · ' + d.plantName : ''}` };
+      if (typeof a.gpsLat === 'number' && typeof a.gpsLng === 'number') return { lat: a.gpsLat, lng: a.gpsLng, src: 'stored' as const };
+      return null;
+    };
+    const positioned = allAssets.map(a => ({ a, pos: posFor(a) }));
+    const filtered = positioned.filter(({ a, pos }) => {
+      if (!pos) return false;
       if (filter === 'mixer') return a.type === 'Mixer';
       if (filter === 'pump') return a.type === 'Mobile Pump';
       if (filter === 'mixer+pump') return a.type === 'Mixer' || a.type === 'Mobile Pump';
@@ -134,14 +151,16 @@ export default function GpsFleetMap({ onToast }: { onToast: (msg: string) => voi
       return true;
     });
 
-    const iconFor = (a: any) => {
-      const isLive = a.gpsId && live[a.gpsId];
+    const iconFor = (a: any, src: string) => {
       const emoji = TYPE_ICON[a.type] || '🚚';
-      return L.divIcon({ className: '', html: `<div class="gps-pin">${emoji}${isLive ? '<span class="gps-live"></span>' : ''}</div>`, iconSize: [26, 26] });
+      const dot = src === 'tracker' ? '<span class="gps-live"></span>' : src === 'driver' ? '<span class="gps-live gps-driver"></span>' : '';
+      return L.divIcon({ className: '', html: `<div class="gps-pin">${emoji}${dot}</div>`, iconSize: [26, 26] });
     };
-    filtered.forEach(a => {
-      const pop = `<b>${a.id} (${a.plate || '—'})</b><br/>${a.type || ''}${a.gpsId ? '<br/>Tracker: ' + a.gpsId : ''}${live[a.gpsId] ? `<br/>🟢 Live ${live[a.gpsId].speed != null ? '· ' + Math.round(live[a.gpsId].speed) + ' km/h' : ''}` : ''}<br/>Updated: ${a.gpsUpdatedAt ? new Date(a.gpsUpdatedAt).toLocaleString() : '—'}`;
-      markerLayer.current!.addLayer(L.marker([a.gpsLat, a.gpsLng], { icon: iconFor(a) }).bindPopup(pop));
+    filtered.forEach(({ a, pos }) => {
+      const liveSpeed = live[a.gpsId] && live[a.gpsId].speed != null ? '· ' + Math.round(live[a.gpsId].speed) + ' km/h' : '';
+      const srcLine = pos!.src === 'tracker' ? `<br/>📡 Tracker Live ${liveSpeed}` : pos!.src === 'driver' ? `<br/>📱 Driver GPS ${pos!.speed != null ? '· ' + Math.round(pos!.speed) + ' km/h' : ''}${pos!.who ? '<br/>' + pos!.who : ''}` : '<br/>💾 Stored';
+      const pop = `<b>${a.id} (${a.plate || '—'})</b><br/>${a.type || ''}${a.gpsId ? '<br/>Tracker: ' + a.gpsId : ''}${srcLine}<br/>Updated: ${a.gpsUpdatedAt ? new Date(a.gpsUpdatedAt).toLocaleString() : '—'}`;
+      markerLayer.current!.addLayer(L.marker([pos!.lat, pos!.lng], { icon: iconFor(a, pos!.src) }).bindPopup(pop));
     });
 
     supaGps.forEach(s => {
@@ -161,10 +180,10 @@ export default function GpsFleetMap({ onToast }: { onToast: (msg: string) => voi
       });
       map.fitBounds(line.getBounds(), { padding: [40, 40] });
     } else if (filtered.length > 0) {
-      const pts = filtered.map(a => [a.gpsLat, a.gpsLng] as [number, number]);
+      const pts = filtered.map(({ pos }) => [pos!.lat, pos!.lng] as [number, number]);
       map.fitBounds(L.latLngBounds(pts), { padding: [30, 30] });
     }
-  }, [assets, live, filter, selectedAsset, plantGps, supaGps, route, routeTrips]);
+  }, [assets, live, driverLive, filter, selectedAsset, plantGps, supaGps, route, routeTrips]);
 
   const detectGps = () => {
     setGpsMsg('');
@@ -248,7 +267,13 @@ export default function GpsFleetMap({ onToast }: { onToast: (msg: string) => voi
   };
 
   const online = Object.keys(live).length;
-  const withPos = (Array.isArray(assets) ? assets : []).filter(a => typeof a.gpsLat === 'number' && typeof a.gpsLng === 'number').length;
+  const freshDrivers = (Array.isArray(driverLive) ? driverLive : []).filter(d => Date.now() - (d.ts || 0) < 180000);
+  const driverOnline = freshDrivers.length;
+  const withPos = (Array.isArray(assets) ? assets : []).filter(a =>
+    (a.gpsId && live[a.gpsId]) ||
+    freshDrivers.some(d => d.assetId === a.id) ||
+    (typeof a.gpsLat === 'number' && typeof a.gpsLng === 'number')
+  ).length;
   const filters = [
     { k: 'all', l: '🚚 All Equipment' },
     { k: 'mixer', l: '🚛 All Mixers' },
@@ -258,13 +283,13 @@ export default function GpsFleetMap({ onToast }: { onToast: (msg: string) => voi
 
   return (
     <div className="space-y-6">
-      <style>{`.gps-pin{position:relative;width:26px;height:26px;display:flex;align-items:center;justify-content:center;font-size:16px;filter:drop-shadow(0 1px 2px rgba(0,0,0,.6))}.gps-live{position:absolute;top:-1px;right:-1px;width:8px;height:8px;border-radius:50%;background:#22c55e;border:1px solid #fff;animation:gpsblink 1.2s infinite}@keyframes gpsblink{0%,100%{opacity:1}50%{opacity:.3}}`}</style>
+      <style>{`.gps-pin{position:relative;width:26px;height:26px;display:flex;align-items:center;justify-content:center;font-size:16px;filter:drop-shadow(0 1px 2px rgba(0,0,0,.6))}.gps-live{position:absolute;top:-1px;right:-1px;width:8px;height:8px;border-radius:50%;background:#22c55e;border:1px solid #fff;animation:gpsblink 1.2s infinite}.gps-live.gps-driver{background:#38bdf8}@keyframes gpsblink{0%,100%{opacity:1}50%{opacity:.3}}`}</style>
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-xl font-bold text-white">🗺️ GPS Fleet Map</h2>
         <div className="flex items-center gap-2">
           <span className={`px-3 py-1.5 rounded-lg text-xs font-bold border ${liveState === 'on' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40' : liveState === 'error' ? 'bg-red-500/20 text-red-400 border-red-500/40' : 'bg-slate-500/20 text-slate-400 border-slate-600/40'}`}>
-            {liveState === 'on' ? `🟢 Live · ${online} device(s)` : liveState === 'connecting' ? '⏳ Connecting...' : liveState === 'error' ? '🔴 Offline' : '⚪ Not enabled'}
+            {liveState === 'on' ? `🟢 Live · ${online} tracker + ${driverOnline} driver` : liveState === 'connecting' ? '⏳ Connecting...' : liveState === 'error' ? `🔴 Tracker offline · ${driverOnline} driver` : `⚪ ${driverOnline > 0 ? driverOnline + ' driver live' : 'No live feed'}`}
           </span>
           {lastPoll && <span className="text-[11px] text-slate-500">updated {Math.round((Date.now() - lastPoll) / 1000)}s ago</span>}
           <button onClick={detectGps} className="bg-gradient-to-r from-sky-600 to-blue-700 hover:from-sky-700 hover:to-blue-800 text-white px-4 py-1.5 rounded-lg font-bold text-xs transition-all duration-300">📍 Detect My Location</button>
@@ -284,11 +309,18 @@ export default function GpsFleetMap({ onToast }: { onToast: (msg: string) => voi
             {(Array.isArray(assets) ? assets : []).map(a => <option key={a.id} value={a.id}>{a.id} ({a.plate || a.type || '—'})</option>)}
           </select>
         )}
-        <span className="text-[11px] text-slate-500 ml-auto">{withPos} with position · {online} live</span>
+        <span className="text-[11px] text-slate-500 ml-auto">{withPos} with position · {online} tracker live · {driverOnline} driver live</span>
       </div>
 
       <div className="bg-[#1e293b] rounded-2xl border border-[#334155] p-3">
         <div ref={mapRef} className="w-full h-[540px] rounded-xl overflow-hidden z-0" />
+        <div className="flex flex-wrap items-center gap-4 mt-2 text-[11px] text-slate-400">
+          <span>Legend:</span>
+          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-[#22c55e]" style={{ boxShadow: '0 0 0 2px rgba(34,197,94,.25)' }} /> Tracker live</span>
+          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-[#38bdf8]" style={{ boxShadow: '0 0 0 2px rgba(56,189,248,.25)' }} /> Driver phone GPS</span>
+          <span>💾 = stored location</span>
+          <span>🏭 = plant HQ</span>
+        </div>
       </div>
 
       <div className="bg-[#1e293b] rounded-2xl border border-[#334155] p-5">

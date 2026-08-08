@@ -7,6 +7,7 @@ import LangSelector from '../components/LangSelector';
 import BrandLogo from '../components/BrandLogo';
 import PlantLogo from '../components/PlantLogo';
 import DatePicker from '../components/DatePicker';
+import DriverLiveBroadcast from '../components/DriverLiveBroadcast';
 
 interface Trip {
   id: number; plant: string; date: string; code: string; driver: string;
@@ -117,6 +118,7 @@ export default function Operations() {
   }, [currentUser?.username]);
   const [search, setSearch] = useState('');
   const [showAdd, setShowAdd] = useState(false);
+  const [showLive, setShowLive] = useState(false);
   const [showReport, setShowReport] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
   const [form, setForm] = useState({
@@ -424,11 +426,17 @@ export default function Operations() {
           <button onClick={() => setShowBatching(true)} className="bg-cyan-600 hover:bg-cyan-700 text-white text-sm px-4 py-2 rounded-lg font-medium">🏭 Batching Panel</button>
           <button onClick={() => setShowMap(true)} className="bg-sky-600 hover:bg-sky-700 text-white text-sm px-4 py-2 rounded-lg font-medium">📍 Fleet Map</button>
           <button onClick={() => setShowDispatch(true)} className="bg-violet-600 hover:bg-violet-700 text-white text-sm px-4 py-2 rounded-lg font-medium">🧠 Smart Dispatch</button>
+          <button onClick={() => setShowLive(s => !s)} className={`text-white text-sm px-4 py-2 rounded-lg font-medium ${showLive ? 'bg-emerald-600' : 'bg-teal-600 hover:bg-teal-700'}`}>📱 Driver Live</button>
           <button onClick={openAdd} className="bg-emerald-500 hover:bg-emerald-600 text-white text-sm px-4 py-2 rounded-lg font-medium">➕ New Trip</button>
         </div>
       </header>
 
       <main className="p-6">
+        {showLive && (
+          <div className="mb-5">
+            <DriverLiveBroadcast />
+          </div>
+        )}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
           {filtered.length === 0 && <p className="text-slate-500 text-center col-span-full py-20">No trips recorded yet or matching your search.</p>}
           {filtered.map(t => {
