@@ -11,6 +11,7 @@ export const USER_DATA_COLLECTIONS = [
   'productionRuns', 'qcRecords', 'assets', 'workshopConfig', 'customers', 'plantProfile',
   'weighbridgeRecords', 'returnedConcrete', 'payments', 'purchaseOrders', 'rawStock',
   'plants', 'blockPlants', 'gpsConfig', 'gpsHistory', 'livePositions',
+  'orders', 'notifications',
 ];
 
 function userDocRef(userId: string) {
@@ -373,6 +374,36 @@ export async function saveOrders(userId: string, records: any[]) {
 }
 export async function loadOrders(userId: string) {
   return await loadUserData(userId, 'orders');
+}
+
+// ====================== Notifications (linkage events) ======================
+export interface Notification {
+  id: string;
+  ts: string;
+  level: 'info' | 'success' | 'warn' | 'error';
+  title: string;
+  body: string;
+  ref?: string;
+  read: boolean;
+}
+export async function loadNotifications(userId: string): Promise<Notification[]> {
+  const data = await loadUserData(userId, 'notifications');
+  return Array.isArray(data) ? data : [];
+}
+export async function addNotification(userId: string, n: Omit<Notification, 'id' | 'ts' | 'read'>): Promise<void> {
+  const list = await loadNotifications(userId).catch(() => []);
+  const entry: Notification = {
+    ...n,
+    id: Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
+    ts: new Date().toISOString(),
+    read: false,
+  };
+  await saveUserData(userId, 'notifications', [entry, ...list].slice(0, 80));
+}
+export async function markNotificationsRead(userId: string): Promise<void> {
+  const list = await loadNotifications(userId).catch(() => []);
+  if (!list.length) return;
+  await saveUserData(userId, 'notifications', list.map(n => ({ ...n, read: true })));
 }
 
 // ====================== Multi-Plant (owner) ======================

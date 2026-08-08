@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { loadRecipes, saveRecipes, loadCalibrationLogs, saveCalibrationLogs, loadQCRecords, saveQCRecords, loadPlantLogo } from '../firebase/firestore';
+import { loadRecipes, saveRecipes, loadCalibrationLogs, saveCalibrationLogs, loadQCRecords, saveQCRecords, loadPlantLogo, loadOrders, addNotification } from '../firebase/firestore';
 import DatePicker from '../components/DatePicker';
 import QuickJump from '../components/QuickJump';
 import LangSelector from '../components/LangSelector';
 import BrandLogo from '../components/BrandLogo';
+import NotificationsBell from '../components/NotificationsBell';
 
 // ============ Interfaces ============
 interface Recipe { code: string; cement: number; sand: number; gravel: number; water: number; admixture: number; }
@@ -13,7 +14,7 @@ interface CalibrationCert {
   id: number; date: string; scaleType: string; target: number; measured: number; dev: number; status: string;
   reportFile: string; reportFileName: string; accreditation: string; accreditingBody: string; accreditationDate: string; notes: string;
 }
-interface QCRecord { id: number; date: string; truck: string; design: string; slump: number; break7d: number; break28d: number; blade: string; bonNo: string; customer: string; site: string; mixDesignCode: string; }
+interface QCRecord { id: number; date: string; truck: string; design: string; slump: number; break7d: number; break28d: number; blade: string; bonNo: string; customer: string; site: string; mixDesignCode: string; orderId?: string; sampleId?: string; }
 interface CompensatedResult { base: Recipe; water: number; admixture: number; temp: number; humidity: number; note: string; }
 
 type Tab = 'recipes' | 'calibration' | 'mixDesigner' | 'quality' | 'aiPredictor';
@@ -47,7 +48,7 @@ export default function MixingQuality() {
     ambientTemp: '25', humidity: '60',
   });
   const [designerResult, setDesignerResult] = useState<CompensatedResult | null>(null);
-  const [qcForm, setQcForm] = useState({ truck: 'm01', design: 'C30', slump: '', break7d: '', break28d: '', blade: 'Optimal', bonNo: '', customer: '', site: '', mixDesignCode: '' });
+  const [qcForm, setQcForm] = useState({ truck: 'm01', design: 'C30', slump: '', break7d: '', break28d: '', blade: 'Optimal', bonNo: '', customer: '', site: '', mixDesignCode: '', orderId: '' });
   const [aiForm, setAiForm] = useState({ design: 'C30', slump: '12', break7d: '22' });
   const [aiResult, setAiResult] = useState<{ predicted: number; target: number; margin: number; ok: boolean; confidence: number; rmse: number; band: number; reliability: 'high' | 'medium' | 'low' } | null>(null);
   const [aiR2, setAiR2] = useState('—');
@@ -59,6 +60,7 @@ export default function MixingQuality() {
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
   const [trucks, setTrucks] = useState<string[]>(['m01', 'm02', 'm03', 'm04']);
+  const [orders, setOrders] = useState<any[]>([]);
 
   // Load data
   useEffect(() => {
@@ -66,11 +68,13 @@ export default function MixingQuality() {
     Promise.all([
       loadRecipes(currentUser.username),
       loadCalibrationLogs(currentUser.username),
-      loadQCRecords(currentUser.username)
-    ]).then(([r, c, q]) => {
+      loadQCRecords(currentUser.username),
+      loadOrders(currentUser.username),
+    ]).then(([r, c, q, o]) => {
       if (r?.length) setRecipes(r); else { const s = localStorage.getItem('plantRecipes'); if (s) setRecipes(JSON.parse(s)); }
       if (c?.length) setCalibLogs(c); else { const s = localStorage.getItem('calibrationLogs'); if (s) setCalibLogs(JSON.parse(s)); }
       if (q?.length) setQcRecords(q); else { const s = localStorage.getItem('qcRecords'); if (s) setQcRecords(JSON.parse(s)); }
+      if (Array.isArray(o)) setOrders(o);
       setLoaded(true);
     }).catch(() => { setLoaded(true); });
   }, [currentUser?.username]);
@@ -171,9 +175,16 @@ export default function MixingQuality() {
   // ============ QC Functions ============
   const addQCRecord = (e: React.FormEvent) => {
     e.preventDefault();
-    setQcRecords(prev => [...prev, { id: Date.now(), date: new Date().toISOString().split('T')[0], truck: qcForm.truck, design: qcForm.design, slump: +qcForm.slump, break7d: +qcForm.break7d, break28d: +qcForm.break28d, blade: qcForm.blade, bonNo: qcForm.bonNo, customer: qcForm.customer, site: qcForm.site, mixDesignCode: qcForm.mixDesignCode }]);
-    setQcForm({ truck: 'm01', design: 'C30', slump: '', break7d: '', break28d: '', blade: 'Optimal', bonNo: '', customer: '', site: '', mixDesignCode: '' });
-    alert('🔬 QC data saved!');
+    const order = orders.find(o => o.id === qcForm.orderId);
+    const orderId = order?.orderNo || '';
+    const sampleId = order ? `${order.customerCode || 'NA'}-${order.orderNo || order.id}` : '';
+    setQcRecords(prev => [...prev, { id: Date.now(), date: new Date().toISOString().split('T')[0], truck: qcForm.truck, design: qcForm.design, slump: +qcForm.slump, break7d: +qcForm.break7d, break28d: +qcForm.break28d, blade: qcForm.blade, bonNo: qcForm.bonNo || sampleId, customer: order?.customerName || qcForm.customer, site: order?.projectName || qcForm.site, mixDesignCode: qcForm.mixDesignCode, orderId, sampleId: sampleId || undefined }]);
+    setQcForm({ truck: 'm01', design: 'C30', slump: '', break7d: '', break28d: '', blade: 'Optimal', bonNo: '', customer: '', site: '', mixDesignCode: '', orderId: '' });
+    if (order && currentUser) addNotification(currentUser.username, {
+      level: 'info', title: '🔬 عينة معمل ' + (sampleId || order.orderNo),
+      body: `طلب ${order.orderNo} · شاحنة ${qcForm.truck} · ${qcForm.design} — العينة أُخذت من كود العميل (${order.customerCode || 'NA'}) + الطلب`,
+    }).catch(() => {});
+    alert('🔬 QC data saved!' + (sampleId ? ` — Sample ID: ${sampleId}` : ''));
   };
 
   const printQCRecord = async (r: QCRecord) => {
@@ -343,6 +354,7 @@ export default function MixingQuality() {
           <h1 className="text-sm font-bold text-white">🎛️ Mixing & Quality Control</h1>
         </div>
         <div className="flex flex-wrap items-center gap-3">
+          <NotificationsBell />
           <span className="bg-emerald-500/15 text-emerald-500 text-xs px-3 py-1.5 rounded-lg font-bold border border-emerald-500/30">🟢 {currentUser.plantName}</span>
         </div>
       </div>
@@ -520,6 +532,18 @@ export default function MixingQuality() {
                 <div><label className="text-xs text-slate-400 font-semibold">Customer</label><input value={qcForm.customer} onChange={e => setQcForm({ ...qcForm, customer: e.target.value })} placeholder="Client name" className="w-full bg-[#334155] border border-[#475569] rounded-lg p-2.5 text-white text-sm" /></div>
                 <div><label className="text-xs text-slate-400 font-semibold">Site / Project</label><input value={qcForm.site} onChange={e => setQcForm({ ...qcForm, site: e.target.value })} placeholder="Project site" className="w-full bg-[#334155] border border-[#475569] rounded-lg p-2.5 text-white text-sm" /></div>
                 <div><label className="text-xs text-slate-400 font-semibold">Truck</label><select value={qcForm.truck} onChange={e => setQcForm({ ...qcForm, truck: e.target.value })} className="w-full bg-[#334155] border border-[#475569] rounded-lg p-2.5 text-white text-sm">{trucks.map(t => <option key={t} value={t}>{t}</option>)}</select></div>
+                <div>
+                  <label className="text-xs text-slate-400 font-semibold">ربط العينة بالطلب (اختياري)</label>
+                  <select value={qcForm.orderId} onChange={e => {
+                    const id = e.target.value;
+                    setQcForm(prev => ({ ...prev, orderId: id }));
+                    const o = orders.find(x => x.id === id);
+                    if (o) setQcForm(prev => ({ ...prev, customer: o.customerName, site: o.projectName }));
+                  }} className="w-full bg-[#334155] border border-[#475569] rounded-lg p-2.5 text-white text-sm">
+                    <option value="">— بدون ربط —</option>
+                    {orders.filter((o: any) => o.accountStatus === 'approved').map((o: any) => <option key={o.id} value={o.id}>{o.orderNo || o.id} · {o.customerName}</option>)}
+                  </select>
+                </div>
                 <div><label className="text-xs text-slate-400 font-semibold">Design</label><select value={qcForm.design} onChange={e => setQcForm({ ...qcForm, design: e.target.value })} className="w-full bg-[#334155] border border-[#475569] rounded-lg p-2.5 text-white text-sm"><option value="C25">C25</option><option value="C30">C30</option><option value="C35">C35</option><option value="C40">C40</option></select></div>
                 <div><label className="text-xs text-slate-400 font-semibold">Slump (cm)</label><input type="number" value={qcForm.slump} onChange={e => setQcForm({ ...qcForm, slump: e.target.value })} className="w-full bg-[#334155] border border-[#475569] rounded-lg p-2.5 text-white text-sm" required /></div>
                 <div><label className="text-xs text-slate-400 font-semibold">7-Day (MPa)</label><input type="number" step="0.1" value={qcForm.break7d} onChange={e => setQcForm({ ...qcForm, break7d: e.target.value })} className="w-full bg-[#334155] border border-[#475569] rounded-lg p-2.5 text-white text-sm" required /></div>
@@ -548,7 +572,8 @@ export default function MixingQuality() {
                       const pass = r.break28d >= target;
                       return (
                         <tr key={r.id} className="border-b border-[#334155]/30">
-                          <td className="p-2">{r.date}</td><td className="p-2 font-bold text-cyan-400">{r.bonNo || '—'}</td>
+                          <td className="p-2">{r.date}</td>
+                          <td className="p-2 font-bold text-cyan-400">{r.sampleId || r.bonNo || '—'}{r.orderId && <div className="text-[9px] text-slate-500 font-normal">طلب: {r.orderId}</div>}</td>
                           <td className="p-2">{r.customer || '—'}</td><td className="p-2 font-bold">{r.truck}</td><td className="p-2 text-blue-400">{r.design}</td>
                           <td className="p-2">{r.slump}</td><td className="p-2">{r.break7d}</td><td className="p-2">{r.break28d}</td>
                           <td className="p-2"><span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${pass ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'}`}>{pass ? '✓' : '✗'}</span></td>

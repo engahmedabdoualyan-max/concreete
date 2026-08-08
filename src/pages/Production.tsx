@@ -1,14 +1,15 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { loadInventory, saveInventory, loadDeliveries, saveDeliveries, loadProductionRuns, saveProductionRuns } from '../firebase/firestore';
+import { loadInventory, saveInventory, loadDeliveries, saveDeliveries, loadProductionRuns, saveProductionRuns, loadOrders, saveOrders, addNotification } from '../firebase/firestore';
 import DatePicker from '../components/DatePicker';
 import QuickJump from '../components/QuickJump';
 import LangSelector from '../components/LangSelector';
 import BrandLogo from '../components/BrandLogo';
+import NotificationsBell from '../components/NotificationsBell';
 
 interface Delivery { date: string; material: string; qty: number; invoice: string; }
-interface ProdRun { date: string; time: string; recipe: string; volume: number; cementUsed: number; sandUsed: number; gravelUsed: number; }
+interface ProdRun { date: string; time: string; recipe: string; volume: number; cementUsed: number; sandUsed: number; gravelUsed: number; orderId?: string; }
 
 // نظام الإضافات
 interface Addition {
@@ -119,10 +120,11 @@ export default function Production() {
 
   useEffect(() => {
     if (!currentUser) return;
-    Promise.all([loadInventory(currentUser.username), loadDeliveries(currentUser.username), loadProductionRuns(currentUser.username)]).then(([inv, del, runs]) => {
+    Promise.all([loadInventory(currentUser.username), loadDeliveries(currentUser.username), loadProductionRuns(currentUser.username), loadOrders(currentUser.username)]).then(([inv, del, runs, ords]) => {
       if (inv) setInventory(inv); else { const s = localStorage.getItem('plantInventory'); if (s) setInventory(JSON.parse(s)); }
       if (del?.length) setDeliveries(del); else { const s = localStorage.getItem('plantDeliveries'); if (s) setDeliveries(JSON.parse(s)); }
       if (runs?.length) setProdRuns(runs); else { const s = localStorage.getItem('plantProductionRuns'); if (s) setProdRuns(JSON.parse(s)); }
+      if (Array.isArray(ords)) setOrders(ords);
       setLoaded(true);
     }).catch(() => { setLoaded(true); });
   }, [currentUser?.username]);
@@ -133,7 +135,8 @@ export default function Production() {
   useEffect(() => { if (!loaded) return; localStorage.setItem('plantAdditions', JSON.stringify(additions)); }, [additions, loaded]);
   useEffect(() => { if (!loaded) return; localStorage.setItem('plantBlocks', JSON.stringify(blocks)); }, [blocks, loaded]);
   const [delivForm, setDelivForm] = useState({ type: 'cement', qty: '', invoice: '' });
-  const [batchForm, setBatchForm] = useState({ recipe: 'C30', volume: '' });
+  const [batchForm, setBatchForm] = useState({ recipe: 'C30', volume: '', orderId: '' });
+  const [orders, setOrders] = useState<any[]>([]);
   const [blockProdForm, setBlockProdForm] = useState({ blockCode: '', quantity: '' });
   const [fromDate, setFromDate] = useState(''); const [toDate, setToDate] = useState('');
   const [recipes] = useState<any[]>(() => { try { const s = localStorage.getItem('plantRecipes'); return s ? JSON.parse(s) : []; } catch { return []; } });
@@ -213,8 +216,9 @@ export default function Production() {
 
   // مقارنة الطلبات بالمخزون
   const checkInventoryVsOrders = () => {
-    const orders = JSON.parse(localStorage.getItem('concrete_plant_orders') || '[]');
-    const approvedOrders = orders.filter((o: any) => o.accountStatus === 'approved' && o.status !== 'completed');
+    const lsOrders = JSON.parse(localStorage.getItem('concrete_plant_orders') || '[]');
+    const ordersAll = orders.length ? orders : lsOrders;
+    const approvedOrders = ordersAll.filter((o: any) => o.accountStatus === 'approved' && o.status !== 'completed');
 
     const totalConcreteNeeded = approvedOrders
       .filter((o: any) => o.orderType === 'concrete')
@@ -264,9 +268,27 @@ export default function Production() {
     if (inventory.cement < cementN || inventory.sand < sandN || inventory.gravel < gravelN || inventory.admixture < admixN) {
       alert('❌ Insufficient raw materials! Record a delivery first.'); return;
     }
+    const order = orders.find(o => o.id === batchForm.orderId);
     setInventory(prev => ({ cement: prev.cement - cementN, sand: prev.sand - sandN, gravel: prev.gravel - gravelN, admixture: prev.admixture - admixN }));
-    setProdRuns(prev => [...prev, { date: new Date().toISOString().split('T')[0], time: new Date().toLocaleTimeString(), recipe, volume: vol, cementUsed: cementN, sandUsed: sandN, gravelUsed: gravelN }]);
-    setBatchForm({ recipe: 'C30', volume: '' });
+    setProdRuns(prev => [...prev, { date: new Date().toISOString().split('T')[0], time: new Date().toLocaleTimeString(), recipe, volume: vol, cementUsed: cementN, sandUsed: sandN, gravelUsed: gravelN, orderId: order?.orderNo }]);
+    if (order) {
+      const delivered = (Number(order.deliveredQty) || 0) + vol;
+      const done = delivered >= (Number(order.quantity) || 0);
+      const updated = { ...order, deliveredQty: Math.min(delivered, Number(order.quantity) || delivered), status: done ? 'completed' : 'in_progress' };
+      setOrders(prev => prev.map(o => o.id === order.id ? updated : o));
+      saveOrders(currentUser!.username, orders.map(o => o.id === order.id ? updated : o)).catch(() => {});
+      if (currentUser) addNotification(currentUser.username, {
+        level: done ? 'success' : 'info',
+        title: `🏭 إنتاج ${vol} م³ للطلب ${order.orderNo}`,
+        body: `${order.customerName} · تم تسليم ${Math.min(delivered, Number(order.quantity) || delivered).toFixed(1)} / ${order.quantity} م³${done ? ' — ✅ اكتمل الطلب' : ''}`,
+      }).catch(() => {});
+      setBatchForm({ recipe: 'C30', volume: '', orderId: '' });
+      alert(done
+        ? `✅ تم إنتاج ${vol} م³ — اكتمل الطلب ${order.orderNo} بالكامل (${order.quantity} م³) وتم خصم الخامات من المخزون.`
+        : `🚀 تم إنتاج ${vol} م³ للطلب ${order.orderNo} — خصم ${cementN.toFixed(2)} طن أسمنت من المخزون. المتبقي ${(Number(order.quantity) - Math.min(delivered, Number(order.quantity))).toFixed(1)} م³.`);
+      return;
+    }
+    setBatchForm({ recipe: 'C30', volume: '', orderId: '' });
     alert(`🚀 Poured ${vol}m³ of ${recipe}. Cement: ${cementN.toFixed(2)}T, Sand: ${sandN.toFixed(2)}T, Gravel: ${gravelN.toFixed(2)}T.`);
   };
 
@@ -291,6 +313,7 @@ export default function Production() {
           <h1 className="text-sm font-bold text-white">🏭 Concrete Production & Material Inventory</h1>
         </div>
         <div className="flex flex-wrap items-center gap-3">
+          <NotificationsBell />
           <span className="bg-emerald-500/15 text-emerald-500 text-xs px-3 py-1.5 rounded-lg font-bold border border-emerald-500/30">🟢 {currentUser.plantName}</span>
           <p className="text-[10px] text-emerald-500/80">Design by Dr. Ahmad Abdo Alyan</p>
         </div>
@@ -348,6 +371,15 @@ export default function Production() {
                 </select>
               </div>
               <div><label className="text-xs text-slate-400 font-semibold">Volume (m³)</label><input type="number" step="0.1" value={batchForm.volume} onChange={e => setBatchForm({ ...batchForm, volume: e.target.value })} placeholder="10" className="w-full bg-[#334155] border border-[#475569] rounded-lg p-2.5 text-white text-sm" required /></div>
+              <div>
+                <label className="text-xs text-slate-400 font-semibold">ربط الإنتاج بالطلب (orderId)</label>
+                <select value={batchForm.orderId} onChange={e => setBatchForm({ ...batchForm, orderId: e.target.value })} className="w-full bg-[#334155] border border-[#475569] rounded-lg p-2.5 text-white text-sm">
+                  <option value="">— بدون ربط (إنتاج عام) —</option>
+                  {orders.filter((o: any) => o.status === 'in_progress' || o.status === 'scheduled').map((o: any) => (
+                    <option key={o.id} value={o.id}>{o.orderNo || o.id} · {o.customerName} · تسليم {(Number(o.deliveredQty) || 0).toFixed(1)}/{o.quantity} م³</option>
+                  ))}
+                </select>
+              </div>
               <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg">🚀 Execute Batch</button>
             </form>
 

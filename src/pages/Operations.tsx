@@ -1,19 +1,21 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { loadTrips, saveTrips, loadOrders, loadPlantGPS } from '../firebase/firestore';
+import { loadTrips, saveTrips, loadOrders, saveOrders, loadPlantGPS, loadAssets, loadInventory, addNotification } from '../firebase/firestore';
 import QuickJump from '../components/QuickJump';
 import LangSelector from '../components/LangSelector';
 import BrandLogo from '../components/BrandLogo';
 import PlantLogo from '../components/PlantLogo';
 import DatePicker from '../components/DatePicker';
 import DriverLiveBroadcast from '../components/DriverLiveBroadcast';
+import NotificationsBell from '../components/NotificationsBell';
 
 interface Trip {
   id: number; plant: string; date: string; code: string; driver: string;
   qty: number; pump: string; estTime: number;
   stationArr: string; stationDep: string; siteArr: string; siteDep: string;
   siteName: string; projectName: string; status: string;
+  orderId?: string; // رقم الطلب المرتبط (orderNo) — الرابط بين الأقسام
   siteGeo?: string; // إحداثيات الموقع الحالي (lat,lng)
   nextSiteGeo?: string; // إحداثيات الموقع التالي
   consecutiveQty?: number; // إجمالي الكمية المصبوبة في الموقع الحالي
@@ -147,15 +149,27 @@ export default function Operations() {
   const [plantGeo, setPlantGeo] = useState('24.7136,46.6753');
   const [autoSite, setAutoSite] = useState('');
   const [confirmedOrders, setConfirmedOrders] = useState<any[]>([]);
+  const [orders, setOrders] = useState<any[]>([]);
+  const [assets, setAssets] = useState<any[]>([]);
+  const [inventory, setInventory] = useState<Record<string, number> | null>(null);
+  const [dispatchOrder, setDispatchOrder] = useState('');
   useEffect(() => {
     if (!currentUser) return;
     loadOrders(currentUser.username).then(ords => {
-      if (Array.isArray(ords)) setConfirmedOrders(ords.filter(o => o.status === 'scheduled'));
+      const list = Array.isArray(ords) ? ords : [];
+      setOrders(list);
+      setConfirmedOrders(list.filter(o => o.status === 'scheduled' && o.accountStatus === 'approved' && o.debtStatus !== 'blocked'));
     }).catch(() => {});
     loadPlantGPS(currentUser.username).then(gps => {
       if (gps) setPlantGeo(`${gps.lat},${gps.lng}`);
     }).catch(() => {});
+    loadAssets(currentUser.username).then(a => { if (Array.isArray(a)) setAssets(a); }).catch(() => {});
+    loadInventory(currentUser.username).then(i => { if (i && typeof i === 'object') setInventory(i); }).catch(() => {});
   }, [currentUser?.username]);
+  useEffect(() => {
+    if (!currentUser || !orders.length) return;
+    saveOrders(currentUser.username, orders).catch(() => {});
+  }, [orders, currentUser?.username]);
   const applyAutoDistance = () => {
     const target = confirmedOrders.find(o => o.locationCoords && o.locationCoords.includes(','));
     if (!target) { alert('No scheduled order with site GPS coordinates found. Fill distance manually or add coordinates to a scheduled order.'); return; }
@@ -165,6 +179,44 @@ export default function Operations() {
     const dist = calculateDistance(slat, slng, dlat, dlng);
     setDispatch({ ...dispatch, distance: String(Math.round(dist * 10) / 10), totalLoad: String(Number(dispatch.totalLoad) || target.quantity || dispatch.totalLoad) });
     setAutoSite(`${target.projectName || target.site || ''} (${dist.toFixed(1)} km)`);
+  };
+  // 🚀 Dispatch a confirmed order → checks inventory + fleet, then creates linked trips
+  const dispatchOrderToFleet = async (order: any) => {
+    const mixers = (Array.isArray(assets) ? assets : []).filter(a => a.type === 'Mixer' && a.status === 'Ready');
+    const pumps = (Array.isArray(assets) ? assets : []).filter(a => a.type === 'Mobile Pump' && a.status === 'Ready');
+    if (order.requiresPump && pumps.length === 0) { alert('🚫 لا توجد مضخة جاهزة (Mobile Pump) متاحة للطلب — عايد الصيانة أو أضف معدات في Admin.'); return; }
+    if (mixers.length === 0) { alert('🚫 لا توجد خلاطات جاهزة (Mixer) متاحة للطلب — عايد الصيانة أو أضف معدات في Admin.'); return; }
+    const cementNeeded = (Number(order.quantity) || 0) * 0.35;
+    if (inventory && typeof inventory.cement === 'number' && inventory.cement < cementNeeded) {
+      alert(`⛔ مخزون الأسمنت غير كافٍ: المطلوب ${cementNeeded.toFixed(1)} طن والمتاح ${inventory.cement.toFixed(1)} طن — أضف مخزون في قسم الإنتاج.`);
+      return;
+    }
+    const capacity = Number(dispatch.capacity) || 10;
+    const trucksNeeded = Math.max(1, Math.ceil((Number(order.quantity) || 0) / capacity));
+    const now = new Date();
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const nowTime = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+    const today = now.toISOString().split('T')[0];
+    const pump = order.requiresPump ? (pumps[0]?.id || '—') : '—';
+    const newTrips: Trip[] = Array.from({ length: trucksNeeded }).map((_, i) => {
+      const m = mixers[i % mixers.length];
+      return {
+        id: Date.now() + i, plant: 'PLANT-A', date: today, code: m.id, driver: m.driver || '—',
+        qty: Math.min(capacity, (Number(order.quantity) || 0) - i * capacity), pump, estTime: Number(dispatch.estTime) || 40,
+        stationArr: nowTime, stationDep: nowTime, siteArr: '', siteDep: '',
+        siteName: order.projectName || '—', projectName: order.projectName || '—', status: 'TRANSIT',
+        siteGeo: order.locationCoords || undefined, orderId: order.orderNo || order.id,
+      };
+    });
+    setTrips(prev => [...prev, ...newTrips]);
+    setOrders(prev => prev.map(o => o.id === order.id ? { ...o, status: 'in_progress', deliveredQty: 0 } : o));
+    setConfirmedOrders(prev => prev.filter(o => o.id !== order.id));
+    setDispatchOrder('');
+    if (currentUser) addNotification(currentUser.username, {
+      level: 'success', title: '🚀 تم تشغيل الطلب ' + (order.orderNo || order.id),
+      body: `${trucksNeeded} رحلة إلى ${order.projectName || '—'} (${order.quantity} م³) بأسطول ${mixers.length} خلاطة جاهزة — الأسمنت المتاح ${inventory && typeof inventory.cement === 'number' ? inventory.cement.toFixed(0) : '—'} طن`,
+    }).catch(() => {});
+    alert(`✅ تم تجهيز ${trucksNeeded} رحلة للطلب ${order.orderNo || order.id} على الشاحنات: ${newTrips.map(t => t.code).join(', ')} — الحركة بدأت والرحلات مربوطة بالطلب.`);
   };
   const dispatchResult = (() => {
     const dist = Number(dispatch.distance), spd = Number(dispatch.speed) || 1;
@@ -412,6 +464,7 @@ export default function Operations() {
           <h1 className="text-sm font-bold text-white">🚛 Mixer Truck & Concrete Operations Tracker</h1>
         </div>
         <div className="flex flex-wrap items-center gap-3">
+          <NotificationsBell />
           <PlantLogo username={currentUser.username} height={32} />
           <span className="bg-emerald-500/15 text-emerald-500 text-xs px-3 py-1.5 rounded-lg font-bold border border-emerald-500/30">🟢 {currentUser.plantName}</span>
           <p className="text-[10px] text-emerald-500/80">Design by Dr. Ahmad Abdo Alyan</p>
@@ -453,6 +506,7 @@ export default function Operations() {
                   </div>
                 </div>
                 <h3 className="text-xl font-bold text-white">{t.code}</h3>
+                {t.orderId && <p className="text-[10px] font-bold text-sky-400 mt-0.5">🆔 طلب: {t.orderId}</p>}
                 <div className="border-t border-[#334155]/50 pt-3 mt-3 space-y-1 text-sm text-slate-300">
                   <p><span className="text-slate-500">Plant:</span> <strong>{t.plant}</strong></p>
                   <p><span className="text-slate-500">Date:</span> {t.date}</p>
@@ -712,10 +766,27 @@ export default function Operations() {
                 <p className="text-xs font-bold text-white">📅 Today's Scheduled Orders — Dispatch Plan</p>
                 <span className="text-[10px] text-slate-400">{confirmedOrders.length} scheduled</span>
               </div>
+              <div className="px-4 py-2.5 bg-[#0f172a] border-b border-[#334155] flex flex-wrap items-center gap-2">
+                <label className="text-[10px] text-slate-400 font-bold">🚛 تشغيل طلب (فحص مخزون + أسطول):</label>
+                <select value={dispatchOrder} onChange={e => setDispatchOrder(e.target.value)} className="flex-1 min-w-[200px] bg-[#334155] border border-[#475569] rounded-lg p-1.5 text-white text-xs">
+                  <option value="">— اختر طلباً مجدولاً —</option>
+                  {confirmedOrders.map(o => <option key={o.id} value={o.id}>{o.orderNo || o.id} · {o.customerName} · {o.quantity} م³</option>)}
+                </select>
+                <button
+                  onClick={() => {
+                    const order = confirmedOrders.find(o => o.id === dispatchOrder);
+                    if (!order) { alert('اختر طلباً أولاً.'); return; }
+                    dispatchOrderToFleet(order);
+                  }}
+                  className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white text-xs px-4 py-2 rounded-lg font-bold"
+                >
+                  🚀 Dispatch &amp; Link Trips
+                </button>
+              </div>
               {confirmedOrders.length === 0 && <p className="p-4 text-xs text-slate-500">No scheduled (confirmed) orders yet. Orders move here once approved for execution.</p>}
               <div className="overflow-x-auto">
                 <table className="w-full text-xs text-slate-300">
-                  <thead className="bg-[#334155] text-[10px]"><tr><th className="p-2">Order</th><th className="p-2">Qty</th><th className="p-2">Distance</th><th className="p-2">Gap</th><th className="p-2">Trucks</th><th className="p-2">Start → Finish</th></tr></thead>
+                  <thead className="bg-[#334155] text-[10px]"><tr><th className="p-2">Order</th><th className="p-2">Qty</th><th className="p-2">Distance</th><th className="p-2">Gap</th><th className="p-2">Trucks</th><th className="p-2">Start → Finish</th><th className="p-2">Action</th></tr></thead>
                   <tbody>
                     {confirmedOrders.map((o, idx) => {
                       const qty = Number(o.quantity) || 0;
@@ -733,6 +804,7 @@ export default function Operations() {
                           <td className="p-2 font-bold text-violet-300">{dispatchResult.gap.toFixed(0)} min</td>
                           <td className="p-2">{trucks}</td>
                           <td className="p-2">{fmt(sTot)} → {fmt(eTot)} ({dur.toFixed(0)} min)</td>
+                          <td className="p-2"><button onClick={() => dispatchOrderToFleet(o)} className="bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] px-2 py-1 rounded font-bold">🚀 تشغيل</button></td>
                         </tr>
                       );
                     })}

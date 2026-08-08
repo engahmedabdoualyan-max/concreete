@@ -7,9 +7,14 @@ import LangSelector from '../components/LangSelector';
 import BrandLogo from '../components/BrandLogo';
 import DatePicker from '../components/DatePicker';
 import EInvoice from '../components/EInvoice';
+import CustomersManager, { type Customer } from '../components/CustomersManager';
+import NotificationsBell from '../components/NotificationsBell';
+import { addNotification } from '../firebase/firestore';
 
 interface Order {
   id: string;
+  orderNo?: string;
+  customerId?: string;
   orderDate: string;
   orderTime: string;
   customerName: string;
@@ -53,10 +58,20 @@ export default function Orders() {
   const [editingOrder, setEditingOrder] = useState<Order | null>(null);
   const [filter, setFilter] = useState<'all' | 'pending' | 'scheduled' | 'completed'>('all');
   const [invoiceFor, setInvoiceFor] = useState<Order | null>(null);
+  const [showCustomers, setShowCustomers] = useState(false);
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  useEffect(() => {
+    if (!currentUser) return;
+    import('../firebase/firestore').then(({ loadCustomers }) => loadCustomers(currentUser.username)).then(d => {
+      if (Array.isArray(d) && d.length) setCustomers(d);
+      else { const s = localStorage.getItem('concrete_plant_customers'); if (s) setCustomers(JSON.parse(s)); }
+    }).catch(() => {});
+  }, [currentUser?.username]);
 
   const [form, setForm] = useState({
     orderDate: new Date().toISOString().split('T')[0],
     orderTime: '08:00',
+    customerId: '',
     customerName: '',
     customerPhone: '',
     customerCode: '',
@@ -120,8 +135,16 @@ export default function Orders() {
       return;
     }
 
+    let orderNo = editingOrder?.orderNo;
+    if (!orderNo) {
+      const maxNum = orders.reduce((m, o) => Math.max(m, (parseInt(String(o.orderNo || '').replace('ORD-', ''), 10) || 0)), 0);
+      orderNo = 'ORD-' + String(maxNum + 1).padStart(4, '0');
+    }
+
     const newOrder: Order = {
       id: editingOrder?.id || Date.now().toString(),
+      orderNo,
+      customerId: form.customerId || editingOrder?.customerId,
       orderDate: form.orderDate,
       orderTime: form.orderTime,
       customerName: form.customerName,
@@ -152,8 +175,10 @@ export default function Orders() {
     if (editingOrder) {
       setOrders(prev => prev.map(o => o.id === editingOrder.id ? newOrder : o));
       setEditingOrder(null);
+      if (currentUser) addNotification(currentUser.username, { level: 'info', title: '✏️ تم تعديل الطلب ' + orderNo, body: `${form.customerName} · ${form.projectName}` }).catch(() => {});
     } else {
       setOrders(prev => [...prev, newOrder]);
+      if (currentUser) addNotification(currentUser.username, { level: 'info', title: '📦 طلب جديد ' + orderNo, body: `${form.customerName} · ${form.quantity} ${form.orderType === 'concrete' ? 'م³' : 'بلوك'} · بانتظار مراجعة الحسابات` }).catch(() => {});
     }
 
     resetForm();
@@ -164,6 +189,7 @@ export default function Orders() {
     setForm({
       orderDate: new Date().toISOString().split('T')[0],
       orderTime: '08:00',
+      customerId: '',
       customerName: '',
       customerPhone: '',
       customerCode: '',
@@ -194,6 +220,7 @@ export default function Orders() {
     setForm({
       orderDate: order.orderDate,
       orderTime: order.orderTime,
+      customerId: order.customerId || '',
       customerName: order.customerName,
       customerPhone: order.customerPhone,
       customerCode: order.customerCode || '',
@@ -227,21 +254,37 @@ export default function Orders() {
   };
 
   const handleApproveAccount = (id: string, status: 'approved' | 'rejected') => {
-    setOrders(prev => prev.map(o =>
-      o.id === id ? { ...o, accountStatus: status } : o
-    ));
+    setOrders(prev => prev.map(o => {
+      if (o.id !== id) return o;
+      if (currentUser) addNotification(currentUser.username, {
+        level: status === 'approved' ? 'success' : 'error',
+        title: `${status === 'approved' ? '✅ موافقة الحسابات' : '❌ رفض الحسابات'} ${o.orderNo || id}`,
+        body: `${o.customerName} · ${o.projectName}`,
+      }).catch(() => {});
+      return { ...o, accountStatus: status };
+    }));
   };
 
   const handleMarkScheduled = (id: string) => {
-    setOrders(prev => prev.map(o =>
-      o.id === id ? { ...o, status: 'scheduled' } : o
-    ));
+    setOrders(prev => prev.map(o => {
+      if (o.id !== id) return o;
+      if (currentUser) addNotification(currentUser.username, {
+        level: 'info', title: '📅 تمت جدولة ' + (o.orderNo || id),
+        body: `${o.customerName} · ${o.quantity} ${o.orderType === 'concrete' ? 'م³' : 'بلوك'} — جاهز للتشغيل`,
+      }).catch(() => {});
+      return { ...o, status: 'scheduled' };
+    }));
   };
 
   const handleMarkCompleted = (id: string) => {
-    setOrders(prev => prev.map(o =>
-      o.id === id ? { ...o, status: 'completed' } : o
-    ));
+    setOrders(prev => prev.map(o => {
+      if (o.id !== id) return o;
+      if (currentUser) addNotification(currentUser.username, {
+        level: 'success', title: '✅ اكتمل الطلب ' + (o.orderNo || id),
+        body: `${o.customerName} · ${o.projectName}`,
+      }).catch(() => {});
+      return { ...o, status: 'completed' };
+    }));
   };
 
   const filteredOrders = orders.filter(o => {
@@ -282,6 +325,7 @@ export default function Orders() {
           <h1 className="text-sm font-bold text-white">📦 نظام الطلبات</h1>
         </div>
         <div className="flex flex-wrap items-center gap-3">
+          <NotificationsBell />
           <span className="bg-emerald-500/15 text-emerald-500 text-xs px-3 py-1.5 rounded-lg font-bold border border-emerald-500/30">🟢 {currentUser.plantName}</span>
         </div>
       </div>
@@ -323,6 +367,12 @@ export default function Orders() {
         <div className="flex justify-between items-center mb-6">
           <div className="flex gap-2">
             <button
+              onClick={() => setShowCustomers(true)}
+              className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg font-bold text-sm"
+            >
+              👥 إدارة العملاء
+            </button>
+            <button
               onClick={() => { resetForm(); setShowForm(true); }}
               className="bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2 rounded-lg font-bold text-sm"
             >
@@ -355,6 +405,10 @@ export default function Orders() {
                 {editingOrder ? '✏️ تعديل الطلب' : '➕ طلب جديد'}
               </h2>
 
+              {editingOrder?.orderNo && (
+                <p className="text-xs font-bold text-blue-400 mb-3">🆔 رقم الطلب: <span className="text-white">{editingOrder.orderNo}</span></p>
+              )}
+
               <form onSubmit={handleSubmit} className="space-y-4">
                 {/* التاريخ والوقت */}
                 <div className="grid grid-cols-2 gap-4">
@@ -380,6 +434,27 @@ export default function Orders() {
                 {/* بيانات العميل */}
                 <div className="bg-[#0f172a] p-4 rounded-lg border border-[#334155]">
                   <h3 className="text-sm font-bold text-blue-400 mb-3">👤 بيانات العميل</h3>
+                  <div className="grid grid-cols-1 gap-3 mb-3">
+                    <div>
+                      <label className="text-xs text-slate-400 mb-1 block">العميل (من قاعدة العملاء) — اختياري، يملأ الاسم والهاتف تلقائياً</label>
+                      <select
+                        name="customerId"
+                        value={form.customerId}
+                        onChange={(e) => {
+                          const id = e.target.value;
+                          setForm(prev => ({ ...prev, customerId: id }));
+                          if (id) {
+                            const c = [...customers].find(x => x.id === id);
+                            if (c) setForm(prev => ({ ...prev, customerName: c.name, customerPhone: c.phone, customerCode: c.code }));
+                          }
+                        }}
+                        className="w-full bg-[#334155] border border-[#475569] rounded-lg p-2 text-white text-sm"
+                      >
+                        <option value="">— بدون اختيار (أدخل يدوياً) —</option>
+                        {customers.map(c => <option key={c.id} value={c.id}>{c.code} · {c.name}</option>)}
+                      </select>
+                    </div>
+                  </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="text-xs text-slate-400 mb-1 block">اسم العميل *</label>
@@ -735,6 +810,7 @@ export default function Orders() {
               <thead className="bg-[#0f172a] border-b border-[#334155]">
                 <tr>
                   <th className="text-right p-3 text-xs font-semibold text-slate-400">التاريخ/الوقت</th>
+                  <th className="text-right p-3 text-xs font-semibold text-slate-400">رقم الطلب</th>
                   <th className="text-right p-3 text-xs font-semibold text-slate-400">العميل</th>
                   <th className="text-right p-3 text-xs font-semibold text-slate-400">المشروع</th>
                   <th className="text-right p-3 text-xs font-semibold text-slate-400">النوع</th>
@@ -748,7 +824,7 @@ export default function Orders() {
               <tbody>
                 {filteredOrders.length === 0 ? (
                   <tr>
-                    <td colSpan={9} className="text-center py-12 text-slate-500">
+                    <td colSpan={10} className="text-center py-12 text-slate-500">
                       لا توجد طلبات
                     </td>
                   </tr>
@@ -758,6 +834,10 @@ export default function Orders() {
                       <td className="p-3 text-sm">
                         <div className="text-white">{order.orderDate}</div>
                         <div className="text-xs text-slate-400">{order.orderTime}</div>
+                      </td>
+                      <td className="p-3 text-sm">
+                        <div className="text-white font-bold text-blue-400">{order.orderNo || '—'}</div>
+                        <div className="text-xs text-slate-400">{order.customerCode || '—'}</div>
                       </td>
                       <td className="p-3">
                         <div className="text-white text-sm">{order.customerName}</div>
@@ -882,6 +962,24 @@ export default function Orders() {
           </ul>
         </div>
       </div>
+      {showCustomers && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-[#1e293b] rounded-xl p-6 max-w-lg w-full max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-lg font-bold text-white">👥 إدارة العملاء</h2>
+              <button onClick={() => setShowCustomers(false)} className="bg-red-500 hover:bg-red-600 text-white w-7 h-7 rounded-full font-bold text-sm">✕</button>
+            </div>
+            <CustomersManager onSelect={(c) => {
+              if (c) {
+                setForm(prev => ({ ...prev, customerId: c.id, customerName: c.name, customerPhone: c.phone, customerCode: c.code }));
+                setShowCustomers(false);
+                setShowForm(true);
+              }
+            }} />
+          </div>
+        </div>
+      )}
+
       {invoiceFor && (
         <EInvoice
           invoiceNo={`INV-${invoiceFor.id.slice(0, 6).toUpperCase()}`}
