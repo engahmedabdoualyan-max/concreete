@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { loadOrders } from '../firebase/firestore';
+import { loadOrders, loadTrips } from '../firebase/firestore';
 import DatePicker from '../components/DatePicker';
 import QuickJump from '../components/QuickJump';
 import LangSelector from '../components/LangSelector';
@@ -108,8 +108,16 @@ export default function Evaluation() {
     if (!currentUser) return;
 
     // Load trips
-    const tripsData = localStorage.getItem('trips_data') || localStorage.getItem('trips');
-    if (tripsData) setTrips(JSON.parse(tripsData));
+    loadTrips(currentUser.username).then(fbTrips => {
+      if (Array.isArray(fbTrips) && fbTrips.length) setTrips(fbTrips);
+      else {
+        const tripsData = localStorage.getItem('trips_data') || localStorage.getItem('trips');
+        if (tripsData) setTrips(JSON.parse(tripsData));
+      }
+    }).catch(() => {
+      const tripsData = localStorage.getItem('trips_data') || localStorage.getItem('trips');
+      if (tripsData) setTrips(JSON.parse(tripsData));
+    });
 
     // Load orders
     loadOrders(currentUser.username).then(fbOrders => {

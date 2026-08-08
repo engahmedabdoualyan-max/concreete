@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { loadRecipes, saveRecipes, loadCalibrationLogs, saveCalibrationLogs, loadQCRecords, saveQCRecords, loadPlantLogo, loadOrders, addNotification } from '../firebase/firestore';
+import { loadRecipes, saveRecipes, loadCalibrationLogs, saveCalibrationLogs, loadQCRecords, saveQCRecords, loadPlantLogo, loadOrders, loadTrips, addNotification } from '../firebase/firestore';
 import DatePicker from '../components/DatePicker';
 import QuickJump from '../components/QuickJump';
 import LangSelector from '../components/LangSelector';
@@ -84,13 +84,26 @@ export default function MixingQuality() {
   useEffect(() => { if (!loaded) return; localStorage.setItem('calibrationLogs', JSON.stringify(calibLogs)); if (currentUser) saveCalibrationLogs(currentUser.username, calibLogs).catch(() => {}); }, [calibLogs, loaded]);
   useEffect(() => { if (!loaded) return; localStorage.setItem('qcRecords', JSON.stringify(qcRecords)); if (currentUser) saveQCRecords(currentUser.username, qcRecords).catch(() => {}); }, [qcRecords, loaded]);
 
-  // Load trucks from trips
+  // Load trucks from trips (Firestore-first, cross-device)
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem('trips_data') || localStorage.getItem('trips');
-      if (saved) { const trips = JSON.parse(saved); const codes = [...new Set(trips.map((t: any) => t.code))].filter(Boolean); if (codes.length) setTrucks(codes as string[]); }
-    } catch {}
-  }, []);
+    if (!currentUser) return;
+    loadTrips(currentUser.username).then(fbTrips => {
+      if (Array.isArray(fbTrips) && fbTrips.length) {
+        const codes = [...new Set(fbTrips.map((t: any) => t.code))].filter(Boolean);
+        if (codes.length) setTrucks(codes as string[]);
+      } else {
+        try {
+          const saved = localStorage.getItem('trips_data') || localStorage.getItem('trips');
+          if (saved) { const trips = JSON.parse(saved); const codes = [...new Set(trips.map((t: any) => t.code))].filter(Boolean); if (codes.length) setTrucks(codes as string[]); }
+        } catch {}
+      }
+    }).catch(() => {
+      try {
+        const saved = localStorage.getItem('trips_data') || localStorage.getItem('trips');
+        if (saved) { const trips = JSON.parse(saved); const codes = [...new Set(trips.map((t: any) => t.code))].filter(Boolean); if (codes.length) setTrucks(codes as string[]); }
+      } catch {}
+    });
+  }, [currentUser?.username]);
 
   // ============ Recipe Functions ============
   const addRecipe = (e: React.FormEvent) => {
