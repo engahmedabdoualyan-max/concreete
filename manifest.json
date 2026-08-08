@@ -1,0 +1,23 @@
+{
+  "name": "Fimto Soft - Concrete Plant ERP",
+  "short_name": "Concrete ERP",
+  "description": "Technical Management Program for Ready-Mix Concrete Plants - ERP Enterprise by Fimto Soft",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a",
+  "lang": "en",
+  "icons": [
+    {
+      "src": "/favicon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png"
+    }
+  ]
+}
