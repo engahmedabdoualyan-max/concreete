@@ -10,7 +10,7 @@ export const USER_DATA_COLLECTIONS = [
   'trips', 'oeeLogs', 'recipes', 'calibrationLogs', 'inventory', 'deliveries',
   'productionRuns', 'qcRecords', 'assets', 'workshopConfig', 'customers', 'plantProfile',
   'weighbridgeRecords', 'returnedConcrete', 'payments', 'purchaseOrders', 'rawStock',
-  'plants', 'blockPlants', 'gpsConfig',
+  'plants', 'blockPlants', 'gpsConfig', 'gpsHistory',
 ];
 
 function userDocRef(userId: string) {
@@ -250,6 +250,16 @@ export async function saveGpsConfig(userId: string, cfg: any) {
 }
 export async function loadGpsConfig(userId: string) {
   return await loadUserData(userId, 'gpsConfig');
+}
+
+// ====================== GPS Route History ======================
+export async function saveGpsHistory(userId: string, entry: { vehicle: string; date: string; points: Array<[number, number]> }) {
+  const list = (await loadUserData(userId, 'gpsHistory')) || [];
+  const filtered = list.filter((e: any) => !(e.vehicle === entry.vehicle && e.date === entry.date));
+  await saveUserData(userId, 'gpsHistory', [...filtered, entry]);
+}
+export async function loadGpsHistory(userId: string) {
+  return await loadUserData(userId, 'gpsHistory');
 }
 
 // ====================== Plants (multi-site) ======================

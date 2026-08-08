@@ -1,17 +1,15 @@
-import { useState, useEffect, useRef, type FormEvent } from 'react';
+import { useState, useEffect, type FormEvent } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useAdmin, rolePermissions, ROLE_KEYS, MODULE_KEYS, type UserRole } from '../context/AdminContext';
 import { useLang } from '../context/LangContext';
 import type { Translations } from '../context/translations';
 import { useNavigate } from 'react-router-dom';
 import LangSelector from '../components/LangSelector';
-import { loadPlantGPS, savePlantGPS, getAllPlantsSummary, loadPlantLogo, savePlantLogo, loadPlants, loadBlockPlants, loadAssets, type PlantSummary } from '../firebase/firestore';
-import { loadGpsLocationsFromSupabase } from '../supabase/supabase';
+import { loadPlantGPS, savePlantGPS, getAllPlantsSummary, loadPlantLogo, savePlantLogo, loadPlants, loadBlockPlants, type PlantSummary } from '../firebase/firestore';
 import FactoryData from '../components/FactoryData';
 import PlantsManager from '../components/PlantsManager';
 import GpsPanel from '../components/GpsPanel';
-import L from 'leaflet';
-import 'leaflet/dist/leaflet.css';
+import GpsFleetMap from '../components/GpsFleetMap';
 
 type Tab = 'overview' | 'plant' | 'plants' | 'users' | 'sections' | 'gps';
 type FactorySub = 'profile' | 'fleet' | 'stock' | 'config' | 'trackers';
@@ -92,34 +90,21 @@ export default function AdminPanel() {
   const [gpsMsg, setGpsMsg] = useState('');
   const [summary, setSummary] = useState<PlantSummary[]>([]);
   const [summaryLoading, setSummaryLoading] = useState(false);
-  const [supaGps, setSupaGps] = useState<Array<{ username: string; label: string; lat: number; lng: number }>>([]);
-  const [assets, setAssets] = useState<any[]>([]);
   const [logo, setLogo] = useState('');
   const [plantCount, setPlantCount] = useState(0);
   const [blockCount, setBlockCount] = useState(0);
-  const mapRef = useRef<HTMLDivElement | null>(null);
-  const mapObjRef = useRef<L.Map | null>(null);
 
   useEffect(() => {
     if (!currentUser) return;
     loadPlantGPS(currentUser.username).then(g => {
       if (g) setPlantGps(g);
     }).catch(() => {});
-    loadGpsLocationsFromSupabase().then(rows => {
-      setSupaGps(rows.map(r => ({ username: r.username, label: r.label, lat: r.lat, lng: r.lng })));
-    }).catch(() => {});
     loadPlantLogo(currentUser.username).then(l => setLogo(l)).catch(() => {});
-    loadAssets(currentUser.username).then(a => { if (Array.isArray(a)) setAssets(a); }).catch(() => {});
     Promise.all([loadPlants(currentUser.username), loadBlockPlants(currentUser.username)]).then(([p, b]) => {
       if (Array.isArray(p)) setPlantCount(p.length);
       if (Array.isArray(b)) setBlockCount(b.length);
     }).catch(() => {});
   }, [currentUser?.username]);
-
-  useEffect(() => {
-    if (!currentUser || tab !== 'gps') return;
-    loadAssets(currentUser.username).then(a => { if (Array.isArray(a)) setAssets(a); }).catch(() => {});
-  }, [tab, currentUser?.username]);
 
   const detectGps = () => {
     setGpsBusy(true);
@@ -187,49 +172,6 @@ export default function AdminPanel() {
     if (tab !== 'sections') return;
     loadSectionSummary();
   }, [tab]);
-
-  useEffect(() => {
-    if (tab !== 'gps' || !mapRef.current) return;
-    if (mapObjRef.current) {
-      mapObjRef.current.remove();
-      mapObjRef.current = null;
-    }
-    const center: [number, number] = plantGps ? [plantGps.lat, plantGps.lng] : [24.7136, 46.6753];
-    const map = L.map(mapRef.current).setView(center, 7);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '&copy; OpenStreetMap',
-    }).addTo(map);
-    const plantIcon = L.divIcon({ html: '🏭', className: '', iconSize: [24, 24] });
-    if (plantGps) {
-      L.marker([plantGps.lat, plantGps.lng], { icon: plantIcon }).addTo(map).bindPopup('<b>Plant HQ</b>').openPopup();
-    } else {
-      L.marker(center, { icon: plantIcon }).addTo(map).bindPopup('<b>Default plant position</b>');
-    }
-    const truckIcon = L.divIcon({ html: '🚚', className: '', iconSize: [22, 22] });
-    const trucks: Array<{ lat: number; lng: number; code: string }> = [];
-    summary.forEach(s => (Array.isArray(s.tripList) ? s.tripList : []).forEach(t => {
-      if (typeof t.siteGeo === 'string' && t.siteGeo.includes(',')) {
-        const [lat, lng] = t.siteGeo.split(',').map(Number);
-        if (!isNaN(lat) && !isNaN(lng)) trucks.push({ lat, lng, code: t.code || s.username });
-      }
-    }));
-    supaGps.forEach(s => trucks.push({ lat: s.lat, lng: s.lng, code: `${s.username}/${s.label}` }));
-    trucks.forEach(tr => L.marker([tr.lat, tr.lng], { icon: truckIcon }).addTo(map).bindPopup(`<b>${tr.code}</b>`));
-    const assetIcon = L.divIcon({ html: '🚚', className: '', iconSize: [22, 22] });
-    const posAssets = (Array.isArray(assets) ? assets : []).filter(a => typeof a.gpsLat === 'number' && typeof a.gpsLng === 'number');
-    posAssets.forEach(a => {
-      L.marker([a.gpsLat, a.gpsLng], { icon: assetIcon })
-        .addTo(map)
-        .bindPopup(`<b>${a.id} (${a.plate})</b><br/>Tracker: ${a.gpsId || '—'}<br/>Updated: ${a.gpsUpdatedAt ? new Date(a.gpsUpdatedAt).toLocaleString() : '—'}`);
-    });
-    const allAssets = posAssets.map(a => [a.gpsLat, a.gpsLng] as [number, number]);
-    if (trucks.length > 0 || allAssets.length > 0) {
-      const all: [number, number][] = [[center[0], center[1]], ...trucks.map(t => [t.lat, t.lng] as [number, number]), ...allAssets];
-      map.fitBounds(L.latLngBounds(all));
-    }
-    mapObjRef.current = map;
-    return () => { if (mapObjRef.current) { mapObjRef.current.remove(); mapObjRef.current = null; } };
-  }, [tab, plantGps, summary, supaGps, assets]);
 
   if (!currentUser) {
     navigate('/login');
@@ -723,42 +665,7 @@ export default function AdminPanel() {
         )}
 
         {tab === 'gps' && (
-          <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <h2 className="text-xl font-bold text-white">🗺️ GPS Map</h2>
-              <div className="flex gap-2">
-                <button onClick={detectGps} disabled={gpsBusy} className="bg-gradient-to-r from-sky-600 to-blue-700 hover:from-sky-700 hover:to-blue-800 disabled:opacity-50 text-white px-5 py-2 rounded-lg font-bold text-sm transition-all duration-300">
-                  {gpsBusy ? '⏳ Detecting...' : '📍 Detect My Location'}
-                </button>
-                <button onClick={() => { loadSectionSummary(); }} className="bg-[#334155] hover:bg-[#3f4863] text-white px-5 py-2 rounded-lg font-bold text-sm transition-all duration-300">
-                  🔄 Reload
-                </button>
-              </div>
-            </div>
-            <p className="text-sm text-slate-400 -mt-3">
-              🏭 Plant HQ · 🚚 fleet assets & active trips (from operations) · shared GPS markers from Supabase.
-            </p>
-            {gpsMsg && <p className={`text-xs font-bold ${gpsMsg.includes('✅') ? 'text-emerald-400' : 'text-yellow-400'}`}>{gpsMsg}</p>}
-            {plantGps && <p className="text-xs text-slate-400">Plant GPS: <b className="text-white">{plantGps.lat.toFixed(5)}, {plantGps.lng.toFixed(5)}</b></p>}
-            <div className="bg-[#1e293b] rounded-2xl border border-[#334155] p-4">
-              <div ref={mapRef} className="w-full h-[520px] rounded-xl overflow-hidden z-0" />
-            </div>
-            <div className="bg-[#1e293b] rounded-2xl border border-[#334155] p-4">
-              <p className="text-sm font-bold text-white mb-3">🛰️ Shared GPS locations (Supabase)</p>
-              {supaGps.length === 0 ? (
-                <p className="text-xs text-slate-400">No GPS markers in Supabase yet. Save one from the Plant tab or Operations.</p>
-              ) : (
-                <div className="space-y-2">
-                  {supaGps.map(g => (
-                    <div key={g.username + g.label} className="flex items-center justify-between bg-[#0f172a] rounded-lg px-4 py-2 border border-[#334155]">
-                      <span className="text-sm text-slate-300">📍 <b className="text-white">{g.username}</b> / {g.label}</span>
-                      <span className="text-xs text-slate-400">{g.lat.toFixed(5)}, {g.lng.toFixed(5)}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
+          <GpsFleetMap onToast={showToast} />
         )}
       </div>
     </div>

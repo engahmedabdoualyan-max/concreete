@@ -3,7 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { loadAssets, saveAssets, loadGpsConfig, saveGpsConfig, savePlantGPS, loadPlantGPS } from '../firebase/firestore';
 import { saveGpsLocationToSupabase } from '../supabase/supabase';
 
-interface GpsConfig { server: string; username: string; password: string; }
+interface GpsConfig { server: string; username: string; password: string; liveEnabled?: boolean; refreshSec?: number; }
 interface GpsDevice { id: number; uniqueId: string; name: string; status?: string; }
 interface GpsPosition { id: number; deviceId: number; fixTime: string; lat: number; lon: number; speed?: number; address?: string; }
 
@@ -23,18 +23,19 @@ async function apiFetch(url: string, user: string, pass: string) {
 
 export default function GpsPanel({ onToast }: { onToast: (msg: string) => void }) {
   const { currentUser } = useAuth();
-  const [cfg, setCfg] = useState<GpsConfig>({ server: '', username: '', password: '' });
+  const [cfg, setCfg] = useState<GpsConfig>({ server: '', username: '', password: '', liveEnabled: false, refreshSec: 15 });
   const [assets, setAssets] = useState<any[]>([]);
   const [devices, setDevices] = useState<GpsDevice[]>([]);
   const [busy, setBusy] = useState('');
   const [msg, setMsg] = useState('');
+  const [liveMsg, setLiveMsg] = useState('');
   const [plantGps, setPlantGps] = useState<{ lat: number; lng: number } | null>(null);
 
   useEffect(() => {
     if (!currentUser) return;
     Promise.all([loadGpsConfig(currentUser.username), loadAssets(currentUser.username), loadPlantGPS(currentUser.username)])
       .then(([c, a, g]) => {
-        if (c) setCfg({ server: '', username: '', password: '', ...c });
+        if (c) setCfg({ server: '', username: '', password: '', liveEnabled: false, refreshSec: 15, ...c });
         if (Array.isArray(a) && a.length > 0) setAssets(a);
         if (g) setPlantGps(g);
       })
@@ -44,6 +45,18 @@ export default function GpsPanel({ onToast }: { onToast: (msg: string) => void }
   const saveCfg = async () => {
     if (!currentUser) return;
     try { await saveGpsConfig(currentUser.username, cfg); onToast('✅ GPS feed configuration saved.'); } catch { onToast('⚠️ Could not save configuration.'); }
+  };
+
+  const testConnection = async () => {
+    if (!cfg.server) { setLiveMsg('⚠️ Enter your GPS server URL first.'); return; }
+    setLiveMsg('⏳ Testing connection...');
+    try {
+      const base = cfg.server.replace(/\/+$/, '');
+      const devs = await apiFetch(base + '/api/devices', cfg.username, cfg.password);
+      setLiveMsg(`✅ Connection OK — server returned ${Array.isArray(devs) ? devs.length : 0} device(s).`);
+    } catch (e: any) {
+      setLiveMsg(`⚠️ ${e.message || 'Connection failed.'} — verify URL/port, credentials and CORS on the server.`);
+    }
   };
 
   const discover = async () => {
@@ -178,6 +191,27 @@ export default function GpsPanel({ onToast }: { onToast: (msg: string) => void }
           <button onClick={saveCfg} className="bg-emerald-600/20 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-600/30 text-xs px-5 py-2 rounded-lg font-bold transition-colors">💾 Save Config</button>
           <button onClick={discover} disabled={busy === 'discover'} className="bg-blue-600/20 text-blue-400 border border-blue-500/50 hover:bg-blue-600/30 text-xs px-5 py-2 rounded-lg font-bold transition-colors disabled:opacity-50">{busy === 'discover' ? '⏳' : '🔍 Discover Trackers'}</button>
           <button onClick={syncAll} disabled={busy === 'sync'} className="bg-violet-600/20 text-violet-400 border border-violet-500/50 hover:bg-violet-600/30 text-xs px-5 py-2 rounded-lg font-bold transition-colors disabled:opacity-50">{busy === 'sync' ? '⏳ Syncing...' : '⚡ Sync All Positions'}</button>
+        </div>
+
+        <div className="mt-5 border-t border-[#334155] pt-5">
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+            <h3 className="text-sm font-bold text-white">🔴 Live Tracking (real-time map polling)</h3>
+            <div className="flex items-center gap-3">
+              <select value={cfg.refreshSec || 15} onChange={e => setCfg({ ...cfg, refreshSec: Number(e.target.value) })} className={inputCls}>
+                {[5, 10, 15, 30, 60].map(s => <option key={s} value={s}>Every {s} sec</option>)}
+              </select>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" checked={!!cfg.liveEnabled} onChange={e => setCfg({ ...cfg, liveEnabled: e.target.checked })} className="w-4 h-4 accent-emerald-500" />
+                <span className="text-xs font-bold text-emerald-400">Enable Live Feed</span>
+              </label>
+            </div>
+          </div>
+          <p className="text-xs text-slate-400 mb-3">When enabled, the GPS Fleet Map polls the server API every interval and moves the mixers/pumps live. Positions are also written back to the shared database (throttled every 60s).</p>
+          {liveMsg && <p className={`text-xs font-bold mb-3 ${liveMsg.includes('✅') ? 'text-emerald-400' : 'text-yellow-400'}`}>{liveMsg}</p>}
+          <div className="flex gap-2">
+            <button onClick={testConnection} className="bg-sky-600/20 text-sky-400 border border-sky-500/50 hover:bg-sky-600/30 text-xs px-5 py-2 rounded-lg font-bold transition-colors">🧪 Test Connection</button>
+            <button onClick={saveCfg} className="bg-emerald-600/20 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-600/30 text-xs px-5 py-2 rounded-lg font-bold transition-colors">💾 Save Config</button>
+          </div>
         </div>
       </div>
 
