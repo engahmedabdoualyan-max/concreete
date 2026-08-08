@@ -10,7 +10,7 @@ export const USER_DATA_COLLECTIONS = [
   'trips', 'oeeLogs', 'recipes', 'calibrationLogs', 'inventory', 'deliveries',
   'productionRuns', 'qcRecords', 'assets', 'workshopConfig', 'customers', 'plantProfile',
   'weighbridgeRecords', 'returnedConcrete', 'payments', 'purchaseOrders', 'rawStock',
-  'plants', 'blockPlants',
+  'plants', 'blockPlants', 'gpsConfig',
 ];
 
 function userDocRef(userId: string) {
@@ -93,6 +93,16 @@ function userDoc(userId: string, collectionName: string) {
   return doc(db, 'userData', userId, collectionName, 'data');
 }
 
+function cleanForFirestore(v: any): any {
+  if (Array.isArray(v)) return v.map(cleanForFirestore);
+  if (v && typeof v === 'object') {
+    const o: any = {};
+    for (const k of Object.keys(v)) if (v[k] !== undefined) o[k] = cleanForFirestore(v[k]);
+    return o;
+  }
+  return v;
+}
+
 async function saveUserData(userId: string, collectionName: string, data: any) {
   const userSnap = await getDoc(userDocRef(userId));
   const quotaMB = userSnap.exists() ? (Number(userSnap.data()?.storageQuotaMB) || DEFAULT_QUOTA_MB) : DEFAULT_QUOTA_MB;
@@ -116,7 +126,7 @@ async function saveUserData(userId: string, collectionName: string, data: any) {
     return false;
   }
 
-  await setDoc(userDoc(userId, collectionName), { data, updatedAt: serverTimestamp() });
+  await setDoc(userDoc(userId, collectionName), { data: cleanForFirestore(data), updatedAt: serverTimestamp() });
   refreshStorageUsage(userId);
   try { localStorage.removeItem('concrete_quota_over'); } catch { }
   return true;
@@ -232,6 +242,14 @@ export async function savePlantLogo(userId: string, logoDataUrl: string) {
 export async function loadPlantLogo(userId: string): Promise<string> {
   const profile = await loadPlantProfile(userId);
   return profile?.logo || '';
+}
+
+// ====================== GPS Feed Config (live tracker linking) ======================
+export async function saveGpsConfig(userId: string, cfg: any) {
+  await saveUserData(userId, 'gpsConfig', cfg);
+}
+export async function loadGpsConfig(userId: string) {
+  return await loadUserData(userId, 'gpsConfig');
 }
 
 // ====================== Plants (multi-site) ======================

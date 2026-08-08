@@ -5,15 +5,16 @@ import { useLang } from '../context/LangContext';
 import type { Translations } from '../context/translations';
 import { useNavigate } from 'react-router-dom';
 import LangSelector from '../components/LangSelector';
-import { loadPlantGPS, savePlantGPS, getAllPlantsSummary, loadPlantLogo, savePlantLogo, loadPlants, loadBlockPlants, type PlantSummary } from '../firebase/firestore';
+import { loadPlantGPS, savePlantGPS, getAllPlantsSummary, loadPlantLogo, savePlantLogo, loadPlants, loadBlockPlants, loadAssets, type PlantSummary } from '../firebase/firestore';
 import { loadGpsLocationsFromSupabase } from '../supabase/supabase';
 import FactoryData from '../components/FactoryData';
 import PlantsManager from '../components/PlantsManager';
+import GpsPanel from '../components/GpsPanel';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
 type Tab = 'overview' | 'plant' | 'plants' | 'users' | 'sections' | 'gps';
-type FactorySub = 'profile' | 'fleet' | 'stock' | 'config';
+type FactorySub = 'profile' | 'fleet' | 'stock' | 'config' | 'trackers';
 
 const ROLE_EMOJIS: Record<UserRole, string> = {
   owner: '👑',
@@ -92,6 +93,7 @@ export default function AdminPanel() {
   const [summary, setSummary] = useState<PlantSummary[]>([]);
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [supaGps, setSupaGps] = useState<Array<{ username: string; label: string; lat: number; lng: number }>>([]);
+  const [assets, setAssets] = useState<any[]>([]);
   const [logo, setLogo] = useState('');
   const [plantCount, setPlantCount] = useState(0);
   const [blockCount, setBlockCount] = useState(0);
@@ -107,11 +109,17 @@ export default function AdminPanel() {
       setSupaGps(rows.map(r => ({ username: r.username, label: r.label, lat: r.lat, lng: r.lng })));
     }).catch(() => {});
     loadPlantLogo(currentUser.username).then(l => setLogo(l)).catch(() => {});
+    loadAssets(currentUser.username).then(a => { if (Array.isArray(a)) setAssets(a); }).catch(() => {});
     Promise.all([loadPlants(currentUser.username), loadBlockPlants(currentUser.username)]).then(([p, b]) => {
       if (Array.isArray(p)) setPlantCount(p.length);
       if (Array.isArray(b)) setBlockCount(b.length);
     }).catch(() => {});
   }, [currentUser?.username]);
+
+  useEffect(() => {
+    if (!currentUser || tab !== 'gps') return;
+    loadAssets(currentUser.username).then(a => { if (Array.isArray(a)) setAssets(a); }).catch(() => {});
+  }, [tab, currentUser?.username]);
 
   const detectGps = () => {
     setGpsBusy(true);
@@ -207,13 +215,21 @@ export default function AdminPanel() {
     }));
     supaGps.forEach(s => trucks.push({ lat: s.lat, lng: s.lng, code: `${s.username}/${s.label}` }));
     trucks.forEach(tr => L.marker([tr.lat, tr.lng], { icon: truckIcon }).addTo(map).bindPopup(`<b>${tr.code}</b>`));
-    if (trucks.length > 0) {
-      const all: [number, number][] = [[center[0], center[1]], ...trucks.map(t => [t.lat, t.lng] as [number, number])];
+    const assetIcon = L.divIcon({ html: '🚚', className: '', iconSize: [22, 22] });
+    const posAssets = (Array.isArray(assets) ? assets : []).filter(a => typeof a.gpsLat === 'number' && typeof a.gpsLng === 'number');
+    posAssets.forEach(a => {
+      L.marker([a.gpsLat, a.gpsLng], { icon: assetIcon })
+        .addTo(map)
+        .bindPopup(`<b>${a.id} (${a.plate})</b><br/>Tracker: ${a.gpsId || '—'}<br/>Updated: ${a.gpsUpdatedAt ? new Date(a.gpsUpdatedAt).toLocaleString() : '—'}`);
+    });
+    const allAssets = posAssets.map(a => [a.gpsLat, a.gpsLng] as [number, number]);
+    if (trucks.length > 0 || allAssets.length > 0) {
+      const all: [number, number][] = [[center[0], center[1]], ...trucks.map(t => [t.lat, t.lng] as [number, number]), ...allAssets];
       map.fitBounds(L.latLngBounds(all));
     }
     mapObjRef.current = map;
     return () => { if (mapObjRef.current) { mapObjRef.current.remove(); mapObjRef.current = null; } };
-  }, [tab, plantGps, summary, supaGps]);
+  }, [tab, plantGps, summary, supaGps, assets]);
 
   if (!currentUser) {
     navigate('/login');
@@ -402,6 +418,7 @@ export default function AdminPanel() {
                 { k: 'fleet', l: '🚚 Assets & Fleet' },
                 { k: 'stock', l: '🏬 Warehouses & Stock' },
                 { k: 'config', l: '⚙️ Production Config' },
+                { k: 'trackers', l: '🛰️ GPS & Trackers' },
               ] as { k: FactorySub; l: string }[]).map(sb => (
                 <button
                   key={sb.k}
@@ -526,6 +543,7 @@ export default function AdminPanel() {
             {factorySub === 'fleet' && <FactoryData section="fleet" onToast={showToast} />}
             {factorySub === 'stock' && <FactoryData section="stock" onToast={showToast} />}
             {factorySub === 'config' && <FactoryData section="config" onToast={showToast} />}
+            {factorySub === 'trackers' && <GpsPanel onToast={showToast} />}
           </div>
         )}
 
@@ -718,7 +736,7 @@ export default function AdminPanel() {
               </div>
             </div>
             <p className="text-sm text-slate-400 -mt-3">
-              🏭 Plant HQ · 🚚 active trips (from operations) · shared GPS markers from Supabase.
+              🏭 Plant HQ · 🚚 fleet assets & active trips (from operations) · shared GPS markers from Supabase.
             </p>
             {gpsMsg && <p className={`text-xs font-bold ${gpsMsg.includes('✅') ? 'text-emerald-400' : 'text-yellow-400'}`}>{gpsMsg}</p>}
             {plantGps && <p className="text-xs text-slate-400">Plant GPS: <b className="text-white">{plantGps.lat.toFixed(5)}, {plantGps.lng.toFixed(5)}</b></p>}

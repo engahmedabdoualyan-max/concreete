@@ -33,7 +33,7 @@ export default function FactoryData({ onToast, section }: { onToast: (msg: strin
   const [stock, setStock] = useState<Record<string, number>>(DEF_STOCK);
   const [config, setConfig] = useState<any>({ stationName: 'Model Plant', targetProd: '12000', productType: 'concrete' });
   const [loaded, setLoaded] = useState(false);
-  const [assetForm, setAssetForm] = useState<any>({ id: '', plate: '', chassis: '', type: 'Mixer', status: 'Ready', driver: '', initOdo: '', engHours: '', regExpiry: '', insExpiry: '', opcardExpiry: '', authExpiry: '', gpsId: '', tare: '', gross: '', gpsLat: '', gpsLng: '', productionRate: '', capacity: '', model: '', year: '', manufacturer: '' });
+  const [assetForm, setAssetForm] = useState<any>({ id: '', plate: '', chassis: '', type: 'Mixer', status: 'Ready', driver: '', initOdo: '', engHours: '', regExpiry: '', insExpiry: '', opcardExpiry: '', authExpiry: '', gpsId: '', gpsProvider: 'Traccar', tare: '', gross: '', gpsLat: '', gpsLng: '', productionRate: '', capacity: '', model: '', year: '', manufacturer: '' });
   const [gpsBusyId, setGpsBusyId] = useState('');
   const [gpsMsg, setGpsMsg] = useState('');
 
@@ -119,10 +119,14 @@ export default function FactoryData({ onToast, section }: { onToast: (msg: strin
         <p className="text-xs text-slate-400 mb-4">Vehicles and equipment with GPS, type, capacity and production rate. Saved to the shared database — Workshop, Operations and the GPS map use the same records.</p>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-          {[{ k: 'id', l: 'Asset Code *' }, { k: 'plate', l: 'Plate *' }, { k: 'chassis', l: 'Chassis' }, { k: 'driver', l: 'Driver' }, { k: 'gpsId', l: 'GPS Tracker ID' }, { k: 'model', l: 'Model' }, { k: 'year', l: 'Year' }, { k: 'manufacturer', l: 'Manufacturer' }].map(f => (
+          {[{ k: 'id', l: 'Asset Code *' }, { k: 'plate', l: 'Plate *' }, { k: 'chassis', l: 'Chassis' }, { k: 'driver', l: 'Driver' }, { k: 'gpsId', l: 'Tracker ID / IMEI' }, { k: 'model', l: 'Model' }, { k: 'year', l: 'Year' }, { k: 'manufacturer', l: 'Manufacturer' }].map(f => (
             <div key={f.k}><label className="text-[10px] text-slate-400 font-semibold">{f.l}</label>
               <input value={assetForm[f.k]} onChange={e => setAssetField(f.k, e.target.value)} className={fieldCls} /></div>
           ))}
+          <div><label className="text-[10px] text-slate-400 font-semibold">GPS Provider</label>
+            <select value={assetForm.gpsProvider} onChange={e => setAssetField('gpsProvider', e.target.value)} className={fieldCls}>
+              <option>Traccar</option><option>GpsGate</option><option>Teltonika</option><option>Manual / Browser</option>
+            </select></div>
           <div><label className="text-[10px] text-slate-400 font-semibold">Type</label>
             <select value={assetForm.type} onChange={e => setAssetField('type', e.target.value)} className={fieldCls}>
               <option>Mixer</option><option>Mobile Pump</option><option>Light Vehicle</option><option>Loader</option><option>Generator</option><option>Station</option>
