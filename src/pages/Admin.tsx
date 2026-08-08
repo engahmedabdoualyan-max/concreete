@@ -12,7 +12,8 @@ import PlantsManager from '../components/PlantsManager';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
-type Tab = 'overview' | 'plant' | 'plants' | 'users' | 'sections' | 'gps' | 'factory';
+type Tab = 'overview' | 'plant' | 'plants' | 'users' | 'sections' | 'gps';
+type FactorySub = 'profile' | 'fleet' | 'stock' | 'config';
 
 const ROLE_EMOJIS: Record<UserRole, string> = {
   owner: '👑',
@@ -77,6 +78,7 @@ export default function AdminPanel() {
   const navigate = useNavigate();
 
   const [tab, setTab] = useState<Tab>('overview');
+  const [factorySub, setFactorySub] = useState<FactorySub>('profile');
   const [toast, setToast] = useState('');
   const [showAdd, setShowAdd] = useState(false);
   const [addError, setAddError] = useState('');
@@ -268,7 +270,6 @@ export default function AdminPanel() {
     { key: 'overview', label: t('tabOverview'), emoji: '📊' },
     { key: 'plant', label: t('tabPlantData'), emoji: '🏭' },
     { key: 'plants', label: 'Plants & Block Lines', emoji: '🏗️' },
-    { key: 'factory', label: 'Fleet, Stock & Config', emoji: '🚛' },
     { key: 'users', label: t('tabUsers'), emoji: '👥' },
     { key: 'sections', label: 'Sections Overview', emoji: '🧩' },
     { key: 'gps', label: 'GPS Map', emoji: '🗺️' },
@@ -394,6 +395,29 @@ export default function AdminPanel() {
         )}
 
         {tab === 'plant' && (
+          <div className="space-y-6">
+            <div className="flex flex-wrap gap-2">
+              {([
+                { k: 'profile', l: '📋 Plant Profile & Logo' },
+                { k: 'fleet', l: '🚚 Assets & Fleet' },
+                { k: 'stock', l: '🏬 Warehouses & Stock' },
+                { k: 'config', l: '⚙️ Production Config' },
+              ] as { k: FactorySub; l: string }[]).map(sb => (
+                <button
+                  key={sb.k}
+                  onClick={() => setFactorySub(sb.k)}
+                  className={`px-4 py-2 rounded-lg font-bold text-sm border transition-colors ${
+                    factorySub === sb.k
+                      ? 'bg-blue-600/20 text-blue-400 border-blue-500/50'
+                      : 'bg-[#1e293b] text-slate-300 border-[#334155] hover:bg-[#263449]'
+                  }`}
+                >
+                  {sb.l}
+                </button>
+              ))}
+            </div>
+
+            {factorySub === 'profile' && (
           <form onSubmit={handleSavePlant} className="bg-[#1e293b] rounded-2xl border border-[#334155] p-8">
             <h2 className="text-xl font-bold text-white mb-6">🏭 {t('tabPlantData')}</h2>
             <div className="bg-[#0f172a] border border-[#334155] rounded-xl p-4 mb-6">
@@ -405,7 +429,7 @@ export default function AdminPanel() {
                 )}
                 <div className="flex-1 min-w-[220px]">
                   <p className="font-bold text-white text-sm">🖼️ Plant Logo</p>
-                  <p className="text-xs text-slate-400 mt-1">Upload the factory logo — it is shared with the whole site (Operations, Dashboard & this panel).</p>
+                  <p className="text-xs text-slate-400 mt-1">Upload the factory logo — it appears across the site and on printed reports (Fleet Report, QC reports, Schedule).</p>
                   <div className="mt-3 flex gap-2">
                     <label className="bg-blue-600/20 text-blue-400 border border-blue-500/50 hover:bg-blue-600/30 text-xs px-4 py-2 rounded-lg font-bold cursor-pointer transition-colors inline-block">
                       📤 {logo ? 'Replace Logo' : 'Upload Logo'}
@@ -497,6 +521,12 @@ export default function AdminPanel() {
               </button>
             </div>
           </form>
+            )}
+
+            {factorySub === 'fleet' && <FactoryData section="fleet" onToast={showToast} />}
+            {factorySub === 'stock' && <FactoryData section="stock" onToast={showToast} />}
+            {factorySub === 'config' && <FactoryData section="config" onToast={showToast} />}
+          </div>
         )}
 
         {tab === 'users' && (
@@ -672,10 +702,6 @@ export default function AdminPanel() {
 
         {tab === 'plants' && (
           <PlantsManager onToast={showToast} />
-        )}
-
-        {tab === 'factory' && (
-          <FactoryData onToast={showToast} />
         )}
 
         {tab === 'gps' && (

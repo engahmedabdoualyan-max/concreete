@@ -24,8 +24,11 @@ const STOCK_META = [
   { key: 'admixture', name: 'Admixture', unit: 'L', min: 300 },
 ];
 
-export default function FactoryData({ onToast }: { onToast: (msg: string) => void }) {
+export type FactorySection = 'fleet' | 'stock' | 'config';
+
+export default function FactoryData({ onToast, section }: { onToast: (msg: string) => void; section?: FactorySection }) {
   const { currentUser } = useAuth();
+  const showAll = !section;
   const [assets, setAssets] = useState<Asset[]>([]);
   const [stock, setStock] = useState<Record<string, number>>(DEF_STOCK);
   const [config, setConfig] = useState<any>({ stationName: 'Model Plant', targetProd: '12000', productType: 'concrete' });
@@ -107,6 +110,7 @@ export default function FactoryData({ onToast }: { onToast: (msg: string) => voi
       {gpsMsg && <p className={`text-xs font-bold ${gpsMsg.includes('✅') ? 'text-emerald-400' : 'text-yellow-400'}`}>{gpsMsg}</p>}
 
       {/* ===== Fleet / Equipment ===== */}
+      {(showAll || section === 'fleet') && (
       <div className="bg-[#1e293b] rounded-2xl border border-[#334155] p-6">
         <div className="flex items-center justify-between mb-2">
           <h2 className="text-lg font-bold text-white">🚛 Factory Fleet & Equipment (Linked to Workshop)</h2>
@@ -181,8 +185,10 @@ export default function FactoryData({ onToast }: { onToast: (msg: string) => voi
           </div>
         )}
       </div>
+      )}
 
       {/* ===== Raw Material Stock ===== */}
+      {(showAll || section === 'stock') && (
       <div className="bg-[#1e293b] rounded-2xl border border-[#334155] p-6">
         <div className="flex items-center justify-between mb-2">
           <h2 className="text-lg font-bold text-white">🧱 Raw Material Stock (Linked to Production & Reorder)</h2>
@@ -205,8 +211,10 @@ export default function FactoryData({ onToast }: { onToast: (msg: string) => voi
           ))}
         </div>
       </div>
+      )}
 
       {/* ===== Production Config ===== */}
+      {(showAll || section === 'config') && (
       <div className="bg-[#1e293b] rounded-2xl border border-[#334155] p-6">
         <div className="flex items-center justify-between mb-2">
           <h2 className="text-lg font-bold text-white">🏭 Plant Production Profile (Linked to Workshop config)</h2>
@@ -226,6 +234,7 @@ export default function FactoryData({ onToast }: { onToast: (msg: string) => voi
             <input value={config.fuelEffTarget || ''} onChange={e => setConfig({ ...config, fuelEffTarget: e.target.value })} className={fieldCls} /></div>
         </div>
       </div>
+      )}
     </div>
   );
 }

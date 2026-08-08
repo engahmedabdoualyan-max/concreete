@@ -838,7 +838,13 @@ export default function Operations() {
         <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-[#1e293b] border border-[#334155] rounded-2xl w-full max-w-4xl p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-4 border-b border-[#334155] pb-3">
-              <h2 className="text-lg font-bold text-white">📅 Fleet Report</h2>
+              <div className="flex items-center gap-3">
+                <PlantLogo username={currentUser.username} height={48} />
+                <div>
+                  <h2 className="text-lg font-bold text-white">📅 Fleet Report</h2>
+                  <p className="text-xs text-slate-400">🟢 {currentUser.plantName} · {new Date().toLocaleDateString()}</p>
+                </div>
+              </div>
               <button onClick={() => setShowReport(false)} className="bg-red-500 hover:bg-red-600 text-white w-7 h-7 rounded-full font-bold text-sm">✕</button>
             </div>
             <div className="grid grid-cols-3 gap-3 mb-4">

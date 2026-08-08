@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import QuickJump from '../components/QuickJump';
 import LangSelector from '../components/LangSelector';
 import BrandLogo from '../components/BrandLogo';
+import PlantLogo from '../components/PlantLogo';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
@@ -955,7 +956,13 @@ export default function Schedule() {
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-xl p-6 max-w-5xl w-full max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-lg font-bold text-slate-800">📋 Optimized Schedule Report</h2>
+              <div className="flex items-center gap-3">
+                <PlantLogo username={currentUser?.username || ''} height={48} />
+                <div>
+                  <h2 className="text-lg font-bold text-slate-800">📋 Optimized Schedule Report</h2>
+                  <p className="text-xs text-slate-500">🟢 {currentUser?.plantName || ''}</p>
+                </div>
+              </div>
               <button
                 onClick={() => setShowReport(false)}
                 className="text-2xl text-slate-400 hover:text-slate-600"

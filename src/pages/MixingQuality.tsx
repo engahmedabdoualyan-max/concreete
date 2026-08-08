@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { loadRecipes, saveRecipes, loadCalibrationLogs, saveCalibrationLogs, loadQCRecords, saveQCRecords } from '../firebase/firestore';
+import { loadRecipes, saveRecipes, loadCalibrationLogs, saveCalibrationLogs, loadQCRecords, saveQCRecords, loadPlantLogo } from '../firebase/firestore';
 import DatePicker from '../components/DatePicker';
 import QuickJump from '../components/QuickJump';
 import LangSelector from '../components/LangSelector';
@@ -176,16 +176,17 @@ export default function MixingQuality() {
     alert('🔬 QC data saved!');
   };
 
-  const printQCRecord = (r: QCRecord) => {
+  const printQCRecord = async (r: QCRecord) => {
     const target = parseInt(r.design.replace('C', ''));
     const pass = r.break28d >= target;
+    const logo = currentUser ? await loadPlantLogo(currentUser.username).catch(() => '') : '';
     const w = window.open('', '_blank', 'width=800,height=600');
     if (!w) return;
     w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Quality Report — ${r.bonNo || r.id}</title>
       <style>
         body{font-family:Arial,sans-serif;color:#0f172a;padding:32px;max-width:760px;margin:auto}
         h1{font-size:20px;margin:0 0 4px}h2{font-size:13px;color:#64748b;font-weight:normal;margin:0 0 20px}
-        .head{display:flex;justify-content:space-between;border-bottom:3px solid #0f172a;padding-bottom:12px;margin-bottom:20px}
+        .head{display:flex;justify-content:space-between;align-items:center;border-bottom:3px solid #0f172a;padding-bottom:12px;margin-bottom:20px}
         .grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 24px;margin-bottom:20px}
         .field{font-size:12px}.field b{display:block;font-size:11px;color:#64748b;text-transform:uppercase}
         table{width:100%;border-collapse:collapse;font-size:12px}
@@ -195,7 +196,10 @@ export default function MixingQuality() {
         .footer{margin-top:40px;display:flex;justify-content:space-between;font-size:11px;color:#64748b}
       </style></head><body>
       <div class="head">
-        <div><h1>🔬 Concrete Quality Test Report</h1><h2>Fimto Soft — Ready-Mix Concrete Plant</h2></div>
+        <div style="display:flex;align-items:center;gap:14px">
+          ${logo ? `<img src="${logo}" style="height:64px;max-width:110px;object-fit:contain" />` : ''}
+          <div><h1>🔬 Concrete Quality Test Report</h1><h2>${currentUser?.plantName || 'Ready-Mix Concrete Plant'}</h2></div>
+        </div>
         <div style="text-align:right"><div class="field" style="font-size:12px"><b>Report Date</b>${r.date}</div><div class="field" style="font-size:12px"><b>Ticket / Bon No</b>${r.bonNo || '—'}</div></div>
       </div>
       <div class="grid">
