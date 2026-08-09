@@ -1,6 +1,6 @@
 import siteLogo from '../assets/logos/logo.png';
 
-const LOGO_ASPECT = 240 / 175;
+const LOGO_ASPECT = 1040 / 1024;
 const HOME_URL = 'https://concrete.fimtosoft.com/';
 
 export default function BrandLogo({ size = 40, width, height, rounded = 'rounded-lg', fill = true }: {
