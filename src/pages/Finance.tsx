@@ -117,8 +117,8 @@ export default function Finance() {
 
   if (!currentUser) {
     return (
-      <div className="min-h-screen bg-[#0f172a] flex items-center justify-center">
-        <div className="text-center"><p className="text-red-400 text-xl mb-4">🔒 Access Denied</p><Link to="/" className="text-blue-400 underline">Back to Login</Link></div>
+      <div className="min-h-screen bg-[#0B111E] flex items-center justify-center">
+        <div className="text-center"><p className="text-red-400 text-xl mb-4">🔒 Access Denied</p><Link to="/" className="text-sky-400 underline">Back to Login</Link></div>
       </div>
     );
   }
@@ -129,11 +129,11 @@ export default function Finance() {
   const poValue = pos.reduce((s, po) => s + po.total, 0);
 
   return (
-    <div className="min-h-screen bg-[#0f172a] text-[#f1f5f9]">
-      <div className="bg-gradient-to-br from-[#0f1729] to-[#1a2332] border-b border-[#2a3a5c] px-6 py-2.5 flex flex-wrap justify-between items-center gap-x-3 gap-y-1.5 sticky top-0 z-50 shadow-lg">
+    <div className="min-h-screen bg-[#0B111E] text-slate-200">
+      <div className="bg-[#0B111E]/80 backdrop-blur-xl border-b border-white/10 px-6 py-2.5 flex flex-wrap justify-between items-center gap-x-3 gap-y-1.5 sticky top-0 z-50 shadow-lg">
         <div className="flex flex-wrap items-center gap-3">
           <BrandLogo width={56} />
-          <Link to="/" className="text-slate-400 text-xs border border-[#2a3a5c] px-2.5 py-1 rounded hover:text-white transition">← Dashboard</Link>
+          <Link to="/" className="text-slate-400 text-xs border border-white/10 px-2.5 py-1 rounded hover:text-white transition">← Dashboard</Link>
           <QuickJump /> <LangSelector />
           <h1 className="text-sm font-bold text-white">💰 Finance: Payments & Auto Reorder</h1>
         </div>
@@ -141,52 +141,52 @@ export default function Finance() {
       </div>
 
       <div className="max-w-6xl mx-auto p-6">
-        <div className="grid grid-cols-2 gap-2 p-1 mb-5 bg-[#1e293b] rounded-xl border border-[#334155] max-w-md">
-          <button onClick={() => setTab('payments')} className={`py-2 px-4 rounded-lg font-bold text-sm ${tab === 'payments' ? 'bg-emerald-600 text-white' : 'text-slate-400 hover:text-white'}`}>💳 Payments</button>
-          <button onClick={() => setTab('reorder')} className={`py-2 px-4 rounded-lg font-bold text-sm ${tab === 'reorder' ? 'bg-orange-600 text-white' : 'text-slate-400 hover:text-white'}`}>📦 Auto Reorder (POs)</button>
+        <div className="grid grid-cols-2 gap-2 p-1 mb-5 bg-white/[0.04] rounded-xl border border-white/10 max-w-md backdrop-blur-xl">
+          <button onClick={() => setTab('payments')} className={`py-2 px-4 rounded-lg font-bold text-sm ${tab === 'payments' ? 'bg-emerald-500 text-white' : 'text-slate-400 hover:text-sky-300'}`}>💳 Payments</button>
+          <button onClick={() => setTab('reorder')} className={`py-2 px-4 rounded-lg font-bold text-sm ${tab === 'reorder' ? 'bg-amber-500 text-white' : 'text-slate-400 hover:text-sky-300'}`}>📦 Auto Reorder (POs)</button>
         </div>
 
         {tab === 'payments' && (
           <div className="grid grid-cols-1 lg:grid-cols-[380px_1fr] gap-6">
-            <div className="bg-[#1e293b] border border-[#334155] rounded-xl p-6">
-              <h3 className="text-lg font-bold text-white mb-1">💳 Payment Entry</h3>
+            <div className="bg-white/[0.04] border border-white/10 rounded-xl p-6 backdrop-blur-xl">
+              <h3 className="text-lg font-black tracking-tight text-white mb-1">💳 Payment Entry</h3>
               <p className="text-xs text-slate-400 mb-4">Record client payments via mada / bank transfer / cash — with invoice-level status tracking.</p>
               <form onSubmit={addPayment} className="space-y-3">
                 <DatePicker value={pForm.date} onChange={v => setPForm({ ...pForm, date: v })} label="Date" />
-                <div><label className="text-xs text-slate-400 font-semibold">Client</label><input value={pForm.client} onChange={e => setPForm({ ...pForm, client: e.target.value })} placeholder="Client / customer" className="w-full bg-[#334155] border border-[#475569] rounded-lg p-2.5 text-white text-sm" required /></div>
+                <div><label className="text-xs text-slate-400 font-semibold">Client</label><input value={pForm.client} onChange={e => setPForm({ ...pForm, client: e.target.value })} placeholder="Client / customer" className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm" required /></div>
                 <div className="grid grid-cols-2 gap-3">
-                  <div><label className="text-xs text-slate-400 font-semibold">Invoice #</label><input value={pForm.orderNo} onChange={e => setPForm({ ...pForm, orderNo: e.target.value })} placeholder="ORD-..." className="w-full bg-[#334155] border border-[#475569] rounded-lg p-2.5 text-white text-sm" /></div>
-                  <div><label className="text-xs text-slate-400 font-semibold">Amount (SAR)</label><input type="number" value={pForm.amount} onChange={e => setPForm({ ...pForm, amount: e.target.value })} className="w-full bg-[#334155] border border-[#475569] rounded-lg p-2.5 text-white text-sm" required /></div>
+                  <div><label className="text-xs text-slate-400 font-semibold">Invoice #</label><input value={pForm.orderNo} onChange={e => setPForm({ ...pForm, orderNo: e.target.value })} placeholder="ORD-..." className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm" /></div>
+                  <div><label className="text-xs text-slate-400 font-semibold">Amount (SAR)</label><input type="number" value={pForm.amount} onChange={e => setPForm({ ...pForm, amount: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm" required /></div>
                 </div>
                 <div><label className="text-xs text-slate-400 font-semibold">Method</label>
-                  <select value={pForm.method} onChange={e => setPForm({ ...pForm, method: e.target.value })} className="w-full bg-[#334155] border border-[#475569] rounded-lg p-2.5 text-white text-sm">
+                  <select value={pForm.method} onChange={e => setPForm({ ...pForm, method: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm">
                     <option value="bank">🏦 Bank Transfer (IBAN)</option><option value="mada">💳 mada card</option><option value="visa">💳 Visa / Mastercard</option><option value="cash">💵 Cash</option><option value="cheque">📄 Cheque</option>
                   </select>
                 </div>
                 <div><label className="text-xs text-slate-400 font-semibold">Status</label>
-                  <select value={pForm.status} onChange={e => setPForm({ ...pForm, status: e.target.value as any })} className="w-full bg-[#334155] border border-[#475569] rounded-lg p-2.5 text-white text-sm">
+                  <select value={pForm.status} onChange={e => setPForm({ ...pForm, status: e.target.value as any })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm">
                     <option value="paid">✅ Paid in full</option><option value="partial">⚠️ Partial payment</option><option value="pending">⏳ Pending / outstanding</option>
                   </select>
                 </div>
-                <div><label className="text-xs text-slate-400 font-semibold">Note</label><input value={pForm.note} onChange={e => setPForm({ ...pForm, note: e.target.value })} className="w-full bg-[#334155] border border-[#475569] rounded-lg p-2.5 text-white text-sm" /></div>
-                <button type="submit" className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-lg">💳 Record Payment</button>
-                <button type="button" onClick={generatePaymentRequest} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-lg">🔗 Generate Payment Request + QR (mada/sadad/visa)</button>
+                <div><label className="text-xs text-slate-400 font-semibold">Note</label><input value={pForm.note} onChange={e => setPForm({ ...pForm, note: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm" /></div>
+                <button type="submit" className="w-full bg-emerald-500 hover:bg-emerald-400 text-white font-bold py-3 rounded-lg shadow-[0_0_20px_rgba(56,189,248,0.3)]">💳 Record Payment</button>
+                <button type="button" onClick={generatePaymentRequest} className="w-full bg-sky-500 hover:bg-sky-400 text-white font-bold py-3 rounded-lg shadow-[0_0_20px_rgba(56,189,248,0.3)]">🔗 Generate Payment Request + QR (mada/sadad/visa)</button>
               </form>
             </div>
             <div>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-                <div className="bg-[#1e293b] rounded-xl p-4 border border-[#334155]"><p className="text-xs text-slate-400">Collected (SAR)</p><p className="text-xl font-bold text-emerald-400">{totalPaid.toLocaleString()}</p></div>
-                <div className="bg-[#1e293b] rounded-xl p-4 border border-[#334155]"><p className="text-xs text-slate-400">Outstanding (SAR)</p><p className="text-xl font-bold text-yellow-400">{totalOutstanding.toLocaleString()}</p></div>
-                <div className="bg-[#1e293b] rounded-xl p-4 border border-[#334155]"><p className="text-xs text-slate-400">Transactions</p><p className="text-xl font-bold text-white">{payments.length}</p></div>
-                <div className="bg-[#1e293b] rounded-xl p-4 border border-[#334155]"><p className="text-xs text-slate-400">Open POs</p><p className="text-xl font-bold text-orange-400">{openPOs.length}</p></div>
+                <div className="bg-white/[0.04] rounded-xl p-4 border border-white/10 backdrop-blur-xl"><p className="text-xs text-slate-400">Collected (SAR)</p><p className="text-xl font-bold text-emerald-400">{totalPaid.toLocaleString()}</p></div>
+                <div className="bg-white/[0.04] rounded-xl p-4 border border-white/10 backdrop-blur-xl"><p className="text-xs text-slate-400">Outstanding (SAR)</p><p className="text-xl font-bold text-yellow-400">{totalOutstanding.toLocaleString()}</p></div>
+                <div className="bg-white/[0.04] rounded-xl p-4 border border-white/10 backdrop-blur-xl"><p className="text-xs text-slate-400">Transactions</p><p className="text-xl font-bold text-white">{payments.length}</p></div>
+                <div className="bg-white/[0.04] rounded-xl p-4 border border-white/10 backdrop-blur-xl"><p className="text-xs text-slate-400">Open POs</p><p className="text-xl font-bold text-orange-400">{openPOs.length}</p></div>
               </div>
-              <div className="bg-[#1e293b] border border-[#334155] rounded-xl overflow-hidden">
+              <div className="bg-white/[0.04] border border-white/10 rounded-xl overflow-hidden backdrop-blur-xl">
                 <div className="overflow-x-auto">
                   <table className="w-full text-xs text-slate-300">
-                    <thead className="bg-[#334155] text-[10px]"><tr><th className="p-2">Date</th><th className="p-2">Client</th><th className="p-2">Invoice</th><th className="p-2">Method</th><th className="p-2">Amount</th><th className="p-2">Status</th><th className="p-2">Digital Pay</th></tr></thead>
+                    <thead className="bg-white/[0.04] text-slate-400 text-[10px]"><tr><th className="p-2 uppercase tracking-wider">Date</th><th className="p-2 uppercase tracking-wider">Client</th><th className="p-2 uppercase tracking-wider">Invoice</th><th className="p-2 uppercase tracking-wider">Method</th><th className="p-2 uppercase tracking-wider">Amount</th><th className="p-2 uppercase tracking-wider">Status</th><th className="p-2 uppercase tracking-wider">Digital Pay</th></tr></thead>
                     <tbody>
                       {payments.map(p => (
-                        <tr key={p.id} className="border-b border-[#334155]/30">
+                        <tr key={p.id} className="border-b border-white/10">
                           <td className="p-2">{p.date}</td><td className="p-2 font-bold">{p.client}</td><td className="p-2">{p.orderNo}</td><td className="p-2">{p.method}</td>
                           <td className="p-2 font-bold text-emerald-400">{p.amount.toLocaleString()} SAR</td>
                           <td className="p-2">
@@ -197,8 +197,8 @@ export default function Finance() {
                           <td className="p-2">
                             {p.status === 'pending' && p.qr ? (
                               <div className="flex items-center gap-2">
-                                <img src={p.qr} alt="payment qr" className="w-12 h-12 rounded border border-[#334155]" />
-                                <button onClick={() => confirmGateway(p.id)} className="text-[10px] bg-indigo-600 hover:bg-indigo-700 text-white px-2 py-1.5 rounded font-bold">Confirm (simulate gateway)</button>
+                                <img src={p.qr} alt="payment qr" className="w-12 h-12 rounded border border-white/10" />
+                                <button onClick={() => confirmGateway(p.id)} className="text-[10px] bg-sky-500 hover:bg-sky-400 text-white px-2 py-1.5 rounded font-bold">Confirm (simulate gateway)</button>
                               </div>
                             ) : p.ref ? <span className="text-[10px] text-slate-500">{p.ref}</span> : '—'}
                           </td>
@@ -208,13 +208,13 @@ export default function Finance() {
                   </table>
                 </div>
               </div>
-              <div className="bg-[#1e293b] border border-[#334155] rounded-xl p-4 mt-4">
+              <div className="bg-white/[0.04] border border-white/10 rounded-xl p-4 mt-4 backdrop-blur-xl">
                 <p className="text-xs font-bold text-white mb-2">🧾 Reconciliation — outstanding per client</p>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
                   {Array.from(new Set(payments.map(p => p.client))).slice(0, 9).map(client => {
                     const out = payments.filter(p => p.client === client && p.status !== 'paid').reduce((s, p) => s + p.amount, 0);
                     return (
-                      <div key={client} className={`bg-[#0f172a] rounded-lg p-3 border ${out > 0 ? 'border-yellow-500/40' : 'border-emerald-500/30'}`}>
+                      <div key={client} className={`bg-white/[0.02] rounded-lg p-3 border ${out > 0 ? 'border-yellow-500/40' : 'border-emerald-500/30'}`}>
                         <p className="text-[11px] text-slate-400 truncate">{client}</p>
                         <p className={`text-sm font-bold ${out > 0 ? 'text-yellow-400' : 'text-emerald-400'}`}>{out > 0 ? `${out.toLocaleString()} SAR` : '✅ Clear'}</p>
                       </div>
@@ -228,15 +228,15 @@ export default function Finance() {
 
         {tab === 'reorder' && (
           <div className="space-y-6">
-            <div className="bg-[#1e293b] border border-[#334155] rounded-xl p-6">
-              <h3 className="text-lg font-bold text-white mb-1">📅 Next-Day Demand Coverage</h3>
+            <div className="bg-white/[0.04] border border-white/10 rounded-xl p-6 backdrop-blur-xl">
+              <h3 className="text-lg font-black tracking-tight text-white mb-1">📅 Next-Day Demand Coverage</h3>
               <p className="text-xs text-slate-400 mb-4">Consumes material based on tomorrow's scheduled (confirmed) orders and current stock + open POs. Alerts and PO drafts are generated automatically when the stock cannot cover tomorrow's commitments.</p>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
-                <div className="bg-[#0f172a] rounded-xl p-4 border border-[#334155]"><p className="text-xs text-slate-400">Scheduled tomorrow</p><p className="text-xl font-bold text-white">{demandM3.toFixed(0)} m³</p></div>
+                <div className="bg-white/[0.02] rounded-xl p-4 border border-white/10"><p className="text-xs text-slate-400">Scheduled tomorrow</p><p className="text-xl font-bold text-white">{demandM3.toFixed(0)} m³</p></div>
                 {(['cement', 'sand', 'gravel'] as const).map(k => {
                   const c = demandCoverage(k);
                   return (
-                    <div key={k} className={`bg-[#0f172a] rounded-xl p-4 border ${c.short > 0 ? 'border-red-500/50' : 'border-emerald-500/40'}`}>
+                    <div key={k} className={`bg-white/[0.02] rounded-xl p-4 border ${c.short > 0 ? 'border-red-500/50' : 'border-emerald-500/40'}`}>
                       <p className="text-xs text-slate-400 capitalize">{k}</p>
                       <p className="text-xl font-bold text-white">{c.needed.toFixed(1)}t <span className="text-[10px] text-slate-500">need</span></p>
                       <p className="text-[10px] text-slate-400">have {c.current.toFixed(0)}t{c.onOrder > 0 ? ` + ${c.onOrder.toFixed(0)}t PO` : ''}</p>
@@ -246,19 +246,19 @@ export default function Finance() {
                 })}
               </div>
               <div className="flex flex-wrap gap-2">
-                <button onClick={genDemandPOs} className="bg-orange-600 hover:bg-orange-700 text-white font-bold py-2.5 px-4 rounded-lg text-sm">⚡ Generate POs for tomorrow's shortfall</button>
+                <button onClick={genDemandPOs} className="bg-amber-500 hover:bg-amber-400 text-white font-bold py-2.5 px-4 rounded-lg text-sm shadow-[0_0_20px_rgba(56,189,248,0.3)]">⚡ Generate POs for tomorrow's shortfall</button>
                 <span className={`text-xs self-center font-bold ${demandCoverage('cement').short > 0 || demandCoverage('sand').short > 0 || demandCoverage('gravel').short > 0 ? 'text-red-400' : 'text-emerald-400'}`}>
                   {demandCoverage('cement').short > 0 || demandCoverage('sand').short > 0 || demandCoverage('gravel').short > 0 ? '🚨 ALERT: stock will NOT cover tomorrow — reorder now' : '✅ Stock covers tomorrow\'s commitments'}
                 </span>
               </div>
             </div>
             <div className="grid grid-cols-1 lg:grid-cols-[380px_1fr] gap-6">
-            <div className="bg-[#1e293b] border border-[#334155] rounded-xl p-6">
-              <h3 className="text-lg font-bold text-white mb-1">📦 Material Reorder Alerts</h3>
+            <div className="bg-white/[0.04] border border-white/10 rounded-xl p-6 backdrop-blur-xl">
+              <h3 className="text-lg font-black tracking-tight text-white mb-1">📦 Material Reorder Alerts</h3>
               <p className="text-xs text-slate-400 mb-4">Live check against current raw stock. Materials below minimum are flagged — generate purchase orders in one click.</p>
               <div className="space-y-3">
                 {MATERIALS.map(m => (
-                  <label key={m.key} className="flex items-center gap-3 bg-[#0f172a] border border-[#334155] rounded-lg p-3 cursor-pointer">
+                  <label key={m.key} className="flex items-center gap-3 bg-white/[0.02] border border-white/10 rounded-lg p-3 cursor-pointer">
                     <input type="checkbox" checked={!!checked[m.key]} onChange={e => setChecked({ ...checked, [m.key]: e.target.checked })} className="accent-orange-500 w-4 h-4" />
                     <span className="flex-1">
                       <span className="block font-bold text-white text-sm">{m.name}</span>
@@ -267,28 +267,28 @@ export default function Finance() {
                     {!!checked[m.key] && <span className="text-[10px] font-bold bg-red-500/20 text-red-400 px-1.5 py-0.5 rounded">🚨 LOW</span>}
                   </label>
                 ))}
-                <button onClick={generatePOs} className="w-full bg-orange-600 hover:bg-orange-700 text-white font-bold py-3 rounded-lg">⚡ Auto Generate Purchase Orders</button>
+                <button onClick={generatePOs} className="w-full bg-amber-500 hover:bg-amber-400 text-white font-bold py-3 rounded-lg shadow-[0_0_20px_rgba(56,189,248,0.3)]">⚡ Auto Generate Purchase Orders</button>
                 <p className="text-[10px] text-slate-500 text-center">P.O. total = reorder qty × unit price (cement/sand/gravel 650 SAR/t, admixture 12 SAR/L).</p>
               </div>
             </div>
             <div>
               <div className="grid grid-cols-3 gap-3 mb-4">
-                <div className="bg-[#1e293b] rounded-xl p-4 border border-[#334155]"><p className="text-xs text-slate-400">Open POs</p><p className="text-xl font-bold text-orange-400">{openPOs.length}</p></div>
-                <div className="bg-[#1e293b] rounded-xl p-4 border border-[#334155]"><p className="text-xs text-slate-400">PO value (SAR)</p><p className="text-xl font-bold text-white">{poValue.toLocaleString()}</p></div>
-                <div className="bg-[#1e293b] rounded-xl p-4 border border-[#334155]"><p className="text-xs text-slate-400">Delivered</p><p className="text-xl font-bold text-emerald-400">{pos.filter(po => po.status === 'delivered').length}</p></div>
+                <div className="bg-white/[0.04] rounded-xl p-4 border border-white/10 backdrop-blur-xl"><p className="text-xs text-slate-400">Open POs</p><p className="text-xl font-bold text-orange-400">{openPOs.length}</p></div>
+                <div className="bg-white/[0.04] rounded-xl p-4 border border-white/10 backdrop-blur-xl"><p className="text-xs text-slate-400">PO value (SAR)</p><p className="text-xl font-bold text-white">{poValue.toLocaleString()}</p></div>
+                <div className="bg-white/[0.04] rounded-xl p-4 border border-white/10 backdrop-blur-xl"><p className="text-xs text-slate-400">Delivered</p><p className="text-xl font-bold text-emerald-400">{pos.filter(po => po.status === 'delivered').length}</p></div>
               </div>
-              <div className="bg-[#1e293b] border border-[#334155] rounded-xl overflow-hidden">
+              <div className="bg-white/[0.04] border border-white/10 rounded-xl overflow-hidden backdrop-blur-xl">
                 <div className="overflow-x-auto">
                   <table className="w-full text-xs text-slate-300">
-                    <thead className="bg-[#334155] text-[10px]"><tr><th className="p-2">Date</th><th className="p-2">Material</th><th className="p-2">Qty</th><th className="p-2">Supplier</th><th className="p-2">Total (SAR)</th><th className="p-2">Status</th><th className="p-2"></th></tr></thead>
+                    <thead className="bg-white/[0.04] text-slate-400 text-[10px]"><tr><th className="p-2 uppercase tracking-wider">Date</th><th className="p-2 uppercase tracking-wider">Material</th><th className="p-2 uppercase tracking-wider">Qty</th><th className="p-2 uppercase tracking-wider">Supplier</th><th className="p-2 uppercase tracking-wider">Total (SAR)</th><th className="p-2 uppercase tracking-wider">Status</th><th className="p-2 uppercase tracking-wider"></th></tr></thead>
                     <tbody>
                       {pos.map(po => (
-                        <tr key={po.id} className="border-b border-[#334155]/30">
+                        <tr key={po.id} className="border-b border-white/10">
                           <td className="p-2">{po.date}</td><td className="p-2 font-bold">{po.material}</td><td className="p-2">{po.qty} {po.unit}</td><td className="p-2">{po.supplier}</td><td className="p-2 font-bold text-white">{po.total.toLocaleString()}</td>
                           <td className="p-2">
                             {po.status === 'open' ? <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-orange-500/20 text-orange-400">📦 Open</span> : <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-400">✅ Delivered</span>}
                           </td>
-                          <td className="p-2">{po.status === 'open' && <button onClick={() => deliverPO(po.id)} className="text-[10px] bg-emerald-600 hover:bg-emerald-700 text-white px-2 py-1 rounded font-bold">Mark delivered</button>}</td>
+                          <td className="p-2">{po.status === 'open' && <button onClick={() => deliverPO(po.id)} className="text-[10px] bg-emerald-500 hover:bg-emerald-400 text-white px-2 py-1 rounded font-bold">Mark delivered</button>}</td>
                         </tr>
                       ))}
                     </tbody>

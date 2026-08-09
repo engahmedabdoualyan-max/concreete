@@ -127,7 +127,7 @@ export default function LoginRegister() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0f172a] flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-[#0B111E] flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">
         <div>
           <div className="flex justify-center">
@@ -164,7 +164,7 @@ export default function LoginRegister() {
                   required
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  className="appearance-none relative block w-full px-3 py-2 bg-[#1e293b] border border-[#334155] text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder-slate-500"
+                  className="appearance-none relative block w-full px-3 py-2 bg-white/[0.04] border border-white/10 text-white rounded-lg focus:outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)] placeholder-slate-500"
                   placeholder="اسم المستخدم"
                 />
               </div>
@@ -178,7 +178,7 @@ export default function LoginRegister() {
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="appearance-none relative block w-full px-3 py-2 bg-[#1e293b] border border-[#334155] text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder-slate-500"
+                  className="appearance-none relative block w-full px-3 py-2 bg-white/[0.04] border border-white/10 text-white rounded-lg focus:outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)] placeholder-slate-500"
                   placeholder="you@example.com"
                 />
               </div>
@@ -192,7 +192,7 @@ export default function LoginRegister() {
                   required
                   value={plantName}
                   onChange={(e) => setPlantName(e.target.value)}
-                  className="appearance-none relative block w-full px-3 py-2 bg-[#1e293b] border border-[#334155] text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder-slate-500"
+                  className="appearance-none relative block w-full px-3 py-2 bg-white/[0.04] border border-white/10 text-white rounded-lg focus:outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)] placeholder-slate-500"
                   placeholder="اسم مصنع الخرسانة الخاص بك"
                 />
               </div>
@@ -206,7 +206,7 @@ export default function LoginRegister() {
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="appearance-none relative block w-full px-3 py-2 bg-[#1e293b] border border-[#334155] text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder-slate-500"
+                  className="appearance-none relative block w-full px-3 py-2 bg-white/[0.04] border border-white/10 text-white rounded-lg focus:outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)] placeholder-slate-500"
                   placeholder="كلمة المرور"
                 />
               </div>
@@ -220,7 +220,7 @@ export default function LoginRegister() {
                     type="text"
                     value={country}
                     onChange={(e) => setCountry(e.target.value)}
-                    className="appearance-none relative block w-full px-3 py-2 bg-[#1e293b] border border-[#334155] text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder-slate-500"
+                    className="appearance-none relative block w-full px-3 py-2 bg-white/[0.04] border border-white/10 text-white rounded-lg focus:outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)] placeholder-slate-500"
                     placeholder="مصر"
                   />
                 </div>
@@ -233,7 +233,7 @@ export default function LoginRegister() {
                     type="text"
                     value={city}
                     onChange={(e) => setCity(e.target.value)}
-                    className="appearance-none relative block w-full px-3 py-2 bg-[#1e293b] border border-[#334155] text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder-slate-500"
+                    className="appearance-none relative block w-full px-3 py-2 bg-white/[0.04] border border-white/10 text-white rounded-lg focus:outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)] placeholder-slate-500"
                     placeholder="القاهرة"
                   />
                 </div>
@@ -247,7 +247,7 @@ export default function LoginRegister() {
                   type="tel"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
-                  className="appearance-none relative block w-full px-3 py-2 bg-[#1e293b] border border-[#334155] text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder-slate-500"
+                  className="appearance-none relative block w-full px-3 py-2 bg-white/[0.04] border border-white/10 text-white rounded-lg focus:outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)] placeholder-slate-500"
                   placeholder="+20 100 100 6627"
                 />
               </div>
@@ -257,7 +257,7 @@ export default function LoginRegister() {
               <button
                 type="submit"
                 disabled={isLoading}
-                className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-lg text-white bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300"
+                className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-lg text-white bg-gradient-to-r from-sky-500 to-cyan-500 hover:from-sky-400 hover:to-cyan-400 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-sky-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 shadow-[0_0_20px_rgba(56,189,248,0.3)]"
               >
                 {isLoading ? 'جاري إنشاء الحساب...' : 'إنشاء حساب'}
               </button>
@@ -267,7 +267,7 @@ export default function LoginRegister() {
               <button
                 type="button"
                 onClick={() => setIsLogin(true)}
-                className="font-medium text-blue-400 hover:text-blue-300 transition-colors"
+                className="font-medium text-sky-400 hover:text-sky-300 transition-colors"
               >
                 هل لديك حساب بالفعل؟ تسجيل الدخول
               </button>
@@ -285,7 +285,7 @@ export default function LoginRegister() {
                   required
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  className="appearance-none relative block w-full px-3 py-2 bg-[#1e293b] border border-[#334155] text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder-slate-500"
+                  className="appearance-none relative block w-full px-3 py-2 bg-white/[0.04] border border-white/10 text-white rounded-lg focus:outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)] placeholder-slate-500"
                   placeholder="اسم المستخدم"
                 />
               </div>
@@ -299,7 +299,7 @@ export default function LoginRegister() {
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="appearance-none relative block w-full px-3 py-2 bg-[#1e293b] border border-[#334155] text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder-slate-500"
+                  className="appearance-none relative block w-full px-3 py-2 bg-white/[0.04] border border-white/10 text-white rounded-lg focus:outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)] placeholder-slate-500"
                   placeholder="كلمة المرور"
                 />
               </div>
@@ -309,7 +309,7 @@ export default function LoginRegister() {
               <button
                 type="submit"
                 disabled={isLoading}
-                className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-lg text-white bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300"
+                className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-lg text-white bg-gradient-to-r from-sky-500 to-cyan-500 hover:from-sky-400 hover:to-cyan-400 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-sky-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 shadow-[0_0_20px_rgba(56,189,248,0.3)]"
               >
                 {isLoading ? 'جاري تسجيل الدخول...' : 'تسجيل الدخول'}
               </button>
@@ -319,7 +319,7 @@ export default function LoginRegister() {
               <button
                 type="button"
                 onClick={() => setIsLogin(false)}
-                className="font-medium text-blue-400 hover:text-blue-300 transition-colors"
+                className="font-medium text-sky-400 hover:text-sky-300 transition-colors"
               >
                 ليس لديك حساب؟ إنشاء حساب
               </button>
@@ -342,7 +342,7 @@ export default function LoginRegister() {
                   required
                   value={verificationCode}
                   onChange={(e) => setVerificationCode(e.target.value)}
-                  className="appearance-none relative block w-full px-3 py-2 bg-[#1e293b] border border-[#334155] text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder-slate-500 text-center text-2xl font-bold tracking-widest"
+                  className="appearance-none relative block w-full px-3 py-2 bg-white/[0.04] border border-white/10 text-white rounded-lg focus:outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)] placeholder-slate-500 text-center text-2xl font-bold tracking-widest"
                   placeholder="123456"
                   maxLength={6}
                 />
@@ -353,7 +353,7 @@ export default function LoginRegister() {
               <button
                 type="submit"
                 disabled={isLoading}
-                className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-lg text-white bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300"
+                className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-lg text-white bg-gradient-to-r from-sky-500 to-cyan-500 hover:from-sky-400 hover:to-cyan-400 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-sky-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 shadow-[0_0_20px_rgba(56,189,248,0.3)]"
               >
                 {isLoading ? 'جاري التحقق...' : 'تفعيل الحساب'}
               </button>
@@ -363,7 +363,7 @@ export default function LoginRegister() {
               <button
                 type="button"
                 onClick={() => setIsLogin(true)}
-                className="font-medium text-blue-400 hover:text-blue-300 transition-colors text-sm"
+                className="font-medium text-sky-400 hover:text-sky-300 transition-colors text-sm"
               >
                 العودة لتسجيل الدخول
               </button>

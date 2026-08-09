@@ -25,7 +25,7 @@ export default function QuickJump() {
     <div className="flex flex-wrap items-center gap-2">
       <select
         onChange={(e) => { if (e.target.value) navigate(e.target.value); }}
-        className="bg-[#1e293b] text-slate-400 text-xs border border-[#334155] px-2 py-1.5 rounded hover:text-white cursor-pointer outline-none"
+        className="bg-white/[0.04] text-slate-300 text-xs border border-white/10 px-2 py-1.5 rounded hover:text-white cursor-pointer outline-none"
         defaultValue=""
       >
         <option value="">🚀 Quick Jump...</option>
@@ -35,12 +35,12 @@ export default function QuickJump() {
       </select>
       <button
         onClick={toggleCalendar}
-        className="bg-gradient-to-r from-blue-600 to-purple-600 text-white text-xs px-3 py-1.5 rounded font-bold hover:from-blue-700 hover:to-purple-700 transition"
+        className="bg-gradient-to-r from-sky-500 to-cyan-500 text-white text-xs px-3 py-1.5 rounded font-bold hover:from-sky-400 hover:to-cyan-400 transition"
         title="تبديل التقويم"
       >
         {calendarType === 'gregorian' ? '📅 ميلادي' : '🌙 هجري'}
       </button>
-      <span className="text-[10px] text-slate-400 font-mono bg-[#0f172a] px-2 py-1 rounded border border-[#334155]">
+      <span className="text-[10px] text-slate-400 font-mono bg-white/[0.04] px-2 py-1 rounded border border-white/10">
         {today}
       </span>
     </div>

@@ -106,21 +106,21 @@ export default function AuthDashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0f172a] text-[#f1f5f9] py-8">
+    <div className="min-h-screen bg-[#0B111E] text-slate-200 py-8">
       <div className="max-w-7xl mx-auto px-4">
-        <div className="bg-[#1e293b] rounded-2xl border border-[#334155] p-8">
+        <div className="bg-white/[0.04] rounded-2xl border border-white/10 p-8 backdrop-blur-xl">
           <div className="mb-8">
-            <h1 className="text-3xl font-bold text-white mb-2">Authentication Dashboard</h1>
+            <h1 className="text-3xl font-black tracking-tight text-white mb-2">Authentication Dashboard</h1>
             <p className="text-slate-400">Manage user authentication and registration</p>
           </div>
 
-          <div className="flex gap-4 mb-8 border-b border-[#334155]">
+          <div className="flex gap-4 mb-8 border-b border-white/10">
             <button
               onClick={() => setActiveTab('overview')}
               className={`px-4 py-2 font-medium transition-colors
                 ${activeTab === 'overview'
-                  ? 'text-blue-400 border-b-2 border-blue-400'
-                  : 'text-slate-400 hover:text-white'}
+                  ? 'text-sky-300 border-b-2 border-sky-400'
+                  : 'text-slate-400 hover:text-sky-300'}
               `}
             >
               Overview
@@ -129,8 +129,8 @@ export default function AuthDashboard() {
               onClick={() => setActiveTab('login')}
               className={`px-4 py-2 font-medium transition-colors
                 ${activeTab === 'login'
-                  ? 'text-blue-400 border-b-2 border-blue-400'
-                  : 'text-slate-400 hover:text-white'}
+                  ? 'text-sky-300 border-b-2 border-sky-400'
+                  : 'text-slate-400 hover:text-sky-300'}
               `}
             >
               Login
@@ -139,8 +139,8 @@ export default function AuthDashboard() {
               onClick={() => setActiveTab('register')}
               className={`px-4 py-2 font-medium transition-colors
                 ${activeTab === 'register'
-                  ? 'text-blue-400 border-b-2 border-blue-400'
-                  : 'text-slate-400 hover:text-white'}
+                  ? 'text-sky-300 border-b-2 border-sky-400'
+                  : 'text-slate-400 hover:text-sky-300'}
               `}
             >
               Register
@@ -149,8 +149,8 @@ export default function AuthDashboard() {
               onClick={() => setActiveTab('verify')}
               className={`px-4 py-2 font-medium transition-colors
                 ${activeTab === 'verify'
-                  ? 'text-blue-400 border-b-2 border-blue-400'
-                  : 'text-slate-400 hover:text-white'}
+                  ? 'text-sky-300 border-b-2 border-sky-400'
+                  : 'text-slate-400 hover:text-sky-300'}
               `}
             >
               Verify
@@ -170,11 +170,11 @@ export default function AuthDashboard() {
 
           {activeTab === 'overview' && (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              <div className="bg-[#0f172a] rounded-lg p-6 border border-[#334155]">
+              <div className="bg-white/[0.03] rounded-lg p-6 border border-white/10">
                 <h3 className="text-lg font-semibold text-white mb-2">Current User</h3>
                 {currentUser ? (
                   <div>
-                    <p className="text-2xl font-bold text-blue-400">{currentUser.username}</p>
+                    <p className="text-2xl font-bold text-sky-400">{currentUser.username}</p>
                     <p className="text-sm text-slate-400 mt-1">{currentUser.email}</p>
                     <p className="text-sm text-slate-400 mt-1">{currentUser.plantName}</p>
                   </div>
@@ -183,19 +183,19 @@ export default function AuthDashboard() {
                 )}
               </div>
 
-              <div className="bg-[#0f172a] rounded-lg p-6 border border-[#334155]">
+              <div className="bg-white/[0.03] rounded-lg p-6 border border-white/10">
                 <h3 className="text-lg font-semibold text-white mb-2">Registered Users</h3>
                 <p className="text-2xl font-bold text-emerald-400">{registeredUsers.length}</p>
                 <p className="text-sm text-slate-400 mt-1">Total registered</p>
               </div>
 
-              <div className="bg-[#0f172a] rounded-lg p-6 border border-[#334155]">
+              <div className="bg-white/[0.03] rounded-lg p-6 border border-white/10">
                 <h3 className="text-lg font-semibold text-white mb-2">Generated Code</h3>
-                <p className="text-2xl font-bold text-purple-400">{generatedCode || 'No code'}</p>
+                <p className="text-2xl font-bold text-sky-400">{generatedCode || 'No code'}</p>
                 <p className="text-sm text-slate-400 mt-1">For verification</p>
               </div>
 
-              <div className="bg-[#0f172a] rounded-lg p-6 border border-[#334155]">
+              <div className="bg-white/[0.03] rounded-lg p-6 border border-white/10">
                 <h3 className="text-lg font-semibold text-white mb-2">Status</h3>
                 {currentUser ? (
                   <button
@@ -214,16 +214,16 @@ export default function AuthDashboard() {
                 <div className="overflow-x-auto">
                   <table className="w-full text-left">
                     <thead>
-                      <tr className="border-b border-[#334155]">
-                        <th className="py-3 px-4 text-slate-400 font-medium">Username</th>
-                        <th className="py-3 px-4 text-slate-400 font-medium">Email</th>
-                        <th className="py-3 px-4 text-slate-400 font-medium">Plant</th>
-                        <th className="py-3 px-4 text-slate-400 font-medium">Status</th>
+                      <tr className="border-b border-white/10">
+                        <th className="py-3 px-4 text-[10px] uppercase tracking-wider text-slate-400 font-medium">Username</th>
+                        <th className="py-3 px-4 text-[10px] uppercase tracking-wider text-slate-400 font-medium">Email</th>
+                        <th className="py-3 px-4 text-[10px] uppercase tracking-wider text-slate-400 font-medium">Plant</th>
+                        <th className="py-3 px-4 text-[10px] uppercase tracking-wider text-slate-400 font-medium">Status</th>
                       </tr>
                     </thead>
                     <tbody>
                       {registeredUsers.slice(0, 5).map((user) => (
-                        <tr key={user.username} className="border-b border-[#334155] hover:bg-[#1e2a3d]">
+                        <tr key={user.username} className="border-b border-white/10 hover:bg-white/[0.06]">
                           <td className="py-3 px-4 text-white">{user.username}</td>
                           <td className="py-3 px-4 text-slate-400">{user.email}</td>
                           <td className="py-3 px-4 text-slate-400">{user.plantName}</td>
@@ -259,7 +259,7 @@ export default function AuthDashboard() {
                     type="text"
                     value={formData.username}
                     onChange={(e) => setFormData({ ...formData, username: e.target.value })}
-                    className="w-full px-3 py-2 bg-[#1e293b] border border-[#334155] text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 bg-white/[0.04] border border-white/10 text-white rounded-lg focus:outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]"
                     required
                   />
                 </div>
@@ -270,7 +270,7 @@ export default function AuthDashboard() {
                     type="password"
                     value={formData.password}
                     onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                    className="w-full px-3 py-2 bg-[#1e293b] border border-[#334155] text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 bg-white/[0.04] border border-white/10 text-white rounded-lg focus:outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]"
                     required
                   />
                 </div>
@@ -278,7 +278,7 @@ export default function AuthDashboard() {
                 <button
                   type="submit"
                   disabled={isLoading}
-                  className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white py-3 px-4 rounded-lg font-bold transition-all duration-300 disabled:opacity-50"
+                  className="w-full bg-gradient-to-r from-sky-500 to-cyan-500 hover:from-sky-400 hover:to-cyan-400 text-white py-3 px-4 rounded-lg font-bold transition-all duration-300 disabled:opacity-50 shadow-[0_0_20px_rgba(56,189,248,0.3)]"
                 >
                   {isLoading ? 'Logging in...' : 'Login'}
                 </button>
@@ -301,7 +301,7 @@ export default function AuthDashboard() {
                     type="text"
                     value={formData.username}
                     onChange={(e) => setFormData({ ...formData, username: e.target.value })}
-                    className="w-full px-3 py-2 bg-[#1e293b] border border-[#334155] text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 bg-white/[0.04] border border-white/10 text-white rounded-lg focus:outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]"
                     required
                   />
                 </div>
@@ -312,7 +312,7 @@ export default function AuthDashboard() {
                     type="email"
                     value={formData.email}
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    className="w-full px-3 py-2 bg-[#1e293b] border border-[#334155] text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 bg-white/[0.04] border border-white/10 text-white rounded-lg focus:outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]"
                     required
                   />
                 </div>
@@ -323,7 +323,7 @@ export default function AuthDashboard() {
                     type="text"
                     value={formData.plantName}
                     onChange={(e) => setFormData({ ...formData, plantName: e.target.value })}
-                    className="w-full px-3 py-2 bg-[#1e293b] border border-[#334155] text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 bg-white/[0.04] border border-white/10 text-white rounded-lg focus:outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]"
                     required
                   />
                 </div>
@@ -334,7 +334,7 @@ export default function AuthDashboard() {
                     type="password"
                     value={formData.password}
                     onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                    className="w-full px-3 py-2 bg-[#1e293b] border border-[#334155] text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 bg-white/[0.04] border border-white/10 text-white rounded-lg focus:outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]"
                     required
                   />
                 </div>
@@ -342,7 +342,7 @@ export default function AuthDashboard() {
                 <button
                   type="submit"
                   disabled={isLoading}
-                  className="w-full bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 text-white py-3 px-4 rounded-lg font-bold transition-all duration-300 disabled:opacity-50"
+                  className="w-full bg-gradient-to-r from-emerald-500 to-emerald-400 hover:from-emerald-400 hover:to-emerald-300 text-white py-3 px-4 rounded-lg font-bold transition-all duration-300 disabled:opacity-50 shadow-[0_0_20px_rgba(56,189,248,0.3)]"
                 >
                   {isLoading ? 'Registering...' : 'Register'}
                 </button>
@@ -361,7 +361,7 @@ export default function AuthDashboard() {
                     type="text"
                     value={verificationCode}
                     onChange={(e) => setVerificationCode(e.target.value)}
-                    className="w-full px-3 py-2 bg-[#1e293b] border border-[#334155] text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-center text-lg"
+                    className="w-full px-3 py-2 bg-white/[0.04] border border-white/10 text-white rounded-lg outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)] font-mono text-center text-lg transition"
                     placeholder="123456"
                     maxLength={6}
                     required
@@ -371,7 +371,7 @@ export default function AuthDashboard() {
                 <button
                   type="submit"
                   disabled={isLoading}
-                  className="w-full bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white py-3 px-4 rounded-lg font-bold transition-all duration-300 disabled:opacity-50"
+                  className="w-full bg-gradient-to-r from-sky-500 to-cyan-500 hover:from-sky-400 hover:to-cyan-400 text-white py-3 px-4 rounded-lg font-bold transition-all duration-300 disabled:opacity-50 shadow-[0_0_20px_rgba(56,189,248,0.3)]"
                 >
                   {isLoading ? 'Verifying...' : 'Verify Account'}
                 </button>

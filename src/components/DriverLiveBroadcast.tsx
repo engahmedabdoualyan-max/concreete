@@ -58,16 +58,16 @@ export default function DriverLiveBroadcast({ compact }: { compact?: boolean }) 
   const ageSec = last ? Math.round((Date.now() - last.ts) / 1000) : null;
 
   return (
-    <div className={`bg-[#1e293b] rounded-2xl border ${on ? 'border-emerald-500/50' : 'border-[#334155]'} p-5`}>
+    <div className={`bg-white/[0.04] rounded-2xl border ${on ? 'border-emerald-500/50' : 'border-white/10'} p-5`}>
       <div className="flex items-center justify-between mb-1">
         <h3 className="font-bold text-white">📱 Driver Live Broadcast</h3>
-        <span className={`text-[10px] px-2 py-0.5 rounded font-bold ${on ? 'bg-emerald-500/20 text-emerald-400' : 'bg-slate-500/20 text-slate-400'}`}>{on ? '● LIVE' : 'OFF'}</span>
+        <span className={`text-[10px] px-2 py-0.5 rounded font-bold ${on ? 'bg-emerald-500/20 text-emerald-400' : 'bg-white/[0.03] text-slate-400'}`}>{on ? '● LIVE' : 'OFF'}</span>
       </div>
       <p className="text-xs text-slate-400 mb-3">Fallback GPS: send your phone&apos;s live location to the fleet map when the tracking-company server is not used. Works from any phone browser (PWA).</p>
       {!compact && (
         <div className="mb-3">
           <label className="text-[10px] text-slate-400 font-semibold">Your Vehicle</label>
-          <select value={assetId} onChange={e => setAssetId(e.target.value)} className="w-full px-3 py-2 bg-[#0f172a] border border-[#334155] text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+          <select value={assetId} onChange={e => setAssetId(e.target.value)} className="w-full px-3 py-2 bg-white/[0.04] border border-white/10 text-white rounded-lg text-sm focus:outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]">
             <option value="">— Select vehicle —</option>
             {assets.map(a => <option key={a.id} value={a.id}>{a.id} ({a.plate || a.type || '—'})</option>)}
           </select>

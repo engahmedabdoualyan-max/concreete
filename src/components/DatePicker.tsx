@@ -89,7 +89,7 @@ export default function DatePicker({ value, onChange, label, required }: DatePic
           <button
             type="button"
             onClick={toggleCalendar}
-            className="text-[10px] px-2 py-0.5 bg-blue-600 hover:bg-blue-700 text-white rounded font-bold"
+            className="text-[10px] px-2 py-0.5 bg-sky-500 hover:bg-sky-400 text-white rounded font-bold"
           >
             {calendarType === 'gregorian' ? '📅 ميلادي' : '🌙 هجري'}
           </button>
@@ -100,7 +100,7 @@ export default function DatePicker({ value, onChange, label, required }: DatePic
         <select
           value={components.day}
           onChange={handleDayChange}
-          className="min-w-0 w-16 bg-[#334155] border border-[#475569] rounded-lg p-2.5 text-white text-sm outline-none focus:border-blue-500"
+          className="min-w-0 w-16 bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]"
           required={required}
         >
           {Array.from({ length: maxDays }, (_, i) => i + 1).map(day => (
@@ -112,7 +112,7 @@ export default function DatePicker({ value, onChange, label, required }: DatePic
         <select
           value={components.month}
           onChange={handleMonthChange}
-          className="min-w-0 flex-[2] bg-[#334155] border border-[#475569] rounded-lg p-2.5 text-white text-sm outline-none focus:border-blue-500"
+          className="min-w-0 flex-[2] bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]"
           required={required}
         >
           {months.map((month, idx) => (
@@ -125,7 +125,7 @@ export default function DatePicker({ value, onChange, label, required }: DatePic
           type="number"
           value={components.year}
           onChange={handleYearChange}
-          className="min-w-0 w-24 bg-[#334155] border border-[#475569] rounded-lg p-2.5 text-white text-sm outline-none focus:border-blue-500"
+          className="min-w-0 w-24 bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]"
           required={required}
           placeholder="السنة"
         />

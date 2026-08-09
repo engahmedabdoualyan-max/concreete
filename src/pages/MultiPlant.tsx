@@ -25,8 +25,8 @@ export default function MultiPlant() {
 
   if (!currentUser || !canManageAdmin()) {
     return (
-      <div className="min-h-screen bg-[#0f172a] flex items-center justify-center">
-        <div className="text-center"><p className="text-red-400 text-xl mb-2">🔒 Owner Access Only</p><p className="text-slate-400 text-sm mb-4">This unified multi-plant dashboard is for the owner/manager role.</p><Link to="/" className="text-blue-400 underline">Back to Dashboard</Link></div>
+      <div className="min-h-screen bg-[#0B111E] flex items-center justify-center">
+        <div className="text-center"><p className="text-red-400 text-xl mb-2">🔒 Owner Access Only</p><p className="text-slate-400 text-sm mb-4">This unified multi-plant dashboard is for the owner/manager role.</p><Link to="/" className="text-sky-400 underline">Back to Dashboard</Link></div>
       </div>
     );
   }
@@ -44,11 +44,11 @@ export default function MultiPlant() {
   const revenue = totalCollected - totalPOValue;
 
   return (
-    <div className="min-h-screen bg-[#0f172a] text-[#f1f5f9]">
-      <div className="bg-gradient-to-br from-[#0f1729] to-[#1a2332] border-b border-[#2a3a5c] px-6 py-2.5 flex flex-wrap justify-between items-center gap-x-3 gap-y-1.5 sticky top-0 z-50 shadow-lg">
+    <div className="min-h-screen bg-[#0B111E] text-slate-200">
+      <div className="bg-[#0B111E]/80 backdrop-blur-xl border-b border-white/10 px-6 py-2.5 flex flex-wrap justify-between items-center gap-x-3 gap-y-1.5 sticky top-0 z-50 shadow-lg">
         <div className="flex flex-wrap items-center gap-3">
           <BrandLogo width={56} />
-          <Link to="/" className="text-slate-400 text-xs border border-[#2a3a5c] px-2.5 py-1 rounded hover:text-white transition">← Dashboard</Link>
+          <Link to="/" className="text-slate-400 text-xs border border-white/10 px-2.5 py-1 rounded hover:text-white transition">← Dashboard</Link>
           <QuickJump /> <LangSelector />
           <h1 className="text-sm font-bold text-white">🏭 Multi-Plant Command Center</h1>
         </div>
@@ -57,26 +57,26 @@ export default function MultiPlant() {
 
       <div className="max-w-7xl mx-auto p-6">
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
-          <div className="bg-[#1e293b] rounded-xl p-4 border border-[#334155]"><p className="text-xs text-slate-400">Plants</p><p className="text-xl font-bold text-white">{rows.length}</p></div>
-          <div className="bg-[#1e293b] rounded-xl p-4 border border-[#334155]"><p className="text-xs text-slate-400">Trips</p><p className="text-xl font-bold text-sky-400">{totalTrips}</p></div>
-          <div className="bg-[#1e293b] rounded-xl p-4 border border-[#334155]"><p className="text-xs text-slate-400">Volume (m³)</p><p className="text-xl font-bold text-blue-400">{totalVolume.toFixed(0)}</p></div>
-          <div className="bg-[#1e293b] rounded-xl p-4 border border-[#334155]"><p className="text-xs text-slate-400">QC tests</p><p className="text-xl font-bold text-emerald-400">{totalQC}</p></div>
-          <div className="bg-[#1e293b] rounded-xl p-4 border border-[#334155]"><p className="text-xs text-slate-400">Orders</p><p className="text-xl font-bold text-orange-400">{totalOrders}</p></div>
+          <div className="bg-white/[0.04] rounded-2xl p-4 border border-white/10 backdrop-blur-xl"><p className="text-xs text-slate-400">Plants</p><p className="text-xl font-bold text-white">{rows.length}</p></div>
+          <div className="bg-white/[0.04] rounded-2xl p-4 border border-white/10 backdrop-blur-xl"><p className="text-xs text-slate-400">Trips</p><p className="text-xl font-bold text-sky-400">{totalTrips}</p></div>
+          <div className="bg-white/[0.04] rounded-2xl p-4 border border-white/10 backdrop-blur-xl"><p className="text-xs text-slate-400">Volume (m³)</p><p className="text-xl font-bold text-sky-400">{totalVolume.toFixed(0)}</p></div>
+          <div className="bg-white/[0.04] rounded-2xl p-4 border border-white/10 backdrop-blur-xl"><p className="text-xs text-slate-400">QC tests</p><p className="text-xl font-bold text-emerald-400">{totalQC}</p></div>
+          <div className="bg-white/[0.04] rounded-2xl p-4 border border-white/10 backdrop-blur-xl"><p className="text-xs text-slate-400">Orders</p><p className="text-xl font-bold text-orange-400">{totalOrders}</p></div>
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-2 p-1 mb-4 bg-[#1e293b] rounded-xl border border-[#334155] max-w-lg">
-          <button onClick={() => setCostView('consolidated')} className={`py-2 px-4 rounded-lg font-bold text-sm ${costView === 'consolidated' ? 'bg-emerald-600 text-white' : 'text-slate-400 hover:text-white'}`}>🏢 Consolidated HQ</button>
-          <button onClick={() => setCostView('separate')} className={`py-2 px-4 rounded-lg font-bold text-sm ${costView === 'separate' ? 'bg-sky-600 text-white' : 'text-slate-400 hover:text-white'}`}>🏭 Separate cost centers</button>
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-2 p-1 mb-4 bg-white/[0.04] rounded-2xl border border-white/10 backdrop-blur-xl max-w-lg">
+          <button onClick={() => setCostView('consolidated')} className={`py-2 px-4 rounded-lg font-bold text-sm ${costView === 'consolidated' ? 'bg-emerald-500 text-white shadow-[0_0_25px_rgba(16,185,129,0.35)]' : 'text-slate-400 hover:text-white'}`}>🏢 Consolidated HQ</button>
+          <button onClick={() => setCostView('separate')} className={`py-2 px-4 rounded-lg font-bold text-sm ${costView === 'separate' ? 'bg-sky-500 text-white shadow-[0_0_25px_rgba(56,189,248,0.35)]' : 'text-slate-400 hover:text-white'}`}>🏭 Separate cost centers</button>
           <div className="py-2 px-4 rounded-lg text-[10px] text-slate-400 self-center text-center">Net = collected − PO spend</div>
         </div>
 
         {costView === 'consolidated' && (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-            <div className="bg-[#1e293b] rounded-xl p-4 border border-emerald-500/40"><p className="text-xs text-slate-400">Collected (SAR)</p><p className="text-xl font-bold text-emerald-400">{totalCollected.toLocaleString()}</p></div>
-            <div className="bg-[#1e293b] rounded-xl p-4 border border-[#334155]"><p className="text-xs text-slate-400">Outstanding (SAR)</p><p className="text-xl font-bold text-yellow-400">{totalOutstanding.toLocaleString()}</p></div>
-            <div className="bg-[#1e293b] rounded-xl p-4 border border-[#334155]"><p className="text-xs text-slate-400">PO spend (SAR)</p><p className="text-xl font-bold text-orange-400">{totalPOValue.toLocaleString()}</p></div>
-            <div className="bg-[#1e293b] rounded-xl p-4 border border-[#334155]"><p className="text-xs text-slate-400">Open POs</p><p className="text-xl font-bold text-white">{openPOs}</p></div>
-            <div className="col-span-2 md:col-span-4 bg-[#0f172a] rounded-xl p-4 border border-emerald-500/30">
+            <div className="bg-white/[0.04] rounded-2xl p-4 border border-emerald-500/40 backdrop-blur-xl"><p className="text-xs text-slate-400">Collected (SAR)</p><p className="text-xl font-bold text-emerald-400">{totalCollected.toLocaleString()}</p></div>
+            <div className="bg-white/[0.04] rounded-2xl p-4 border border-white/10 backdrop-blur-xl"><p className="text-xs text-slate-400">Outstanding (SAR)</p><p className="text-xl font-bold text-yellow-400">{totalOutstanding.toLocaleString()}</p></div>
+            <div className="bg-white/[0.04] rounded-2xl p-4 border border-white/10 backdrop-blur-xl"><p className="text-xs text-slate-400">PO spend (SAR)</p><p className="text-xl font-bold text-orange-400">{totalPOValue.toLocaleString()}</p></div>
+            <div className="bg-white/[0.04] rounded-2xl p-4 border border-white/10 backdrop-blur-xl"><p className="text-xs text-slate-400">Open POs</p><p className="text-xl font-bold text-white">{openPOs}</p></div>
+            <div className="col-span-2 md:col-span-4 bg-white/[0.03] rounded-2xl p-4 border border-emerald-500/30">
               <p className="text-xs text-slate-400">Group net position (SAR)</p>
               <p className={`text-3xl font-black ${revenue >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{revenue >= 0 ? '+' : ''}{revenue.toLocaleString()}</p>
             </div>
@@ -89,14 +89,14 @@ export default function MultiPlant() {
           </div>
         )}
 
-        <div className="mb-4"><input value={filter} onChange={e => setFilter(e.target.value)} placeholder="🔍 Filter by plant / city / username..." className="w-full max-w-md bg-[#1e293b] border border-[#334155] rounded-lg p-3 text-white text-sm" /></div>
+        <div className="mb-4"><input value={filter} onChange={e => setFilter(e.target.value)} placeholder="🔍 Filter by plant / city / username..." className="w-full max-w-md bg-white/[0.04] border border-white/10 rounded-lg p-3 text-white text-sm" /></div>
 
         {loading && <p className="text-slate-400 text-sm animate-pulse">Loading plants...</p>}
 
-        <div className="bg-[#1e293b] border border-[#334155] rounded-xl overflow-hidden">
+        <div className="bg-white/[0.04] border border-white/10 rounded-2xl overflow-hidden backdrop-blur-xl">
           <div className="overflow-x-auto">
             <table className="w-full text-xs text-slate-300">
-              <thead className="bg-[#334155] text-[10px]"><tr><th className="p-2">Plant</th><th className="p-2">Location</th><th className="p-2">Trips</th><th className="p-2">Volume</th><th className="p-2">Cement</th><th className="p-2">Sand</th><th className="p-2">Gravel</th><th className="p-2">QC</th><th className="p-2">Orders</th>{costView === 'separate' && <th className="p-2">Collected</th>}{costView === 'separate' && <th className="p-2">Net</th>}<th className="p-2">Health</th></tr></thead>
+              <thead className="bg-white/[0.03] text-[10px]"><tr><th className="p-2">Plant</th><th className="p-2">Location</th><th className="p-2">Trips</th><th className="p-2">Volume</th><th className="p-2">Cement</th><th className="p-2">Sand</th><th className="p-2">Gravel</th><th className="p-2">QC</th><th className="p-2">Orders</th>{costView === 'separate' && <th className="p-2">Collected</th>}{costView === 'separate' && <th className="p-2">Net</th>}<th className="p-2">Health</th></tr></thead>
               <tbody>
                 {filtered.map(r => {
                   const cement = Number(r.inventory?.cement) || 0;
@@ -105,11 +105,11 @@ export default function MultiPlant() {
                   const collected = r.payments?.filter((p: any) => p.status === 'paid').reduce((s: number, p: any) => s + (Number(p.amount) || 0), 0) || 0;
                   const poSpend = r.pos?.reduce((s: number, po: any) => s + (Number(po.total) || 0), 0) || 0;
                   return (
-                    <tr key={r.username} className="border-b border-[#334155]/30 hover:bg-[#334155]/20">
+                    <tr key={r.username} className="border-b border-white/5 hover:bg-white/[0.03]">
                       <td className="p-2"><span className="font-bold text-white">{r.plantName}</span><span className="block text-[10px] text-slate-500">@{r.username}</span></td>
                       <td className="p-2">{r.country}, {r.city}</td>
                       <td className="p-2 font-bold text-sky-400">{r.trips}</td>
-                      <td className="p-2 font-bold text-blue-400">{r.totalVolume.toFixed(1)} m³</td>
+                      <td className="p-2 font-bold text-sky-400">{r.totalVolume.toFixed(1)} m³</td>
                       <td className="p-2">{(cement).toFixed(0)}t</td>
                       <td className="p-2">{Number(r.inventory?.sand || 0).toFixed(0)}t</td>
                       <td className="p-2">{Number(r.inventory?.gravel || 0).toFixed(0)}t</td>

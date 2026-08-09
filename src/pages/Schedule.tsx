@@ -530,31 +530,31 @@ export default function Schedule() {
 
   if (!currentUser) {
     return (
-      <div className="min-h-screen bg-[#0f172a] flex items-center justify-center">
+      <div className="min-h-screen bg-[#0B111E] flex items-center justify-center">
         <div className="text-center">
           <p className="text-red-400 text-xl mb-4">🔒 Access Denied</p>
-          <Link to="/" className="text-blue-400 underline">Back to Login</Link>
+          <Link to="/" className="text-sky-400 underline">Back to Login</Link>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#0f172a] text-[#f1f5f9]">
+    <div className="min-h-screen bg-[#0B111E] text-slate-200">
       {/* Header */}
-      <div className="bg-gradient-to-br from-[#0f1729] to-[#1a2332] border-b border-[#2a3a5c] px-6 py-2.5 flex flex-wrap justify-between items-center gap-x-3 gap-y-1.5 sticky top-0 z-50 shadow-lg">
+      <div className="bg-[#0B111E]/80 backdrop-blur-xl border-b border-white/10 px-6 py-2.5 flex flex-wrap justify-between items-center gap-x-3 gap-y-1.5 sticky top-0 z-50 shadow-lg">
         <div className="flex flex-wrap items-center gap-3">
           <BrandLogo width={56} />
-          <Link to="/" className="text-slate-400 text-xs border border-[#2a3a5c] px-2 py-1 rounded hover:text-white">← Dashboard</Link>
+          <Link to="/" className="text-slate-400 text-xs border border-white/10 px-2 py-1 rounded hover:text-white">← Dashboard</Link>
           <QuickJump />
           <LangSelector />
           <Link
             to="/orders"
-            className="bg-purple-500 hover:bg-purple-600 text-white px-3 py-1 rounded text-xs font-bold"
+            className="bg-sky-500 hover:bg-sky-400 text-white px-3 py-1 rounded text-xs font-bold"
           >
             📦 الطلبات
           </Link>
-          <h1 className="text-sm font-bold text-white">📅 Smart Pouring Schedule</h1>
+          <h1 className="text-sm font-black tracking-tight text-white">📅 Smart Pouring Schedule</h1>
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <span className="bg-emerald-500/15 text-emerald-500 text-xs px-3 py-1.5 rounded-lg font-bold border border-emerald-500/30">🟢 {currentUser.plantName}</span>
@@ -564,23 +564,23 @@ export default function Schedule() {
 
       <div className="flex flex-col lg:flex-row h-[calc(100vh-80px)]">
         {/* Left Panel - Form */}
-        <div className="lg:w-[450px] bg-[#1e293b] border-r border-[#334155] p-6 overflow-y-auto">
-          <h2 className="text-lg font-bold text-white mb-4">📅 Pouring Wizard</h2>
+        <div className="lg:w-[450px] bg-white/[0.04] border-r border-white/10 p-6 overflow-y-auto">
+          <h2 className="text-lg font-black tracking-tight text-white mb-4">📅 Pouring Wizard</h2>
 
           {/* Address Search */}
-          <div className="mb-4 p-4 bg-[#0f172a] rounded-lg border border-[#334155]">
-            <label className="text-xs text-blue-400 font-bold mb-2 block">🔍 Search Address</label>
+          <div className="mb-4 p-4 bg-[#0B111E] rounded-lg border border-white/10">
+            <label className="text-xs text-sky-400 font-bold mb-2 block">🔍 Search Address</label>
             <div className="flex gap-2">
               <input
                 value={addressSearch}
                 onChange={e => setAddressSearch(e.target.value)}
                 placeholder="Enter address (e.g., King Fahd Road, Dammam)"
-                className="flex-1 bg-[#334155] border border-[#475569] rounded-lg p-2 text-white text-sm outline-none focus:border-blue-500"
+                className="flex-1 bg-white/[0.04] border border-white/10 rounded-lg p-2 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]"
                 onKeyPress={e => e.key === 'Enter' && searchAddress()}
               />
               <button
                 onClick={searchAddress}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-bold"
+                className="bg-sky-500 hover:bg-sky-400 text-white px-4 py-2 rounded-lg text-sm font-bold"
               >
                 🔍
               </button>
@@ -594,17 +594,17 @@ export default function Schedule() {
               type="date"
               value={scheduleDate}
               onChange={e => setScheduleDate(e.target.value)}
-              className="w-full bg-[#334155] border border-[#475569] rounded-lg p-2 text-white text-sm [color-scheme:dark]"
+              className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2 text-white text-sm [color-scheme:dark] outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]"
             />
           </div>
 
           {/* Plant Location */}
-          <div className="mb-4 p-4 bg-[#0f172a] rounded-lg border border-[#334155]">
-            <label className="text-xs text-blue-400 font-bold mb-2 block">🏭 Plant Location</label>
+          <div className="mb-4 p-4 bg-[#0B111E] rounded-lg border border-white/10">
+            <label className="text-xs text-sky-400 font-bold mb-2 block">🏭 Plant Location</label>
             <input
               value={plantGeo}
               readOnly
-              className="w-full bg-[#1e293b] border border-[#475569] rounded-lg p-2 text-white text-xs mb-2"
+              className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2 text-white text-xs mb-2"
             />
             {plantAddress && (
               <p className="text-[10px] text-slate-400 mb-2">{plantAddress}</p>
@@ -615,7 +615,7 @@ export default function Schedule() {
                 setIsSelectingLocation(true);
                 toast('Click on the map to select plant location', 'success');
               }}
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg text-xs font-bold"
+              className="w-full bg-white/[0.04] border border-white/10 text-white py-2 rounded-lg text-xs font-bold"
             >
               📍 Select from Map
             </button>
@@ -628,7 +628,7 @@ export default function Schedule() {
               <button
                 onClick={() => setMode('manual')}
                 className={`py-2 rounded-lg font-bold text-xs transition ${
-                  mode === 'manual' ? 'bg-emerald-500 text-white' : 'bg-[#334155] text-slate-400'
+                  mode === 'manual' ? 'bg-emerald-500 text-white' : 'bg-white/[0.06] text-slate-400'
                 }`}
               >
                 ✍️ Manual
@@ -636,7 +636,7 @@ export default function Schedule() {
               <button
                 onClick={() => setMode('auto')}
                 className={`py-2 rounded-lg font-bold text-xs transition ${
-                  mode === 'auto' ? 'bg-emerald-500 text-white' : 'bg-[#334155] text-slate-400'
+                  mode === 'auto' ? 'bg-emerald-500 text-white' : 'bg-white/[0.06] text-slate-400'
                 }`}
               >
                 🤖 Auto
@@ -645,21 +645,21 @@ export default function Schedule() {
           </div>
 
           {/* Customer Form */}
-          <div className="mb-4 p-4 bg-[#0f172a] rounded-lg border border-[#334155]">
-            <label className="text-xs text-blue-400 font-bold mb-2 block">👥 Add Customer</label>
+          <div className="mb-4 p-4 bg-[#0B111E] rounded-lg border border-white/10">
+            <label className="text-xs text-sky-400 font-bold mb-2 block">👥 Add Customer</label>
 
             <div className="grid grid-cols-2 gap-2 mb-2">
               <input
                 value={form.code}
                 onChange={e => setForm({ ...form, code: e.target.value })}
                 placeholder="Customer Code"
-                className="bg-[#334155] border border-[#475569] rounded-lg p-2 text-white text-xs"
+                className="bg-white/[0.04] border border-white/10 rounded-lg p-2 text-white text-xs outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]"
               />
               <input
                 value={form.phone}
                 onChange={e => setForm({ ...form, phone: e.target.value })}
                 placeholder="Phone"
-                className="bg-[#334155] border border-[#475569] rounded-lg p-2 text-white text-xs"
+                className="bg-white/[0.04] border border-white/10 rounded-lg p-2 text-white text-xs outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]"
               />
             </div>
 
@@ -667,21 +667,21 @@ export default function Schedule() {
               value={form.name}
               onChange={e => setForm({ ...form, name: e.target.value })}
               placeholder="Customer Name"
-              className="w-full bg-[#334155] border border-[#475569] rounded-lg p-2 text-white text-xs mb-2"
+              className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2 text-white text-xs outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)] mb-2"
             />
 
             <input
               value={form.project}
               onChange={e => setForm({ ...form, project: e.target.value })}
               placeholder="Project Name"
-              className="w-full bg-[#334155] border border-[#475569] rounded-lg p-2 text-white text-xs mb-2"
+              className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2 text-white text-xs outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)] mb-2"
             />
 
             <div className="grid grid-cols-2 gap-2 mb-2">
               <select
                 value={form.paymentType}
                 onChange={e => setForm({ ...form, paymentType: e.target.value })}
-                className="bg-[#334155] border border-[#475569] rounded-lg p-2 text-white text-xs"
+                className="bg-white/[0.04] border border-white/10 rounded-lg p-2 text-white text-xs outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]"
               >
                 <option value="cash">💵 Cash</option>
                 <option value="credit">📋 Credit</option>
@@ -690,7 +690,7 @@ export default function Schedule() {
               <select
                 value={form.category}
                 onChange={e => setForm({ ...form, category: e.target.value })}
-                className="bg-[#334155] border border-[#475569] rounded-lg p-2 text-white text-xs"
+                className="bg-white/[0.04] border border-white/10 rounded-lg p-2 text-white text-xs outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]"
               >
                 <option value="A">🏆 Category A</option>
                 <option value="B">⭐ Category B</option>
@@ -702,7 +702,7 @@ export default function Schedule() {
               <select
                 value={form.orderType}
                 onChange={e => setForm({ ...form, orderType: e.target.value })}
-                className="bg-[#334155] border border-[#475569] rounded-lg p-2 text-white text-xs"
+                className="bg-white/[0.04] border border-white/10 rounded-lg p-2 text-white text-xs outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]"
               >
                 <option value="ready-mix">🚚 Ready Mix</option>
                 <option value="blocks">🧱 Blocks</option>
@@ -710,7 +710,7 @@ export default function Schedule() {
               <select
                 value={form.elementType}
                 onChange={e => setForm({ ...form, elementType: e.target.value })}
-                className="bg-[#334155] border border-[#475569] rounded-lg p-2 text-white text-xs"
+                className="bg-white/[0.04] border border-white/10 rounded-lg p-2 text-white text-xs outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]"
               >
                 <option value="foundation">🏗️ Foundation</option>
                 <option value="columns">🏛️ Columns</option>
@@ -727,7 +727,7 @@ export default function Schedule() {
                 placeholder="Priority (1-10)"
                 min="1"
                 max="10"
-                className="bg-[#334155] border border-[#475569] rounded-lg p-2 text-white text-xs"
+                className="bg-white/[0.04] border border-white/10 rounded-lg p-2 text-white text-xs outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]"
               />
               <input
                 type="number"
@@ -735,7 +735,7 @@ export default function Schedule() {
                 onChange={e => setForm({ ...form, qty: e.target.value })}
                 placeholder="Quantity (m³)"
                 step="0.1"
-                className="bg-[#334155] border border-[#475569] rounded-lg p-2 text-white text-xs"
+                className="bg-white/[0.04] border border-white/10 rounded-lg p-2 text-white text-xs outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]"
               />
             </div>
 
@@ -743,7 +743,7 @@ export default function Schedule() {
               <select
                 value={form.concreteType}
                 onChange={e => setForm({ ...form, concreteType: e.target.value })}
-                className="bg-[#334155] border border-[#475569] rounded-lg p-2 text-white text-xs"
+                className="bg-white/[0.04] border border-white/10 rounded-lg p-2 text-white text-xs outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]"
               >
                 <option value="C25">C25</option>
                 <option value="C30">C30</option>
@@ -754,7 +754,7 @@ export default function Schedule() {
                 value={form.slump}
                 onChange={e => setForm({ ...form, slump: e.target.value })}
                 placeholder="Slump (cm)"
-                className="bg-[#334155] border border-[#475569] rounded-lg p-2 text-white text-xs"
+                className="bg-white/[0.04] border border-white/10 rounded-lg p-2 text-white text-xs outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]"
               />
             </div>
 
@@ -763,7 +763,7 @@ export default function Schedule() {
               <input
                 value={form.geo}
                 readOnly
-                className="w-full bg-[#1e293b] border border-[#475569] rounded-lg p-2 text-white text-xs mb-1"
+                className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2 text-white text-xs mb-1"
                 placeholder="Location coordinates"
               />
               {form.locationName && (
@@ -775,7 +775,7 @@ export default function Schedule() {
                   setIsSelectingLocation(true);
                   toast('Click on the map to select customer location', 'success');
                 }}
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg text-xs font-bold"
+                className="w-full bg-white/[0.04] border border-white/10 text-white py-2 rounded-lg text-xs font-bold"
               >
                 📍 Select from Map
               </button>
@@ -793,15 +793,15 @@ export default function Schedule() {
 
             <button
               onClick={addCustomer}
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg text-sm font-bold"
+              className="w-full bg-white/[0.04] border border-white/10 text-white py-2 rounded-lg text-sm font-bold"
             >
               ➕ Add Customer
             </button>
           </div>
 
           {/* Restrictions */}
-          <div className="mb-4 p-4 bg-[#0f172a] rounded-lg border border-[#334155]">
-            <label className="text-xs text-blue-400 font-bold mb-2 block">⏸️ Time Restrictions</label>
+          <div className="mb-4 p-4 bg-[#0B111E] rounded-lg border border-white/10">
+            <label className="text-xs text-sky-400 font-bold mb-2 block">⏸️ Time Restrictions</label>
             {restrictions.map((r, i) => (
               <div key={i} className="flex gap-2 mb-2">
                 <input
@@ -812,7 +812,7 @@ export default function Schedule() {
                     newRestrictions[i].start = e.target.value;
                     setRestrictions(newRestrictions);
                   }}
-                  className="flex-1 bg-[#334155] border border-[#475569] rounded-lg p-2 text-white text-xs [color-scheme:dark]"
+                  className="flex-1 bg-white/[0.04] border border-white/10 rounded-lg p-2 text-white text-xs outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)] [color-scheme:dark]"
                 />
                 <span className="text-slate-400">→</span>
                 <input
@@ -823,7 +823,7 @@ export default function Schedule() {
                     newRestrictions[i].end = e.target.value;
                     setRestrictions(newRestrictions);
                   }}
-                  className="flex-1 bg-[#334155] border border-[#475569] rounded-lg p-2 text-white text-xs [color-scheme:dark]"
+                  className="flex-1 bg-white/[0.04] border border-white/10 rounded-lg p-2 text-white text-xs outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)] [color-scheme:dark]"
                 />
                 <button
                   onClick={() => setRestrictions(restrictions.filter((_, idx) => idx !== i))}
@@ -835,7 +835,7 @@ export default function Schedule() {
             ))}
             <button
               onClick={() => setRestrictions([...restrictions, { start: '', end: '' }])}
-              className="w-full bg-slate-600 hover:bg-slate-700 text-white py-2 rounded-lg text-xs"
+              className="w-full bg-white/[0.06] hover:bg-white/[0.1] text-white py-2 rounded-lg text-xs"
             >
               + Add Restriction
             </button>
@@ -844,10 +844,10 @@ export default function Schedule() {
           {/* Added Customers */}
           {customers.length > 0 && (
             <div className="mb-4">
-              <label className="text-xs text-blue-400 font-bold mb-2 block">📋 Added Customers ({customers.length})</label>
+              <label className="text-xs text-sky-400 font-bold mb-2 block">📋 Added Customers ({customers.length})</label>
               <div className="space-y-2 max-h-[300px] overflow-y-auto">
                 {customers.map((c, i) => (
-                  <div key={i} className="bg-[#0f172a] border border-[#334155] rounded-lg p-3 text-xs">
+                  <div key={i} className="bg-[#0B111E] border border-white/10 rounded-lg p-3 text-xs">
                     <div className="flex justify-between items-center mb-2">
                       <span className="font-bold text-white">[{c.code}] {c.name}</span>
                       <button
@@ -859,7 +859,7 @@ export default function Schedule() {
                     </div>
                     <div className="text-slate-400 space-y-1">
                       <p>📱 {c.phone} | 📍 {c.project}</p>
-                      <p>💰 {c.paymentType} | 🏆 <span className={c.category === 'A' ? 'text-orange-400' : c.category === 'B' ? 'text-blue-400' : 'text-emerald-400'}>{c.category}</span></p>
+                      <p>💰 {c.paymentType} | 🏆 <span className={c.category === 'A' ? 'text-orange-400' : c.category === 'B' ? 'text-sky-400' : 'text-emerald-400'}>{c.category}</span></p>
                       <p>📦 {c.orderType} | ⭐ {c.priority} | 📐 {c.qty} m³ | {c.concreteType}</p>
                       {c.ignoreRestrictions && <span className="bg-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded text-[10px] font-bold">⏭️ Ignore</span>}
                     </div>
@@ -875,7 +875,7 @@ export default function Schedule() {
                               newCustomers[i].time = e.target.value;
                               setCustomers(newCustomers);
                             }}
-                            className="ml-2 bg-[#334155] border border-emerald-500/30 rounded p-1 text-white text-[10px] [color-scheme:dark]"
+                            className="ml-2 bg-white/[0.04] border border-emerald-500/30 rounded p-1 text-white text-[10px] [color-scheme:dark]"
                           />
                         )}
                       </div>
@@ -889,13 +889,13 @@ export default function Schedule() {
           <div className="space-y-2">
             <button
               onClick={generateSchedule}
-              className="w-full bg-emerald-500 hover:bg-emerald-600 text-white py-3 rounded-lg text-sm font-bold"
+              className="w-full bg-emerald-500 hover:bg-emerald-600 text-white py-3 rounded-lg text-sm font-bold shadow-[0_0_20px_rgba(56,189,248,0.3)]"
             >
               🤖 Generate Schedule
             </button>
             <button
               onClick={() => setShowImportModal(true)}
-              className="w-full bg-blue-500 hover:bg-blue-600 text-white py-3 rounded-lg text-sm font-bold"
+              className="w-full bg-sky-500 hover:bg-sky-400 text-white py-3 rounded-lg text-sm font-bold"
             >
               📦 Import من الطلبات
             </button>
@@ -925,33 +925,33 @@ export default function Schedule() {
       {/* Import Modal */}
       {showImportModal && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-[#1e293b] rounded-xl p-6 max-w-md w-full">
-            <h2 className="text-lg font-bold text-white mb-4">📦 استيراد من الطلبات</h2>
+          <div className="bg-[#0B111E]/95 border border-white/10 rounded-xl p-6 max-w-md w-full">
+            <h2 className="text-lg font-black tracking-tight text-white mb-4">📦 استيراد من الطلبات</h2>
             <p className="text-sm text-slate-300 mb-4">
               اختر نوع الاستيراد:
             </p>
             <div className="space-y-2 mb-4">
               <button
                 onClick={() => handleImportFromOrders('all')}
-                className="w-full bg-emerald-500 hover:bg-emerald-600 text-white py-3 rounded-lg text-sm font-bold"
+                className="w-full bg-emerald-500 hover:bg-emerald-600 text-white py-3 rounded-lg text-sm font-bold shadow-[0_0_20px_rgba(56,189,248,0.3)]"
               >
                 ✅ استيراد جميع الطلبات الموافق عليها
               </button>
               <button
                 onClick={() => handleImportFromOrders('pending')}
-                className="w-full bg-blue-500 hover:bg-blue-600 text-white py-3 rounded-lg text-sm font-bold"
+                className="w-full bg-sky-500 hover:bg-sky-400 text-white py-3 rounded-lg text-sm font-bold"
               >
                 📅 استيراد الطلبات المجدولة فقط
               </button>
             </div>
-            <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-3 mb-4">
+            <div className="bg-sky-500/10 border border-sky-500/30 rounded-lg p-3 mb-4">
               <p className="text-xs text-slate-300">
                 💡 <strong>ملاحظة:</strong> سيتم استيراد فقط الطلبات التي تم الموافقة عليها من الحسابات وليس عليها حظر.
               </p>
             </div>
             <button
               onClick={() => setShowImportModal(false)}
-              className="w-full bg-slate-600 hover:bg-slate-700 text-white py-2 rounded-lg text-sm font-bold"
+              className="w-full bg-white/[0.06] hover:bg-white/[0.1] text-white py-2 rounded-lg text-sm font-bold"
             >
               ❌ إلغاء
             </button>

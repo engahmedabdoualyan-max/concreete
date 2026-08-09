@@ -145,7 +145,7 @@ export default function EInvoice(props: InvoiceProps) {
           <p className="text-center text-[9px] text-gray-500 mt-1">تحقق من صحة الفاتورة إلكترونياً عبر رمز QR</p>
 
           <div className="flex gap-2 mt-4">
-            <button onClick={() => window.print()} className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded-lg">🖨️ طباعة</button>
+            <button onClick={() => window.print()} className="flex-1 bg-sky-500 hover:bg-sky-400 text-white font-bold py-2.5 rounded-lg">🖨️ طباعة</button>
             <button onClick={props.onClose} className="flex-1 bg-gray-300 hover:bg-gray-400 font-bold py-2.5 rounded-lg">إغلاق</button>
           </div>
         </div>

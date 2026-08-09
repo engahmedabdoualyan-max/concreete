@@ -301,16 +301,16 @@ export default function Production() {
     const blob = new Blob([csv], { type: 'text/csv' }); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'production_runs.csv'; a.click();
   };
 
-  if (!currentUser) return <div className="min-h-screen bg-[#0f172a] flex items-center justify-center"><div className="text-center"><p className="text-red-400 text-xl mb-4">🔒 Access Denied</p><Link to="/" className="text-blue-400 underline">Back to Login</Link></div></div>;
+  if (!currentUser) return <div className="min-h-screen bg-[#0B111E] flex items-center justify-center"><div className="text-center"><p className="text-red-400 text-xl mb-4">🔒 Access Denied</p><Link to="/" className="text-sky-400 underline">Back to Login</Link></div></div>;
 
   return (
-    <div className="min-h-screen bg-[#0f172a] text-[#f1f5f9]">
-      <div className="bg-gradient-to-br from-[#0f1729] to-[#1a2332] border-b border-[#2a3a5c] px-6 py-2.5 flex flex-wrap justify-between items-center gap-x-3 gap-y-1.5 sticky top-0 z-50 shadow-lg">
+    <div className="min-h-screen bg-[#0B111E] text-slate-200">
+      <div className="bg-[#0B111E]/80 backdrop-blur-xl border-b border-white/10 px-6 py-2.5 flex flex-wrap justify-between items-center gap-x-3 gap-y-1.5 sticky top-0 z-50 shadow-lg">
         <div className="flex flex-wrap items-center gap-3">
           <BrandLogo width={56} />
-          <Link to="/" className="text-slate-400 text-xs border border-[#2a3a5c] px-2.5 py-1 rounded hover:text-white">← Dashboard</Link>
+          <Link to="/" className="text-slate-400 text-xs border border-white/10 px-2.5 py-1 rounded hover:text-white">← Dashboard</Link>
           <QuickJump /> <LangSelector />
-          <h1 className="text-sm font-bold text-white">🏭 Concrete Production & Material Inventory</h1>
+          <h1 className="text-sm font-black tracking-tight text-white">🏭 Concrete Production & Material Inventory</h1>
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <NotificationsBell />
@@ -325,10 +325,10 @@ export default function Production() {
           {[
             { label: 'Total Poured', value: '30.0 m³', border: 'border-emerald-500' },
             { label: 'Silo Avg Level', value: `${((pct('cement') + pct('sand') + pct('gravel') + pct('admixture')) / 4).toFixed(1)}%`, border: 'border-yellow-500' },
-            { label: 'Deliveries', value: `${deliveries.length} Logs`, border: 'border-blue-500' },
+            { label: 'Deliveries', value: `${deliveries.length} Logs`, border: 'border-sky-500' },
             { label: 'Low Stock Alerts', value: `${[pct('cement'), pct('sand'), pct('gravel'), pct('admixture')].filter(v => v < 25).length} Silos`, border: 'border-red-500' },
           ].map(kpi => (
-            <div key={kpi.label} className={`bg-[#1e293b] rounded-xl p-5 border-l-4 ${kpi.border} shadow-lg`}>
+            <div key={kpi.label} className={`bg-white/[0.04] rounded-xl p-5 border-l-4 ${kpi.border} shadow-lg`}>
               <p className="text-xs text-slate-400 mb-1">{kpi.label}</p><p className="text-xl font-bold text-white">{kpi.value}</p>
             </div>
           ))}
@@ -340,11 +340,11 @@ export default function Production() {
             { name: 'Cement Silo', key: 'cement', unit: 'Tons', fill: 'bg-gradient-to-t from-slate-400 to-slate-200' },
             { name: 'Fine Sand Bin', key: 'sand', unit: 'Tons', fill: 'bg-gradient-to-t from-yellow-500 to-yellow-200' },
             { name: 'Aggregate Bin', key: 'gravel', unit: 'Tons', fill: 'bg-gradient-to-t from-gray-600 to-gray-400' },
-            { name: 'Admixture Tank', key: 'admixture', unit: 'Liters', fill: 'bg-gradient-to-t from-purple-600 to-purple-300' },
+            { name: 'Admixture Tank', key: 'admixture', unit: 'Liters', fill: 'bg-gradient-to-t from-cyan-500 to-cyan-300' },
           ].map(silo => (
-            <div key={silo.key} className="bg-[#1e293b] border border-[#334155] rounded-xl p-4 text-center">
+            <div key={silo.key} className="bg-white/[0.04] border border-white/10 rounded-xl p-4 text-center">
               <h4 className="text-sm text-slate-300 mb-3">{silo.name}</h4>
-              <div className="w-14 h-24 bg-[#334155] rounded-t-sm rounded-b-xl mx-auto relative overflow-hidden border-2 border-[#475569] mb-3">
+              <div className="w-14 h-24 bg-white/[0.06] rounded-t-sm rounded-b-xl mx-auto relative overflow-hidden border-2 border-white/10 mb-3">
                 <div className={`absolute bottom-0 left-0 right-0 ${silo.fill} transition-all duration-500`} style={{ height: `${Math.min(pct(silo.key), 100)}%` }} />
               </div>
               <p className="text-xs font-bold">{inventory[silo.key].toFixed(silo.key === 'admixture' ? 0 : 1)} {silo.unit} ({pct(silo.key)}%)</p>
@@ -354,68 +354,68 @@ export default function Production() {
 
         <div className="grid grid-cols-1 lg:grid-cols-[380px_1fr] gap-6">
           {/* Forms */}
-          <div className="bg-[#1e293b] border border-[#334155] rounded-xl p-6 shadow-lg">
-            <h3 className="text-lg font-bold text-white mb-4 pb-2 border-b border-[#334155]">➕ Raw Material Delivery</h3>
+          <div className="bg-white/[0.04] border border-white/10 rounded-xl p-6 shadow-lg">
+            <h3 className="text-lg font-black tracking-tight text-white mb-4 pb-2 border-b border-white/10">➕ Raw Material Delivery</h3>
             <form onSubmit={addDelivery} className="space-y-3">
-              <div><label className="text-xs text-slate-400 font-semibold">Material Type</label><select value={delivForm.type} onChange={e => setDelivForm({ ...delivForm, type: e.target.value })} className="w-full bg-[#334155] border border-[#475569] rounded-lg p-2.5 text-white text-sm"><option value="cement">Cement (Tons)</option><option value="sand">Fine Sand (Tons)</option><option value="gravel">Aggregate (Tons)</option><option value="admixture">Admixture (Liters)</option></select></div>
-              <div><label className="text-xs text-slate-400 font-semibold">Quantity</label><input type="number" step="0.1" value={delivForm.qty} onChange={e => setDelivForm({ ...delivForm, qty: e.target.value })} placeholder="50" className="w-full bg-[#334155] border border-[#475569] rounded-lg p-2.5 text-white text-sm" required /></div>
-              <div><label className="text-xs text-slate-400 font-semibold">Invoice</label><input value={delivForm.invoice} onChange={e => setDelivForm({ ...delivForm, invoice: e.target.value })} placeholder="INV-8879" className="w-full bg-[#334155] border border-[#475569] rounded-lg p-2.5 text-white text-sm" required /></div>
+              <div><label className="text-xs text-slate-400 font-semibold">Material Type</label><select value={delivForm.type} onChange={e => setDelivForm({ ...delivForm, type: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm"><option value="cement">Cement (Tons)</option><option value="sand">Fine Sand (Tons)</option><option value="gravel">Aggregate (Tons)</option><option value="admixture">Admixture (Liters)</option></select></div>
+              <div><label className="text-xs text-slate-400 font-semibold">Quantity</label><input type="number" step="0.1" value={delivForm.qty} onChange={e => setDelivForm({ ...delivForm, qty: e.target.value })} placeholder="50" className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm" required /></div>
+              <div><label className="text-xs text-slate-400 font-semibold">Invoice</label><input value={delivForm.invoice} onChange={e => setDelivForm({ ...delivForm, invoice: e.target.value })} placeholder="INV-8879" className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm" required /></div>
               <button type="submit" className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3 rounded-lg">💾 Record Delivery</button>
             </form>
 
-            <h3 className="text-lg font-bold text-white mt-8 mb-4 pb-2 border-b border-[#334155]">⚙️ Run Manual Batch</h3>
+            <h3 className="text-lg font-black tracking-tight text-white mt-8 mb-4 pb-2 border-b border-white/10">⚙️ Run Manual Batch</h3>
             <form onSubmit={runBatch} className="space-y-3">
               <div><label className="text-xs text-slate-400 font-semibold">Concrete Recipe</label>
-                <select value={batchForm.recipe} onChange={e => setBatchForm({ ...batchForm, recipe: e.target.value })} className="w-full bg-[#334155] border border-[#475569] rounded-lg p-2.5 text-white text-sm">
+                <select value={batchForm.recipe} onChange={e => setBatchForm({ ...batchForm, recipe: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm">
                   {(recipes.length > 0 ? recipes : [{ code: 'C25' }, { code: 'C30' }, { code: 'C35' }, { code: 'C40' }]).map((r: any) => <option key={r.code} value={r.code}>{r.code}</option>)}
                 </select>
               </div>
-              <div><label className="text-xs text-slate-400 font-semibold">Volume (m³)</label><input type="number" step="0.1" value={batchForm.volume} onChange={e => setBatchForm({ ...batchForm, volume: e.target.value })} placeholder="10" className="w-full bg-[#334155] border border-[#475569] rounded-lg p-2.5 text-white text-sm" required /></div>
+              <div><label className="text-xs text-slate-400 font-semibold">Volume (m³)</label><input type="number" step="0.1" value={batchForm.volume} onChange={e => setBatchForm({ ...batchForm, volume: e.target.value })} placeholder="10" className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm" required /></div>
               <div>
                 <label className="text-xs text-slate-400 font-semibold">ربط الإنتاج بالطلب (orderId)</label>
-                <select value={batchForm.orderId} onChange={e => setBatchForm({ ...batchForm, orderId: e.target.value })} className="w-full bg-[#334155] border border-[#475569] rounded-lg p-2.5 text-white text-sm">
+                <select value={batchForm.orderId} onChange={e => setBatchForm({ ...batchForm, orderId: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm">
                   <option value="">— بدون ربط (إنتاج عام) —</option>
                   {orders.filter((o: any) => o.status === 'in_progress' || o.status === 'scheduled').map((o: any) => (
                     <option key={o.id} value={o.id}>{o.orderNo || o.id} · {o.customerName} · تسليم {(Number(o.deliveredQty) || 0).toFixed(1)}/{o.quantity} م³</option>
                   ))}
                 </select>
               </div>
-              <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg">🚀 Execute Batch</button>
+              <button type="submit" className="w-full bg-sky-500 hover:bg-sky-400 text-white font-bold py-3 rounded-lg">🚀 Execute Batch</button>
             </form>
 
             {/* 🧱 إنتاج البلوك */}
-            <h3 className="text-lg font-bold text-white mt-8 mb-4 pb-2 border-b border-[#334155]">🧱 Produce Blocks</h3>
+            <h3 className="text-lg font-black tracking-tight text-white mt-8 mb-4 pb-2 border-b border-white/10">🧱 Produce Blocks</h3>
             <form onSubmit={produceBlocks} className="space-y-3">
               <div><label className="text-xs text-slate-400 font-semibold">Block Type</label>
-                <select value={blockProdForm.blockCode} onChange={e => setBlockProdForm({ ...blockProdForm, blockCode: e.target.value })} className="w-full bg-[#334155] border border-[#475569] rounded-lg p-2.5 text-white text-sm" required>
+                <select value={blockProdForm.blockCode} onChange={e => setBlockProdForm({ ...blockProdForm, blockCode: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm" required>
                   <option value="">-- Select Block Type --</option>
                   {blocks.map(b => (
                     <option key={b.id} value={b.code}>{b.code} - {b.name} (Stock: {b.stock})</option>
                   ))}
                 </select>
               </div>
-              <div><label className="text-xs text-slate-400 font-semibold">Quantity (Blocks)</label><input type="number" min="1" value={blockProdForm.quantity} onChange={e => setBlockProdForm({ ...blockProdForm, quantity: e.target.value })} placeholder="1000" className="w-full bg-[#334155] border border-[#475569] rounded-lg p-2.5 text-white text-sm" required /></div>
-              <button type="submit" className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 rounded-lg">🧱 Produce Blocks</button>
+              <div><label className="text-xs text-slate-400 font-semibold">Quantity (Blocks)</label><input type="number" min="1" value={blockProdForm.quantity} onChange={e => setBlockProdForm({ ...blockProdForm, quantity: e.target.value })} placeholder="1000" className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm" required /></div>
+              <button type="submit" className="w-full bg-sky-500 hover:bg-sky-400 text-white font-bold py-3 rounded-lg">🧱 Produce Blocks</button>
             </form>
           </div>
 
           {/* 📊 مقارنة المخزون بالطلبات */}
-          <div className="bg-[#1e293b] border border-[#334155] rounded-xl p-6 shadow-lg mt-6">
-            <h3 className="text-lg font-bold text-white mb-4 pb-2 border-b border-[#334155]">📊 Inventory vs Orders Comparison</h3>
+          <div className="bg-white/[0.04] border border-white/10 rounded-xl p-6 shadow-lg mt-6">
+            <h3 className="text-lg font-black tracking-tight text-white mb-4 pb-2 border-b border-white/10">📊 Inventory vs Orders Comparison</h3>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-              <div className="bg-[#0f172a] rounded-lg p-4">
+              <div className="bg-[#0B111E] rounded-lg p-4">
                 <p className="text-xs text-slate-400">Concrete Needed</p>
                 <p className="text-lg font-bold text-white">{inventoryCheck.concreteNeeded.toFixed(0)} m³</p>
               </div>
-              <div className="bg-[#0f172a] rounded-lg p-4">
+              <div className="bg-[#0B111E] rounded-lg p-4">
                 <p className="text-xs text-slate-400">Blocks Needed</p>
                 <p className="text-lg font-bold text-white">{inventoryCheck.blocksNeeded}</p>
               </div>
-              <div className="bg-[#0f172a] rounded-lg p-4">
+              <div className="bg-[#0B111E] rounded-lg p-4">
                 <p className="text-xs text-slate-400">Cement Available</p>
                 <p className="text-lg font-bold text-white">{inventoryCheck.cementAvailable.toFixed(2)} T</p>
               </div>
-              <div className="bg-[#0f172a] rounded-lg p-4">
+              <div className="bg-[#0B111E] rounded-lg p-4">
                 <p className="text-xs text-slate-400">Blocks Available</p>
                 <p className="text-lg font-bold text-white">{inventoryCheck.blocksAvailable}</p>
               </div>
@@ -437,29 +437,29 @@ export default function Production() {
           </div>
 
           {/* Tables */}
-          <div className="bg-[#1e293b] border border-[#334155] rounded-xl p-6 shadow-lg">
-            <div className="flex justify-between items-center mb-4 pb-2 border-b border-[#334155]">
-              <h3 className="text-lg font-bold text-white">📋 Reconciliation Logs</h3>
+          <div className="bg-white/[0.04] border border-white/10 rounded-xl p-6 shadow-lg">
+            <div className="flex justify-between items-center mb-4 pb-2 border-b border-white/10">
+              <h3 className="text-lg font-black tracking-tight text-white">📋 Reconciliation Logs</h3>
               <div className="flex gap-2"><button onClick={exportCSV} className="bg-yellow-500 text-slate-900 text-xs px-3 py-1.5 rounded font-bold">Excel</button><button onClick={() => window.print()} className="bg-sky-500 text-white text-xs px-3 py-1.5 rounded font-bold">Print</button></div>
             </div>
             <div className="grid grid-cols-2 gap-3 mb-4"><DatePicker value={fromDate} onChange={setFromDate} label="From" /><DatePicker value={toDate} onChange={setToDate} label="To" /></div>
 
             <h4 className="text-xs text-slate-400 uppercase mb-2">📥 Recent Deliveries</h4>
             <div className="overflow-x-auto mb-6">
-              <table className="w-full text-left text-sm text-slate-300"><thead className="bg-[#334155] text-xs uppercase"><tr><th className="p-3">Date</th><th className="p-3">Material</th><th className="p-3">Qty</th><th className="p-3">Invoice</th><th className="p-3">Status</th></tr></thead>
-                <tbody>{filteredDeliv.slice(-5).reverse().map((d, i) => <tr key={i} className="border-b border-[#334155]"><td className="p-3">{d.date}</td><td className="p-3 uppercase font-bold">{d.material}</td><td className="p-3">{d.qty} {d.material === 'admixture' ? 'L' : 'Tons'}</td><td className="p-3">{d.invoice}</td><td className="p-3"><span className="bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded text-xs font-bold">Verified</span></td></tr>)}</tbody></table>
+              <table className="w-full text-left text-sm text-slate-300"><thead className="bg-white/[0.04] text-slate-400 text-xs uppercase"><tr><th className="p-3">Date</th><th className="p-3">Material</th><th className="p-3">Qty</th><th className="p-3">Invoice</th><th className="p-3">Status</th></tr></thead>
+                <tbody>{filteredDeliv.slice(-5).reverse().map((d, i) => <tr key={i} className="border-b border-white/10"><td className="p-3">{d.date}</td><td className="p-3 uppercase font-bold">{d.material}</td><td className="p-3">{d.qty} {d.material === 'admixture' ? 'L' : 'Tons'}</td><td className="p-3">{d.invoice}</td><td className="p-3"><span className="bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded text-xs font-bold">Verified</span></td></tr>)}</tbody></table>
             </div>
 
             <h4 className="text-xs text-slate-400 uppercase mb-2">🏭 Recent Production Runs</h4>
             <div className="overflow-x-auto mb-6">
-              <table className="w-full text-left text-sm text-slate-300"><thead className="bg-[#334155] text-xs uppercase"><tr><th className="p-3">Time</th><th className="p-3">Recipe</th><th className="p-3">Vol</th><th className="p-3">Cement</th><th className="p-3">Gravel</th><th className="p-3">Status</th></tr></thead>
-                <tbody>{filteredRuns.slice(-5).reverse().map((p, i) => <tr key={i} className="border-b border-[#334155]"><td className="p-3">{p.date} {p.time}</td><td className="p-3 font-bold text-blue-400">{p.recipe}</td><td className="p-3">{p.volume} m³</td><td className="p-3">{p.cementUsed.toFixed(2)} T</td><td className="p-3">{p.gravelUsed.toFixed(2)} T</td><td className="p-3"><span className="bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded text-xs font-bold">Dispatched</span></td></tr>)}</tbody></table>
+              <table className="w-full text-left text-sm text-slate-300"><thead className="bg-white/[0.04] text-slate-400 text-xs uppercase"><tr><th className="p-3">Time</th><th className="p-3">Recipe</th><th className="p-3">Vol</th><th className="p-3">Cement</th><th className="p-3">Gravel</th><th className="p-3">Status</th></tr></thead>
+                <tbody>{filteredRuns.slice(-5).reverse().map((p, i) => <tr key={i} className="border-b border-white/10"><td className="p-3">{p.date} {p.time}</td><td className="p-3 font-bold text-sky-400">{p.recipe}</td><td className="p-3">{p.volume} m³</td><td className="p-3">{p.cementUsed.toFixed(2)} T</td><td className="p-3">{p.gravelUsed.toFixed(2)} T</td><td className="p-3"><span className="bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded text-xs font-bold">Dispatched</span></td></tr>)}</tbody></table>
             </div>
 
             <h4 className="text-xs text-slate-400 uppercase mb-2">🧱 Recent Block Productions</h4>
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm text-slate-300"><thead className="bg-[#334155] text-xs uppercase"><tr><th className="p-3">Date</th><th className="p-3">Block Code</th><th className="p-3">Qty</th><th className="p-3">Cement</th><th className="p-3">Sand</th><th className="p-3">Status</th></tr></thead>
-                <tbody>{blockProductions.slice(-5).reverse().map((p, i) => <tr key={i} className="border-b border-[#334155]"><td className="p-3">{p.date}</td><td className="p-3 font-bold text-purple-400">{p.blockCode}</td><td className="p-3">{p.quantity}</td><td className="p-3">{p.totalCement.toFixed(2)} T</td><td className="p-3">{p.totalSand.toFixed(2)} T</td><td className="p-3"><span className="bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded text-xs font-bold">Produced</span></td></tr>)}</tbody></table>
+              <table className="w-full text-left text-sm text-slate-300"><thead className="bg-white/[0.04] text-slate-400 text-xs uppercase"><tr><th className="p-3">Date</th><th className="p-3">Block Code</th><th className="p-3">Qty</th><th className="p-3">Cement</th><th className="p-3">Sand</th><th className="p-3">Status</th></tr></thead>
+                <tbody>{blockProductions.slice(-5).reverse().map((p, i) => <tr key={i} className="border-b border-white/10"><td className="p-3">{p.date}</td><td className="p-3 font-bold text-sky-400">{p.blockCode}</td><td className="p-3">{p.quantity}</td><td className="p-3">{p.totalCement.toFixed(2)} T</td><td className="p-3">{p.totalSand.toFixed(2)} T</td><td className="p-3"><span className="bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded text-xs font-bold">Produced</span></td></tr>)}</tbody></table>
             </div>
           </div>
         </div>

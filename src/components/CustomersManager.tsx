@@ -67,9 +67,9 @@ export default function CustomersManager({ onSelect }: { onSelect?: (c: Customer
       ) : (
         <div className="max-h-52 overflow-y-auto space-y-1.5">
           {customers.map(c => (
-            <div key={c.id} className="flex items-center justify-between gap-2 bg-[#0f172a] border border-[#334155] rounded-lg px-3 py-2">
+            <div key={c.id} className="flex items-center justify-between gap-2 bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2">
               <div className="min-w-0">
-                <p className="text-xs font-bold text-white truncate"><span className="text-blue-400">{c.code}</span> · {c.name}</p>
+                <p className="text-xs font-bold text-white truncate"><span className="text-sky-400">{c.code}</span> · {c.name}</p>
                 <p className="text-[10px] text-slate-400 truncate">{c.phone}{c.address ? ' · ' + c.address : ''}</p>
               </div>
               <div className="flex items-center gap-1 shrink-0">
@@ -82,14 +82,14 @@ export default function CustomersManager({ onSelect }: { onSelect?: (c: Customer
       )}
 
       {showAdd && (
-        <form onSubmit={addCustomer} className="mt-3 space-y-2 bg-[#0f172a] border border-emerald-500/30 rounded-lg p-3">
+        <form onSubmit={addCustomer} className="mt-3 space-y-2 bg-white/[0.04] border border-emerald-500/30 rounded-lg p-3">
           <p className="text-xs font-bold text-emerald-400">👤 عميل جديد (تلقائياً: {nextCode()})</p>
-          <input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="اسم العميل *" className="w-full bg-[#334155] border border-[#475569] rounded-lg p-2 text-white text-sm" />
-          <input value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} placeholder="رقم الهاتف *" className="w-full bg-[#334155] border border-[#475569] rounded-lg p-2 text-white text-sm" />
-          <input value={form.address} onChange={e => setForm({ ...form, address: e.target.value })} placeholder="العنوان (اختياري)" className="w-full bg-[#334155] border border-[#475569] rounded-lg p-2 text-white text-sm" />
+          <input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="اسم العميل *" className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2 text-white text-sm" />
+          <input value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} placeholder="رقم الهاتف *" className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2 text-white text-sm" />
+          <input value={form.address} onChange={e => setForm({ ...form, address: e.target.value })} placeholder="العنوان (اختياري)" className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2 text-white text-sm" />
           <div className="flex gap-2">
             <button type="submit" className="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-1.5 rounded-lg text-sm">💾 حفظ العميل</button>
-            <button type="button" onClick={() => setShowAdd(false)} className="flex-1 bg-slate-600 hover:bg-slate-700 text-white font-bold py-1.5 rounded-lg text-sm">إلغاء</button>
+            <button type="button" onClick={() => setShowAdd(false)} className="flex-1 bg-white/[0.06] hover:bg-white/[0.1] text-white font-bold py-1.5 rounded-lg text-sm">إلغاء</button>
           </div>
         </form>
       )}

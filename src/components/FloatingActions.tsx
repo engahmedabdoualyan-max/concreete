@@ -21,12 +21,12 @@ function Modal({ title, onClose, children }: { title: string; onClose: () => voi
   return (
     <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[130] flex items-center justify-center p-4" onClick={onClose}>
       <div
-        className="bg-[#1e293b] border border-[#334155] rounded-2xl p-6 w-full max-w-md shadow-2xl relative"
+        className="bg-[#0B111E]/95 border border-white/10 rounded-2xl p-6 w-full max-w-md shadow-2xl relative backdrop-blur-xl"
         onClick={e => e.stopPropagation()}
       >
         <button
           onClick={onClose}
-          className="absolute top-3 right-3 w-8 h-8 flex items-center justify-center rounded-lg bg-[#0f172a] border border-[#334155] text-slate-400 hover:text-white hover:border-slate-500 transition-colors"
+          className="absolute top-3 right-3 w-8 h-8 flex items-center justify-center rounded-lg bg-white/[0.04] border border-white/10 text-slate-400 hover:text-white hover:border-sky-400/60 transition-colors"
           aria-label="close"
         >
           ✕
@@ -80,7 +80,7 @@ export default function FloatingActions() {
         <Modal title={t('featuresTitle')} onClose={() => setModal(null)}>
           <div className="grid grid-cols-1 gap-2.5 max-h-[50vh] overflow-y-auto pr-1">
             {FEATURES.map(f => (
-              <div key={f.key} className="flex items-start gap-3 bg-[#0f172a] border border-[#334155] rounded-xl px-4 py-3">
+              <div key={f.key} className="flex items-start gap-3 bg-white/[0.04] border border-white/10 rounded-xl px-4 py-3">
                 <span className="text-xl">{f.icon}</span>
                 <span className="text-sm text-slate-200 leading-relaxed">{t(f.key)}</span>
               </div>
@@ -134,7 +134,7 @@ export default function FloatingActions() {
                   type="email"
                   value={contact.email}
                   onChange={e => setContact({ ...contact, email: e.target.value })}
-                  className="w-full px-3 py-2 bg-[#0f172a] border border-[#334155] text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 bg-white/[0.04] border border-white/10 text-white rounded-lg focus:outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]"
                 />
               </div>
               <div>
@@ -143,7 +143,7 @@ export default function FloatingActions() {
                   type="tel"
                   value={contact.phone}
                   onChange={e => setContact({ ...contact, phone: e.target.value })}
-                  className="w-full px-3 py-2 bg-[#0f172a] border border-[#334155] text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 bg-white/[0.04] border border-white/10 text-white rounded-lg focus:outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]"
                 />
               </div>
               <div>
@@ -152,13 +152,13 @@ export default function FloatingActions() {
                   rows={4}
                   value={contact.message}
                   onChange={e => setContact({ ...contact, message: e.target.value })}
-                  className="w-full px-3 py-2 bg-[#0f172a] border border-[#334155] text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 bg-white/[0.04] border border-white/10 text-white rounded-lg focus:outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]"
                 />
               </div>
               {contactError && <p className="text-red-400 text-sm">⚠️ {contactError}</p>}
               <button
                 type="submit"
-                className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white py-3 rounded-lg font-bold transition-all duration-300"
+                className="w-full bg-gradient-to-r from-sky-500 to-cyan-500 hover:from-sky-400 hover:to-cyan-400 text-white py-3 rounded-lg font-bold transition-all duration-300 shadow-[0_0_20px_rgba(56,189,248,0.3)]"
               >
                 📨 {t('send')}
               </button>
@@ -170,9 +170,9 @@ export default function FloatingActions() {
       <div className="fixed bottom-6 right-6 z-[120] flex flex-col items-end gap-3">
         {open && (
           <div className="flex flex-col items-end gap-2">
-            {actionButton('⭐', t('floatingFeatures'), () => openModal('features'), 'bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800')}
-            {actionButton('🌟', t('floatingRateUs'), () => openModal('rate'), 'bg-gradient-to-r from-yellow-500 to-amber-600 hover:from-amber-600 hover:to-amber-700')}
-            {actionButton('📞', t('floatingContactUs'), () => openModal('contact'), 'bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800')}
+            {actionButton('⭐', t('floatingFeatures'), () => openModal('features'), 'bg-gradient-to-r from-sky-500 to-cyan-500 hover:from-sky-400 hover:to-cyan-400')}
+            {actionButton('🌟', t('floatingRateUs'), () => openModal('rate'), 'bg-gradient-to-r from-amber-500 to-yellow-400 hover:from-amber-400 hover:to-yellow-300')}
+            {actionButton('📞', t('floatingContactUs'), () => openModal('contact'), 'bg-gradient-to-r from-sky-500 to-cyan-500 hover:from-sky-400 hover:to-cyan-400')}
           </div>
         )}
         <button
@@ -180,7 +180,7 @@ export default function FloatingActions() {
           className={`w-14 h-14 rounded-full flex items-center justify-center text-2xl shadow-2xl border transition-all duration-300 ${
             open
               ? 'bg-red-600 hover:bg-red-700 border-red-400/50 text-white'
-              : 'bg-gradient-to-br from-blue-600 to-indigo-700 hover:from-blue-700 hover:to-indigo-800 border-blue-400/50 text-white'
+              : 'bg-gradient-to-r from-sky-500 to-cyan-500 hover:from-sky-400 hover:to-cyan-400 border-sky-400/50 text-white'
           }`}
         >
           {open ? '✕' : '💬'}

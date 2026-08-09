@@ -5,8 +5,8 @@ import { loadGpsLocationsFromSupabase, saveGpsLocationToSupabase } from '../supa
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
-const inputCls = 'px-3 py-2 bg-[#0f172a] border border-[#334155] text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500';
-const chipCls = (active: boolean) => `px-3 py-1.5 rounded-lg text-xs font-bold border transition-colors ${active ? 'bg-blue-600/30 text-blue-300 border-blue-500/50' : 'bg-[#0f172a] text-slate-300 border-[#334155] hover:border-blue-500/40'}`;
+const inputCls = 'px-3 py-2 bg-white/[0.04] border border-white/10 text-white rounded-lg text-sm focus:outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]';
+const chipCls = (active: boolean) => `px-3 py-1.5 rounded-lg text-xs font-bold border transition-colors ${active ? 'bg-sky-400/20 text-sky-300 border-sky-500/50' : 'bg-white/[0.03] text-slate-400 border-white/10 hover:text-sky-300 hover:border-sky-400/60'}`;
 
 function basicAuth(u: string, p: string) {
   try { return 'Basic ' + btoa(u + ':' + p); } catch { return ''; }
@@ -288,12 +288,12 @@ export default function GpsFleetMap({ onToast }: { onToast: (msg: string) => voi
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-xl font-bold text-white">🗺️ GPS Fleet Map</h2>
         <div className="flex items-center gap-2">
-          <span className={`px-3 py-1.5 rounded-lg text-xs font-bold border ${liveState === 'on' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40' : liveState === 'error' ? 'bg-red-500/20 text-red-400 border-red-500/40' : 'bg-slate-500/20 text-slate-400 border-slate-600/40'}`}>
+          <span className={`px-3 py-1.5 rounded-lg text-xs font-bold border ${liveState === 'on' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40' : liveState === 'error' ? 'bg-red-500/20 text-red-400 border-red-500/40' : 'bg-white/[0.03] text-slate-400 border-white/10'}`}>
             {liveState === 'on' ? `🟢 Live · ${online} tracker + ${driverOnline} driver` : liveState === 'connecting' ? '⏳ Connecting...' : liveState === 'error' ? `🔴 Tracker offline · ${driverOnline} driver` : `⚪ ${driverOnline > 0 ? driverOnline + ' driver live' : 'No live feed'}`}
           </span>
           {lastPoll && <span className="text-[11px] text-slate-500">updated {Math.round((Date.now() - lastPoll) / 1000)}s ago</span>}
-          <button onClick={detectGps} className="bg-gradient-to-r from-sky-600 to-blue-700 hover:from-sky-700 hover:to-blue-800 text-white px-4 py-1.5 rounded-lg font-bold text-xs transition-all duration-300">📍 Detect My Location</button>
-          <button onClick={reload} className="bg-[#334155] hover:bg-[#3f4863] text-white px-4 py-1.5 rounded-lg font-bold text-xs transition-all duration-300">🔄 Reload</button>
+          <button onClick={detectGps} className="bg-gradient-to-r from-sky-500 to-cyan-500 hover:from-sky-400 hover:to-cyan-400 text-white px-4 py-1.5 rounded-lg font-bold text-xs transition-all duration-300 shadow-[0_0_20px_rgba(56,189,248,0.3)]">📍 Detect My Location</button>
+          <button onClick={reload} className="bg-white/[0.06] hover:bg-white/[0.1] text-white px-4 py-1.5 rounded-lg font-bold text-xs transition-all duration-300">🔄 Reload</button>
         </div>
       </div>
 
@@ -312,7 +312,7 @@ export default function GpsFleetMap({ onToast }: { onToast: (msg: string) => voi
         <span className="text-[11px] text-slate-500 ml-auto">{withPos} with position · {online} tracker live · {driverOnline} driver live</span>
       </div>
 
-      <div className="bg-[#1e293b] rounded-2xl border border-[#334155] p-3">
+      <div className="bg-white/[0.04] rounded-2xl border border-white/10 p-3">
         <div ref={mapRef} className="w-full h-[540px] rounded-xl overflow-hidden z-0" />
         <div className="flex flex-wrap items-center gap-4 mt-2 text-[11px] text-slate-400">
           <span>Legend:</span>
@@ -323,7 +323,7 @@ export default function GpsFleetMap({ onToast }: { onToast: (msg: string) => voi
         </div>
       </div>
 
-      <div className="bg-[#1e293b] rounded-2xl border border-[#334155] p-5">
+      <div className="bg-white/[0.04] rounded-2xl border border-white/10 p-5">
         <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
           <h3 className="text-lg font-bold text-white">🛰️ Trip History & Route</h3>
           <span className="text-xs text-slate-500">Select a date + vehicle to draw its route (from tracker server route API or operation trips).</span>
@@ -342,19 +342,19 @@ export default function GpsFleetMap({ onToast }: { onToast: (msg: string) => voi
             <input type="time" value={histTo} onChange={e => setHistTo(e.target.value)} className={`${inputCls} w-full`} /></div>
         </div>
         <div className="flex flex-wrap items-center gap-2 mt-4">
-          <button onClick={showRoute} disabled={histBusy} className="bg-gradient-to-r from-violet-600 to-purple-700 hover:from-violet-700 hover:to-purple-800 disabled:opacity-50 text-white px-6 py-2 rounded-lg font-bold text-sm transition-all duration-300">
+          <button onClick={showRoute} disabled={histBusy} className="bg-gradient-to-r from-sky-500 to-cyan-500 hover:from-sky-400 hover:to-cyan-400 disabled:opacity-50 text-white px-6 py-2 rounded-lg font-bold text-sm transition-all duration-300 shadow-[0_0_20px_rgba(56,189,248,0.3)]">
             {histBusy ? '⏳ Building route...' : '🛰️ Show Route'}
           </button>
-          {route.length > 0 && <button onClick={() => { setRoute([]); setRouteTrips([]); setHistMsg(''); }} className="bg-[#334155] hover:bg-[#3f4863] text-white px-4 py-2 rounded-lg font-bold text-xs transition-all duration-300">🗑️ Clear Route</button>}
+          {route.length > 0 && <button onClick={() => { setRoute([]); setRouteTrips([]); setHistMsg(''); }} className="bg-white/[0.06] hover:bg-white/[0.1] text-white px-4 py-2 rounded-lg font-bold text-xs transition-all duration-300">🗑️ Clear Route</button>}
         </div>
         {histMsg && <p className={`text-xs font-bold mt-3 ${histMsg.includes('✅') ? 'text-emerald-400' : 'text-yellow-400'}`}>{histMsg}</p>}
         {routeTrips.length > 0 && (
           <div className="overflow-x-auto mt-4">
             <table className="w-full text-xs text-slate-300">
-              <thead className="bg-[#334155]"><tr>{['Time', 'Vehicle', 'Site / Project', 'Qty (m³)', 'Status'].map(h => <th key={h} className="p-2 text-left">{h}</th>)}</tr></thead>
+              <thead className="bg-white/[0.04] text-slate-400"><tr>{['Time', 'Vehicle', 'Site / Project', 'Qty (m³)', 'Status'].map(h => <th key={h} className="p-2 text-left text-[10px] uppercase tracking-wider">{h}</th>)}</tr></thead>
               <tbody>
                 {routeTrips.map((t, i) => (
-                  <tr key={i} className="border-b border-[#334155]/30">
+                  <tr key={i} className="border-b border-white/10">
                     <td className="p-2">{t.stationDep || t.siteArr || '—'}</td>
                     <td className="p-2 font-bold text-white">{t.code}</td>
                     <td className="p-2">{t.siteName || t.projectName || '—'}</td>

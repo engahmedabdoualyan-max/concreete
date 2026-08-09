@@ -448,18 +448,18 @@ export default function Operations() {
 
   if (!currentUser) {
     return (
-      <div className="min-h-screen bg-[#0f172a] flex items-center justify-center">
-        <div className="text-center"><p className="text-red-400 text-xl mb-4">🔒 Access Denied</p><Link to="/" className="text-blue-400 underline">Back to Login</Link></div>
+      <div className="min-h-screen bg-[#0B111E] flex items-center justify-center">
+        <div className="text-center"><p className="text-red-400 text-xl mb-4">🔒 Access Denied</p><Link to="/" className="text-sky-400 underline">Back to Login</Link></div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#0f172a] text-[#f1f5f9]">
-      <div className="bg-gradient-to-br from-[#0f1729] to-[#1a2332] border-b border-[#2a3a5c] px-6 py-2.5 flex flex-wrap justify-between items-center gap-x-3 gap-y-1.5 sticky top-0 z-50 shadow-lg">
+    <div className="min-h-screen bg-[#0B111E] text-slate-200">
+      <div className="bg-[#0B111E]/80 backdrop-blur-xl border-b border-white/10 px-6 py-2.5 flex flex-wrap justify-between items-center gap-x-3 gap-y-1.5 sticky top-0 z-50 shadow-lg">
         <div className="flex flex-wrap items-center gap-3">
           <BrandLogo width={56} />
-          <Link to="/" className="text-slate-400 text-xs border border-[#2a3a5c] px-2.5 py-1 rounded hover:text-white transition">← Dashboard</Link>
+          <Link to="/" className="text-slate-400 text-xs border border-white/10 px-2.5 py-1 rounded hover:text-white transition">← Dashboard</Link>
           <QuickJump /> <LangSelector />
           <h1 className="text-sm font-bold text-white">🚛 Mixer Truck & Concrete Operations Tracker</h1>
         </div>
@@ -471,16 +471,16 @@ export default function Operations() {
         </div>
       </div>
 
-      <header className="bg-[#1e293b] border-b border-[#334155] px-6 py-4 flex flex-col md:flex-row md:items-center justify-between gap-3">
+      <header className="bg-[#0B111E]/80 backdrop-blur-xl border-b border-white/10 px-6 py-4 flex flex-col md:flex-row md:items-center justify-between gap-3">
         <div><h1 className="text-lg font-bold text-white">Concrete Operations & Transit Tracker</h1><p className="text-xs text-emerald-500">Multi-Plant Operations & Fleet Efficiency Analyzer</p></div>
         <div className="flex gap-3 flex-wrap items-center">
-          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search truck code..." className="bg-[#334155] text-white text-sm px-3 py-2 rounded-lg border border-[#475569] outline-none focus:border-emerald-500 w-44" />
-          <button onClick={() => { const t = new Date().toISOString().split('T')[0]; setReportFrom(t); setReportTo(t); setShowReport(true); }} className="bg-indigo-600 hover:bg-indigo-700 text-white text-sm px-4 py-2 rounded-lg font-medium">📂 Fleet Report</button>
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search truck code..." className="bg-white/[0.04] text-white text-sm px-3 py-2 rounded-lg border border-white/10 outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)] w-44" />
+          <button onClick={() => { const t = new Date().toISOString().split('T')[0]; setReportFrom(t); setReportTo(t); setShowReport(true); }} className="bg-sky-500 hover:bg-sky-400 text-white text-sm px-4 py-2 rounded-lg font-medium shadow-[0_0_20px_rgba(56,189,248,0.3)]">📂 Fleet Report</button>
           <button onClick={() => setShowBatching(true)} className="bg-cyan-600 hover:bg-cyan-700 text-white text-sm px-4 py-2 rounded-lg font-medium">🏭 Batching Panel</button>
           <button onClick={() => setShowMap(true)} className="bg-sky-600 hover:bg-sky-700 text-white text-sm px-4 py-2 rounded-lg font-medium">📍 Fleet Map</button>
-          <button onClick={() => setShowDispatch(true)} className="bg-violet-600 hover:bg-violet-700 text-white text-sm px-4 py-2 rounded-lg font-medium">🧠 Smart Dispatch</button>
+          <button onClick={() => setShowDispatch(true)} className="bg-sky-500 hover:bg-sky-400 text-white text-sm px-4 py-2 rounded-lg font-medium">🧠 Smart Dispatch</button>
           <button onClick={() => setShowLive(s => !s)} className={`text-white text-sm px-4 py-2 rounded-lg font-medium ${showLive ? 'bg-emerald-600' : 'bg-teal-600 hover:bg-teal-700'}`}>📱 Driver Live</button>
-          <button onClick={openAdd} className="bg-emerald-500 hover:bg-emerald-600 text-white text-sm px-4 py-2 rounded-lg font-medium">➕ New Trip</button>
+          <button onClick={openAdd} className="bg-emerald-500 hover:bg-emerald-600 text-white text-sm px-4 py-2 rounded-lg font-medium shadow-[0_0_20px_rgba(56,189,248,0.3)]">➕ New Trip</button>
         </div>
       </header>
 
@@ -497,9 +497,9 @@ export default function Operations() {
             const transitDur = cleanDur(t.stationDep, t.siteArr);
             const isCritical = transitDur > 120;
             return (
-              <div key={t.id} className={`bg-[#1e293b] border rounded-xl p-5 shadow-lg ${isCritical ? 'border-red-500 bg-gradient-to-br from-[#1e293b] to-red-950 animate-pulse' : 'border-[#334155]'}`}>
+              <div key={t.id} className={`bg-white/[0.04] border rounded-xl p-5 shadow-lg ${isCritical ? 'border-red-500 bg-gradient-to-br from-red-950/70 to-red-900/40 animate-pulse' : 'border-white/10'}`}>
                 <div className="flex justify-between items-center mb-3">
-                  <span className="text-xs font-semibold uppercase tracking-wider bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded">{t.status}</span>
+                  <span className="text-xs font-semibold uppercase tracking-wider bg-sky-500/20 text-sky-400 px-2 py-0.5 rounded">{t.status}</span>
                   <div className="flex gap-1">
                     <button onClick={() => openEdit(t)} className="bg-green-500 hover:bg-green-600 text-white text-[11px] px-2 py-0.5 rounded font-bold">✏️</button>
                     <button onClick={() => deleteTrip(t.id)} className="bg-red-500 hover:bg-red-600 text-white text-[11px] px-2 py-0.5 rounded font-bold">🗑️</button>
@@ -507,7 +507,7 @@ export default function Operations() {
                 </div>
                 <h3 className="text-xl font-bold text-white">{t.code}</h3>
                 {t.orderId && <p className="text-[10px] font-bold text-sky-400 mt-0.5">🆔 طلب: {t.orderId}</p>}
-                <div className="border-t border-[#334155]/50 pt-3 mt-3 space-y-1 text-sm text-slate-300">
+                <div className="border-t border-white/10 pt-3 mt-3 space-y-1 text-sm text-slate-300">
                   <p><span className="text-slate-500">Plant:</span> <strong>{t.plant}</strong></p>
                   <p><span className="text-slate-500">Date:</span> {t.date}</p>
                   <p><span className="text-slate-500">Driver:</span> {t.driver}</p>
@@ -533,7 +533,7 @@ export default function Operations() {
                     🚚 Transit: {isCritical ? `🚨 CRITICAL ${transitDur}m` : transitDur > Number(t.estTime) ? `Delay ${transitDur - Number(t.estTime)}m` : `On Time (${transitDur}m)`}
                   </p>
                 </div>
-                <div className="grid grid-cols-2 gap-1 mt-3 pt-3 border-t border-[#334155]/30 text-[11px] text-slate-400">
+                <div className="grid grid-cols-2 gap-1 mt-3 pt-3 border-t border-white/10 text-[11px] text-slate-400">
                   <div>Arr Plant: <span className="text-white">{fmtTime(t.stationArr)}</span></div>
                   <div>Dep Plant: <span className="text-white">{fmtTime(t.stationDep)}</span></div>
                   <div>Arr Site: <span className="text-white">{fmtTime(t.siteArr)}</span></div>
@@ -541,7 +541,7 @@ export default function Operations() {
                 </div>
                 {/* Pump Timing Section */}
                 {(t.pumpDepartureTime || t.pumpArrivalTime || t.pourStartTime) && (
-                  <div className="mt-2 pt-2 border-t border-[#334155]/30">
+                  <div className="mt-2 pt-2 border-t border-white/10">
                     <div className="grid grid-cols-3 gap-1 text-[10px]">
                       <div>Pump Out: <span className="text-orange-400 font-bold">{fmtTime(t.pumpDepartureTime || '00:00')}</span></div>
                       <div>Pump In: <span className="text-orange-400 font-bold">{fmtTime(t.pumpArrivalTime || '00:00')}</span></div>
@@ -574,54 +574,54 @@ export default function Operations() {
       {/* Add/Edit Modal */}
       {showAdd && (
         <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-[#1e293b] border border-[#334155] rounded-2xl w-full max-w-xl p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-center mb-4 border-b border-[#334155] pb-3">
+          <div className="bg-[#0B111E]/95 border border-white/10 rounded-2xl w-full max-w-xl p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-4 border-b border-white/10 pb-3">
               <h2 className="text-lg font-bold text-white">{editId ? '✏️ Update Trip' : '➕ Log New Trip'}</h2>
               <button onClick={() => setShowAdd(false)} className="bg-red-500 hover:bg-red-600 text-white w-7 h-7 rounded-full font-bold text-sm">✕</button>
             </div>
             <form onSubmit={handleSubmit} className="space-y-3">
               <div>
-                <label className="text-xs text-blue-400 font-bold">Batch Plant</label>
-                <select value={form.plant} onChange={e => setForm({ ...form, plant: e.target.value })} className="w-full bg-[#334155] border border-[#475569] rounded-lg p-2.5 text-white text-sm outline-none">
+                <label className="text-xs text-sky-400 font-bold">Batch Plant</label>
+                <select value={form.plant} onChange={e => setForm({ ...form, plant: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none">
                   <option value="PLANT-A">Plant A</option><option value="PLANT-B">Plant B</option>
                 </select>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <DatePicker value={form.date} onChange={val => setForm({ ...form, date: val })} label="Date" required />
-                <div><label className="text-xs text-slate-400 font-semibold">Truck Code</label><input value={form.code} onChange={e => setForm({ ...form, code: e.target.value })} placeholder="m01" className="w-full bg-[#334155] border border-[#475569] rounded-lg p-2.5 text-white text-sm outline-none" required /></div>
+                <div><label className="text-xs text-slate-400 font-semibold">Truck Code</label><input value={form.code} onChange={e => setForm({ ...form, code: e.target.value })} placeholder="m01" className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none" required /></div>
               </div>
               <div className="grid grid-cols-2 gap-3">
-                <div><label className="text-xs text-slate-400 font-semibold">Driver</label><input value={form.driver} onChange={e => setForm({ ...form, driver: e.target.value })} className="w-full bg-[#334155] border border-[#475569] rounded-lg p-2.5 text-white text-sm outline-none" required /></div>
-                <div><label className="text-xs text-slate-400 font-semibold">Qty (m³)</label><input type="number" value={form.qty} onChange={e => setForm({ ...form, qty: e.target.value })} className="w-full bg-[#334155] border border-[#475569] rounded-lg p-2.5 text-white text-sm outline-none" required /></div>
+                <div><label className="text-xs text-slate-400 font-semibold">Driver</label><input value={form.driver} onChange={e => setForm({ ...form, driver: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none" required /></div>
+                <div><label className="text-xs text-slate-400 font-semibold">Qty (m³)</label><input type="number" value={form.qty} onChange={e => setForm({ ...form, qty: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none" required /></div>
               </div>
               <div className="grid grid-cols-2 gap-3">
-                <div><label className="text-xs text-slate-400 font-semibold">Pump Code</label><input value={form.pump} onChange={e => setForm({ ...form, pump: e.target.value })} className="w-full bg-[#334155] border border-[#475569] rounded-lg p-2.5 text-white text-sm outline-none" /></div>
-                <div><label className="text-xs text-slate-400 font-semibold">Est Trip (mins)</label><input type="number" value={form.estTime} onChange={e => setForm({ ...form, estTime: e.target.value })} className="w-full bg-[#334155] border border-[#475569] rounded-lg p-2.5 text-white text-sm outline-none" /></div>
+                <div><label className="text-xs text-slate-400 font-semibold">Pump Code</label><input value={form.pump} onChange={e => setForm({ ...form, pump: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none" /></div>
+                <div><label className="text-xs text-slate-400 font-semibold">Est Trip (mins)</label><input type="number" value={form.estTime} onChange={e => setForm({ ...form, estTime: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none" /></div>
               </div>
               <div className="grid grid-cols-2 gap-3">
-                <div><label className="text-xs text-slate-400 font-semibold">Station Arrival</label><input type="time" value={form.stationArr} onChange={e => setForm({ ...form, stationArr: e.target.value })} className="w-full bg-[#334155] border border-[#475569] rounded-lg p-2.5 text-white text-sm outline-none [color-scheme:dark]" /></div>
-                <div><label className="text-xs text-slate-400 font-semibold">Station Departure</label><input type="time" value={form.stationDep} onChange={e => setForm({ ...form, stationDep: e.target.value })} className="w-full bg-[#334155] border border-[#475569] rounded-lg p-2.5 text-white text-sm outline-none [color-scheme:dark]" /></div>
+                <div><label className="text-xs text-slate-400 font-semibold">Station Arrival</label><input type="time" value={form.stationArr} onChange={e => setForm({ ...form, stationArr: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none [color-scheme:dark]" /></div>
+                <div><label className="text-xs text-slate-400 font-semibold">Station Departure</label><input type="time" value={form.stationDep} onChange={e => setForm({ ...form, stationDep: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none [color-scheme:dark]" /></div>
               </div>
               <div className="grid grid-cols-2 gap-3">
-                <div><label className="text-xs text-slate-400 font-semibold">Site Arrival</label><input type="time" value={form.siteArr} onChange={e => setForm({ ...form, siteArr: e.target.value })} className="w-full bg-[#334155] border border-[#475569] rounded-lg p-2.5 text-white text-sm outline-none [color-scheme:dark]" /></div>
-                <div><label className="text-xs text-slate-400 font-semibold">Site Departure</label><input type="time" value={form.siteDep} onChange={e => setForm({ ...form, siteDep: e.target.value })} className="w-full bg-[#334155] border border-[#475569] rounded-lg p-2.5 text-white text-sm outline-none [color-scheme:dark]" /></div>
+                <div><label className="text-xs text-slate-400 font-semibold">Site Arrival</label><input type="time" value={form.siteArr} onChange={e => setForm({ ...form, siteArr: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none [color-scheme:dark]" /></div>
+                <div><label className="text-xs text-slate-400 font-semibold">Site Departure</label><input type="time" value={form.siteDep} onChange={e => setForm({ ...form, siteDep: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none [color-scheme:dark]" /></div>
               </div>
               <div className="grid grid-cols-2 gap-3">
-                <div><label className="text-xs text-slate-400 font-semibold">Site Name</label><input value={form.siteName} onChange={e => setForm({ ...form, siteName: e.target.value })} className="w-full bg-[#334155] border border-[#475569] rounded-lg p-2.5 text-white text-sm outline-none" /></div>
-                <div><label className="text-xs text-slate-400 font-semibold">Project Name</label><input value={form.projectName} onChange={e => setForm({ ...form, projectName: e.target.value })} className="w-full bg-[#334155] border border-[#475569] rounded-lg p-2.5 text-white text-sm outline-none" /></div>
+                <div><label className="text-xs text-slate-400 font-semibold">Site Name</label><input value={form.siteName} onChange={e => setForm({ ...form, siteName: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none" /></div>
+                <div><label className="text-xs text-slate-400 font-semibold">Project Name</label><input value={form.projectName} onChange={e => setForm({ ...form, projectName: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none" /></div>
               </div>
               
               {/* 🗺️ Site Coordinates */}
-              <div className="bg-blue-900/20 border border-blue-500/30 rounded-lg p-3 space-y-2">
-                <p className="text-xs text-blue-300 font-semibold">🗺️ Location Tracking</p>
+              <div className="bg-sky-500/10 border border-sky-500/30 rounded-lg p-3 space-y-2">
+                <p className="text-xs text-sky-300 font-semibold">🗺️ Location Tracking</p>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="text-[10px] text-slate-400 font-semibold">Current Site Coordinates (lat,lng)</label>
-                    <input value={form.siteGeo} onChange={e => setForm({ ...form, siteGeo: e.target.value })} placeholder="26.4207, 50.0888" className="w-full bg-[#1e293b] border border-[#475569] rounded p-2 text-white text-xs" />
+                    <input value={form.siteGeo} onChange={e => setForm({ ...form, siteGeo: e.target.value })} placeholder="26.4207, 50.0888" className="w-full bg-white/[0.04] border border-white/10 rounded p-2 text-white text-xs" />
                   </div>
                   <div>
                     <label className="text-[10px] text-slate-400 font-semibold">Next Site Coordinates (lat,lng)</label>
-                    <input value={form.nextSiteGeo} onChange={e => setForm({ ...form, nextSiteGeo: e.target.value })} placeholder="26.4500, 50.1000" className="w-full bg-[#1e293b] border border-[#475569] rounded p-2 text-white text-xs" />
+                    <input value={form.nextSiteGeo} onChange={e => setForm({ ...form, nextSiteGeo: e.target.value })} placeholder="26.4500, 50.1000" className="w-full bg-white/[0.04] border border-white/10 rounded p-2 text-white text-xs" />
                   </div>
                 </div>
                 {form.nextSiteGeo && parseGeo(form.nextSiteGeo) && (
@@ -632,7 +632,7 @@ export default function Operations() {
                       const dist = calculateDistance(current.lat, current.lng, next.lat, next.lng);
                       alert(`📏 Distance to next site: ${dist.toFixed(2)} km`);
                     }
-                  }} className="w-full bg-blue-600 hover:bg-blue-700 text-white text-xs py-1.5 rounded font-bold">📍 Calculate Distance</button>
+                  }} className="w-full bg-sky-500 hover:bg-sky-400 text-white text-xs py-1.5 rounded font-bold">📍 Calculate Distance</button>
                 )}
               </div>
               
@@ -679,20 +679,20 @@ export default function Operations() {
                 <div className="grid grid-cols-3 gap-2">
                   <div>
                     <label className="text-[10px] text-slate-400 font-semibold">Pump Departure</label>
-                    <input type="time" value={form.pumpDepartureTime} onChange={e => setForm({ ...form, pumpDepartureTime: e.target.value })} className="w-full bg-[#1e293b] border border-[#475569] rounded p-1.5 text-white text-xs [color-scheme:dark]" />
+                    <input type="time" value={form.pumpDepartureTime} onChange={e => setForm({ ...form, pumpDepartureTime: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded p-1.5 text-white text-xs [color-scheme:dark]" />
                   </div>
                   <div>
                     <label className="text-[10px] text-slate-400 font-semibold">Pump Arrival</label>
-                    <input type="time" value={form.pumpArrivalTime} onChange={e => setForm({ ...form, pumpArrivalTime: e.target.value })} className="w-full bg-[#1e293b] border border-[#475569] rounded p-1.5 text-white text-xs [color-scheme:dark]" />
+                    <input type="time" value={form.pumpArrivalTime} onChange={e => setForm({ ...form, pumpArrivalTime: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded p-1.5 text-white text-xs [color-scheme:dark]" />
                   </div>
                   <div>
                     <label className="text-[10px] text-slate-400 font-semibold">Pour Start</label>
-                    <input type="time" value={form.pourStartTime} onChange={e => setForm({ ...form, pourStartTime: e.target.value })} className="w-full bg-[#1e293b] border border-[#475569] rounded p-1.5 text-white text-xs [color-scheme:dark]" />
+                    <input type="time" value={form.pourStartTime} onChange={e => setForm({ ...form, pourStartTime: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded p-1.5 text-white text-xs [color-scheme:dark]" />
                   </div>
                 </div>
                 <div>
                   <label className="text-[10px] text-slate-400 font-semibold">Delay Reason</label>
-                  <select value={form.delayReason} onChange={e => setForm({ ...form, delayReason: e.target.value as any })} className="w-full bg-[#1e293b] border border-[#475569] rounded p-1.5 text-white text-xs">
+                  <select value={form.delayReason} onChange={e => setForm({ ...form, delayReason: e.target.value as any })} className="w-full bg-white/[0.04] border border-white/10 rounded p-1.5 text-white text-xs">
                     <option value="ready">✅ On Time / No Delay</option>
                     <option value="site_not_ready">🏗️ Site Not Ready</option>
                     <option value="breakdown">🔧 Breakdown</option>
@@ -703,18 +703,18 @@ export default function Operations() {
                 {form.delayReason !== 'ready' && (
                   <div>
                     <label className="text-[10px] text-slate-400 font-semibold">Delay Details</label>
-                    <input type="text" value={form.delayDetails} onChange={e => setForm({ ...form, delayDetails: e.target.value })} placeholder="Describe the delay..." className="w-full bg-[#1e293b] border border-[#475569] rounded p-1.5 text-white text-xs" />
+                    <input type="text" value={form.delayDetails} onChange={e => setForm({ ...form, delayDetails: e.target.value })} placeholder="Describe the delay..." className="w-full bg-white/[0.04] border border-white/10 rounded p-1.5 text-white text-xs" />
                   </div>
                 )}
               </div>
               
               <div>
                 <label className="text-xs text-slate-400 font-semibold">Status</label>
-                <select value={form.status} onChange={e => setForm({ ...form, status: e.target.value })} className="w-full bg-[#334155] border border-[#475569] rounded-lg p-2.5 text-white text-sm outline-none">
+                <select value={form.status} onChange={e => setForm({ ...form, status: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none">
                   <option value="COMPLETED">Completed ✅</option><option value="TRANSIT">In Transit 🚚</option><option value="UNLOADING">Unloading 🏗️</option><option value="PLANT">At Plant 🏭</option>
                 </select>
               </div>
-              <button type="submit" className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3 rounded-lg transition">💾 Save Trip</button>
+              <button type="submit" className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3 rounded-lg transition shadow-[0_0_20px_rgba(56,189,248,0.3)]">💾 Save Trip</button>
             </form>
           </div>
         </div>
@@ -723,29 +723,29 @@ export default function Operations() {
       {/* 🧠 Smart Dispatch Panel */}
       {showDispatch && (
         <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-[#1e293b] border border-[#334155] rounded-2xl w-full max-w-3xl p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-center mb-4 border-b border-[#334155] pb-3">
+          <div className="bg-[#0B111E]/95 border border-white/10 rounded-2xl w-full max-w-3xl p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-4 border-b border-white/10 pb-3">
               <h2 className="text-lg font-bold text-white">🧠 Smart Fleet Dispatch</h2>
               <button onClick={() => setShowDispatch(false)} className="bg-red-500 hover:bg-red-600 text-white w-7 h-7 rounded-full font-bold text-sm">✕</button>
             </div>
             <p className="text-xs text-slate-400 mb-4">AI analyses route congestion (traffic factor) and site distance to suggest the optimal time gap between mixers — preventing queueing and concrete setting on site.</p>
-            <div className="flex flex-wrap items-center gap-2 mb-4 bg-[#0f172a] border border-[#334155] rounded-lg p-3">
-              <div className="flex-1 min-w-[160px]"><label className="text-xs text-slate-400">Plant GPS (lat,lng)</label><input value={plantGeo} onChange={e => setPlantGeo(e.target.value)} placeholder="24.7136,46.6753" className="w-full bg-[#334155] border border-[#475569] rounded-lg p-2 text-white text-sm" /></div>
+            <div className="flex flex-wrap items-center gap-2 mb-4 bg-[#0B111E] border border-white/10 rounded-lg p-3">
+              <div className="flex-1 min-w-[160px]"><label className="text-xs text-slate-400">Plant GPS (lat,lng)</label><input value={plantGeo} onChange={e => setPlantGeo(e.target.value)} placeholder="24.7136,46.6753" className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2 text-white text-sm" /></div>
               <button onClick={applyAutoDistance} className="bg-sky-600 hover:bg-sky-700 text-white text-xs px-3 py-2 rounded-lg font-bold mt-4">📡 Auto-fill distance from GPS site</button>
               {autoSite && <span className="text-[10px] text-sky-300 mt-4">✔ {autoSite}</span>}
             </div>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
-              <div><label className="text-xs text-slate-400">Distance to site (km)</label><input type="number" value={dispatch.distance} onChange={e => setDispatch({ ...dispatch, distance: e.target.value })} className="w-full bg-[#334155] border border-[#475569] rounded-lg p-2 text-white text-sm" /></div>
-              <div><label className="text-xs text-slate-400">Avg speed (km/h)</label><input type="number" value={dispatch.speed} onChange={e => setDispatch({ ...dispatch, speed: e.target.value })} className="w-full bg-[#334155] border border-[#475569] rounded-lg p-2 text-white text-sm" /></div>
-              <div><label className="text-xs text-slate-400">Pour rate (m³/h)</label><input type="number" value={dispatch.pourRate} onChange={e => setDispatch({ ...dispatch, pourRate: e.target.value })} className="w-full bg-[#334155] border border-[#475569] rounded-lg p-2 text-white text-sm" /></div>
-              <div><label className="text-xs text-slate-400">Truck capacity (m³)</label><input type="number" value={dispatch.capacity} onChange={e => setDispatch({ ...dispatch, capacity: e.target.value })} className="w-full bg-[#334155] border border-[#475569] rounded-lg p-2 text-white text-sm" /></div>
-              <div><label className="text-xs text-slate-400">Total load (m³)</label><input type="number" value={dispatch.totalLoad} onChange={e => setDispatch({ ...dispatch, totalLoad: e.target.value })} className="w-full bg-[#334155] border border-[#475569] rounded-lg p-2 text-white text-sm" /></div>
-              <div><label className="text-xs text-slate-400">Setting start (min)</label><input type="number" value={dispatch.settingTime} onChange={e => setDispatch({ ...dispatch, settingTime: e.target.value })} className="w-full bg-[#334155] border border-[#475569] rounded-lg p-2 text-white text-sm" /></div>
-              <div><label className="text-xs text-slate-400">Traffic factor (1–3)</label><input type="number" step="0.1" value={dispatch.traffic} onChange={e => setDispatch({ ...dispatch, traffic: e.target.value })} className="w-full bg-[#334155] border border-[#475569] rounded-lg p-2 text-white text-sm" /></div>
+              <div><label className="text-xs text-slate-400">Distance to site (km)</label><input type="number" value={dispatch.distance} onChange={e => setDispatch({ ...dispatch, distance: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2 text-white text-sm" /></div>
+              <div><label className="text-xs text-slate-400">Avg speed (km/h)</label><input type="number" value={dispatch.speed} onChange={e => setDispatch({ ...dispatch, speed: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2 text-white text-sm" /></div>
+              <div><label className="text-xs text-slate-400">Pour rate (m³/h)</label><input type="number" value={dispatch.pourRate} onChange={e => setDispatch({ ...dispatch, pourRate: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2 text-white text-sm" /></div>
+              <div><label className="text-xs text-slate-400">Truck capacity (m³)</label><input type="number" value={dispatch.capacity} onChange={e => setDispatch({ ...dispatch, capacity: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2 text-white text-sm" /></div>
+              <div><label className="text-xs text-slate-400">Total load (m³)</label><input type="number" value={dispatch.totalLoad} onChange={e => setDispatch({ ...dispatch, totalLoad: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2 text-white text-sm" /></div>
+              <div><label className="text-xs text-slate-400">Setting start (min)</label><input type="number" value={dispatch.settingTime} onChange={e => setDispatch({ ...dispatch, settingTime: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2 text-white text-sm" /></div>
+              <div><label className="text-xs text-slate-400">Traffic factor (1–3)</label><input type="number" step="0.1" value={dispatch.traffic} onChange={e => setDispatch({ ...dispatch, traffic: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2 text-white text-sm" /></div>
             </div>
-            <div className={`rounded-xl p-5 border mb-4 ${dispatchResult.feasible ? 'bg-violet-500/10 border-violet-500/40' : 'bg-red-500/10 border-red-500/40'}`}>
+            <div className={`rounded-xl p-5 border mb-4 ${dispatchResult.feasible ? 'bg-sky-500/10 border-sky-500/40' : 'bg-red-500/10 border-red-500/40'}`}>
               <p className="text-xs text-slate-400">⏱️ Suggested dispatch gap between mixers</p>
-              <p className="text-4xl font-black text-violet-300">{dispatchResult.gap.toFixed(0)} min</p>
+              <p className="text-4xl font-black text-sky-300">{dispatchResult.gap.toFixed(0)} min</p>
               {!dispatchResult.feasible && <p className="text-xs text-red-400 mt-1">🚨 Transit time exceeds concrete setting window — this pour is risky.</p>}
             </div>
             <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
@@ -756,19 +756,19 @@ export default function Operations() {
                 { label: 'On route at once', value: String(dispatchResult.onRoute) },
                 { label: 'Total pour', value: `${dispatchResult.queueTime.toFixed(0)} min` },
               ].map(k => (
-                <div key={k.label} className="bg-[#0f172a] rounded-lg p-3 text-center border border-[#334155]">
+                <div key={k.label} className="bg-[#0B111E] rounded-lg p-3 text-center border border-white/10">
                   <p className="text-[10px] text-slate-400">{k.label}</p><p className="text-lg font-bold text-white">{k.value}</p>
                 </div>
               ))}
             </div>
-            <div className="mb-4 bg-[#0f172a] border border-[#334155] rounded-xl overflow-hidden">
-              <div className="px-4 py-2.5 bg-[#1e293b] border-b border-[#334155] flex justify-between items-center">
+            <div className="mb-4 bg-[#0B111E] border border-white/10 rounded-xl overflow-hidden">
+              <div className="px-4 py-2.5 bg-white/[0.04] border-b border-white/10 flex justify-between items-center">
                 <p className="text-xs font-bold text-white">📅 Today's Scheduled Orders — Dispatch Plan</p>
                 <span className="text-[10px] text-slate-400">{confirmedOrders.length} scheduled</span>
               </div>
-              <div className="px-4 py-2.5 bg-[#0f172a] border-b border-[#334155] flex flex-wrap items-center gap-2">
+              <div className="px-4 py-2.5 bg-[#0B111E] border-b border-white/10 flex flex-wrap items-center gap-2">
                 <label className="text-[10px] text-slate-400 font-bold">🚛 تشغيل طلب (فحص مخزون + أسطول):</label>
-                <select value={dispatchOrder} onChange={e => setDispatchOrder(e.target.value)} className="flex-1 min-w-[200px] bg-[#334155] border border-[#475569] rounded-lg p-1.5 text-white text-xs">
+                <select value={dispatchOrder} onChange={e => setDispatchOrder(e.target.value)} className="flex-1 min-w-[200px] bg-white/[0.04] border border-white/10 rounded-lg p-1.5 text-white text-xs">
                   <option value="">— اختر طلباً مجدولاً —</option>
                   {confirmedOrders.map(o => <option key={o.id} value={o.id}>{o.orderNo || o.id} · {o.customerName} · {o.quantity} م³</option>)}
                 </select>
@@ -778,7 +778,7 @@ export default function Operations() {
                     if (!order) { alert('اختر طلباً أولاً.'); return; }
                     dispatchOrderToFleet(order);
                   }}
-                  className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white text-xs px-4 py-2 rounded-lg font-bold"
+                  className="bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 text-white text-xs px-4 py-2 rounded-lg font-bold shadow-[0_0_20px_rgba(56,189,248,0.3)]"
                 >
                   🚀 Dispatch &amp; Link Trips
                 </button>
@@ -786,7 +786,7 @@ export default function Operations() {
               {confirmedOrders.length === 0 && <p className="p-4 text-xs text-slate-500">No scheduled (confirmed) orders yet. Orders move here once approved for execution.</p>}
               <div className="overflow-x-auto">
                 <table className="w-full text-xs text-slate-300">
-                  <thead className="bg-[#334155] text-[10px]"><tr><th className="p-2">Order</th><th className="p-2">Qty</th><th className="p-2">Distance</th><th className="p-2">Gap</th><th className="p-2">Trucks</th><th className="p-2">Start → Finish</th><th className="p-2">Action</th></tr></thead>
+                  <thead className="bg-white/[0.04] text-slate-400 text-[10px]"><tr><th className="p-2">Order</th><th className="p-2">Qty</th><th className="p-2">Distance</th><th className="p-2">Gap</th><th className="p-2">Trucks</th><th className="p-2">Start → Finish</th><th className="p-2">Action</th></tr></thead>
                   <tbody>
                     {confirmedOrders.map((o, idx) => {
                       const qty = Number(o.quantity) || 0;
@@ -797,11 +797,11 @@ export default function Operations() {
                       const sTot = startH * 60 + startM; const eTot = sTot + dur;
                       const fmt = (m: number) => `${Math.floor(m / 60) % 24}:${String(m % 60).padStart(2, '0')}`;
                       return (
-                        <tr key={o.id || idx} className="border-b border-[#334155]/30">
+                        <tr key={o.id || idx} className="border-b border-white/10">
                           <td className="p-2 font-bold text-white">{o.customerName || o.projectName || o.id} <span className="text-[10px] text-slate-500">{o.concreteType} psi</span></td>
-                          <td className="p-2 text-blue-400">{qty} m³</td>
+                          <td className="p-2 text-sky-400">{qty} m³</td>
                           <td className="p-2">{o.locationCoords ? '📍 GPS' : '—'}</td>
-                          <td className="p-2 font-bold text-violet-300">{dispatchResult.gap.toFixed(0)} min</td>
+                          <td className="p-2 font-bold text-sky-300">{dispatchResult.gap.toFixed(0)} min</td>
                           <td className="p-2">{trucks}</td>
                           <td className="p-2">{fmt(sTot)} → {fmt(eTot)} ({dur.toFixed(0)} min)</td>
                           <td className="p-2"><button onClick={() => dispatchOrderToFleet(o)} className="bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] px-2 py-1 rounded font-bold">🚀 تشغيل</button></td>
@@ -812,7 +812,7 @@ export default function Operations() {
                 </table>
               </div>
             </div>
-            <button onClick={() => setShowDispatch(false)} className="mt-5 w-full bg-[#334155] hover:bg-[#475569] text-white font-bold py-3 rounded-lg">Close</button>
+            <button onClick={() => setShowDispatch(false)} className="mt-5 w-full bg-white/[0.06] hover:bg-white/[0.1] text-white font-bold py-3 rounded-lg">Close</button>
           </div>
         </div>
       )}
@@ -820,32 +820,32 @@ export default function Operations() {
       {/* 🏭 Automated Batching Panel */}
       {showBatching && (
         <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-[#1e293b] border border-[#334155] rounded-2xl w-full max-w-2xl p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-center mb-4 border-b border-[#334155] pb-3">
+          <div className="bg-[#0B111E]/95 border border-white/10 rounded-2xl w-full max-w-2xl p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-4 border-b border-white/10 pb-3">
               <h2 className="text-lg font-bold text-white">🏭 Automated Batching Panel</h2>
               <button onClick={() => { stopBatch(); setShowBatching(false); }} className="bg-red-500 hover:bg-red-600 text-white w-7 h-7 rounded-full font-bold text-sm">✕</button>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
               <div><label className="text-xs text-slate-400">Mix Design</label>
-                <select value={batch.recipe} onChange={e => setBatch({ ...batch, recipe: e.target.value })} disabled={batch.running} className="w-full bg-[#334155] border border-[#475569] rounded-lg p-2 text-white text-sm">
+                <select value={batch.recipe} onChange={e => setBatch({ ...batch, recipe: e.target.value })} disabled={batch.running} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2 text-white text-sm">
                   {BATCH_RECIPES.map(r => <option key={r.code} value={r.code}>{r.code}</option>)}
                 </select>
               </div>
-              <div><label className="text-xs text-slate-400">Quantity (m³)</label><input type="number" min="1" value={batch.qty} onChange={e => setBatch({ ...batch, qty: e.target.value })} disabled={batch.running} className="w-full bg-[#334155] border border-[#475569] rounded-lg p-2 text-white text-sm" /></div>
-              <div><label className="text-xs text-slate-400">Dispatch Truck</label><input value={batch.truck} onChange={e => setBatch({ ...batch, truck: e.target.value })} disabled={batch.running} placeholder="m05" className="w-full bg-[#334155] border border-[#475569] rounded-lg p-2 text-white text-sm" /></div>
+              <div><label className="text-xs text-slate-400">Quantity (m³)</label><input type="number" min="1" value={batch.qty} onChange={e => setBatch({ ...batch, qty: e.target.value })} disabled={batch.running} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2 text-white text-sm" /></div>
+              <div><label className="text-xs text-slate-400">Dispatch Truck</label><input value={batch.truck} onChange={e => setBatch({ ...batch, truck: e.target.value })} disabled={batch.running} placeholder="m05" className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2 text-white text-sm" /></div>
             </div>
             {batch.running && (
-              <div className="bg-[#0f172a] border border-[#334155] rounded-xl p-4 mb-4">
+              <div className="bg-[#0B111E] border border-white/10 rounded-xl p-4 mb-4">
                 <div className="flex justify-between mb-2">
                   <span className="text-sm font-bold text-cyan-400">{batch.running && BATCH_STEPS[Math.min(batch.step, BATCH_STEPS.length - 1)]}</span>
                   <span className="text-sm font-bold text-white">{Math.round(batch.pct)}%</span>
                 </div>
-                <div className="h-3 bg-[#334155] rounded-full overflow-hidden mb-3">
+                <div className="h-3 bg-white/[0.06] rounded-full overflow-hidden mb-3">
                   <div className="h-full bg-gradient-to-r from-cyan-500 to-emerald-500 transition-all duration-300" style={{ width: `${batch.pct}%` }} />
                 </div>
                 <div className="grid grid-cols-7 gap-1 text-center">
                   {BATCH_STEPS.map((s, i) => (
-                    <div key={s} className={`text-[8px] font-bold py-1 rounded ${i < batch.step ? 'bg-emerald-500/30 text-emerald-300' : i === batch.step ? 'bg-cyan-500/40 text-cyan-200 animate-pulse' : 'bg-[#334155] text-slate-500'}`}>{s.split(' ')[0]}</div>
+                    <div key={s} className={`text-[8px] font-bold py-1 rounded ${i < batch.step ? 'bg-emerald-500/30 text-emerald-300' : i === batch.step ? 'bg-cyan-500/40 text-cyan-200 animate-pulse' : 'bg-white/[0.06] text-slate-500'}`}>{s.split(' ')[0]}</div>
                   ))}
                 </div>
               </div>
@@ -857,7 +857,7 @@ export default function Operations() {
               return (
                 <div className="grid grid-cols-2 md:grid-cols-5 gap-2 mb-4">
                   {[{ k: 'Cement', v: kg(r.cement), icon: '🧱' }, { k: 'Sand', v: kg(r.sand), icon: '🏖️' }, { k: 'Gravel', v: kg(r.gravel), icon: '⛰️' }, { k: 'Water', v: kg(r.water), icon: '💧' }, { k: 'Admixture', v: kg(r.admixture), icon: '🧪' }].map((d, i) => (
-                    <div key={d.k} className="bg-[#0f172a] rounded-lg p-2 text-center border border-[#334155]">
+                    <div key={d.k} className="bg-[#0B111E] rounded-lg p-2 text-center border border-white/10">
                       <p className="text-lg">{d.icon}</p>
                       <p className="text-[9px] text-slate-400">{d.k}</p>
                       <p className={`text-sm font-bold ${i < batch.step ? 'text-emerald-400' : 'text-white'}`}>{d.v} kg</p>
@@ -868,11 +868,11 @@ export default function Operations() {
             })()}
             <div className="flex gap-2">
               {!batch.running ? (
-                <button onClick={startBatch} className="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3 rounded-lg">▶ Start Batch</button>
+                <button onClick={startBatch} className="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3 rounded-lg shadow-[0_0_20px_rgba(56,189,248,0.3)]">▶ Start Batch</button>
               ) : (
                 <button onClick={stopBatch} className="flex-1 bg-red-500 hover:bg-red-600 text-white font-bold py-3 rounded-lg">⏹ Stop</button>
               )}
-              <button onClick={() => setShowBatching(false)} className="flex-1 bg-[#334155] hover:bg-[#475569] text-white font-bold py-3 rounded-lg">Close</button>
+              <button onClick={() => setShowBatching(false)} className="flex-1 bg-white/[0.06] hover:bg-white/[0.1] text-white font-bold py-3 rounded-lg">Close</button>
             </div>
           </div>
         </div>
@@ -881,22 +881,22 @@ export default function Operations() {
       {/* 📍 Fleet Map */}
       {showMap && (
         <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-[#1e293b] border border-[#334155] rounded-2xl w-full max-w-4xl p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-center mb-4 border-b border-[#334155] pb-3">
+          <div className="bg-[#0B111E]/95 border border-white/10 rounded-2xl w-full max-w-4xl p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-4 border-b border-white/10 pb-3">
               <h2 className="text-lg font-bold text-white">📍 Live Fleet Map</h2>
               <button onClick={() => setShowMap(false)} className="bg-red-500 hover:bg-red-600 text-white w-7 h-7 rounded-full font-bold text-sm">✕</button>
             </div>
             {activeTrips.length > 0 ? (
               <>
-                <canvas ref={mapRef} width={820} height={420} className="w-full rounded-xl border border-[#334155]" />
+                <canvas ref={mapRef} width={820} height={420} className="w-full rounded-xl border border-white/10" />
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 mt-4">
                   {activeTrips.map(t => {
                     const geo = parseGeo(t.siteGeo!);
                     return (
-                      <div key={t.id} className="bg-[#0f172a] rounded-lg p-3 border border-[#334155]">
+                      <div key={t.id} className="bg-[#0B111E] rounded-lg p-3 border border-white/10">
                         <div className="flex justify-between items-center">
                           <span className="font-bold text-white text-sm">🚚 {t.code}</span>
-                          <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold ${t.status === 'COMPLETED' ? 'bg-emerald-500/20 text-emerald-400' : t.status === 'TRANSIT' ? 'bg-blue-500/20 text-blue-400' : 'bg-yellow-500/20 text-yellow-400'}`}>{t.status}</span>
+                          <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold ${t.status === 'COMPLETED' ? 'bg-emerald-500/20 text-emerald-400' : t.status === 'TRANSIT' ? 'bg-sky-500/20 text-sky-400' : 'bg-yellow-500/20 text-yellow-400'}`}>{t.status}</span>
                         </div>
                         <p className="text-[10px] text-slate-400 mt-1">📍 {geo ? `${geo.lat.toFixed(4)}, ${geo.lng.toFixed(4)}` : '—'}</p>
                         <p className="text-[10px] text-slate-400">{t.siteName} — {t.projectName}</p>
@@ -916,8 +916,8 @@ export default function Operations() {
       {/* Report Modal */}
       {showReport && (
         <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-[#1e293b] border border-[#334155] rounded-2xl w-full max-w-4xl p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-center mb-4 border-b border-[#334155] pb-3">
+          <div className="bg-[#0B111E]/95 border border-white/10 rounded-2xl w-full max-w-4xl p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-4 border-b border-white/10 pb-3">
               <div className="flex items-center gap-3">
                 <PlantLogo username={currentUser.username} height={48} />
                 <div>
@@ -928,26 +928,26 @@ export default function Operations() {
               <button onClick={() => setShowReport(false)} className="bg-red-500 hover:bg-red-600 text-white w-7 h-7 rounded-full font-bold text-sm">✕</button>
             </div>
             <div className="grid grid-cols-3 gap-3 mb-4">
-              <div><label className="text-xs text-slate-400">Plant</label><select value={reportPlant} onChange={e => setReportPlant(e.target.value)} className="w-full bg-[#334155] border border-[#475569] rounded-lg p-2 text-white text-sm"><option value="ALL">All</option><option value="PLANT-A">Plant A</option><option value="PLANT-B">Plant B</option></select></div>
+              <div><label className="text-xs text-slate-400">Plant</label><select value={reportPlant} onChange={e => setReportPlant(e.target.value)} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2 text-white text-sm"><option value="ALL">All</option><option value="PLANT-A">Plant A</option><option value="PLANT-B">Plant B</option></select></div>
               <DatePicker value={reportFrom} onChange={setReportFrom} label="From" />
               <DatePicker value={reportTo} onChange={setReportTo} label="To" />
             </div>
             {/* KPIs */}
             <div className="grid grid-cols-4 gap-3 mb-4">
-              {[{ label: 'Total Poured', value: `${totalQty.toFixed(1)} m³`, color: 'border-emerald-500' }, { label: 'Total Trips', value: String(totalTrips), color: 'border-blue-500' }, { label: 'Fleet Utilization', value: `${utilization.toFixed(1)}%`, color: 'border-yellow-500' }, { label: 'Plant Efficiency', value: `${plantEff.toFixed(1)}%`, color: 'border-purple-500' }].map(kpi => (
-                <div key={kpi.label} className={`bg-[#0f172a] border-l-4 ${kpi.color} p-3 rounded-lg`}>
+              {[{ label: 'Total Poured', value: `${totalQty.toFixed(1)} m³`, color: 'border-emerald-500' }, { label: 'Total Trips', value: String(totalTrips), color: 'border-sky-500' }, { label: 'Fleet Utilization', value: `${utilization.toFixed(1)}%`, color: 'border-yellow-500' }, { label: 'Plant Efficiency', value: `${plantEff.toFixed(1)}%`, color: 'border-sky-500' }].map(kpi => (
+                <div key={kpi.label} className={`bg-[#0B111E] border-l-4 ${kpi.color} p-3 rounded-lg`}>
                   <p className="text-[10px] text-slate-400">{kpi.label}</p><p className="text-lg font-bold text-white">{kpi.value}</p>
                 </div>
               ))}
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm text-slate-300">
-                <thead className="bg-[#334155] text-xs uppercase text-slate-200">
+                <thead className="bg-white/[0.04] text-slate-400 text-xs uppercase">
                   <tr><th className="p-3">Truck</th><th className="p-3">Trips</th><th className="p-3">Load (m³)</th><th className="p-3">Avg Plant</th><th className="p-3">Avg Site</th><th className="p-3">Avg Transit</th><th className="p-3">Avg Total</th><th className="p-3">Notes</th></tr>
                 </thead>
                 <tbody>
                   {Object.values(fleetData).map(fd => (
-                    <tr key={fd.code} className="border-b border-[#334155]">
+                    <tr key={fd.code} className="border-b border-white/10">
                       <td className="p-3 font-bold">{fd.code}</td><td className="p-3">{fd.tripsCount}</td><td className="p-3 text-emerald-400 font-bold">{fd.totalLoad.toFixed(1)} m³</td>
                       <td className="p-3">{Math.round(fd.sumPlant / fd.tripsCount)}m</td><td className="p-3">{Math.round(fd.sumSite / fd.tripsCount)}m</td>
                       <td className="p-3">{Math.round(fd.sumTransit / fd.tripsCount)}m</td><td className="p-3">{Math.round(fd.sumTotal / fd.tripsCount)}m</td>

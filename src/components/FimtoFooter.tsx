@@ -9,7 +9,7 @@ const QUICK_LINKS: { label: string; href?: string }[] = [
 
 export default function FimtoFooter() {
   return (
-    <footer className="w-full bg-[#0b1220] border-t border-[#334155] py-12">
+    <footer className="w-full bg-[#0B111E]/80 border-t border-white/10 py-12">
       <div className="max-w-[1100px] mx-auto px-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-10">
         <div>
           <div className="flex items-center gap-3">
@@ -42,12 +42,12 @@ export default function FimtoFooter() {
                     href={l.href}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-slate-400 hover:text-emerald-500 cursor-pointer transition-colors"
+                    className="text-slate-400 hover:text-sky-400 cursor-pointer transition-colors"
                   >
                     ▸ {l.label}
                   </a>
                 ) : (
-                  <span className="text-slate-400 hover:text-emerald-500 cursor-pointer transition-colors">▸ {l.label}</span>
+                  <span className="text-slate-400 hover:text-sky-400 cursor-pointer transition-colors">▸ {l.label}</span>
                 )}
               </li>
             ))}
@@ -59,19 +59,19 @@ export default function FimtoFooter() {
           <ul className="space-y-2 text-sm text-slate-400">
             <li>
               ✉️{' '}
-              <a href="mailto:info@fimtosoft.com" className="hover:text-emerald-500 transition-colors">
+              <a href="mailto:info@fimtosoft.com" className="hover:text-sky-400 transition-colors">
                 info@fimtosoft.com
               </a>
             </li>
             <li>
               📞 <b className="text-slate-300">EG:</b>{' '}
-              <a href="tel:01001006627" className="hover:text-emerald-500 transition-colors">
+              <a href="tel:01001006627" className="hover:text-sky-400 transition-colors">
                 01001006627
               </a>
             </li>
             <li>
               📞 <b className="text-slate-300">KSA:</b>{' '}
-              <a href="tel:0500439617" className="hover:text-emerald-500 transition-colors">
+              <a href="tel:0500439617" className="hover:text-sky-400 transition-colors">
                 0500439617
               </a>
             </li>

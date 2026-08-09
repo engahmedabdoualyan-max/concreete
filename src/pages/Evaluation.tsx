@@ -379,7 +379,7 @@ export default function Evaluation() {
 
   const getRatingColor = (score: number): string => {
     if (score >= 85) return 'text-emerald-400';
-    if (score >= 70) return 'text-blue-400';
+    if (score >= 70) return 'text-sky-400';
     if (score >= 55) return 'text-yellow-400';
     if (score >= 40) return 'text-orange-400';
     return 'text-red-400';
@@ -395,7 +395,7 @@ export default function Evaluation() {
 
   const getProgressColor = (score: number): string => {
     if (score >= 85) return 'bg-emerald-500';
-    if (score >= 70) return 'bg-blue-500';
+    if (score >= 70) return 'bg-sky-500';
     if (score >= 55) return 'bg-yellow-500';
     if (score >= 40) return 'bg-orange-500';
     return 'bg-red-500';
@@ -409,7 +409,7 @@ export default function Evaluation() {
       score: mixingStationsRating.score,
       maxScore: mixingStationsRating.maxScore,
       details: mixingStationsRating.details,
-      color: 'border-blue-500'
+      color: 'border-sky-500'
     },
     {
       name: 'السيارات الخلاطة',
@@ -425,7 +425,7 @@ export default function Evaluation() {
       score: pumpsRating.score,
       maxScore: pumpsRating.maxScore,
       details: pumpsRating.details,
-      color: 'border-purple-500'
+      color: 'border-sky-500'
     },
     {
       name: 'الورشة',
@@ -455,22 +455,22 @@ export default function Evaluation() {
 
   if (!currentUser) {
     return (
-      <div className="min-h-screen bg-[#0f172a] flex items-center justify-center">
+      <div className="min-h-screen bg-[#0B111E] flex items-center justify-center">
         <div className="text-center">
           <p className="text-red-400 text-xl mb-4">🔒 Access Denied</p>
-          <Link to="/" className="text-blue-400 underline">Back to Login</Link>
+          <Link to="/" className="text-sky-400 underline">Back to Login</Link>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#0f172a] text-[#f1f5f9]">
+    <div className="min-h-screen bg-[#0B111E] text-slate-200">
       {/* Header */}
-      <div className="bg-gradient-to-br from-[#0f1729] to-[#1a2332] border-b border-[#2a3a5c] px-6 py-2.5 flex flex-wrap justify-between items-center gap-x-3 gap-y-1.5 sticky top-0 z-50 shadow-lg">
+      <div className="bg-[#0B111E]/80 backdrop-blur-xl border-b border-white/10 px-6 py-2.5 flex flex-wrap justify-between items-center gap-x-3 gap-y-1.5 sticky top-0 z-50 shadow-lg">
         <div className="flex flex-wrap items-center gap-3">
           <BrandLogo width={56} />
-          <Link to="/" className="text-slate-400 text-xs border border-[#2a3a5c] px-2 py-1 rounded hover:text-white">← Dashboard</Link>
+          <Link to="/" className="text-slate-400 text-xs border border-white/10 px-2 py-1 rounded hover:text-white">← Dashboard</Link>
           <QuickJump />
           <LangSelector />
           <h1 className="text-sm font-bold text-white">📊 التقييم العام للمصنع</h1>
@@ -483,7 +483,7 @@ export default function Evaluation() {
 
       <div className="max-w-7xl mx-auto p-6">
         {/* Date Filter */}
-        <div className="bg-[#1e293b] border border-[#334155] rounded-xl p-4 mb-6">
+        <div className="bg-white/[0.04] border border-white/10 rounded-xl p-4 mb-6 backdrop-blur-xl">
           <h3 className="text-sm font-bold text-white mb-3">📅 فترة التقييم</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <DatePicker
@@ -503,7 +503,7 @@ export default function Evaluation() {
         </div>
 
         {/* Final Rating */}
-        <div className="bg-gradient-to-br from-[#1e293b] to-[#0f172a] border-2 border-[#334155] rounded-xl p-8 mb-6 text-center">
+        <div className="bg-gradient-to-br from-white/[0.06] to-white/[0.02] border-2 border-white/10 rounded-xl p-8 mb-6 text-center backdrop-blur-xl">
           <h2 className="text-xl font-bold text-white mb-4">🏆 التقييم النهائي لأداء المصنع</h2>
           <div className="relative inline-block">
             <div className={`text-7xl font-black ${getRatingColor(finalRating)}`}>
@@ -515,7 +515,7 @@ export default function Evaluation() {
             {getRatingLabel(finalRating)}
           </div>
           <div className="mt-6 max-w-2xl mx-auto">
-            <div className="h-4 bg-[#334155] rounded-full overflow-hidden">
+            <div className="h-4 bg-white/[0.06] rounded-full overflow-hidden">
               <div
                 className={`h-full ${getProgressColor(finalRating)} transition-all duration-1000`}
                 style={{ width: `${finalRating}%` }}
@@ -529,7 +529,7 @@ export default function Evaluation() {
           {ratingSections.map((section, index) => (
             <div
               key={index}
-              className={`bg-[#1e293b] border-l-4 ${section.color} rounded-xl p-5 hover:scale-105 transition-transform`}
+              className={`bg-white/[0.04] border-l-4 ${section.color} rounded-xl p-5 hover:scale-105 transition-transform backdrop-blur-xl`}
             >
               <div className="flex items-center justify-between mb-3">
                 <h3 className="text-lg font-bold text-white flex items-center gap-2">
@@ -542,7 +542,7 @@ export default function Evaluation() {
               </div>
 
               <div className="mb-3">
-                <div className="h-2 bg-[#334155] rounded-full overflow-hidden">
+                <div className="h-2 bg-white/[0.06] rounded-full overflow-hidden">
                   <div
                     className={`h-full ${getProgressColor(section.score)} transition-all duration-500`}
                     style={{ width: `${section.score}%` }}
@@ -554,7 +554,7 @@ export default function Evaluation() {
                 {section.details}
               </p>
 
-              <div className="mt-3 pt-3 border-t border-[#334155]">
+              <div className="mt-3 pt-3 border-t border-white/10">
                 <span className={`text-xs font-bold ${getRatingColor(section.score)}`}>
                   {getRatingLabel(section.score)}
                 </span>
@@ -564,24 +564,24 @@ export default function Evaluation() {
         </div>
 
         {/* Summary Stats */}
-        <div className="bg-[#1e293b] border border-[#334155] rounded-xl p-6">
-          <h3 className="text-lg font-bold text-white mb-4">📈 ملخص الإحصائيات</h3>
+        <div className="bg-white/[0.04] border border-white/10 rounded-xl p-6 backdrop-blur-xl">
+          <h3 className="text-lg font-black tracking-tight text-white mb-4">📈 ملخص الإحصائيات</h3>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="bg-[#0f172a] rounded-lg p-4">
+            <div className="bg-white/[0.02] rounded-lg p-4">
               <p className="text-xs text-slate-400 mb-1">إجمالي الرحلات</p>
               <p className="text-2xl font-bold text-white">{filteredTrips.length}</p>
             </div>
-            <div className="bg-[#0f172a] rounded-lg p-4">
+            <div className="bg-white/[0.02] rounded-lg p-4">
               <p className="text-xs text-slate-400 mb-1">إجمالي الكمية</p>
               <p className="text-2xl font-bold text-emerald-400">
                 {filteredTrips.reduce((s, t) => s + (t.qty || 0), 0).toFixed(0)} م³
               </p>
             </div>
-            <div className="bg-[#0f172a] rounded-lg p-4">
+            <div className="bg-white/[0.02] rounded-lg p-4">
               <p className="text-xs text-slate-400 mb-1">إجمالي الطلبات</p>
-              <p className="text-2xl font-bold text-blue-400">{filteredOrders.length}</p>
+              <p className="text-2xl font-bold text-sky-400">{filteredOrders.length}</p>
             </div>
-            <div className="bg-[#0f172a] rounded-lg p-4">
+            <div className="bg-white/[0.02] rounded-lg p-4">
               <p className="text-xs text-slate-400 mb-1">الأعطال</p>
               <p className="text-2xl font-bold text-red-400">
                 {filteredBreakdowns.filter(b => b.status !== 'Resolved').length}
@@ -591,8 +591,8 @@ export default function Evaluation() {
         </div>
 
         {/* Recommendations */}
-        <div className="bg-blue-500/10 border border-blue-500/30 rounded-xl p-6 mt-6">
-          <h3 className="text-lg font-bold text-blue-400 mb-4">💡 التوصيات</h3>
+        <div className="bg-sky-500/10 border border-sky-500/30 rounded-xl p-6 mt-6">
+          <h3 className="text-lg font-black tracking-tight text-sky-400 mb-4">💡 التوصيات</h3>
           <ul className="space-y-2 text-sm text-slate-300">
             {mixingStationsRating.score < 70 && (
               <li>⚠️ <strong>محطات الخلط:</strong> يجب تحسين الكفاءة التشغيلية للمحطات</li>
@@ -622,7 +622,7 @@ export default function Evaluation() {
         <div className="mt-6 flex justify-center">
           <button
             onClick={() => window.print()}
-            className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-lg"
+            className="bg-sky-500 hover:bg-sky-400 text-white font-bold py-3 px-8 rounded-lg shadow-[0_0_20px_rgba(56,189,248,0.3)]"
           >
             🖨️ طباعة التقرير
           </button>

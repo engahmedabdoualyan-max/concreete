@@ -304,25 +304,25 @@ export default function Orders() {
 
   if (!currentUser) {
     return (
-      <div className="min-h-screen bg-[#0f172a] flex items-center justify-center">
+      <div className="min-h-screen bg-[#0B111E] flex items-center justify-center">
         <div className="text-center">
           <p className="text-red-400 text-xl mb-4">🔒 Access Denied</p>
-          <Link to="/" className="text-blue-400 underline">Back to Login</Link>
+          <Link to="/" className="text-sky-400 underline">Back to Login</Link>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#0f172a] text-[#f1f5f9]">
+    <div className="min-h-screen bg-[#0B111E] text-slate-200">
       {/* Header */}
-      <div className="bg-gradient-to-br from-[#0f1729] to-[#1a2332] border-b border-[#2a3a5c] px-6 py-2.5 flex flex-wrap justify-between items-center gap-x-3 gap-y-1.5 sticky top-0 z-50 shadow-lg">
+      <div className="bg-[#0B111E]/80 backdrop-blur-xl border-b border-white/10 px-6 py-2.5 flex flex-wrap justify-between items-center gap-x-3 gap-y-1.5 sticky top-0 z-50 shadow-lg">
         <div className="flex flex-wrap items-center gap-3">
           <BrandLogo width={56} />
-          <Link to="/" className="text-slate-400 text-xs border border-[#2a3a5c] px-2 py-1 rounded hover:text-white">← Dashboard</Link>
+          <Link to="/" className="text-slate-400 text-xs border border-white/10 px-2 py-1 rounded hover:text-white">← Dashboard</Link>
           <QuickJump />
           <LangSelector />
-          <h1 className="text-sm font-bold text-white">📦 نظام الطلبات</h1>
+          <h1 className="text-sm font-black tracking-tight text-white">📦 نظام الطلبات</h1>
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <NotificationsBell />
@@ -333,31 +333,31 @@ export default function Orders() {
       <div className="max-w-7xl mx-auto p-6">
         {/* Statistics */}
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3 mb-6">
-          <div className="bg-[#1e293b] border border-[#334155] rounded-lg p-4">
+          <div className="bg-white/[0.04] border border-white/10 rounded-lg p-4">
             <p className="text-xs text-slate-400 mb-1">إجمالي الطلبات</p>
             <p className="text-2xl font-bold text-white">{stats.total}</p>
           </div>
-          <div className="bg-[#1e293b] border border-yellow-500/30 rounded-lg p-4">
+          <div className="bg-white/[0.04] border border-yellow-500/30 rounded-lg p-4">
             <p className="text-xs text-slate-400 mb-1">قيد الانتظار</p>
             <p className="text-2xl font-bold text-yellow-400">{stats.pending}</p>
           </div>
-          <div className="bg-[#1e293b] border border-blue-500/30 rounded-lg p-4">
+          <div className="bg-white/[0.04] border border-sky-500/30 rounded-lg p-4">
             <p className="text-xs text-slate-400 mb-1">مجدول</p>
-            <p className="text-2xl font-bold text-blue-400">{stats.scheduled}</p>
+            <p className="text-2xl font-bold text-sky-400">{stats.scheduled}</p>
           </div>
-          <div className="bg-[#1e293b] border border-emerald-500/30 rounded-lg p-4">
+          <div className="bg-white/[0.04] border border-emerald-500/30 rounded-lg p-4">
             <p className="text-xs text-slate-400 mb-1">مكتمل</p>
             <p className="text-2xl font-bold text-emerald-400">{stats.completed}</p>
           </div>
-          <div className="bg-[#1e293b] border border-orange-500/30 rounded-lg p-4">
+          <div className="bg-white/[0.04] border border-orange-500/30 rounded-lg p-4">
             <p className="text-xs text-slate-400 mb-1">بانتظار الحسابات</p>
             <p className="text-2xl font-bold text-orange-400">{stats.accountPending}</p>
           </div>
-          <div className="bg-[#1e293b] border border-purple-500/30 rounded-lg p-4">
+          <div className="bg-white/[0.04] border border-sky-500/30 rounded-lg p-4">
             <p className="text-xs text-slate-400 mb-1">عليه ديون</p>
-            <p className="text-2xl font-bold text-purple-400">{stats.hasDebt}</p>
+            <p className="text-2xl font-bold text-sky-400">{stats.hasDebt}</p>
           </div>
-          <div className="bg-[#1e293b] border border-red-500/30 rounded-lg p-4">
+          <div className="bg-white/[0.04] border border-red-500/30 rounded-lg p-4">
             <p className="text-xs text-slate-400 mb-1">محظور</p>
             <p className="text-2xl font-bold text-red-400">{stats.blocked}</p>
           </div>
@@ -368,20 +368,20 @@ export default function Orders() {
           <div className="flex gap-2">
             <button
               onClick={() => setShowCustomers(true)}
-              className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg font-bold text-sm"
+              className="bg-sky-500 hover:bg-sky-400 text-white px-4 py-2 rounded-lg font-bold text-sm"
             >
               👥 إدارة العملاء
             </button>
             <button
               onClick={() => { resetForm(); setShowForm(true); }}
-              className="bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2 rounded-lg font-bold text-sm"
+              className="bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2 rounded-lg font-bold text-sm shadow-[0_0_20px_rgba(56,189,248,0.3)]"
             >
               ➕ إضافة طلب جديد
             </button>
             <select
               value={filter}
               onChange={(e) => setFilter(e.target.value as any)}
-              className="bg-[#1e293b] border border-[#334155] text-white px-4 py-2 rounded-lg text-sm"
+              className="bg-white/[0.04] border border-white/10 text-white px-4 py-2 rounded-lg text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]"
             >
               <option value="all">جميع الطلبات</option>
               <option value="pending">قيد الانتظار</option>
@@ -391,7 +391,7 @@ export default function Orders() {
           </div>
           <Link
             to="/schedule"
-            className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg font-bold text-sm"
+            className="bg-sky-500 hover:bg-sky-400 text-white px-4 py-2 rounded-lg font-bold text-sm"
           >
             📅 الذهاب إلى الجدول
           </Link>
@@ -400,13 +400,13 @@ export default function Orders() {
         {/* Order Form Modal */}
         {showForm && (
           <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-            <div className="bg-[#1e293b] rounded-xl p-6 max-w-3xl w-full max-h-[90vh] overflow-y-auto">
-              <h2 className="text-xl font-bold text-white mb-4">
+            <div className="bg-[#0B111E]/95 border border-white/10 rounded-xl p-6 max-w-3xl w-full max-h-[90vh] overflow-y-auto">
+              <h2 className="text-xl font-black tracking-tight text-white mb-4">
                 {editingOrder ? '✏️ تعديل الطلب' : '➕ طلب جديد'}
               </h2>
 
               {editingOrder?.orderNo && (
-                <p className="text-xs font-bold text-blue-400 mb-3">🆔 رقم الطلب: <span className="text-white">{editingOrder.orderNo}</span></p>
+                <p className="text-xs font-bold text-sky-400 mb-3">🆔 رقم الطلب: <span className="text-white">{editingOrder.orderNo}</span></p>
               )}
 
               <form onSubmit={handleSubmit} className="space-y-4">
@@ -425,15 +425,15 @@ export default function Orders() {
                       name="orderTime"
                       value={form.orderTime}
                       onChange={handleInputChange}
-                      className="w-full bg-[#334155] border border-[#475569] rounded-lg p-2 text-white text-sm"
+                      className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]"
                       required
                     />
                   </div>
                 </div>
 
                 {/* بيانات العميل */}
-                <div className="bg-[#0f172a] p-4 rounded-lg border border-[#334155]">
-                  <h3 className="text-sm font-bold text-blue-400 mb-3">👤 بيانات العميل</h3>
+                <div className="bg-[#0B111E] p-4 rounded-lg border border-white/10">
+                  <h3 className="text-sm font-bold text-sky-400 mb-3">👤 بيانات العميل</h3>
                   <div className="grid grid-cols-1 gap-3 mb-3">
                     <div>
                       <label className="text-xs text-slate-400 mb-1 block">العميل (من قاعدة العملاء) — اختياري، يملأ الاسم والهاتف تلقائياً</label>
@@ -448,7 +448,7 @@ export default function Orders() {
                             if (c) setForm(prev => ({ ...prev, customerName: c.name, customerPhone: c.phone, customerCode: c.code }));
                           }
                         }}
-                        className="w-full bg-[#334155] border border-[#475569] rounded-lg p-2 text-white text-sm"
+                        className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]"
                       >
                         <option value="">— بدون اختيار (أدخل يدوياً) —</option>
                         {customers.map(c => <option key={c.id} value={c.id}>{c.code} · {c.name}</option>)}
@@ -463,7 +463,7 @@ export default function Orders() {
                         name="customerName"
                         value={form.customerName}
                         onChange={handleInputChange}
-                        className="w-full bg-[#334155] border border-[#475569] rounded-lg p-2 text-white text-sm"
+                        className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]"
                         required
                       />
                     </div>
@@ -474,7 +474,7 @@ export default function Orders() {
                         name="customerPhone"
                         value={form.customerPhone}
                         onChange={handleInputChange}
-                        className="w-full bg-[#334155] border border-[#475569] rounded-lg p-2 text-white text-sm"
+                        className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]"
                         required
                       />
                     </div>
@@ -482,8 +482,8 @@ export default function Orders() {
                 </div>
 
                 {/* بيانات المشروع */}
-                <div className="bg-[#0f172a] p-4 rounded-lg border border-[#334155]">
-                  <h3 className="text-sm font-bold text-blue-400 mb-3">🏗️ بيانات المشروع</h3>
+                <div className="bg-[#0B111E] p-4 rounded-lg border border-white/10">
+                  <h3 className="text-sm font-bold text-sky-400 mb-3">🏗️ بيانات المشروع</h3>
                   <div className="space-y-3">
                     <div>
                       <label className="text-xs text-slate-400 mb-1 block">اسم المشروع *</label>
@@ -492,7 +492,7 @@ export default function Orders() {
                         name="projectName"
                         value={form.projectName}
                         onChange={handleInputChange}
-                        className="w-full bg-[#334155] border border-[#475569] rounded-lg p-2 text-white text-sm"
+                        className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]"
                         required
                       />
                     </div>
@@ -503,7 +503,7 @@ export default function Orders() {
                         name="projectLocation"
                         value={form.projectLocation}
                         onChange={handleInputChange}
-                        className="w-full bg-[#334155] border border-[#475569] rounded-lg p-2 text-white text-sm"
+                        className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]"
                       />
                     </div>
                     <div>
@@ -514,15 +514,15 @@ export default function Orders() {
                         value={form.locationCoords}
                         onChange={handleInputChange}
                         placeholder="26.4207, 50.0888"
-                        className="w-full bg-[#334155] border border-[#475569] rounded-lg p-2 text-white text-sm"
+                        className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]"
                       />
                     </div>
                   </div>
                 </div>
 
                 {/* تفاصيل الطلب */}
-                <div className="bg-[#0f172a] p-4 rounded-lg border border-[#334155]">
-                  <h3 className="text-sm font-bold text-blue-400 mb-3">📦 تفاصيل الطلب</h3>
+                <div className="bg-[#0B111E] p-4 rounded-lg border border-white/10">
+                  <h3 className="text-sm font-bold text-sky-400 mb-3">📦 تفاصيل الطلب</h3>
                   <div className="space-y-3">
                     <div>
                       <label className="text-xs text-slate-400 mb-1 block">نوع الطلب *</label>
@@ -530,7 +530,7 @@ export default function Orders() {
                         name="orderType"
                         value={form.orderType}
                         onChange={handleInputChange}
-                        className="w-full bg-[#334155] border border-[#475569] rounded-lg p-2 text-white text-sm"
+                        className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]"
                       >
                         <option value="concrete">🏗️ خرسانة</option>
                         <option value="blocks">🧱 بلوك</option>
@@ -543,7 +543,7 @@ export default function Orders() {
                         name="elementType"
                         value={form.elementType}
                         onChange={handleInputChange}
-                        className="w-full bg-[#334155] border border-[#475569] rounded-lg p-2 text-white text-sm"
+                        className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]"
                         required
                       >
                         <option value="foundation">🏗️ قواعد/أساسات</option>
@@ -566,7 +566,7 @@ export default function Orders() {
                         onChange={handleInputChange}
                         step="0.5"
                         min="0"
-                        className="w-full bg-[#334155] border border-[#475569] rounded-lg p-2 text-white text-sm"
+                        className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]"
                         required
                       />
                       <p className="text-xs text-slate-500 mt-1">
@@ -583,7 +583,7 @@ export default function Orders() {
                               name="concreteType"
                               value={form.concreteType}
                               onChange={handleInputChange}
-                              className="w-full bg-[#334155] border border-[#475569] rounded-lg p-2 text-white text-sm"
+                              className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]"
                               required
                             >
                               <option value="2000">2000 (عادية)</option>
@@ -603,7 +603,7 @@ export default function Orders() {
                               onChange={handleInputChange}
                               min="5"
                               max="20"
-                              className="w-full bg-[#334155] border border-[#475569] rounded-lg p-2 text-white text-sm"
+                              className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]"
                             />
                           </div>
                         </div>
@@ -614,7 +614,7 @@ export default function Orders() {
                             name="cementType"
                             value={form.cementType}
                             onChange={handleInputChange}
-                            className="w-full bg-[#334155] border border-[#475569] rounded-lg p-2 text-white text-sm"
+                            className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]"
                             required
                           >
                             <option value="ordinary">🏭 عادي (OPC)</option>
@@ -625,10 +625,10 @@ export default function Orders() {
                     )}
 
                     {/* جاهزية الموقع */}
-                    <div className="border-t border-[#334155] pt-3 mt-3">
-                      <label className="text-xs text-blue-400 font-bold mb-2 block">🏗️ جاهزية الموقع</label>
+                    <div className="border-t border-white/10 pt-3 mt-3">
+                      <label className="text-xs text-sky-400 font-bold mb-2 block">🏗️ جاهزية الموقع</label>
                       <div className="grid grid-cols-2 gap-3">
-                        <label className="flex items-center gap-2 text-xs text-slate-400 cursor-pointer bg-[#334155] p-2 rounded">
+                        <label className="flex items-center gap-2 text-xs text-slate-400 cursor-pointer bg-white/[0.06] p-2 rounded">
                           <input
                             type="checkbox"
                             name="siteReady"
@@ -638,7 +638,7 @@ export default function Orders() {
                           />
                           <span>✓ الموقع جاهز للصب</span>
                         </label>
-                        <label className="flex items-center gap-2 text-xs text-slate-400 cursor-pointer bg-[#334155] p-2 rounded">
+                        <label className="flex items-center gap-2 text-xs text-slate-400 cursor-pointer bg-white/[0.06] p-2 rounded">
                           <input
                             type="checkbox"
                             name="pumpAccessible"
@@ -652,10 +652,10 @@ export default function Orders() {
                     </div>
 
                     {/* المتطلبات */}
-                    <div className="border-t border-[#334155] pt-3 mt-3">
-                      <label className="text-xs text-blue-400 font-bold mb-2 block">📋 المتطلبات</label>
+                    <div className="border-t border-white/10 pt-3 mt-3">
+                      <label className="text-xs text-sky-400 font-bold mb-2 block">📋 المتطلبات</label>
                       <div className="grid grid-cols-2 gap-3">
-                        <label className="flex items-center gap-2 text-xs text-slate-400 cursor-pointer bg-[#334155] p-2 rounded">
+                        <label className="flex items-center gap-2 text-xs text-slate-400 cursor-pointer bg-white/[0.06] p-2 rounded">
                           <input
                             type="checkbox"
                             name="requiresPump"
@@ -665,7 +665,7 @@ export default function Orders() {
                           />
                           <span>🚰 طالب تلج (مضخة)</span>
                         </label>
-                        <label className="flex items-center gap-2 text-xs text-slate-400 cursor-pointer bg-[#334155] p-2 rounded">
+                        <label className="flex items-center gap-2 text-xs text-slate-400 cursor-pointer bg-white/[0.06] p-2 rounded">
                           <input
                             type="checkbox"
                             name="requiresLab"
@@ -681,8 +681,8 @@ export default function Orders() {
                 </div>
 
                 {/* المندوب والمحاسب */}
-                <div className="bg-[#0f172a] p-4 rounded-lg border border-purple-500/30">
-                  <h3 className="text-sm font-bold text-purple-400 mb-3">👥 المندوب والمحاسب</h3>
+                <div className="bg-white/[0.03] p-4 rounded-lg border border-sky-500/30">
+                  <h3 className="text-sm font-bold text-sky-400 mb-3">👥 المندوب والمحاسب</h3>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="text-xs text-slate-400 mb-1 block">📱 اسم المندوب *</label>
@@ -692,7 +692,7 @@ export default function Orders() {
                         value={form.salesRep}
                         onChange={handleInputChange}
                         placeholder="اسم مندوب المبيعات"
-                        className="w-full bg-[#334155] border border-[#475569] rounded-lg p-2 text-white text-sm"
+                        className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]"
                         required
                       />
                     </div>
@@ -704,7 +704,7 @@ export default function Orders() {
                         value={form.accountant}
                         onChange={handleInputChange}
                         placeholder="اسم المحاسب المسئول"
-                        className="w-full bg-[#334155] border border-[#475569] rounded-lg p-2 text-white text-sm"
+                        className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]"
                         required
                       />
                     </div>
@@ -717,13 +717,13 @@ export default function Orders() {
                       value={form.customerCode}
                       onChange={handleInputChange}
                       placeholder="سيتم إنشاؤه بعد الموافقة"
-                      className="w-full bg-[#334155] border border-[#475569] rounded-lg p-2 text-white text-sm"
+                      className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]"
                     />
                   </div>
                 </div>
 
                 {/* قرار المحاسب */}
-                <div className="bg-[#0f172a] p-4 rounded-lg border border-orange-500/30">
+                <div className="bg-[#0B111E] p-4 rounded-lg border border-orange-500/30">
                   <h3 className="text-sm font-bold text-orange-400 mb-3">💰 قرار المحاسب</h3>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
@@ -732,7 +732,7 @@ export default function Orders() {
                         name="accountantDecision"
                         value={form.accountantDecision}
                         onChange={handleInputChange}
-                        className="w-full bg-[#334155] border border-[#475569] rounded-lg p-2 text-white text-sm"
+                        className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]"
                         required
                       >
                         <option value="execute">✅ تنفيذ</option>
@@ -746,7 +746,7 @@ export default function Orders() {
                         name="accountStatus"
                         value={form.accountStatus}
                         onChange={handleInputChange}
-                        className="w-full bg-[#334155] border border-[#475569] rounded-lg p-2 text-white text-sm"
+                        className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]"
                       >
                         <option value="pending">⏳ بانتظار المراجعة</option>
                         <option value="approved">✅ موافق عليه</option>
@@ -761,7 +761,7 @@ export default function Orders() {
                       name="debtStatus"
                       value={form.debtStatus}
                       onChange={handleInputChange}
-                      className="w-full bg-[#334155] border border-[#475569] rounded-lg p-2 text-white text-sm"
+                      className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]"
                     >
                       <option value="clear">✅ لا يوجد ديون</option>
                       <option value="has_debt">⚠️ عليه ديون</option>
@@ -778,7 +778,7 @@ export default function Orders() {
                     value={form.notes}
                     onChange={handleInputChange}
                     rows={3}
-                    className="w-full bg-[#334155] border border-[#475569] rounded-lg p-2 text-white text-sm"
+                    className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]"
                   />
                 </div>
 
@@ -793,7 +793,7 @@ export default function Orders() {
                   <button
                     type="button"
                     onClick={() => { setShowForm(false); setEditingOrder(null); resetForm(); }}
-                    className="flex-1 bg-slate-600 hover:bg-slate-700 text-white font-bold py-2 rounded-lg"
+                    className="flex-1 bg-white/[0.06] hover:bg-white/[0.1] text-white font-bold py-2 rounded-lg"
                   >
                     ❌ إلغاء
                   </button>
@@ -804,21 +804,21 @@ export default function Orders() {
         )}
 
         {/* Orders List */}
-        <div className="bg-[#1e293b] rounded-xl border border-[#334155] overflow-hidden">
+        <div className="bg-white/[0.04] rounded-xl border border-white/10 overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full">
-              <thead className="bg-[#0f172a] border-b border-[#334155]">
+              <thead className="bg-white/[0.04] border-b border-white/10">
                 <tr>
-                  <th className="text-right p-3 text-xs font-semibold text-slate-400">التاريخ/الوقت</th>
-                  <th className="text-right p-3 text-xs font-semibold text-slate-400">رقم الطلب</th>
-                  <th className="text-right p-3 text-xs font-semibold text-slate-400">العميل</th>
-                  <th className="text-right p-3 text-xs font-semibold text-slate-400">المشروع</th>
-                  <th className="text-right p-3 text-xs font-semibold text-slate-400">النوع</th>
-                  <th className="text-right p-3 text-xs font-semibold text-slate-400">الكمية</th>
-                  <th className="text-right p-3 text-xs font-semibold text-slate-400">الحسابات</th>
-                  <th className="text-right p-3 text-xs font-semibold text-slate-400">الديون</th>
-                  <th className="text-right p-3 text-xs font-semibold text-slate-400">الحالة</th>
-                  <th className="text-right p-3 text-xs font-semibold text-slate-400">إجراءات</th>
+                  <th className="text-right p-3 text-[10px] uppercase tracking-wider text-slate-400">التاريخ/الوقت</th>
+                  <th className="text-right p-3 text-[10px] uppercase tracking-wider text-slate-400">رقم الطلب</th>
+                  <th className="text-right p-3 text-[10px] uppercase tracking-wider text-slate-400">العميل</th>
+                  <th className="text-right p-3 text-[10px] uppercase tracking-wider text-slate-400">المشروع</th>
+                  <th className="text-right p-3 text-[10px] uppercase tracking-wider text-slate-400">النوع</th>
+                  <th className="text-right p-3 text-[10px] uppercase tracking-wider text-slate-400">الكمية</th>
+                  <th className="text-right p-3 text-[10px] uppercase tracking-wider text-slate-400">الحسابات</th>
+                  <th className="text-right p-3 text-[10px] uppercase tracking-wider text-slate-400">الديون</th>
+                  <th className="text-right p-3 text-[10px] uppercase tracking-wider text-slate-400">الحالة</th>
+                  <th className="text-right p-3 text-[10px] uppercase tracking-wider text-slate-400">إجراءات</th>
                 </tr>
               </thead>
               <tbody>
@@ -830,13 +830,13 @@ export default function Orders() {
                   </tr>
                 ) : (
                   filteredOrders.map(order => (
-                    <tr key={order.id} className="border-b border-[#334155] hover:bg-[#0f172a]/50">
+                    <tr key={order.id} className="border-b border-white/10 hover:bg-white/[0.05]">
                       <td className="p-3 text-sm">
                         <div className="text-white">{order.orderDate}</div>
                         <div className="text-xs text-slate-400">{order.orderTime}</div>
                       </td>
                       <td className="p-3 text-sm">
-                        <div className="text-white font-bold text-blue-400">{order.orderNo || '—'}</div>
+                        <div className="text-white font-bold text-sky-400">{order.orderNo || '—'}</div>
                         <div className="text-xs text-slate-400">{order.customerCode || '—'}</div>
                       </td>
                       <td className="p-3">
@@ -847,8 +847,8 @@ export default function Orders() {
                       <td className="p-3">
                         <span className={`px-2 py-1 rounded text-xs font-bold ${
                           order.orderType === 'concrete'
-                            ? 'bg-blue-500/20 text-blue-400'
-                            : 'bg-purple-500/20 text-purple-400'
+                            ? 'bg-sky-500/20 text-sky-400'
+                            : 'bg-cyan-500/20 text-cyan-400'
                         }`}>
                           {order.orderType === 'concrete' ? '🏗️ خرسانة' : '🧱 بلوك'}
                         </span>
@@ -896,7 +896,7 @@ export default function Orders() {
                           order.status === 'pending'
                             ? 'bg-yellow-500/20 text-yellow-400'
                             : order.status === 'scheduled'
-                            ? 'bg-blue-500/20 text-blue-400'
+                            ? 'bg-sky-500/20 text-sky-400'
                             : 'bg-emerald-500/20 text-emerald-400'
                         }`}>
                           {order.status === 'pending' ? '⏳ انتظار' : order.status === 'scheduled' ? '📅 مجدول' : '✅ مكتمل'}
@@ -907,7 +907,7 @@ export default function Orders() {
                           {order.status === 'pending' && order.accountStatus === 'approved' && order.debtStatus !== 'blocked' && (
                             <button
                               onClick={() => handleMarkScheduled(order.id)}
-                              className="bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded text-xs"
+                              className="bg-sky-500 hover:bg-sky-400 text-white px-2 py-1 rounded text-xs"
                             >
                               📅 جدولة
                             </button>
@@ -951,8 +951,8 @@ export default function Orders() {
         </div>
 
         {/* Info Box */}
-        <div className="mt-6 bg-blue-500/10 border border-blue-500/30 rounded-lg p-4">
-          <h3 className="text-sm font-bold text-blue-400 mb-2">💡 كيفية الاستخدام</h3>
+        <div className="mt-6 bg-sky-500/10 border border-sky-500/30 rounded-lg p-4">
+          <h3 className="text-sm font-bold text-sky-400 mb-2">💡 كيفية الاستخدام</h3>
           <ul className="text-xs text-slate-300 space-y-1">
             <li>✅ أضف الطلبات مع تحديد تاريخ ووقت الطلب</li>
             <li>✅ اوافق على الحسابات بعد التحقق من حالة العميل</li>
@@ -964,9 +964,9 @@ export default function Orders() {
       </div>
       {showCustomers && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-[#1e293b] rounded-xl p-6 max-w-lg w-full max-h-[90vh] overflow-y-auto">
+          <div className="bg-[#0B111E]/95 border border-white/10 rounded-xl p-6 max-w-lg w-full max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-lg font-bold text-white">👥 إدارة العملاء</h2>
+              <h2 className="text-lg font-black tracking-tight text-white">👥 إدارة العملاء</h2>
               <button onClick={() => setShowCustomers(false)} className="bg-red-500 hover:bg-red-600 text-white w-7 h-7 rounded-full font-bold text-sm">✕</button>
             </div>
             <CustomersManager onSelect={(c) => {

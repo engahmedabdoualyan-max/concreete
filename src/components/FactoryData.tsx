@@ -103,7 +103,7 @@ export default function FactoryData({ onToast, section }: { onToast: (msg: strin
 
   const saveStock = (key: string, value: number) => setStock(prev => ({ ...prev, [key]: value }));
 
-  const fieldCls = 'w-full bg-[#0f172a] border border-[#334155] text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm px-3 py-2';
+  const fieldCls = 'w-full bg-white/[0.04] border border-white/10 text-white rounded-lg focus:outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)] text-sm px-3 py-2';
 
   return (
     <div className="space-y-8">
@@ -111,10 +111,10 @@ export default function FactoryData({ onToast, section }: { onToast: (msg: strin
 
       {/* ===== Fleet / Equipment ===== */}
       {(showAll || section === 'fleet') && (
-      <div className="bg-[#1e293b] rounded-2xl border border-[#334155] p-6">
+      <div className="bg-white/[0.04] rounded-2xl border border-white/10 p-6">
         <div className="flex items-center justify-between mb-2">
           <h2 className="text-lg font-bold text-white">🚛 Factory Fleet & Equipment (Linked to Workshop)</h2>
-          <span className="text-xs px-2.5 py-1 rounded font-bold bg-orange-500/20 text-orange-400">{assets.length} assets</span>
+          <span className="text-xs px-2.5 py-1 rounded font-bold bg-amber-500/20 text-amber-400">{assets.length} assets</span>
         </div>
         <p className="text-xs text-slate-400 mb-4">Vehicles and equipment with GPS, type, capacity and production rate. Saved to the shared database — Workshop, Operations and the GPS map use the same records.</p>
 
@@ -148,7 +148,7 @@ export default function FactoryData({ onToast, section }: { onToast: (msg: strin
           <div><label className="text-[10px] text-slate-400 font-semibold">GPS Longitude</label>
             <input value={assetForm.gpsLng} onChange={e => setAssetField('gpsLng', e.target.value)} placeholder="46.6753" className={fieldCls} /></div>
         </div>
-        <button onClick={addAsset} className="bg-gradient-to-r from-orange-600 to-orange-700 hover:from-orange-700 hover:to-orange-800 text-white font-bold py-2.5 px-6 rounded-lg transition-all duration-300">
+        <button onClick={addAsset} className="bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-white font-bold py-2.5 px-6 rounded-lg transition-all duration-300 shadow-[0_0_20px_rgba(56,189,248,0.3)]">
           💾 Save Asset
         </button>
 
@@ -157,12 +157,12 @@ export default function FactoryData({ onToast, section }: { onToast: (msg: strin
         ) : (
           <div className="overflow-x-auto mt-5">
             <table className="w-full text-xs text-slate-300">
-              <thead className="bg-[#334155]"><tr>
-                {['Code', 'Type', 'Plate', 'Driver', 'Status', 'Capacity', 'Prod Rate', 'GPS Tracker', '📍 Position', 'Details', ''].map(h => <th key={h} className="p-2">{h}</th>)}
+              <thead className="bg-white/[0.04] text-slate-400"><tr>
+                {['Code', 'Type', 'Plate', 'Driver', 'Status', 'Capacity', 'Prod Rate', 'GPS Tracker', '📍 Position', 'Details', ''].map(h => <th key={h} className="p-2 text-[10px] uppercase tracking-wider">{h}</th>)}
               </tr></thead>
               <tbody>
                 {assets.map(a => (
-                  <tr key={a.id} className="border-b border-[#334155]/30">
+                  <tr key={a.id} className="border-b border-white/10">
                     <td className="p-2 font-bold text-white">{a.id}</td>
                     <td className="p-2">{a.type}</td>
                     <td className="p-2">{a.plate}</td>
@@ -179,7 +179,7 @@ export default function FactoryData({ onToast, section }: { onToast: (msg: strin
                     </td>
                     <td className="p-2">{a.model || '—'} {a.year ? `· ${a.year}` : ''}</td>
                     <td className="p-2 flex gap-1">
-                      <button onClick={() => editAsset(a)} className="bg-blue-600 text-white text-[10px] px-2 py-1 rounded">Edit</button>
+                      <button onClick={() => editAsset(a)} className="bg-sky-500 text-white text-[10px] px-2 py-1 rounded">Edit</button>
                       <button onClick={() => deleteAsset(a.id)} className="bg-red-600 text-white text-[10px] px-2 py-1 rounded">Del</button>
                     </td>
                   </tr>
@@ -193,7 +193,7 @@ export default function FactoryData({ onToast, section }: { onToast: (msg: strin
 
       {/* ===== Raw Material Stock ===== */}
       {(showAll || section === 'stock') && (
-      <div className="bg-[#1e293b] rounded-2xl border border-[#334155] p-6">
+      <div className="bg-white/[0.04] rounded-2xl border border-white/10 p-6">
         <div className="flex items-center justify-between mb-2">
           <h2 className="text-lg font-bold text-white">🧱 Raw Material Stock (Linked to Production & Reorder)</h2>
           <span className="text-xs px-2.5 py-1 rounded font-bold bg-emerald-500/20 text-emerald-400">Shared inventory</span>
@@ -201,13 +201,13 @@ export default function FactoryData({ onToast, section }: { onToast: (msg: strin
         <p className="text-xs text-slate-400 mb-4">Change current stock levels — Production and the Finance reorder engine read the same database instantly.</p>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           {STOCK_META.map(m => (
-            <div key={m.key} className="bg-[#0f172a] rounded-xl p-4 border border-[#334155]">
+            <div key={m.key} className="bg-white/[0.04] rounded-xl p-4 border border-white/10">
               <label className="text-[10px] text-slate-400 font-semibold">{m.name} · min {m.min}{m.unit}</label>
               <div className="flex items-center gap-2 mt-1">
                 <input type="number" value={stock[m.key] ?? 0} onChange={e => saveStock(m.key, Number(e.target.value) || 0)} className={fieldCls} />
                 <span className="text-xs text-slate-400">{m.unit}</span>
               </div>
-              <div className="mt-2 h-1.5 bg-[#334155] rounded-full overflow-hidden">
+              <div className="mt-2 h-1.5 bg-white/10 rounded-full overflow-hidden">
                 <div className={`h-full rounded-full ${(stock[m.key] ?? 0) <= m.min ? 'bg-red-500' : 'bg-emerald-500'}`} style={{ width: Math.min(100, ((stock[m.key] ?? 0) / (m.min * 3)) * 100) + '%' }} />
               </div>
               {(stock[m.key] ?? 0) <= m.min && <p className="text-[10px] text-red-400 mt-1">⬇ Below minimum — reorder needed</p>}
@@ -219,10 +219,10 @@ export default function FactoryData({ onToast, section }: { onToast: (msg: strin
 
       {/* ===== Production Config ===== */}
       {(showAll || section === 'config') && (
-      <div className="bg-[#1e293b] rounded-2xl border border-[#334155] p-6">
+      <div className="bg-white/[0.04] rounded-2xl border border-white/10 p-6">
         <div className="flex items-center justify-between mb-2">
           <h2 className="text-lg font-bold text-white">🏭 Plant Production Profile (Linked to Workshop config)</h2>
-          <span className="text-xs px-2.5 py-1 rounded font-bold bg-purple-500/20 text-purple-400">Shared config</span>
+          <span className="text-xs px-2.5 py-1 rounded font-bold bg-sky-500/20 text-sky-400">Shared config</span>
         </div>
         <p className="text-xs text-slate-400 mb-4">Plant type and target production — used by Workshop and the factory dashboard.</p>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">

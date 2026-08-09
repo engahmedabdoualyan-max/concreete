@@ -38,11 +38,11 @@ export default function QuotaBanner() {
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-2">
           <div>
             <p className="text-sm font-bold text-red-400">🚫 تم استهلاك مساحة التخزين الخاصة بك بالكامل ({status.quotaMB} MB)</p>
-            <p className="text-xs text-slate-300 mt-0.5">لا يمكن حفظ المزيد من البيانات. تواصل مع المبرمج لزيادة قاعدة بياناتك.</p>
+            <p className="text-xs text-slate-200 mt-0.5">لا يمكن حفظ المزيد من البيانات. تواصل مع المبرمج لزيادة قاعدة بياناتك.</p>
           </div>
           <div className="flex gap-2 flex-wrap">
-            <a href={`mailto:${DEVELOPER_EMAIL}`} className="bg-red-600 hover:bg-red-700 text-white text-xs font-bold px-3 py-2 rounded">✉️ تواصل مع المبرمج</a>
-            <a href={DEVELOPER_WHATSAPP} target="_blank" rel="noreferrer" className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-3 py-2 rounded">💬 واتساب</a>
+            <a href={`mailto:${DEVELOPER_EMAIL}`} className="bg-gradient-to-r from-sky-500 to-cyan-500 hover:from-sky-400 hover:to-cyan-400 text-white text-xs font-bold px-3 py-2 rounded shadow-[0_0_20px_rgba(56,189,248,0.3)]">✉️ تواصل مع المبرمج</a>
+            <a href={DEVELOPER_WHATSAPP} target="_blank" rel="noreferrer" className="bg-gradient-to-r from-sky-500 to-cyan-500 hover:from-sky-400 hover:to-cyan-400 text-white text-xs font-bold px-3 py-2 rounded">💬 واتساب</a>
           </div>
         </div>
         <div className="h-1.5 bg-red-900/60 rounded-full overflow-hidden mt-3">
@@ -53,10 +53,10 @@ export default function QuotaBanner() {
   }
   const warn = status.pct >= 80;
   return (
-    <div className={`border rounded-lg p-3 mb-4 ${warn ? 'bg-yellow-500/10 border-yellow-500/40' : 'bg-slate-500/10 border-slate-600/40'}`}>
+    <div className={`border rounded-lg p-3 mb-4 ${warn ? 'bg-yellow-500/10 border-yellow-500/40' : 'bg-white/[0.03] border-white/10'}`}>
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-2">
         <div>
-          <p className={`text-sm font-bold ${warn ? 'text-yellow-400' : 'text-slate-300'}`}>
+          <p className={`text-sm font-bold ${warn ? 'text-yellow-400' : 'text-slate-200'}`}>
             💾 مساحة التخزين الخاصة بك: {status.usedMB.toFixed(2)} MB من {status.quotaMB} MB
           </p>
           <p className={`text-xs mt-0.5 ${warn ? 'text-yellow-300/80' : 'text-slate-400'}`}>
@@ -67,8 +67,8 @@ export default function QuotaBanner() {
         </div>
         {warn && (
           <div className="flex gap-2 flex-wrap">
-            <a href={`mailto:${DEVELOPER_EMAIL}`} className="bg-yellow-600 hover:bg-yellow-700 text-white text-xs font-bold px-3 py-2 rounded">✉️ تواصل مع المبرمج</a>
-            <a href={DEVELOPER_WHATSAPP} target="_blank" rel="noreferrer" className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-3 py-2 rounded">💬 واتساب</a>
+            <a href={`mailto:${DEVELOPER_EMAIL}`} className="bg-gradient-to-r from-sky-500 to-cyan-500 hover:from-sky-400 hover:to-cyan-400 text-white text-xs font-bold px-3 py-2 rounded">✉️ تواصل مع المبرمج</a>
+            <a href={DEVELOPER_WHATSAPP} target="_blank" rel="noreferrer" className="bg-gradient-to-r from-sky-500 to-cyan-500 hover:from-sky-400 hover:to-cyan-400 text-white text-xs font-bold px-3 py-2 rounded">💬 واتساب</a>
           </div>
         )}
       </div>

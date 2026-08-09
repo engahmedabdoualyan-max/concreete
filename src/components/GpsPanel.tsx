@@ -7,7 +7,7 @@ interface GpsConfig { server: string; username: string; password: string; liveEn
 interface GpsDevice { id: number; uniqueId: string; name: string; status?: string; }
 interface GpsPosition { id: number; deviceId: number; fixTime: string; lat: number; lon: number; speed?: number; address?: string; }
 
-const inputCls = 'w-full px-3 py-2 bg-[#0f172a] border border-[#334155] text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500';
+const inputCls = 'w-full px-3 py-2 bg-white/[0.04] border border-white/10 text-white rounded-lg text-sm focus:outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]';
 
 function basicAuth(u: string, p: string) {
   try { return 'Basic ' + btoa(u + ':' + p); } catch { return ''; }
@@ -147,13 +147,13 @@ export default function GpsPanel({ onToast }: { onToast: (msg: string) => void }
 
   return (
     <div className="space-y-6">
-      {msg && <p className={`text-xs font-bold ${msg.includes('✅') ? 'text-emerald-400' : 'text-yellow-400'} bg-[#0f172a] border border-[#334155] rounded-lg px-4 py-3`}>{msg}</p>}
+      {msg && <p className={`text-xs font-bold ${msg.includes('✅') ? 'text-emerald-400' : 'text-yellow-400'} bg-white/[0.04] border border-white/10 rounded-lg px-4 py-3`}>{msg}</p>}
 
-      <div className="bg-[#1e293b] rounded-2xl border border-[#334155] p-6">
+      <div className="bg-white/[0.04] rounded-2xl border border-white/10 p-6">
         <h2 className="text-lg font-bold text-white mb-4">🔗 GPS Linking Methods</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {methods.map(m => (
-            <div key={m.title} className="bg-[#0f172a] border border-[#334155] rounded-xl p-4 flex flex-col">
+            <div key={m.title} className="bg-white/[0.04] border border-white/10 rounded-xl p-4 flex flex-col">
               <div className="text-2xl mb-2">{m.icon}</div>
               <p className="font-bold text-white text-sm mb-1">{m.title}</p>
               <p className="text-[11px] text-slate-400 flex-1">{m.desc}</p>
@@ -163,7 +163,7 @@ export default function GpsPanel({ onToast }: { onToast: (msg: string) => void }
                 </button>
               )}
               {m.action === 'discover' && (
-                <button onClick={discover} disabled={busy === 'discover'} className="mt-3 bg-blue-600/20 text-blue-400 border border-blue-500/50 hover:bg-blue-600/30 text-xs px-3 py-2 rounded-lg font-bold transition-colors disabled:opacity-50">
+                <button onClick={discover} disabled={busy === 'discover'} className="mt-3 bg-sky-500/20 text-sky-400 border border-sky-500/50 hover:bg-sky-500/30 text-xs px-3 py-2 rounded-lg font-bold transition-colors disabled:opacity-50">
                   {busy === 'discover' ? '⏳ Scanning...' : '🔍 Discover Trackers'}
                 </button>
               )}
@@ -173,7 +173,7 @@ export default function GpsPanel({ onToast }: { onToast: (msg: string) => void }
         {plantGps && <p className="text-xs text-slate-400 mt-4">📍 Plant position: <b className="text-white">{plantGps.lat.toFixed(5)}, {plantGps.lng.toFixed(5)}</b></p>}
       </div>
 
-      <div className="bg-[#1e293b] rounded-2xl border border-[#334155] p-6">
+      <div className="bg-white/[0.04] rounded-2xl border border-white/10 p-6">
         <div className="flex items-center justify-between mb-2">
           <h2 className="text-lg font-bold text-white">📡 GPS Server Feed (Traccar / GpsGate / Teltonika)</h2>
           <span className="text-xs px-2.5 py-1 rounded font-bold bg-sky-500/20 text-sky-400">Live linking</span>
@@ -189,11 +189,11 @@ export default function GpsPanel({ onToast }: { onToast: (msg: string) => void }
         </div>
         <div className="flex gap-2 mt-4">
           <button onClick={saveCfg} className="bg-emerald-600/20 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-600/30 text-xs px-5 py-2 rounded-lg font-bold transition-colors">💾 Save Config</button>
-          <button onClick={discover} disabled={busy === 'discover'} className="bg-blue-600/20 text-blue-400 border border-blue-500/50 hover:bg-blue-600/30 text-xs px-5 py-2 rounded-lg font-bold transition-colors disabled:opacity-50">{busy === 'discover' ? '⏳' : '🔍 Discover Trackers'}</button>
-          <button onClick={syncAll} disabled={busy === 'sync'} className="bg-violet-600/20 text-violet-400 border border-violet-500/50 hover:bg-violet-600/30 text-xs px-5 py-2 rounded-lg font-bold transition-colors disabled:opacity-50">{busy === 'sync' ? '⏳ Syncing...' : '⚡ Sync All Positions'}</button>
+          <button onClick={discover} disabled={busy === 'discover'} className="bg-sky-500/20 text-sky-400 border border-sky-500/50 hover:bg-sky-500/30 text-xs px-5 py-2 rounded-lg font-bold transition-colors disabled:opacity-50">{busy === 'discover' ? '⏳' : '🔍 Discover Trackers'}</button>
+          <button onClick={syncAll} disabled={busy === 'sync'} className="bg-sky-500/20 text-sky-400 border border-sky-500/50 hover:bg-sky-500/30 text-xs px-5 py-2 rounded-lg font-bold transition-colors disabled:opacity-50">{busy === 'sync' ? '⏳ Syncing...' : '⚡ Sync All Positions'}</button>
         </div>
 
-        <div className="mt-5 border-t border-[#334155] pt-5">
+        <div className="mt-5 border-t border-white/10 pt-5">
           <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
             <h3 className="text-sm font-bold text-white">🔴 Live Tracking (real-time map polling)</h3>
             <div className="flex items-center gap-3">
@@ -215,22 +215,22 @@ export default function GpsPanel({ onToast }: { onToast: (msg: string) => void }
         </div>
       </div>
 
-      <div className="bg-[#1e293b] rounded-2xl border border-[#334155] p-6">
+      <div className="bg-white/[0.04] rounded-2xl border border-white/10 p-6">
         <div className="flex items-center justify-between mb-2">
           <h2 className="text-lg font-bold text-white">🧭 Discovered Trackers</h2>
-          <span className="text-xs px-2.5 py-1 rounded font-bold bg-blue-500/20 text-blue-400">{devices.length} on server</span>
+          <span className="text-xs px-2.5 py-1 rounded font-bold bg-sky-500/20 text-sky-400">{devices.length} on server</span>
         </div>
         {devices.length === 0 ? (
           <p className="text-xs text-slate-400">Press "Discover Trackers" to list devices from your GPS server. Link each device by entering its IMEI in the asset's <b className="text-slate-200">Tracker ID / IMEI</b> field (Assets & Fleet sub-tab).</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-xs text-slate-300">
-              <thead className="bg-[#334155]"><tr>{['Device ID', 'IMEI / Unique ID', 'Name', 'Status', 'Linked Asset'].map(h => <th key={h} className="p-2">{h}</th>)}</tr></thead>
+              <thead className="bg-white/[0.04] text-slate-400"><tr>{['Device ID', 'IMEI / Unique ID', 'Name', 'Status', 'Linked Asset'].map(h => <th key={h} className="p-2 text-[10px] uppercase tracking-wider">{h}</th>)}</tr></thead>
               <tbody>
                 {devices.map(d => {
                   const linkedAsset = (Array.isArray(assets) ? assets : []).find(a => a.gpsId === d.uniqueId);
                   return (
-                    <tr key={d.id} className="border-b border-[#334155]/30">
+                    <tr key={d.id} className="border-b border-white/10">
                       <td className="p-2">{d.id}</td>
                       <td className="p-2 font-bold text-white">{d.uniqueId}</td>
                       <td className="p-2">{d.name || '—'}</td>
@@ -245,7 +245,7 @@ export default function GpsPanel({ onToast }: { onToast: (msg: string) => void }
         )}
       </div>
 
-      <div className="bg-[#1e293b] rounded-2xl border border-[#334155] p-6">
+      <div className="bg-white/[0.04] rounded-2xl border border-white/10 p-6">
         <div className="flex items-center justify-between mb-2">
           <h2 className="text-lg font-bold text-white">🔑 Linked Trackers on Assets</h2>
           <span className="text-xs px-2.5 py-1 rounded font-bold bg-emerald-500/20 text-emerald-400">{linked.length} linked</span>
@@ -255,10 +255,10 @@ export default function GpsPanel({ onToast }: { onToast: (msg: string) => void }
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-xs text-slate-300">
-              <thead className="bg-[#334155]"><tr>{['Asset', 'Plate', 'Tracker ID', 'Last Position', 'Updated'].map(h => <th key={h} className="p-2">{h}</th>)}</tr></thead>
+              <thead className="bg-white/[0.04] text-slate-400"><tr>{['Asset', 'Plate', 'Tracker ID', 'Last Position', 'Updated'].map(h => <th key={h} className="p-2 text-[10px] uppercase tracking-wider">{h}</th>)}</tr></thead>
               <tbody>
                 {linked.map(a => (
-                  <tr key={a.id} className="border-b border-[#334155]/30">
+                  <tr key={a.id} className="border-b border-white/10">
                     <td className="p-2 font-bold text-white">{a.id}</td>
                     <td className="p-2">{a.plate || '—'}</td>
                     <td className="p-2">{a.gpsId}</td>

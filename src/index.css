@@ -2,9 +2,41 @@
 
 html,
 body {
-  background-color: #0f172a;
+  background-color: #080c14;
   margin: 0;
   padding: 0;
+}
+
+@layer components {
+  .page-shell {
+    min-height: 100vh;
+    color: #e2e8f0;
+    background: radial-gradient(ellipse 80% 40% at 50% -10%, rgba(56, 189, 248, 0.13), transparent), #080c14;
+  }
+  .glass-card {
+    @apply rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-xl;
+  }
+  .glass-panel {
+    @apply rounded-2xl border border-white/10 bg-[#0B111E]/60 backdrop-blur-xl;
+  }
+  .glass-input {
+    @apply w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-slate-100 text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)] transition placeholder:text-slate-500;
+  }
+  .btn-primary {
+    @apply bg-gradient-to-r from-sky-500 to-cyan-500 hover:from-sky-400 hover:to-cyan-400 text-white font-bold rounded-lg transition shadow-[0_0_20px_rgba(56,189,248,0.3)];
+  }
+  .btn-ghost {
+    @apply bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 text-slate-300 hover:border-sky-400/60 hover:text-sky-300 rounded-lg transition-colors;
+  }
+  .chip {
+    @apply bg-sky-500/10 text-sky-300 border border-sky-500/30 rounded-lg px-3 py-1.5 text-xs font-bold;
+  }
+  .neon-text {
+    @apply text-sky-400;
+  }
+  .title-grad {
+    @apply bg-gradient-to-r from-sky-400 via-cyan-300 to-sky-400 bg-clip-text text-transparent;
+  }
 }
 
 @media print {
