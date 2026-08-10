@@ -7,6 +7,7 @@ import QuickJump from '../components/QuickJump';
 import LangSelector from '../components/LangSelector';
 import BrandLogo from '../components/BrandLogo';
 import QuotaBanner from '../components/QuotaBanner';
+import mainPhoto from '../assets/logos/mainphoto.png';
 
 interface Trip {
   id: number; plant: string; date: string; code: string; driver: string;
@@ -104,6 +105,31 @@ const DEFAULT_TRIPS: Trip[] = [
   { id: 2, plant: "PLANT-A", date: "2026-06-18", code: "m02", driver: "Driver-2", qty: 10, pump: "p01", estTime: 45, stationArr: "10:00", stationDep: "10:11", siteArr: "10:56", siteDep: "11:40", siteName: "00 (kk)", projectName: "00 (kk)", status: "COMPLETED" },
   { id: 3, plant: "PLANT-B", date: "2026-06-18", code: "m03", driver: "Saeed John", qty: 10, pump: "p02", estTime: 30, stationArr: "09:00", stationDep: "09:12", siteArr: "09:42", siteDep: "10:20", siteName: "Khobar Site", projectName: "Tower B", status: "COMPLETED" },
 ];
+
+function ModuleButton({ m, onGo }: { m: ModuleDef; onGo: () => void }) {
+  return (
+    <button
+      onClick={onGo}
+      className="group relative flex flex-col items-start justify-between gap-2.5 min-h-[120px] lg:min-h-[132px] rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-xl p-3.5 lg:p-4 text-left transition-all duration-300 hover:-translate-y-1 hover:border-sky-400/70 hover:bg-white/[0.05] hover:shadow-[0_0_30px_rgba(56,189,248,0.35)] cursor-pointer"
+    >
+      <div className="w-9 h-9 rounded-xl bg-white/[0.05] border border-white/10 flex items-center justify-center transition-colors duration-300 group-hover:border-sky-400/60 group-hover:bg-sky-400/10 group-hover:shadow-[0_0_16px_rgba(56,189,248,0.4)]">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5 text-slate-400 transition-colors duration-300 group-hover:text-sky-400">
+          {m.icon}
+        </svg>
+      </div>
+      <div className="w-full">
+        <div className="flex items-center justify-between gap-2">
+          <h3 className="text-sm lg:text-[15px] font-black text-white tracking-tight group-hover:text-sky-300 transition-colors duration-300">{m.en}</h3>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 text-slate-600 transition-all duration-300 group-hover:text-sky-400 group-hover:translate-x-0.5 shrink-0">
+            <path d="M5 12h14" /><path d="M12 5l7 7-7 7" />
+          </svg>
+        </div>
+        <p className="text-[11px] font-bold text-sky-400/90 mt-0.5" dir="rtl">{m.ar}</p>
+        <p className="text-[10px] text-slate-500 mt-1 leading-snug">{m.desc}</p>
+      </div>
+    </button>
+  );
+}
 
 function to12h(i: string): string {
   if (!i || i === "00:00" || i === "") return "--:--";
@@ -377,7 +403,7 @@ export default function Dashboard() {
         <div className="flex items-center gap-4">
           <BrandLogo width={60} rounded="rounded-xl" />
           <div>
-            <h1 className="text-lg font-black tracking-tight text-white">
+            <h1 className="font-display text-lg font-black tracking-wide text-white">
               CONCRETE <span className="text-sky-400 drop-shadow-[0_0_10px_rgba(56,189,248,0.7)]">ERP</span>
             </h1>
             <p className="text-[11px] text-slate-400 font-medium">Fimto Soft — Technical Management Program · برنامج إدارة محطات الخرسانة</p>
@@ -420,42 +446,47 @@ export default function Dashboard() {
       </div>
 
       {/* ===== MAIN ===== */}
-      <div className="max-w-[1200px] mx-auto px-6 py-8">
-        {/* Hero */}
-        <div className="rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-xl px-6 py-8 text-center mb-8 relative overflow-hidden">
-          <div className="pointer-events-none absolute inset-0" style={{ background: "radial-gradient(ellipse 50% 80% at 50% 0%, rgba(56,189,248,0.10), transparent)" }} />
-          <p className="text-[10px] tracking-[0.5em] text-slate-400 uppercase mb-3">Fimto Soft · Technical Management Program</p>
-          <h2 className="text-4xl md:text-5xl font-black tracking-tight uppercase bg-gradient-to-r from-sky-400 via-cyan-300 to-sky-400 bg-clip-text text-transparent">
-            Concrete
+      <div className="max-w-[1440px] mx-auto px-4 sm:px-6 py-6 lg:py-10">
+
+        {/* Hero — welcome statement */}
+        <div className="relative text-center mb-8 lg:mb-12">
+          <div className="pointer-events-none absolute inset-0" style={{ background: "radial-gradient(ellipse 55% 90% at 50% 0%, rgba(56,189,248,0.12), transparent)" }} />
+          <p className="relative text-[10px] sm:text-xs tracking-[0.5em] text-sky-400/80 uppercase mb-3 font-display">Fimto Soft · Technical Management Program</p>
+          <h2 className="relative text-4xl sm:text-5xl lg:text-6xl font-display font-black tracking-tight uppercase bg-gradient-to-r from-sky-400 via-cyan-300 to-sky-400 bg-clip-text text-transparent drop-shadow-[0_0_25px_rgba(56,189,248,0.35)]">
+            Concrete <span className="text-white/90">ERP</span>
           </h2>
-          <p className="text-xs md:text-sm text-slate-300 mt-3">برنامج إدارة محطات الخرسانة الجاهزة — نظرة شاملة على كل الأقسام</p>
+          <p className="relative text-sm sm:text-base text-slate-300 mt-4 max-w-2xl mx-auto leading-relaxed">
+            برنامج إدارة محطات الخرسانة الجاهزة — لوحة تحكم ذكية تجمع كل الأقسام في مشهد واحد متكامل
+          </p>
         </div>
 
-        {/* Modules grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {MODULES.filter(m => canAccess(m.access)).map(m => (
-            <button
-              key={m.path}
-              onClick={() => go(m.path)}
-              className="group relative flex flex-col items-start justify-between gap-3 min-h-[168px] rounded-2xl border border-white/10 bg-white/[0.04] backdrop-blur-xl p-5 text-left transition-all duration-300 hover:-translate-y-1.5 hover:border-sky-400/60 hover:shadow-[0_0_28px_rgba(56,189,248,0.28)] cursor-pointer"
-            >
-              <div className="w-10 h-10 rounded-xl bg-white/[0.05] border border-white/10 flex items-center justify-center transition-colors duration-300 group-hover:border-sky-400/50 group-hover:bg-sky-400/10 group-hover:shadow-[0_0_16px_rgba(56,189,248,0.35)]">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6 text-slate-400 transition-colors duration-300 group-hover:text-sky-400">
-                  {m.icon}
-                </svg>
-              </div>
-              <div className="w-full">
-                <div className="flex items-center justify-between gap-2">
-                  <h3 className="text-base font-black text-white tracking-tight group-hover:text-sky-300 transition-colors duration-300">{m.en}</h3>
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 text-slate-600 transition-all duration-300 group-hover:text-sky-400 group-hover:translate-x-0.5">
-                    <path d="M5 12h14" /><path d="M12 5l7 7-7 7" />
-                  </svg>
-                </div>
-                <p className="text-sm font-bold text-sky-400/90 mt-0.5" dir="rtl">{m.ar}</p>
-                <p className="text-[11px] text-slate-500 mt-1 leading-snug">{m.desc}</p>
-              </div>
-            </button>
-          ))}
+        {/* ===== Center Anchor Layout: live modules flank the hero image symmetrically ===== */}
+        <div className="flex flex-col lg:flex-row items-center gap-6 lg:gap-8">
+          {/* LEFT cluster — 4 modules */}
+          <div className="order-2 lg:order-1 w-full lg:flex-1 grid grid-cols-2 lg:grid-cols-1 gap-3 lg:gap-4 content-center">
+            {MODULES.slice(0, 4).filter(m => canAccess(m.access)).map(m => (
+              <ModuleButton key={m.path} m={m} onGo={() => go(m.path)} />
+            ))}
+          </div>
+
+          {/* CENTER — hero image */}
+          <div className="order-1 lg:order-2 w-full lg:w-auto lg:shrink-0 flex justify-center px-1">
+            <div className="relative w-full max-w-[640px] lg:max-w-[720px]">
+              <div className="pointer-events-none absolute inset-0 -z-10 blur-3xl" style={{ background: "radial-gradient(ellipse 60% 60% at 50% 50%, rgba(56,189,248,0.22), transparent 70%)" }} />
+              <img
+                src={mainPhoto}
+                alt="Concrete ERP command center"
+                className="w-full h-auto object-contain rounded-2xl border border-white/10 shadow-[0_0_60px_rgba(56,189,248,0.12)]"
+              />
+            </div>
+          </div>
+
+          {/* RIGHT cluster — 4 modules */}
+          <div className="order-3 w-full lg:flex-1 grid grid-cols-2 lg:grid-cols-1 gap-3 lg:gap-4 content-center">
+            {MODULES.slice(4, 8).filter(m => canAccess(m.access)).map(m => (
+              <ModuleButton key={m.path} m={m} onGo={() => go(m.path)} />
+            ))}
+          </div>
         </div>
       </div>
 
