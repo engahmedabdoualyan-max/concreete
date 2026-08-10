@@ -150,6 +150,7 @@ export interface Translations {
   permissions: string;
   module: string;
   isActive: string;
+  inactive: string;
   noUsers: string;
   userAdded: string;
   userUpdated: string;
@@ -335,6 +336,7 @@ export const enTranslations: Partial<Translations> = {
   permissions: 'Permissions',
   module: 'Module',
   isActive: 'Active',
+  inactive: 'Inactive',
   noUsers: 'No users yet',
   userAdded: 'User added successfully',
   userUpdated: 'User updated successfully',
@@ -521,6 +523,7 @@ export const arTranslations: Partial<Translations> = {
   permissions: 'الصلاحيات',
   module: 'الوحدة',
   isActive: 'نشط',
+  inactive: 'غير نشط',
   noUsers: 'لا يوجد مستخدمون بعد',
   userAdded: 'تمت إضافة المستخدم بنجاح',
   userUpdated: 'تم تحديث المستخدم بنجاح',
@@ -597,6 +600,8 @@ export const ruTranslations: Partial<Translations> = {
   gravel: 'Щебень',
   high: 'Высокий',
   home: 'Главная',
+  inactive: 'Неактивен',
+  isActive: 'Активен',
   invoice: 'Счёт',
   inWorkshop: 'В ремонте',
   itemCategory: 'Категория товара',
@@ -716,6 +721,8 @@ export const deTranslations: Partial<Translations> = {
   gravel: 'Kies',
   high: 'Hoch',
   home: 'Startseite',
+  inactive: 'Inaktiv',
+  isActive: 'Aktiv',
   invoice: 'Rechnung',
   inWorkshop: 'In der Werkstatt',
   itemCategory: 'Artikelkategorie',
@@ -835,6 +842,8 @@ export const itTranslations: Partial<Translations> = {
   gravel: 'Ghiaia',
   high: 'Alto',
   home: 'Home',
+  inactive: 'Inattivo',
+  isActive: 'Attivo',
   invoice: 'Fattura',
   inWorkshop: 'In officina',
   itemCategory: 'Categoria articolo',
@@ -954,6 +963,8 @@ export const hiTranslations: Partial<Translations> = {
   gravel: 'बजरी',
   high: 'उच्च',
   home: 'होम',
+  inactive: 'निष्क्रिय',
+  isActive: 'सक्रिय',
   invoice: 'चालान',
   inWorkshop: 'वर्कशॉप में',
   itemCategory: 'वस्तु श्रेणी',
@@ -1073,6 +1084,8 @@ export const urTranslations: Partial<Translations> = {
   gravel: 'بجری',
   high: 'اعلی',
   home: 'ہوم',
+  inactive: 'غیر فعال',
+  isActive: 'فعال',
   invoice: 'انوائس',
   inWorkshop: 'ورکشاپ میں',
   itemCategory: 'شے کی قسم',
@@ -1192,6 +1205,8 @@ export const jaTranslations: Partial<Translations> = {
   gravel: '砂利',
   high: '高',
   home: 'ホーム',
+  inactive: '非アクティブ',
+  isActive: 'アクティブ',
   invoice: '請求書',
   inWorkshop: '整備中',
   itemCategory: 'アイテムカテゴリ',
@@ -1311,6 +1326,8 @@ export const zhTranslations: Partial<Translations> = {
   gravel: '砾石',
   high: '高',
   home: '首页',
+  inactive: '停用',
+  isActive: '启用',
   invoice: '发票',
   inWorkshop: '维修中',
   itemCategory: '物品类别',
