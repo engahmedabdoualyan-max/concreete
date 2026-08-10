@@ -446,22 +446,22 @@ export default function Dashboard() {
       </div>
 
       {/* ===== MAIN ===== */}
-      <div className="max-w-[1440px] mx-auto px-4 sm:px-6 py-6 lg:py-10">
+      <div className="max-w-[1440px] mx-auto px-4 sm:px-6 pt-12 sm:pt-16 lg:pt-20 pb-6 lg:pb-10">
 
         {/* Hero — welcome statement */}
-        <div className="relative text-center mb-8 lg:mb-12">
+        <div className="relative text-center mb-10 lg:mb-14">
           <div className="pointer-events-none absolute inset-0" style={{ background: "radial-gradient(ellipse 55% 90% at 50% 0%, rgba(56,189,248,0.12), transparent)" }} />
-          <p className="relative text-[10px] sm:text-xs tracking-[0.5em] text-sky-400/80 uppercase mb-3 font-display">Fimto Soft · Technical Management Program</p>
           <h2 className="relative text-4xl sm:text-5xl lg:text-6xl font-display font-black tracking-tight uppercase bg-gradient-to-r from-sky-400 via-cyan-300 to-sky-400 bg-clip-text text-transparent drop-shadow-[0_0_25px_rgba(56,189,248,0.35)]">
             Concrete <span className="text-white/90">ERP</span>
           </h2>
-          <p className="relative text-sm sm:text-base text-slate-300 mt-4 max-w-2xl mx-auto leading-relaxed">
-            برنامج إدارة محطات الخرسانة الجاهزة — لوحة تحكم ذكية تجمع كل الأقسام في مشهد واحد متكامل
+          <p className="relative font-body text-sm sm:text-base mt-5 max-w-2xl mx-auto leading-relaxed">
+            <span className="block font-bold text-slate-200">Fimto Soft · Technical Management Program</span>
+            <span className="block text-slate-400 mt-2">برنامج إدارة محطات الخرسانة الجاهزة — لوحة تحكم ذكية تجمع كل الأقسام في مشهد واحد متكامل</span>
           </p>
         </div>
 
         {/* ===== Center Anchor Layout: live modules flank the hero image symmetrically ===== */}
-        <div className="flex flex-col lg:flex-row items-center gap-6 lg:gap-8">
+        <div className="flex flex-col lg:flex-row items-center gap-8 lg:gap-10 xl:gap-14">
           {/* LEFT cluster — 4 modules */}
           <div className="order-2 lg:order-1 w-full lg:flex-1 grid grid-cols-2 lg:grid-cols-1 gap-3 lg:gap-4 content-center">
             {MODULES.slice(0, 4).filter(m => canAccess(m.access)).map(m => (
@@ -470,7 +470,7 @@ export default function Dashboard() {
           </div>
 
           {/* CENTER — hero image */}
-          <div className="order-1 lg:order-2 w-full lg:w-auto lg:shrink-0 flex justify-center px-1">
+          <div className="order-1 lg:order-2 w-full lg:w-auto lg:shrink-0 flex justify-center px-2 lg:px-4">
             <div className="relative w-full max-w-[640px] lg:max-w-[720px]">
               <div className="pointer-events-none absolute inset-0 -z-10 blur-3xl" style={{ background: "radial-gradient(ellipse 60% 60% at 50% 50%, rgba(56,189,248,0.22), transparent 70%)" }} />
               <img
