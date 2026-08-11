@@ -1,0 +1,223 @@
+openapi: 3.0.3
+info:
+  title: Fimto Concrete Mobile API
+  description: >-
+    Backend API consumed by the Flutter driver app and client app.
+    It reads/writes the same Firebase Firestore database used by the web app
+    (project `concrete-erb`, collections `users` and `userData`).
+  version: 1.0.0
+servers:
+  - url: https://concrete.fimtosoft.com/api
+    description: Production (deployed alongside the Vite web app)
+  - url: http://localhost:8080/api
+    description: Local development
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    Trip:
+      type: object
+      required: [id, plant, date, code, driver, qty, status]
+      properties:
+        id: { type: integer, example: 1734 }
+        plant: { type: string, example: PLANT-A }
+        date: { type: string, format: date, example: "2026-08-07" }
+        code: { type: string, example: m05 }
+        driver: { type: string, example: Ahmed Ali }
+        qty: { type: number, example: 10 }
+        pump: { type: string, example: p01 }
+        estTime: { type: integer, example: 40 }
+        stationArr: { type: string, example: "08:00" }
+        stationDep: { type: string, example: "08:10" }
+        siteArr: { type: string, example: "08:50" }
+        siteDep: { type: string, example: "09:30" }
+        siteName: { type: string, example: Dammam Site }
+        projectName: { type: string, example: Tower B }
+        status:
+          type: string
+          enum: [PLANT, TRANSIT, UNLOADING, COMPLETED]
+          example: TRANSIT
+        siteGeo: { type: string, example: "26.4207, 50.0888" }
+        bonNo: { type: string, example: "BON-1024" }
+        batchRecipes: { type: string, example: C30 }
+    LocationUpdate:
+      type: object
+      required: [lat, lng, timestamp]
+      properties:
+        lat: { type: number, example: 26.4700 }
+        lng: { type: number, example: 50.0900 }
+        timestamp: { type: string, format: date-time, example: "2026-08-07T08:15:00Z" }
+    Order:
+      type: object
+      required: [id, customerName, quantity, concreteType, status]
+      properties:
+        id: { type: string, example: o_1001 }
+        customerName: { type: string, example: ABC Contracting }
+        customerCode: { type: string, example: C-009 }
+        projectName: { type: string, example: Villa Project }
+        quantity: { type: number, example: 40 }
+        concreteType: { type: string, example: "3000" }
+        status:
+          type: string
+          enum: [pending, approved, scheduled, in_progress, completed, cancelled]
+          example: in_progress
+        liveTrip:
+          $ref: "#/components/schemas/Trip"
+    Invoice:
+      type: object
+      properties:
+        invoiceNo: { type: string, example: INV-A1B2C3 }
+        date: { type: string, example: "2026-08-07" }
+        total: { type: number, example: 110160 }
+        vatAmount: { type: number, example: 14368.7 }
+        currency: { type: string, enum: [SAR, EGP], example: SAR }
+        qrPayload: { type: string, description: "Base64 ZATCA TLV QR payload" }
+        qrImage: { type: string, format: byte, description: "PNG QR image (data URL)" }
+    ApiError:
+      type: object
+      properties:
+        error: { type: string, example: "Trip not found" }
+
+paths:
+  /driver/trips:
+    get:
+      summary: Today's trips assigned to a driver
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - { name: driver, in: query, required: true, schema: { type: string, example: Ahmed Ali } }
+      responses:
+        "200":
+          description: List of trips
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Trip" }
+        "401": { description: Unauthorized }
+
+  /driver/trips/{id}:
+    get:
+      summary: Single trip detail with recipe and site coordinates
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        "200":
+          description: Trip
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Trip" }
+        "404": { description: Trip not found, content: { application/json: { schema: { $ref: "#/components/schemas/ApiError" } } } }
+
+  /driver/trips/{id}/status:
+    patch:
+      summary: Driver updates trip status (PLANT → TRANSIT → UNLOADING → COMPLETED)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status: { type: string, enum: [PLANT, TRANSIT, UNLOADING, COMPLETED] }
+                stationDep: { type: string, example: "08:10" }
+                siteArr: { type: string, example: "08:50" }
+                siteDep: { type: string, example: "09:30" }
+                delayReason: { type: string, enum: [ready, site_not_ready, breakdown, emergency, other] }
+      responses:
+        "200": { description: Updated trip }
+        "404": { description: Trip not found }
+
+  /driver/trips/{id}/location:
+    post:
+      summary: Driver pushes GPS position (updates siteGeo + live map)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LocationUpdate" }
+      responses:
+        "200": { description: Location accepted }
+        "404": { description: Trip not found }
+
+  /driver/trips/{id}/bon:
+    post:
+      summary: Driver submits delivery note number after pour
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [bonNo]
+              properties:
+                bonNo: { type: string, example: "BON-1024" }
+      responses:
+        "200": { description: Bon recorded }
+
+  /client/orders:
+    get:
+      summary: Order history for a client (by customer code or phone)
+      parameters:
+        - { name: customerCode, in: query, schema: { type: string } }
+        - { name: phone, in: query, schema: { type: string } }
+      responses:
+        "200":
+          description: Orders with live trip status
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Order" }
+    post:
+      summary: Client requests a new concrete order
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [customerName, quantity, concreteType]
+              properties:
+                customerName: { type: string }
+                customerPhone: { type: string }
+                customerCode: { type: string }
+                projectName: { type: string }
+                projectLocation: { type: string }
+                locationCoords: { type: string }
+                quantity: { type: number }
+                concreteType: { type: string, example: "3000" }
+                slump: { type: string, example: "12" }
+      responses:
+        "201":
+          description: Order created (status pending)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Order" }
+
+  /client/orders/{id}/invoice:
+    get:
+      summary: E-invoice with ZATCA QR for a completed order
+      responses:
+        "200":
+          description: Invoice with QR payload + image
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Invoice" }
+        "404": { description: Order not found }
+
+  /plant/live:
+    get:
+      summary: Live fleet positions (feeds the web Fleet Map and client tracking)
+      responses:
+        "200":
+          description: All active trips with siteGeo
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Trip" }
