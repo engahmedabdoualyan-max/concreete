@@ -12,7 +12,7 @@
     "build:ios": "eas build -p ios",
     "typecheck": "tsc --noEmit",
     "lint": "eslint . --ext .ts,.tsx",
-    "postinstall": "if [ -z \"$VERCEL\" ]; then patch-package; fi"
+    "postinstall": "node -e \"if (!process.env.VERCEL) { require('child_process').execSync('patch-package', { stdio: 'inherit' }) }\""
   },
   "dependencies": {
     "@expo/vector-icons": "^14.0.0",
