@@ -1,0 +1,80 @@
+{
+  "expo": {
+    "name": "Fimto Concrete ERP",
+    "slug": "fimto-concrete-erp",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "fimto",
+    "userInterfaceStyle": "light",
+    "icon": "./assets/icon.png",
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.fimtosoft.concrete",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Fimto uses the camera to scan encrypted delivery-ticket QR codes at project sites so drivers and clients can verify the correct load reached the correct project.",
+        "NSLocationWhenInUseUsageDescription": "Fimto uses your location to record checkpoint arrivals and confirm you are inside the delivery-site geofence.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Fimto requires continuous background location for fleet telemetry, live ETA computation, speed analytics, and automated geofence triggering of the 7-checkpoint delivery timeline — even when the app is closed or not in use.",
+        "NSLocationAlwaysUsageDescription": "Fimto requires continuous background location for fleet telemetry and automated geofence checkpoints even when the app is closed.",
+        "UIBackgroundModes": [
+          "location",
+          "fetch"
+        ]
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#000410"
+      },
+      "package": "com.fimtosoft.concrete",
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_BACKGROUND_LOCATION",
+        "FOREGROUND_SERVICE",
+        "FOREGROUND_SERVICE_LOCATION",
+        "CAMERA",
+        "POST_NOTIFICATIONS"
+      ]
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "compileSdkVersion": 36,
+            "targetSdkVersion": 36,
+            "minSdkVersion": 24,
+            "buildToolsVersion": "36.0.0"
+          },
+          "ios": {
+            "deploymentTarget": "15.1"
+          }
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Fimto requires continuous background location for fleet telemetry, live ETA, and automated geofence checkpoints even when the app is closed.",
+          "locationWhenInUsePermission": "Fimto uses your location to record checkpoint arrivals at delivery sites.",
+          "isAndroidBackgroundLocationEnabled": true,
+          "isAndroidForegroundServiceEnabled": true
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Fimto uses the camera to scan encrypted delivery-ticket QR codes at project sites."
+        }
+      ],
+      "expo-font"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}

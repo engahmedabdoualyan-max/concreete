@@ -1,0 +1,84 @@
+// ============================================================
+//  Fimto Concrete ERP — Android app module build config
+//  Targets Android 16 (API Level 36) per Google Play policy.
+// ============================================================
+
+apply plugin: "com.android.application"
+apply plugin: "org.jetbrains.kotlin.android"
+apply plugin: "com.facebook.react"
+
+react {
+    // Expo / React Native autolinking is handled by the Expo plugin.
+    entryFile = file(["node", "-e", "require('expo/scripts/resolveAppEntry')", rootDir.getAbsoluteFile().getParentFile().getAbsolutePath(), "android", "absolute"].execute(null, rootDir).text.trim())
+    cliFile = new File(["node", "--print", "require.resolve('@expo/cli')"].execute(null, rootDir).text.trim())
+    bundleCommand = "export:embed"
+}
+
+/**
+ * Android 16 / API 36 compilation target.
+ * These values are consumed by the RN/Expo Gradle plugins.
+ */
+def AGP_COMPILE_SDK = 36
+def AGP_TARGET_SDK  = 36
+def AGP_MIN_SDK     = 24
+def AGP_BUILD_TOOLS = "36.0.0"
+
+android {
+    namespace "com.fimtosoft.concrete"
+    compileSdkVersion AGP_COMPILE_SDK
+    buildToolsVersion AGP_BUILD_TOOLS
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+    kotlinOptions {
+        jvmTarget = "17"
+    }
+
+    defaultConfig {
+        applicationId "com.fimtosoft.concrete"
+        minSdkVersion AGP_MIN_SDK
+        targetSdkVersion AGP_TARGET_SDK
+        versionCode 1
+        versionName "1.0.0"
+        multiDexEnabled true
+    }
+
+    signingConfigs {
+        debug {
+            storeFile file('debug.keystore')
+            storePassword 'android'
+            keyAlias 'androiddebugkey'
+            keyPassword 'android'
+        }
+    }
+
+    buildTypes {
+        debug {
+            signingConfig signingConfigs.debug
+        }
+        release {
+            signingConfig signingConfigs.debug
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
+        }
+    }
+
+    packagingOptions {
+        jniLibs {
+            useLegacyPackaging false
+        }
+    }
+}
+
+dependencies {
+    implementation("com.facebook.react:react-android")
+    implementation("com.facebook.react:hermes-android")
+    implementation "androidx.multidex:multidex:2.0.1"
+    // Foreground-service location support required on API 34+ for background GPS
+    implementation "androidx.core:core:1.13.1"
+}
+
+apply from: new File(["node", "--print", "require.resolve('@react-native/gradle-plugin/package.json')"].execute(null, rootDir).text.trim(), "../react.gradle")

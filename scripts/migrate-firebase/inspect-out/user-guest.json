@@ -1,0 +1,203 @@
+{
+  "userFields": {
+    "lastUsageUpdate": "2026-08-10T00:40:00.326Z",
+    "storageQuotaMB": 300,
+    "storageUsedMB": 0.004,
+    "overQuota": false,
+    "storageUsedBytes": 3791
+  },
+  "trips": {
+    "count": 3,
+    "sample": [
+      {
+        "date": "2026-06-18",
+        "stationDep": "08:10",
+        "projectName": "dammam 1",
+        "id": 1,
+        "estTime": 40,
+        "siteName": "vally damam",
+        "pump": "p01",
+        "status": "COMPLETED",
+        "stationArr": "08:00",
+        "plant": "PLANT-A",
+        "driver": "Ahmed Ali",
+        "code": "m01",
+        "siteDep": "09:30",
+        "siteArr": "08:50",
+        "qty": 10
+      },
+      {
+        "driver": "Driver-2",
+        "code": "m02",
+        "siteDep": "11:40",
+        "siteArr": "10:56",
+        "qty": 10,
+        "status": "COMPLETED",
+        "pump": "p01",
+        "siteName": "00",
+        "stationArr": "10:00",
+        "plant": "PLANT-A",
+        "estTime": 45,
+        "stationDep": "10:11",
+        "date": "2026-06-18",
+        "projectName": "kk",
+        "id": 2
+      },
+      {
+        "projectName": "Tower B",
+        "stationDep": "09:12",
+        "date": "2026-06-18",
+        "id": 3,
+        "estTime": 30,
+        "pump": "p02",
+        "status": "COMPLETED",
+        "siteName": "Khobar Site",
+        "plant": "PLANT-B",
+        "stationArr": "09:00",
+        "siteDep": "10:20",
+        "code": "m03",
+        "driver": "Saeed John",
+        "qty": 10,
+        "siteArr": "09:42"
+      }
+    ]
+  },
+  "payments": {
+    "count": 0,
+    "sample": []
+  },
+  "inventory": {
+    "count": 1,
+    "sample": [
+      {
+        "admixture": 1585,
+        "gravel": 244.7,
+        "sand": 138.75,
+        "cement": 76.95
+      }
+    ]
+  },
+  "deliveries": {
+    "count": 2,
+    "sample": [
+      {
+        "qty": 25,
+        "invoice": "INV-4012",
+        "date": "2026-06-17",
+        "material": "cement"
+      },
+      {
+        "date": "2026-06-18",
+        "material": "admixture",
+        "qty": 500,
+        "invoice": "INV-4099"
+      }
+    ]
+  },
+  "productionRuns": {
+    "count": 1,
+    "sample": [
+      {
+        "cementUsed": 8.049999999999999,
+        "time": "3:05:00 AM",
+        "sandUsed": 17.25,
+        "recipe": "C35",
+        "gravelUsed": 25.299999999999997,
+        "volume": 20,
+        "date": "2026-08-10"
+      }
+    ]
+  },
+  "qcRecords": {
+    "count": 0,
+    "sample": []
+  },
+  "assets": {
+    "count": 2,
+    "sample": [
+      {
+        "id": "m01",
+        "insExpiry": "2026-11-15",
+        "tare": "15",
+        "regExpiry": "2026-12-30",
+        "status": "Ready",
+        "initOdo": 50000,
+        "chassis": "WDB123456",
+        "type": "Mixer",
+        "authExpiry": "2026-09-20",
+        "engHours": 2400,
+        "gpsId": "IMEI-869234",
+        "driver": "Ahmed Ali",
+        "gross": "40",
+        "plate": "1234 XAD",
+        "opcardExpiry": "2026-10-01"
+      },
+      {
+        "gross": "40",
+        "plate": "5678 BCD",
+        "opcardExpiry": "2026-06-30",
+        "gpsId": "IMEI-869235",
+        "driver": "Mohamed Sami",
+        "chassis": "WDB789012",
+        "type": "Mixer",
+        "authExpiry": "2026-05-15",
+        "engHours": 2900,
+        "id": "m04",
+        "insExpiry": "2026-07-10",
+        "tare": "15",
+        "regExpiry": "2026-08-22",
+        "status": "Ready",
+        "initOdo": 62000
+      }
+    ]
+  },
+  "workshopConfig": {
+    "count": 1,
+    "sample": [
+      {
+        "lightFuelBudget": "4000",
+        "fuelEffTarget": "2.5",
+        "tyreBudget": "8000",
+        "stationName": "Model Plant",
+        "globalBudget": "50000",
+        "heavyFuelBudget": "23000",
+        "productType": "concrete",
+        "targetProd": "12000",
+        "maintBudget": "15000"
+      }
+    ]
+  },
+  "recipes": {
+    "count": 4,
+    "sample": [
+      {
+        "code": "C25",
+        "gravel": 1080,
+        "water": 160,
+        "admixture": 4.8,
+        "sand": 780,
+        "cement": 320
+      },
+      {
+        "code": "C30",
+        "water": 160,
+        "admixture": 5.5,
+        "sand": 750,
+        "cement": 350,
+        "gravel": 1100
+      },
+      {
+        "code": "C35",
+        "admixture": 6.2,
+        "water": 155,
+        "sand": 720,
+        "cement": 380,
+        "gravel": 1120
+      }
+    ]
+  },
+  "calibrationLogs": {
+    "count": 0,
+    "sample": []
+  }
+}

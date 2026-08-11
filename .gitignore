@@ -1,0 +1,35 @@
+# Environment / secrets
+.env
+.env.local
+.env.*.local
+
+# Dependencies
+node_modules/
+website-app/node_modules/
+website-app/apps/*/node_modules/
+
+# Next.js
+.next/
+out/
+*.tsbuildinfo
+
+# Vite site build
+website-app/dist/
+website-app/apps/*/dist/
+
+# Expo (mobile app lives at website-app/apps/mobile)
+website-app/apps/*/.expo/
+website-app/apps/*/web-build/
+website-app/apps/*/android/
+website-app/apps/*/ios/
+
+# Local database dumps / source archives (contain real data, keep local)
+backups/
+
+# Generated mobile builds served from the site (rebuild from apps/mobile)
+public/downloads/*.apk
+public/downloads/*.ipa
+
+# Logs
+*.log
+npm-debug.log*

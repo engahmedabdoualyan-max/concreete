@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  ============================================================
+   Fimto Concrete ERP — Android Manifest
+   Native permission declarations for Google Play compliance.
+  ============================================================
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Internet + realtime sockets -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+    <!-- Camera: scanning encrypted delivery-ticket QR codes on project sites -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+
+    <!-- Location: foreground + background fleet telemetry, speed analytics,
+         and automated geofence triggering for the 7-checkpoint timeline -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
+
+    <!-- Foreground service so tracking continues while the app is backgrounded -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+
+    <!-- Notifications (Android 13+) for the persistent tracking notification -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+
+    <application
+        android:name=".MainApplication"
+        android:label="@string/app_name"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:allowBackup="false"
+        android:theme="@style/AppTheme"
+        android:usesCleartextTraffic="false">
+
+        <!--
+          Human-readable rationale strings surfaced by the OS / stores.
+          These mirror the runtime disclosure dialog shown before requesting
+          ACCESS_BACKGROUND_LOCATION for Driver users.
+        -->
+        <meta-data
+            android:name="com.fimtosoft.permission.CAMERA_RATIONALE"
+            android:value="Used to scan encrypted delivery-ticket QR codes on project sites." />
+        <meta-data
+            android:name="com.fimtosoft.permission.LOCATION_RATIONALE"
+            android:value="Mandatory for continuous background fleet telemetry tracking, speed analytics, and automated geofence triggering for the 7-checkpoint delivery timeline." />
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:configChanges="keyboard|keyboardHidden|orientation|screenSize|uiMode|screenLayout|smallestScreenSize"
+            android:theme="@style/Theme.App.SplashScreen"
+            android:windowSoftInputMode="adjustResize">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <!-- Deep link scheme: fimto:// (account deletion, WhatsApp share, etc.) -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="fimto" />
+            </intent-filter>
+        </activity>
+
+        <!-- Expo foreground location service for background GPS tracking -->
+        <service
+            android:name="expo.modules.location.services.LocationTaskService"
+            android:foregroundServiceType="location"
+            android:exported="false" />
+    </application>
+</manifest>
