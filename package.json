@@ -1,12 +1,30 @@
 {
-  "name": "nextjs-postgresql-template",
+  "name": "fimto-concrete-erp",
+  "version": "1.0.0",
+  "description": "Fimto Concrete ERP — unified monorepo (ERP backend + website + mobile app)",
   "private": true,
+  "workspaces": [
+    "website-app",
+    "website-app/apps/mobile"
+  ],
+  "overrides": {
+    "jiti": "2.7.0"
+  },
   "scripts": {
     "dev": "next dev",
+    "dev:site": "npm run dev --workspace website-app",
+    "dev:mobile": "npm run start --workspace website-app/apps/mobile",
     "build": "next build",
+    "build:site": "npm run build --workspace website-app",
+    "build:mobile": "npm run prebuild --workspace website-app/apps/mobile",
+    "build:all": "npm run build && npm run build:site && npm run build:mobile",
     "start": "next start",
+    "typecheck": "tsc --noEmit",
+    "typecheck:site": "npm run typecheck --workspace website-app",
+    "typecheck:mobile": "npm run typecheck --workspace website-app/apps/mobile",
+    "typecheck:all": "npm run typecheck && npm run typecheck:site && npm run typecheck:mobile",
     "lint": "eslint .",
-    "typecheck": "tsc --noEmit"
+    "lint:all": "npm run lint && npm run lint:site"
   },
   "dependencies": {
     "@types/bcryptjs": "^2.4.6",
