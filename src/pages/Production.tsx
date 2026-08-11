@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useLang } from '../context/LangContext';
 import { loadInventory, saveInventory, loadDeliveries, saveDeliveries, loadProductionRuns, saveProductionRuns, loadOrders, saveOrders, addNotification } from '../firebase/firestore';
 import DatePicker from '../components/DatePicker';
 import QuickJump from '../components/QuickJump';
@@ -65,6 +66,7 @@ const MAX: Record<string, number> = { cement: 100, sand: 200, gravel: 300, admix
 
 export default function Production() {
   const { currentUser } = useAuth();
+  const { t } = useLang();
   const DEF_INV = { cement: 85, sand: 156, gravel: 270, admixture: 1700 };
   const DEF_DELIV = [{ date: '2026-06-17', material: 'cement', qty: 25, invoice: 'INV-4012' }, { date: '2026-06-18', material: 'admixture', qty: 500, invoice: 'INV-4099' }];
   const [inventory, setInventory] = useState<Record<string, number>>(DEF_INV);
@@ -155,7 +157,7 @@ export default function Production() {
     setInventory(prev => ({ ...prev, [type]: Math.min(prev[type] + qty, MAX[type] * 1.2) }));
     setDeliveries(prev => [...prev, { date: new Date().toISOString().split('T')[0], material: type, qty, invoice: delivForm.invoice }]);
     setDelivForm({ type: 'cement', qty: '', invoice: '' });
-    alert(`✅ Material delivery recorded! Added ${qty} to ${type}.`);
+    alert(`✅ ${t('deliveryRecorded')}! ${t('added')} ${qty} ${t('to')} ${type}.`);
   };
 
   // إنتاج البلوك وتحديث المخزون
@@ -172,9 +174,9 @@ export default function Production() {
 
     // التحقق من توفر المواد الخام
     if (inventory.cement < cementUsed || inventory.sand < sandUsed) {
-      alert('⚠️ لا توجد مواد خام كافية!\n' +
-        `الأسمنت المطلوب: ${cementUsed.toFixed(2)} طن (المتاح: ${inventory.cement.toFixed(2)} طن)\n` +
-        `الرمل المطلوب: ${sandUsed.toFixed(2)} طن (المتاح: ${inventory.sand.toFixed(2)} طن)`);
+      alert(`${t('notEnoughRawMaterials')}\n` +
+        `${t('cementRequired')}: ${cementUsed.toFixed(2)} tons (${t('available')}: ${inventory.cement.toFixed(2)} tons)\n` +
+        `${t('sandRequired')}: ${sandUsed.toFixed(2)} tons (${t('available')}: ${inventory.sand.toFixed(2)} tons)`);
       return;
     }
 
@@ -206,11 +208,11 @@ export default function Production() {
     };
     setBlockProductions(prev => [...prev, production]);
 
-    alert(`✅ تم إنتاج ${qty} بلوك من نوع ${block.name}\n` +
-      `📦 تم تحديث المخزون:\n` +
-      `- الأسمنت: -${cementUsed.toFixed(2)} طن\n` +
-      `- الرمل: -${sandUsed.toFixed(2)} طن\n` +
-      `- مخزون البلوك: +${qty} بلوك`);
+    alert(`✅ ${t('produced')} ${qty} ${t('blocks')} ${t('ofType')} ${block.name}\n` +
+      `📦 ${t('inventoryUpdated')}:\n` +
+      `- ${t('cement')}: -${cementUsed.toFixed(2)} tons\n` +
+      `- ${t('sand')}: -${sandUsed.toFixed(2)} tons\n` +
+      `- ${t('blockStock')}: +${qty} ${t('blocks')}`);
     setBlockProdForm({ blockCode: '', quantity: '' });
   };
 
@@ -266,7 +268,7 @@ export default function Production() {
     let factor = 1; if (recipe === 'C25') factor = 0.85; if (recipe === 'C35') factor = 1.15; if (recipe === 'C40') factor = 1.3;
     const cementN = 0.35 * vol * factor, sandN = 0.75 * vol * factor, gravelN = 1.1 * vol * factor, admixN = 5 * vol * factor;
     if (inventory.cement < cementN || inventory.sand < sandN || inventory.gravel < gravelN || inventory.admixture < admixN) {
-      alert('❌ Insufficient raw materials! Record a delivery first.'); return;
+      alert('❌ ' + t('insufficientRawMaterials')); return;
     }
     const order = orders.find(o => o.id === batchForm.orderId);
     setInventory(prev => ({ cement: prev.cement - cementN, sand: prev.sand - sandN, gravel: prev.gravel - gravelN, admixture: prev.admixture - admixN }));
@@ -279,17 +281,17 @@ export default function Production() {
       saveOrders(currentUser!.username, orders.map(o => o.id === order.id ? updated : o)).catch(() => {});
       if (currentUser) addNotification(currentUser.username, {
         level: done ? 'success' : 'info',
-        title: `🏭 إنتاج ${vol} م³ للطلب ${order.orderNo}`,
-        body: `${order.customerName} · تم تسليم ${Math.min(delivered, Number(order.quantity) || delivered).toFixed(1)} / ${order.quantity} م³${done ? ' — ✅ اكتمل الطلب' : ''}`,
+        title: `🏭 ${t('produced')} ${vol} m³ ${t('forOrder')} ${order.orderNo}`,
+        body: `${order.customerName} · ${t('delivered')} ${Math.min(delivered, Number(order.quantity) || delivered).toFixed(1)} / ${order.quantity} m³${done ? ' — ✅ ' + t('orderCompleted') : ''}`,
       }).catch(() => {});
       setBatchForm({ recipe: 'C30', volume: '', orderId: '' });
       alert(done
-        ? `✅ تم إنتاج ${vol} م³ — اكتمل الطلب ${order.orderNo} بالكامل (${order.quantity} م³) وتم خصم الخامات من المخزون.`
-        : `🚀 تم إنتاج ${vol} م³ للطلب ${order.orderNo} — خصم ${cementN.toFixed(2)} طن أسمنت من المخزون. المتبقي ${(Number(order.quantity) - Math.min(delivered, Number(order.quantity))).toFixed(1)} م³.`);
+        ? `✅ ${t('produced')} ${vol} m³ — ${t('orderCompleted')} ${order.orderNo} (${order.quantity} m³) ${t('materialsDeducted')}.`
+        : `🚀 ${t('produced')} ${vol} m³ ${t('forOrder')} ${order.orderNo} — ${t('deducted')} ${cementN.toFixed(2)} ${t('tonsOfCement')} ${t('fromInventory')}. ${t('remaining')} ${(Number(order.quantity) - Math.min(delivered, Number(order.quantity))).toFixed(1)} m³.`);
       return;
     }
     setBatchForm({ recipe: 'C30', volume: '', orderId: '' });
-    alert(`🚀 Poured ${vol}m³ of ${recipe}. Cement: ${cementN.toFixed(2)}T, Sand: ${sandN.toFixed(2)}T, Gravel: ${gravelN.toFixed(2)}T.`);
+    alert(`🚀 ${t('poured')} ${vol}m³ ${t('of')} ${recipe}. ${t('cement')}: ${cementN.toFixed(2)}T, ${t('sand')}: ${sandN.toFixed(2)}T, ${t('gravel')}: ${gravelN.toFixed(2)}T.`);
   };
 
   const filteredDeliv = deliveries.filter(d => (!fromDate || d.date >= fromDate) && (!toDate || d.date <= toDate));
@@ -301,16 +303,16 @@ export default function Production() {
     const blob = new Blob([csv], { type: 'text/csv' }); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'production_runs.csv'; a.click();
   };
 
-  if (!currentUser) return <div className="min-h-screen bg-[#0B111E] flex items-center justify-center"><div className="text-center"><p className="text-red-400 text-xl mb-4">🔒 Access Denied</p><Link to="/" className="text-sky-400 underline">Back to Login</Link></div></div>;
+  if (!currentUser) return <div className="min-h-screen bg-[#0B111E] flex items-center justify-center"><div className="text-center"><p className="text-red-400 text-xl mb-4">🔒 {t('accessDenied')}</p><Link to="/" className="text-sky-400 underline">{t('backToLogin')}</Link></div></div>;
 
   return (
     <div className="min-h-screen bg-[#0B111E] text-slate-200">
       <div className="bg-[#0B111E]/80 backdrop-blur-xl border-b border-white/10 px-6 py-2.5 flex flex-wrap justify-between items-center gap-x-3 gap-y-1.5 sticky top-0 z-50 shadow-lg">
         <div className="flex flex-wrap items-center gap-3">
           <BrandLogo width={56} />
-          <Link to="/" className="text-slate-400 text-xs border border-white/10 px-2.5 py-1 rounded hover:text-white">← Dashboard</Link>
+          <Link to="/" className="text-slate-400 text-xs border border-white/10 px-2.5 py-1 rounded hover:text-white">← {t('backToDashboard')}</Link>
           <QuickJump /> <LangSelector />
-          <h1 className="text-sm font-black tracking-tight text-white">🏭 Concrete Production & Material Inventory</h1>
+          <h1 className="text-sm font-black tracking-tight text-white">🏭 {t('productionTitle')}</h1>
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <NotificationsBell />
@@ -323,10 +325,10 @@ export default function Production() {
         {/* KPIs */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
           {[
-            { label: 'Total Poured', value: '30.0 m³', border: 'border-emerald-500' },
-            { label: 'Silo Avg Level', value: `${((pct('cement') + pct('sand') + pct('gravel') + pct('admixture')) / 4).toFixed(1)}%`, border: 'border-yellow-500' },
-            { label: 'Deliveries', value: `${deliveries.length} Logs`, border: 'border-sky-500' },
-            { label: 'Low Stock Alerts', value: `${[pct('cement'), pct('sand'), pct('gravel'), pct('admixture')].filter(v => v < 25).length} Silos`, border: 'border-red-500' },
+            { label: t('totalPoured'), value: '30.0 m³', border: 'border-emerald-500' },
+            { label: t('siloAvgLevel'), value: `${((pct('cement') + pct('sand') + pct('gravel') + pct('admixture')) / 4).toFixed(1)}%`, border: 'border-yellow-500' },
+            { label: t('deliveries'), value: `${deliveries.length} ${t('logs')}`, border: 'border-sky-500' },
+            { label: t('lowStockAlerts'), value: `${[pct('cement'), pct('sand'), pct('gravel'), pct('admixture')].filter(v => v < 25).length} ${t('silos')}`, border: 'border-red-500' },
           ].map(kpi => (
             <div key={kpi.label} className={`bg-white/[0.04] rounded-xl p-5 border-l-4 ${kpi.border} shadow-lg`}>
               <p className="text-xs text-slate-400 mb-1">{kpi.label}</p><p className="text-xl font-bold text-white">{kpi.value}</p>
@@ -337,10 +339,10 @@ export default function Production() {
         {/* Silo Visuals */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
           {[
-            { name: 'Cement Silo', key: 'cement', unit: 'Tons', fill: 'bg-gradient-to-t from-slate-400 to-slate-200' },
-            { name: 'Fine Sand Bin', key: 'sand', unit: 'Tons', fill: 'bg-gradient-to-t from-yellow-500 to-yellow-200' },
-            { name: 'Aggregate Bin', key: 'gravel', unit: 'Tons', fill: 'bg-gradient-to-t from-gray-600 to-gray-400' },
-            { name: 'Admixture Tank', key: 'admixture', unit: 'Liters', fill: 'bg-gradient-to-t from-cyan-500 to-cyan-300' },
+            { name: t('cementSilo'), key: 'cement', unit: 'Tons', fill: 'bg-gradient-to-t from-slate-400 to-slate-200' },
+            { name: t('fineSandBin'), key: 'sand', unit: 'Tons', fill: 'bg-gradient-to-t from-yellow-500 to-yellow-200' },
+            { name: t('aggregateBin'), key: 'gravel', unit: 'Tons', fill: 'bg-gradient-to-t from-gray-600 to-gray-400' },
+            { name: t('admixtureTank'), key: 'admixture', unit: 'Liters', fill: 'bg-gradient-to-t from-cyan-500 to-cyan-300' },
           ].map(silo => (
             <div key={silo.key} className="bg-white/[0.04] border border-white/10 rounded-xl p-4 text-center">
               <h4 className="text-sm text-slate-300 mb-3">{silo.name}</h4>
@@ -355,83 +357,83 @@ export default function Production() {
         <div className="grid grid-cols-1 lg:grid-cols-[380px_1fr] gap-6">
           {/* Forms */}
           <div className="bg-white/[0.04] border border-white/10 rounded-xl p-6 shadow-lg">
-            <h3 className="text-lg font-black tracking-tight text-white mb-4 pb-2 border-b border-white/10">➕ Raw Material Delivery</h3>
+            <h3 className="text-lg font-black tracking-tight text-white mb-4 pb-2 border-b border-white/10">➕ {t('rawMaterialDelivery')}</h3>
             <form onSubmit={addDelivery} className="space-y-3">
-              <div><label className="text-xs text-slate-400 font-semibold">Material Type</label><select value={delivForm.type} onChange={e => setDelivForm({ ...delivForm, type: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm"><option value="cement">Cement (Tons)</option><option value="sand">Fine Sand (Tons)</option><option value="gravel">Aggregate (Tons)</option><option value="admixture">Admixture (Liters)</option></select></div>
-              <div><label className="text-xs text-slate-400 font-semibold">Quantity</label><input type="number" step="0.1" value={delivForm.qty} onChange={e => setDelivForm({ ...delivForm, qty: e.target.value })} placeholder="50" className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm" required /></div>
-              <div><label className="text-xs text-slate-400 font-semibold">Invoice</label><input value={delivForm.invoice} onChange={e => setDelivForm({ ...delivForm, invoice: e.target.value })} placeholder="INV-8879" className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm" required /></div>
-              <button type="submit" className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3 rounded-lg">💾 Record Delivery</button>
+              <div><label className="text-xs text-slate-400 font-semibold">{t('materialType')}</label><select value={delivForm.type} onChange={e => setDelivForm({ ...delivForm, type: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm"><option value="cement">{t('materialCement')}</option><option value="sand">{t('materialFineSand')}</option><option value="gravel">{t('materialAggregate')}</option><option value="admixture">{t('materialAdmixture')}</option></select></div>
+              <div><label className="text-xs text-slate-400 font-semibold">{t('quantity')}</label><input type="number" step="0.1" value={delivForm.qty} onChange={e => setDelivForm({ ...delivForm, qty: e.target.value })} placeholder="50" className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm" required /></div>
+              <div><label className="text-xs text-slate-400 font-semibold">{t('invoice')}</label><input value={delivForm.invoice} onChange={e => setDelivForm({ ...delivForm, invoice: e.target.value })} placeholder="INV-8879" className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm" required /></div>
+              <button type="submit" className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3 rounded-lg">💾 {t('recordDelivery')}</button>
             </form>
 
-            <h3 className="text-lg font-black tracking-tight text-white mt-8 mb-4 pb-2 border-b border-white/10">⚙️ Run Manual Batch</h3>
+            <h3 className="text-lg font-black tracking-tight text-white mt-8 mb-4 pb-2 border-b border-white/10">⚙️ {t('runManualBatch')}</h3>
             <form onSubmit={runBatch} className="space-y-3">
-              <div><label className="text-xs text-slate-400 font-semibold">Concrete Recipe</label>
+              <div><label className="text-xs text-slate-400 font-semibold">{t('concreteRecipe')}</label>
                 <select value={batchForm.recipe} onChange={e => setBatchForm({ ...batchForm, recipe: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm">
                   {(recipes.length > 0 ? recipes : [{ code: 'C25' }, { code: 'C30' }, { code: 'C35' }, { code: 'C40' }]).map((r: any) => <option key={r.code} value={r.code}>{r.code}</option>)}
                 </select>
               </div>
-              <div><label className="text-xs text-slate-400 font-semibold">Volume (m³)</label><input type="number" step="0.1" value={batchForm.volume} onChange={e => setBatchForm({ ...batchForm, volume: e.target.value })} placeholder="10" className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm" required /></div>
+              <div><label className="text-xs text-slate-400 font-semibold">{t('volume')} (m³)</label><input type="number" step="0.1" value={batchForm.volume} onChange={e => setBatchForm({ ...batchForm, volume: e.target.value })} placeholder="10" className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm" required /></div>
               <div>
-                <label className="text-xs text-slate-400 font-semibold">ربط الإنتاج بالطلب (orderId)</label>
+                <label className="text-xs text-slate-400 font-semibold">{t('linkProductionToOrder')} (orderId)</label>
                 <select value={batchForm.orderId} onChange={e => setBatchForm({ ...batchForm, orderId: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm">
-                  <option value="">— بدون ربط (إنتاج عام) —</option>
+                  <option value="">{t('noOrderLink')}</option>
                   {orders.filter((o: any) => o.status === 'in_progress' || o.status === 'scheduled').map((o: any) => (
-                    <option key={o.id} value={o.id}>{o.orderNo || o.id} · {o.customerName} · تسليم {(Number(o.deliveredQty) || 0).toFixed(1)}/{o.quantity} م³</option>
+                    <option key={o.id} value={o.id}>{o.orderNo || o.id} · {o.customerName} · {t('delivered')} {(Number(o.deliveredQty) || 0).toFixed(1)}/{o.quantity} m³</option>
                   ))}
                 </select>
               </div>
-              <button type="submit" className="w-full bg-sky-500 hover:bg-sky-400 text-white font-bold py-3 rounded-lg">🚀 Execute Batch</button>
+              <button type="submit" className="w-full bg-sky-500 hover:bg-sky-400 text-white font-bold py-3 rounded-lg">🚀 {t('executeBatch')}</button>
             </form>
 
             {/* 🧱 إنتاج البلوك */}
-            <h3 className="text-lg font-black tracking-tight text-white mt-8 mb-4 pb-2 border-b border-white/10">🧱 Produce Blocks</h3>
+            <h3 className="text-lg font-black tracking-tight text-white mt-8 mb-4 pb-2 border-b border-white/10">🧱 {t('produceBlocks')}</h3>
             <form onSubmit={produceBlocks} className="space-y-3">
-              <div><label className="text-xs text-slate-400 font-semibold">Block Type</label>
+              <div><label className="text-xs text-slate-400 font-semibold">{t('blockType')}</label>
                 <select value={blockProdForm.blockCode} onChange={e => setBlockProdForm({ ...blockProdForm, blockCode: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm" required>
-                  <option value="">-- Select Block Type --</option>
+                  <option value="">{t('selectBlockType')}</option>
                   {blocks.map(b => (
-                    <option key={b.id} value={b.code}>{b.code} - {b.name} (Stock: {b.stock})</option>
+                    <option key={b.id} value={b.code}>{b.code} - {b.name} ({t('stock')}: {b.stock})</option>
                   ))}
                 </select>
               </div>
-              <div><label className="text-xs text-slate-400 font-semibold">Quantity (Blocks)</label><input type="number" min="1" value={blockProdForm.quantity} onChange={e => setBlockProdForm({ ...blockProdForm, quantity: e.target.value })} placeholder="1000" className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm" required /></div>
-              <button type="submit" className="w-full bg-sky-500 hover:bg-sky-400 text-white font-bold py-3 rounded-lg">🧱 Produce Blocks</button>
+              <div><label className="text-xs text-slate-400 font-semibold">{t('quantityBlocks')}</label><input type="number" min="1" value={blockProdForm.quantity} onChange={e => setBlockProdForm({ ...blockProdForm, quantity: e.target.value })} placeholder="1000" className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm" required /></div>
+              <button type="submit" className="w-full bg-sky-500 hover:bg-sky-400 text-white font-bold py-3 rounded-lg">🧱 {t('produceBlocks')}</button>
             </form>
           </div>
 
           {/* 📊 مقارنة المخزون بالطلبات */}
           <div className="bg-white/[0.04] border border-white/10 rounded-xl p-6 shadow-lg mt-6">
-            <h3 className="text-lg font-black tracking-tight text-white mb-4 pb-2 border-b border-white/10">📊 Inventory vs Orders Comparison</h3>
+            <h3 className="text-lg font-black tracking-tight text-white mb-4 pb-2 border-b border-white/10">📊 {t('inventoryVsOrders')}</h3>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
               <div className="bg-[#0B111E] rounded-lg p-4">
-                <p className="text-xs text-slate-400">Concrete Needed</p>
+                <p className="text-xs text-slate-400">{t('concreteNeeded')}</p>
                 <p className="text-lg font-bold text-white">{inventoryCheck.concreteNeeded.toFixed(0)} m³</p>
               </div>
               <div className="bg-[#0B111E] rounded-lg p-4">
-                <p className="text-xs text-slate-400">Blocks Needed</p>
+                <p className="text-xs text-slate-400">{t('blocksNeeded')}</p>
                 <p className="text-lg font-bold text-white">{inventoryCheck.blocksNeeded}</p>
               </div>
               <div className="bg-[#0B111E] rounded-lg p-4">
-                <p className="text-xs text-slate-400">Cement Available</p>
+                <p className="text-xs text-slate-400">{t('cementAvailable')}</p>
                 <p className="text-lg font-bold text-white">{inventoryCheck.cementAvailable.toFixed(2)} T</p>
               </div>
               <div className="bg-[#0B111E] rounded-lg p-4">
-                <p className="text-xs text-slate-400">Blocks Available</p>
+                <p className="text-xs text-slate-400">{t('blocksAvailable')}</p>
                 <p className="text-lg font-bold text-white">{inventoryCheck.blocksAvailable}</p>
               </div>
             </div>
             {(inventoryCheck.cementShortage > 0 || inventoryCheck.sandShortage > 0 || inventoryCheck.gravelShortage > 0 || inventoryCheck.blocksShortage > 0) && (
               <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4">
-                <p className="text-red-400 font-bold mb-2">⚠️ Material Shortages Detected!</p>
-                {inventoryCheck.cementShortage > 0 && <p className="text-sm text-slate-300">• Cement shortage: {inventoryCheck.cementShortage.toFixed(2)} tons</p>}
-                {inventoryCheck.sandShortage > 0 && <p className="text-sm text-slate-300">• Sand shortage: {inventoryCheck.sandShortage.toFixed(2)} tons</p>}
-                {inventoryCheck.gravelShortage > 0 && <p className="text-sm text-slate-300">• Gravel shortage: {inventoryCheck.gravelShortage.toFixed(2)} tons</p>}
-                {inventoryCheck.blocksShortage > 0 && <p className="text-sm text-slate-300">• Blocks shortage: {inventoryCheck.blocksShortage} blocks</p>}
+                <p className="text-red-400 font-bold mb-2">⚠️ {t('materialShortages')}</p>
+                {inventoryCheck.cementShortage > 0 && <p className="text-sm text-slate-300">• {t('cementShortage')}: {inventoryCheck.cementShortage.toFixed(2)} tons</p>}
+                {inventoryCheck.sandShortage > 0 && <p className="text-sm text-slate-300">• {t('sandShortage')}: {inventoryCheck.sandShortage.toFixed(2)} tons</p>}
+                {inventoryCheck.gravelShortage > 0 && <p className="text-sm text-slate-300">• {t('gravelShortage')}: {inventoryCheck.gravelShortage.toFixed(2)} tons</p>}
+                {inventoryCheck.blocksShortage > 0 && <p className="text-sm text-slate-300">• {t('blocksShortage')}: {inventoryCheck.blocksShortage} blocks</p>}
               </div>
             )}
             {inventoryCheck.cementShortage === 0 && inventoryCheck.sandShortage === 0 && inventoryCheck.gravelShortage === 0 && inventoryCheck.blocksShortage === 0 && (
               <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-lg p-4">
-                <p className="text-emerald-400 font-bold">✅ All materials are sufficient for pending orders</p>
+                <p className="text-emerald-400 font-bold">✅ {t('allMaterialsSufficient')}</p>
               </div>
             )}
           </div>
@@ -439,27 +441,27 @@ export default function Production() {
           {/* Tables */}
           <div className="bg-white/[0.04] border border-white/10 rounded-xl p-6 shadow-lg">
             <div className="flex justify-between items-center mb-4 pb-2 border-b border-white/10">
-              <h3 className="text-lg font-black tracking-tight text-white">📋 Reconciliation Logs</h3>
-              <div className="flex gap-2"><button onClick={exportCSV} className="bg-yellow-500 text-slate-900 text-xs px-3 py-1.5 rounded font-bold">Excel</button><button onClick={() => window.print()} className="bg-sky-500 text-white text-xs px-3 py-1.5 rounded font-bold">Print</button></div>
+              <h3 className="text-lg font-black tracking-tight text-white">📋 {t('reconciliationLogs')}</h3>
+              <div className="flex gap-2"><button onClick={exportCSV} className="bg-yellow-500 text-slate-900 text-xs px-3 py-1.5 rounded font-bold">Excel</button><button onClick={() => window.print()} className="bg-sky-500 text-white text-xs px-3 py-1.5 rounded font-bold">{t('print')}</button></div>
             </div>
-            <div className="grid grid-cols-2 gap-3 mb-4"><DatePicker value={fromDate} onChange={setFromDate} label="From" /><DatePicker value={toDate} onChange={setToDate} label="To" /></div>
+            <div className="grid grid-cols-2 gap-3 mb-4"><DatePicker value={fromDate} onChange={setFromDate} label={t('from')} /><DatePicker value={toDate} onChange={setToDate} label={t('to')} /></div>
 
-            <h4 className="text-xs text-slate-400 uppercase mb-2">📥 Recent Deliveries</h4>
+            <h4 className="text-xs text-slate-400 uppercase mb-2">📥 {t('recentDeliveries')}</h4>
             <div className="overflow-x-auto mb-6">
-              <table className="w-full text-left text-sm text-slate-300"><thead className="bg-white/[0.04] text-slate-400 text-xs uppercase"><tr><th className="p-3">Date</th><th className="p-3">Material</th><th className="p-3">Qty</th><th className="p-3">Invoice</th><th className="p-3">Status</th></tr></thead>
-                <tbody>{filteredDeliv.slice(-5).reverse().map((d, i) => <tr key={i} className="border-b border-white/10"><td className="p-3">{d.date}</td><td className="p-3 uppercase font-bold">{d.material}</td><td className="p-3">{d.qty} {d.material === 'admixture' ? 'L' : 'Tons'}</td><td className="p-3">{d.invoice}</td><td className="p-3"><span className="bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded text-xs font-bold">Verified</span></td></tr>)}</tbody></table>
+              <table className="w-full text-left text-sm text-slate-300"><thead className="bg-white/[0.04] text-slate-400 text-xs uppercase"><tr><th className="p-3">{t('date')}</th><th className="p-3">{t('material')}</th><th className="p-3">{t('quantity')}</th><th className="p-3">{t('invoice')}</th><th className="p-3">{t('status')}</th></tr></thead>
+                <tbody>{filteredDeliv.slice(-5).reverse().map((d, i) => <tr key={i} className="border-b border-white/10"><td className="p-3">{d.date}</td><td className="p-3 uppercase font-bold">{d.material}</td><td className="p-3">{d.qty} {d.material === 'admixture' ? 'L' : 'Tons'}</td><td className="p-3">{d.invoice}</td><td className="p-3"><span className="bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded text-xs font-bold">{t('verified')}</span></td></tr>)}</tbody></table>
             </div>
 
-            <h4 className="text-xs text-slate-400 uppercase mb-2">🏭 Recent Production Runs</h4>
+            <h4 className="text-xs text-slate-400 uppercase mb-2">🏭 {t('recentProductionRuns')}</h4>
             <div className="overflow-x-auto mb-6">
-              <table className="w-full text-left text-sm text-slate-300"><thead className="bg-white/[0.04] text-slate-400 text-xs uppercase"><tr><th className="p-3">Time</th><th className="p-3">Recipe</th><th className="p-3">Vol</th><th className="p-3">Cement</th><th className="p-3">Gravel</th><th className="p-3">Status</th></tr></thead>
-                <tbody>{filteredRuns.slice(-5).reverse().map((p, i) => <tr key={i} className="border-b border-white/10"><td className="p-3">{p.date} {p.time}</td><td className="p-3 font-bold text-sky-400">{p.recipe}</td><td className="p-3">{p.volume} m³</td><td className="p-3">{p.cementUsed.toFixed(2)} T</td><td className="p-3">{p.gravelUsed.toFixed(2)} T</td><td className="p-3"><span className="bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded text-xs font-bold">Dispatched</span></td></tr>)}</tbody></table>
+              <table className="w-full text-left text-sm text-slate-300"><thead className="bg-white/[0.04] text-slate-400 text-xs uppercase"><tr><th className="p-3">{t('time')}</th><th className="p-3">{t('recipe')}</th><th className="p-3">{t('vol')}</th><th className="p-3">{t('cement')}</th><th className="p-3">{t('gravel')}</th><th className="p-3">{t('status')}</th></tr></thead>
+                <tbody>{filteredRuns.slice(-5).reverse().map((p, i) => <tr key={i} className="border-b border-white/10"><td className="p-3">{p.date} {p.time}</td><td className="p-3 font-bold text-sky-400">{p.recipe}</td><td className="p-3">{p.volume} m³</td><td className="p-3">{p.cementUsed.toFixed(2)} T</td><td className="p-3">{p.gravelUsed.toFixed(2)} T</td><td className="p-3"><span className="bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded text-xs font-bold">{t('dispatched')}</span></td></tr>)}</tbody></table>
             </div>
 
-            <h4 className="text-xs text-slate-400 uppercase mb-2">🧱 Recent Block Productions</h4>
+            <h4 className="text-xs text-slate-400 uppercase mb-2">🧱 {t('recentBlockProductions')}</h4>
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm text-slate-300"><thead className="bg-white/[0.04] text-slate-400 text-xs uppercase"><tr><th className="p-3">Date</th><th className="p-3">Block Code</th><th className="p-3">Qty</th><th className="p-3">Cement</th><th className="p-3">Sand</th><th className="p-3">Status</th></tr></thead>
-                <tbody>{blockProductions.slice(-5).reverse().map((p, i) => <tr key={i} className="border-b border-white/10"><td className="p-3">{p.date}</td><td className="p-3 font-bold text-sky-400">{p.blockCode}</td><td className="p-3">{p.quantity}</td><td className="p-3">{p.totalCement.toFixed(2)} T</td><td className="p-3">{p.totalSand.toFixed(2)} T</td><td className="p-3"><span className="bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded text-xs font-bold">Produced</span></td></tr>)}</tbody></table>
+              <table className="w-full text-left text-sm text-slate-300"><thead className="bg-white/[0.04] text-slate-400 text-xs uppercase"><tr><th className="p-3">{t('date')}</th><th className="p-3">{t('blockCode')}</th><th className="p-3">{t('quantity')}</th><th className="p-3">{t('cement')}</th><th className="p-3">{t('sand')}</th><th className="p-3">{t('status')}</th></tr></thead>
+                <tbody>{blockProductions.slice(-5).reverse().map((p, i) => <tr key={i} className="border-b border-white/10"><td className="p-3">{p.date}</td><td className="p-3 font-bold text-sky-400">{p.blockCode}</td><td className="p-3">{p.quantity}</td><td className="p-3">{p.totalCement.toFixed(2)} T</td><td className="p-3">{p.totalSand.toFixed(2)} T</td><td className="p-3"><span className="bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded text-xs font-bold">{t('produced')}</span></td></tr>)}</tbody></table>
             </div>
           </div>
         </div>

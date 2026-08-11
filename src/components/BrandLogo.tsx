@@ -1,4 +1,5 @@
 import siteLogo from '../assets/logos/logo.png';
+import { useLang } from '../context/LangContext';
 
 const LOGO_ASPECT = 1040 / 1024;
 const HOME_URL = 'https://concrete.fimtosoft.com/';
@@ -10,6 +11,7 @@ export default function BrandLogo({ size = 40, width, height, rounded = 'rounded
   rounded?: string;
   fill?: boolean;
 }) {
+  const { t } = useLang();
   const w = width ?? size;
   const h = height ?? (fill ? w / LOGO_ASPECT : size);
   return (
@@ -21,7 +23,7 @@ export default function BrandLogo({ size = 40, width, height, rounded = 'rounded
       className={`${rounded} flex items-center justify-center overflow-hidden shadow-lg border border-white/20 bg-white shrink-0 hover:scale-105 transition-transform cursor-pointer`}
       style={{ width: w, height: h }}
     >
-      <img src={siteLogo} alt="Site logo" className="w-full h-full object-contain" />
+      <img src={siteLogo} alt={t('siteLogoAlt')} className="w-full h-full object-contain" />
     </a>
   );
 }

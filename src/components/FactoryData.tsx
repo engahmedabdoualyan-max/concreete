@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useLang } from '../context/LangContext';
 import { loadAssets, saveAssets, loadInventory, saveInventory, loadWorkshopConfig, saveWorkshopConfig } from '../firebase/firestore';
 import { saveGpsLocationToSupabase } from '../supabase/supabase';
 
@@ -28,6 +29,7 @@ export type FactorySection = 'fleet' | 'stock' | 'config';
 
 export default function FactoryData({ onToast, section }: { onToast: (msg: string) => void; section?: FactorySection }) {
   const { currentUser } = useAuth();
+  const { t } = useLang();
   const showAll = !section;
   const [assets, setAssets] = useState<Asset[]>([]);
   const [stock, setStock] = useState<Record<string, number>>(DEF_STOCK);
@@ -57,7 +59,7 @@ export default function FactoryData({ onToast, section }: { onToast: (msg: strin
   const setAssetField = (k: string, v: string) => setAssetForm((p: any) => ({ ...p, [k]: v }));
 
   const addAsset = () => {
-    if (!assetForm.id || !assetForm.plate) { onToast('⚠️ Enter asset code and plate first.'); return; }
+    if (!assetForm.id || !assetForm.plate) { onToast('⚠️ ' + t('enterAssetCodePlate')); return; }
     const na: Asset = {
       ...assetForm,
       initOdo: Number(assetForm.initOdo) || 0,
@@ -72,11 +74,11 @@ export default function FactoryData({ onToast, section }: { onToast: (msg: strin
       saveGpsLocationToSupabase({ username: currentUser.username, label: `asset:${na.id}`, lat: na.gpsLat, lng: na.gpsLng }).catch(() => {});
     }
     setAssetForm({ id: '', plate: '', chassis: '', type: 'Mixer', status: 'Ready', driver: '', initOdo: '', engHours: '', regExpiry: '', insExpiry: '', opcardExpiry: '', authExpiry: '', gpsId: '', tare: '', gross: '', gpsLat: '', gpsLng: '', productionRate: '', capacity: '', model: '', year: '', manufacturer: '' });
-    onToast(`✅ Asset ${na.id} saved — visible across all sections.`);
+    onToast(`✅ ${t('assetSaved')} ${na.id} — ${t('visibleAllSections')}.`);
   };
 
   const deleteAsset = (id: string) => {
-    if (!confirm('Delete asset ' + id + '?')) return;
+    if (!confirm(t('deleteAssetConfirm') + ' ' + id + '?')) return;
     setAssets(prev => prev.filter(a => a.id !== id));
   };
 
@@ -87,13 +89,13 @@ export default function FactoryData({ onToast, section }: { onToast: (msg: strin
   const detectAssetGps = (id: string) => {
     setGpsBusyId(id);
     setGpsMsg('');
-    if (!navigator.geolocation) { setGpsMsg('⚠️ Geolocation not supported.'); setGpsBusyId(''); return; }
+    if (!navigator.geolocation) { setGpsMsg('⚠️ ' + t('geolocationNotSupported')); setGpsBusyId(''); return; }
     navigator.geolocation.getCurrentPosition(
       pos => {
         const { latitude, longitude } = pos.coords;
         setAssets(prev => prev.map(a => a.id === id ? { ...a, gpsLat: latitude, gpsLng: longitude } : a));
         if (currentUser) saveGpsLocationToSupabase({ username: currentUser.username, label: `asset:${id}`, lat: latitude, lng: longitude }).catch(() => {});
-        setGpsMsg(`✅ GPS for ${id} saved (${latitude.toFixed(5)}, ${longitude.toFixed(5)}).`);
+        setGpsMsg(`✅ ${t('gpsSavedForAsset')} ${id} (${latitude.toFixed(5)}, ${longitude.toFixed(5)}).`);
         setGpsBusyId('');
       },
       err => { setGpsMsg(`⚠️ ${err.message}`); setGpsBusyId(''); },
@@ -113,52 +115,52 @@ export default function FactoryData({ onToast, section }: { onToast: (msg: strin
       {(showAll || section === 'fleet') && (
       <div className="bg-white/[0.04] rounded-2xl border border-white/10 p-6">
         <div className="flex items-center justify-between mb-2">
-          <h2 className="text-lg font-bold text-white">🚛 Factory Fleet & Equipment (Linked to Workshop)</h2>
-          <span className="text-xs px-2.5 py-1 rounded font-bold bg-amber-500/20 text-amber-400">{assets.length} assets</span>
+          <h2 className="text-lg font-bold text-white">🚛 {t('factoryFleetEquipment')}</h2>
+          <span className="text-xs px-2.5 py-1 rounded font-bold bg-amber-500/20 text-amber-400">{assets.length} {t('assets')}</span>
         </div>
-        <p className="text-xs text-slate-400 mb-4">Vehicles and equipment with GPS, type, capacity and production rate. Saved to the shared database — Workshop, Operations and the GPS map use the same records.</p>
+        <p className="text-xs text-slate-400 mb-4">{t('factoryFleetHint')}</p>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-          {[{ k: 'id', l: 'Asset Code *' }, { k: 'plate', l: 'Plate *' }, { k: 'chassis', l: 'Chassis' }, { k: 'driver', l: 'Driver' }, { k: 'gpsId', l: 'Tracker ID / IMEI' }, { k: 'model', l: 'Model' }, { k: 'year', l: 'Year' }, { k: 'manufacturer', l: 'Manufacturer' }].map(f => (
+          {[{ k: 'id', l: t('assetCode') + ' *' }, { k: 'plate', l: t('plateNumber') + ' *' }, { k: 'chassis', l: t('chassis') }, { k: 'driver', l: t('driverName') }, { k: 'gpsId', l: t('trackerIdImei') }, { k: 'model', l: t('model') }, { k: 'year', l: t('year') }, { k: 'manufacturer', l: t('manufacturer') }].map(f => (
             <div key={f.k}><label className="text-[10px] text-slate-400 font-semibold">{f.l}</label>
               <input value={assetForm[f.k]} onChange={e => setAssetField(f.k, e.target.value)} className={fieldCls} /></div>
           ))}
-          <div><label className="text-[10px] text-slate-400 font-semibold">GPS Provider</label>
+          <div><label className="text-[10px] text-slate-400 font-semibold">{t('gpsProvider')}</label>
             <select value={assetForm.gpsProvider} onChange={e => setAssetField('gpsProvider', e.target.value)} className={fieldCls}>
-              <option>Traccar</option><option>GpsGate</option><option>Teltonika</option><option>Manual / Browser</option>
+              <option>Traccar</option><option>GpsGate</option><option>Teltonika</option><option>{t('manualBrowser')}</option>
             </select></div>
-          <div><label className="text-[10px] text-slate-400 font-semibold">Type</label>
+          <div><label className="text-[10px] text-slate-400 font-semibold">{t('assetType')}</label>
             <select value={assetForm.type} onChange={e => setAssetField('type', e.target.value)} className={fieldCls}>
               <option>Mixer</option><option>Mobile Pump</option><option>Light Vehicle</option><option>Loader</option><option>Generator</option><option>Station</option>
             </select></div>
-          <div><label className="text-[10px] text-slate-400 font-semibold">Status</label>
+          <div><label className="text-[10px] text-slate-400 font-semibold">{t('status')}</label>
             <select value={assetForm.status} onChange={e => setAssetField('status', e.target.value)} className={fieldCls}>
               <option>Ready</option><option>Workshop</option><option>Out of Service</option><option>Scrap</option>
             </select></div>
-          <div><label className="text-[10px] text-slate-400 font-semibold">Odometer (km)</label>
+          <div><label className="text-[10px] text-slate-400 font-semibold">{t('odometerKm')}</label>
             <input type="number" value={assetForm.initOdo} onChange={e => setAssetField('initOdo', e.target.value)} className={fieldCls} /></div>
-          <div><label className="text-[10px] text-slate-400 font-semibold">Engine Hours</label>
+          <div><label className="text-[10px] text-slate-400 font-semibold">{t('engineHours')}</label>
             <input type="number" value={assetForm.engHours} onChange={e => setAssetField('engHours', e.target.value)} className={fieldCls} /></div>
-          <div><label className="text-[10px] text-slate-400 font-semibold">Capacity (m³)</label>
+          <div><label className="text-[10px] text-slate-400 font-semibold">{t('capacityM3')}</label>
             <input type="number" value={assetForm.capacity} onChange={e => setAssetField('capacity', e.target.value)} className={fieldCls} /></div>
-          <div><label className="text-[10px] text-slate-400 font-semibold">Production Rate (m³/h)</label>
+          <div><label className="text-[10px] text-slate-400 font-semibold">{t('productionRateM3h')}</label>
             <input type="number" value={assetForm.productionRate} onChange={e => setAssetField('productionRate', e.target.value)} className={fieldCls} /></div>
-          <div><label className="text-[10px] text-slate-400 font-semibold">GPS Latitude</label>
+          <div><label className="text-[10px] text-slate-400 font-semibold">{t('gpsLatitude')}</label>
             <input value={assetForm.gpsLat} onChange={e => setAssetField('gpsLat', e.target.value)} placeholder="24.7136" className={fieldCls} /></div>
-          <div><label className="text-[10px] text-slate-400 font-semibold">GPS Longitude</label>
+          <div><label className="text-[10px] text-slate-400 font-semibold">{t('gpsLongitude')}</label>
             <input value={assetForm.gpsLng} onChange={e => setAssetField('gpsLng', e.target.value)} placeholder="46.6753" className={fieldCls} /></div>
         </div>
         <button onClick={addAsset} className="bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-white font-bold py-2.5 px-6 rounded-lg transition-all duration-300 shadow-[0_0_20px_rgba(56,189,248,0.3)]">
-          💾 Save Asset
+          💾 {t('saveAsset')}
         </button>
 
         {assets.length === 0 ? (
-          <p className="text-slate-400 text-center py-8 mt-4">No assets yet.</p>
+          <p className="text-slate-400 text-center py-8 mt-4">{t('noAssetsYet')}</p>
         ) : (
           <div className="overflow-x-auto mt-5">
             <table className="w-full text-xs text-slate-300">
               <thead className="bg-white/[0.04] text-slate-400"><tr>
-                {['Code', 'Type', 'Plate', 'Driver', 'Status', 'Capacity', 'Prod Rate', 'GPS Tracker', '📍 Position', 'Details', ''].map(h => <th key={h} className="p-2 text-[10px] uppercase tracking-wider">{h}</th>)}
+                {[t('assetCode'), t('assetType'), t('plateNumber'), t('driverName'), t('status'), t('capacity'), t('prodRate'), t('gpsTracker'), t('position'), t('details'), t('actions')].map(h => <th key={h} className="p-2 text-[10px] uppercase tracking-wider">{h}</th>)}
               </tr></thead>
               <tbody>
                 {assets.map(a => (
@@ -172,15 +174,15 @@ export default function FactoryData({ onToast, section }: { onToast: (msg: strin
                     <td className="p-2">{a.productionRate ?? '—'} m³/h</td>
                     <td className="p-2">{a.gpsId || '—'}</td>
                     <td className="p-2">
-                      {a.gpsLat && a.gpsLng ? `${a.gpsLat.toFixed(4)}, ${a.gpsLng.toFixed(4)}` : <span className="text-slate-500">No GPS</span>}
+                      {a.gpsLat && a.gpsLng ? `${a.gpsLat.toFixed(4)}, ${a.gpsLng.toFixed(4)}` : <span className="text-slate-500">{t('noGps')}</span>}
                       <button onClick={() => detectAssetGps(a.id)} disabled={gpsBusyId === a.id} className="ml-2 bg-sky-600/20 text-sky-400 border border-sky-500/30 text-[10px] px-2 py-1 rounded font-bold hover:bg-sky-600/30 disabled:opacity-50">
                         {gpsBusyId === a.id ? '⏳' : '📍'}
                       </button>
                     </td>
                     <td className="p-2">{a.model || '—'} {a.year ? `· ${a.year}` : ''}</td>
                     <td className="p-2 flex gap-1">
-                      <button onClick={() => editAsset(a)} className="bg-sky-500 text-white text-[10px] px-2 py-1 rounded">Edit</button>
-                      <button onClick={() => deleteAsset(a.id)} className="bg-red-600 text-white text-[10px] px-2 py-1 rounded">Del</button>
+                      <button onClick={() => editAsset(a)} className="bg-sky-500 text-white text-[10px] px-2 py-1 rounded">{t('edit')}</button>
+                      <button onClick={() => deleteAsset(a.id)} className="bg-red-600 text-white text-[10px] px-2 py-1 rounded">{t('delete')}</button>
                     </td>
                   </tr>
                 ))}
@@ -195,14 +197,14 @@ export default function FactoryData({ onToast, section }: { onToast: (msg: strin
       {(showAll || section === 'stock') && (
       <div className="bg-white/[0.04] rounded-2xl border border-white/10 p-6">
         <div className="flex items-center justify-between mb-2">
-          <h2 className="text-lg font-bold text-white">🧱 Raw Material Stock (Linked to Production & Reorder)</h2>
-          <span className="text-xs px-2.5 py-1 rounded font-bold bg-emerald-500/20 text-emerald-400">Shared inventory</span>
+          <h2 className="text-lg font-bold text-white">🧱 {t('rawMaterialStock')}</h2>
+          <span className="text-xs px-2.5 py-1 rounded font-bold bg-emerald-500/20 text-emerald-400">{t('sharedInventory')}</span>
         </div>
-        <p className="text-xs text-slate-400 mb-4">Change current stock levels — Production and the Finance reorder engine read the same database instantly.</p>
+        <p className="text-xs text-slate-400 mb-4">{t('stockHint')}</p>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           {STOCK_META.map(m => (
             <div key={m.key} className="bg-white/[0.04] rounded-xl p-4 border border-white/10">
-              <label className="text-[10px] text-slate-400 font-semibold">{m.name} · min {m.min}{m.unit}</label>
+              <label className="text-[10px] text-slate-400 font-semibold">{t(m.key as any)} · {t('min')} {m.min}{m.unit}</label>
               <div className="flex items-center gap-2 mt-1">
                 <input type="number" value={stock[m.key] ?? 0} onChange={e => saveStock(m.key, Number(e.target.value) || 0)} className={fieldCls} />
                 <span className="text-xs text-slate-400">{m.unit}</span>
@@ -210,7 +212,7 @@ export default function FactoryData({ onToast, section }: { onToast: (msg: strin
               <div className="mt-2 h-1.5 bg-white/10 rounded-full overflow-hidden">
                 <div className={`h-full rounded-full ${(stock[m.key] ?? 0) <= m.min ? 'bg-red-500' : 'bg-emerald-500'}`} style={{ width: Math.min(100, ((stock[m.key] ?? 0) / (m.min * 3)) * 100) + '%' }} />
               </div>
-              {(stock[m.key] ?? 0) <= m.min && <p className="text-[10px] text-red-400 mt-1">⬇ Below minimum — reorder needed</p>}
+              {(stock[m.key] ?? 0) <= m.min && <p className="text-[10px] text-red-400 mt-1">⬇ {t('belowMinimum')}</p>}
             </div>
           ))}
         </div>
@@ -221,20 +223,20 @@ export default function FactoryData({ onToast, section }: { onToast: (msg: strin
       {(showAll || section === 'config') && (
       <div className="bg-white/[0.04] rounded-2xl border border-white/10 p-6">
         <div className="flex items-center justify-between mb-2">
-          <h2 className="text-lg font-bold text-white">🏭 Plant Production Profile (Linked to Workshop config)</h2>
-          <span className="text-xs px-2.5 py-1 rounded font-bold bg-sky-500/20 text-sky-400">Shared config</span>
+          <h2 className="text-lg font-bold text-white">🏭 {t('plantProductionProfile')}</h2>
+          <span className="text-xs px-2.5 py-1 rounded font-bold bg-sky-500/20 text-sky-400">{t('sharedConfig')}</span>
         </div>
-        <p className="text-xs text-slate-400 mb-4">Plant type and target production — used by Workshop and the factory dashboard.</p>
+        <p className="text-xs text-slate-400 mb-4">{t('plantConfigHint')}</p>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div><label className="text-[10px] text-slate-400 font-semibold">Station / Plant Name</label>
+          <div><label className="text-[10px] text-slate-400 font-semibold">{t('stationPlantName')}</label>
             <input value={config.stationName || ''} onChange={e => setConfig({ ...config, stationName: e.target.value })} className={fieldCls} /></div>
-          <div><label className="text-[10px] text-slate-400 font-semibold">Product Type</label>
+          <div><label className="text-[10px] text-slate-400 font-semibold">{t('productType')}</label>
             <select value={config.productType || 'concrete'} onChange={e => setConfig({ ...config, productType: e.target.value })} className={fieldCls}>
-              <option value="concrete">🏗️ Concrete</option><option value="blocks">🧱 Blocks</option><option value="both">🔄 Both</option>
+              <option value="concrete">🏗️ {t('concrete')}</option><option value="blocks">🧱 {t('blocks')}</option><option value="both">🔄 {t('both')}</option>
             </select></div>
-          <div><label className="text-[10px] text-slate-400 font-semibold">Target Production</label>
+          <div><label className="text-[10px] text-slate-400 font-semibold">{t('targetProduction')}</label>
             <input value={config.targetProd || ''} onChange={e => setConfig({ ...config, targetProd: e.target.value })} className={fieldCls} /></div>
-          <div><label className="text-[10px] text-slate-400 font-semibold">Fuel Efficiency Target (L/km)</label>
+          <div><label className="text-[10px] text-slate-400 font-semibold">{t('fuelEfficiencyTarget')}</label>
             <input value={config.fuelEffTarget || ''} onChange={e => setConfig({ ...config, fuelEffTarget: e.target.value })} className={fieldCls} /></div>
         </div>
       </div>

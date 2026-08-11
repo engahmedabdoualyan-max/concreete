@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useLang } from '../context/LangContext';
 import { loadOrders, saveOrders } from '../firebase/firestore';
 import QuickJump from '../components/QuickJump';
 import LangSelector from '../components/LangSelector';
@@ -53,6 +54,7 @@ const ORDERS_KEY = 'concrete_plant_orders';
 
 export default function Orders() {
   const { currentUser } = useAuth();
+  const { t } = useLang();
   const [orders, setOrders] = useState<Order[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [editingOrder, setEditingOrder] = useState<Order | null>(null);
@@ -131,7 +133,7 @@ export default function Orders() {
     e.preventDefault();
 
     if (!form.customerName || !form.customerPhone || !form.projectName || !form.quantity) {
-      alert('يرجى ملء جميع الحقول المطلوبة');
+      alert(t('fillRequiredFields'));
       return;
     }
 
@@ -175,10 +177,10 @@ export default function Orders() {
     if (editingOrder) {
       setOrders(prev => prev.map(o => o.id === editingOrder.id ? newOrder : o));
       setEditingOrder(null);
-      if (currentUser) addNotification(currentUser.username, { level: 'info', title: '✏️ تم تعديل الطلب ' + orderNo, body: `${form.customerName} · ${form.projectName}` }).catch(() => {});
+      if (currentUser) addNotification(currentUser.username, { level: 'info', title: t('notificationOrderEdited') + ' ' + orderNo, body: `${form.customerName} · ${form.projectName}` }).catch(() => {});
     } else {
       setOrders(prev => [...prev, newOrder]);
-      if (currentUser) addNotification(currentUser.username, { level: 'info', title: '📦 طلب جديد ' + orderNo, body: `${form.customerName} · ${form.quantity} ${form.orderType === 'concrete' ? 'م³' : 'بلوك'} · بانتظار مراجعة الحسابات` }).catch(() => {});
+      if (currentUser) addNotification(currentUser.username, { level: 'info', title: t('notificationNewOrder') + ' ' + orderNo, body: `${form.customerName} · ${form.quantity} ${form.orderType === 'concrete' ? 'm³' : t('blocks')} · ${t('awaitingAccountsReview')}` }).catch(() => {});
     }
 
     resetForm();
@@ -248,7 +250,7 @@ export default function Orders() {
   };
 
   const handleDelete = (id: string) => {
-    if (confirm('هل أنت متأكد من حذف هذا الطلب؟')) {
+    if (confirm(t('confirmDeleteOrder'))) {
       setOrders(prev => prev.filter(o => o.id !== id));
     }
   };
@@ -258,7 +260,7 @@ export default function Orders() {
       if (o.id !== id) return o;
       if (currentUser) addNotification(currentUser.username, {
         level: status === 'approved' ? 'success' : 'error',
-        title: `${status === 'approved' ? '✅ موافقة الحسابات' : '❌ رفض الحسابات'} ${o.orderNo || id}`,
+        title: `${status === 'approved' ? t('accountsApproved') : t('accountsRejected')} ${o.orderNo || id}`,
         body: `${o.customerName} · ${o.projectName}`,
       }).catch(() => {});
       return { ...o, accountStatus: status };
@@ -269,8 +271,8 @@ export default function Orders() {
     setOrders(prev => prev.map(o => {
       if (o.id !== id) return o;
       if (currentUser) addNotification(currentUser.username, {
-        level: 'info', title: '📅 تمت جدولة ' + (o.orderNo || id),
-        body: `${o.customerName} · ${o.quantity} ${o.orderType === 'concrete' ? 'م³' : 'بلوك'} — جاهز للتشغيل`,
+        level: 'info', title: t('notificationScheduled') + ' ' + (o.orderNo || id),
+        body: `${o.customerName} · ${o.quantity} ${o.orderType === 'concrete' ? 'm³' : t('blocks')} — ${t('readyForOperation')}`,
       }).catch(() => {});
       return { ...o, status: 'scheduled' };
     }));
@@ -280,7 +282,7 @@ export default function Orders() {
     setOrders(prev => prev.map(o => {
       if (o.id !== id) return o;
       if (currentUser) addNotification(currentUser.username, {
-        level: 'success', title: '✅ اكتمل الطلب ' + (o.orderNo || id),
+        level: 'success', title: t('notificationOrderCompleted') + ' ' + (o.orderNo || id),
         body: `${o.customerName} · ${o.projectName}`,
       }).catch(() => {});
       return { ...o, status: 'completed' };
@@ -306,8 +308,8 @@ export default function Orders() {
     return (
       <div className="min-h-screen bg-[#0B111E] flex items-center justify-center">
         <div className="text-center">
-          <p className="text-red-400 text-xl mb-4">🔒 Access Denied</p>
-          <Link to="/" className="text-sky-400 underline">Back to Login</Link>
+          <p className="text-red-400 text-xl mb-4">🔒 {t('accessDenied')}</p>
+          <Link to="/" className="text-sky-400 underline">{t('backToLogin')}</Link>
         </div>
       </div>
     );
@@ -319,10 +321,10 @@ export default function Orders() {
       <div className="bg-[#0B111E]/80 backdrop-blur-xl border-b border-white/10 px-6 py-2.5 flex flex-wrap justify-between items-center gap-x-3 gap-y-1.5 sticky top-0 z-50 shadow-lg">
         <div className="flex flex-wrap items-center gap-3">
           <BrandLogo width={56} />
-          <Link to="/" className="text-slate-400 text-xs border border-white/10 px-2 py-1 rounded hover:text-white">← Dashboard</Link>
+          <Link to="/" className="text-slate-400 text-xs border border-white/10 px-2 py-1 rounded hover:text-white">← {t('backToDashboard')}</Link>
           <QuickJump />
           <LangSelector />
-          <h1 className="text-sm font-black tracking-tight text-white">📦 نظام الطلبات</h1>
+          <h1 className="text-sm font-black tracking-tight text-white">📦 {t('ordersSystem')}</h1>
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <NotificationsBell />
@@ -334,31 +336,31 @@ export default function Orders() {
         {/* Statistics */}
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3 mb-6">
           <div className="bg-white/[0.04] border border-white/10 rounded-lg p-4">
-            <p className="text-xs text-slate-400 mb-1">إجمالي الطلبات</p>
+            <p className="text-xs text-slate-400 mb-1">{t('totalOrders')}</p>
             <p className="text-2xl font-bold text-white">{stats.total}</p>
           </div>
           <div className="bg-white/[0.04] border border-yellow-500/30 rounded-lg p-4">
-            <p className="text-xs text-slate-400 mb-1">قيد الانتظار</p>
+            <p className="text-xs text-slate-400 mb-1">{t('pending')}</p>
             <p className="text-2xl font-bold text-yellow-400">{stats.pending}</p>
           </div>
           <div className="bg-white/[0.04] border border-sky-500/30 rounded-lg p-4">
-            <p className="text-xs text-slate-400 mb-1">مجدول</p>
+            <p className="text-xs text-slate-400 mb-1">{t('scheduled')}</p>
             <p className="text-2xl font-bold text-sky-400">{stats.scheduled}</p>
           </div>
           <div className="bg-white/[0.04] border border-emerald-500/30 rounded-lg p-4">
-            <p className="text-xs text-slate-400 mb-1">مكتمل</p>
+            <p className="text-xs text-slate-400 mb-1">{t('completed')}</p>
             <p className="text-2xl font-bold text-emerald-400">{stats.completed}</p>
           </div>
           <div className="bg-white/[0.04] border border-orange-500/30 rounded-lg p-4">
-            <p className="text-xs text-slate-400 mb-1">بانتظار الحسابات</p>
+            <p className="text-xs text-slate-400 mb-1">{t('awaitingAccounts')}</p>
             <p className="text-2xl font-bold text-orange-400">{stats.accountPending}</p>
           </div>
           <div className="bg-white/[0.04] border border-sky-500/30 rounded-lg p-4">
-            <p className="text-xs text-slate-400 mb-1">عليه ديون</p>
+            <p className="text-xs text-slate-400 mb-1">{t('hasDebt')}</p>
             <p className="text-2xl font-bold text-sky-400">{stats.hasDebt}</p>
           </div>
           <div className="bg-white/[0.04] border border-red-500/30 rounded-lg p-4">
-            <p className="text-xs text-slate-400 mb-1">محظور</p>
+            <p className="text-xs text-slate-400 mb-1">{t('blocked')}</p>
             <p className="text-2xl font-bold text-red-400">{stats.blocked}</p>
           </div>
         </div>
@@ -370,30 +372,30 @@ export default function Orders() {
               onClick={() => setShowCustomers(true)}
               className="bg-sky-500 hover:bg-sky-400 text-white px-4 py-2 rounded-lg font-bold text-sm"
             >
-              👥 إدارة العملاء
+              👥 {t('manageCustomers')}
             </button>
             <button
               onClick={() => { resetForm(); setShowForm(true); }}
               className="bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2 rounded-lg font-bold text-sm shadow-[0_0_20px_rgba(56,189,248,0.3)]"
             >
-              ➕ إضافة طلب جديد
+              ➕ {t('addNewOrder')}
             </button>
             <select
               value={filter}
               onChange={(e) => setFilter(e.target.value as any)}
               className="bg-white/[0.04] border border-white/10 text-white px-4 py-2 rounded-lg text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]"
             >
-              <option value="all">جميع الطلبات</option>
-              <option value="pending">قيد الانتظار</option>
-              <option value="scheduled">مجدول</option>
-              <option value="completed">مكتمل</option>
+              <option value="all">{t('allOrders')}</option>
+              <option value="pending">{t('pending')}</option>
+              <option value="scheduled">{t('scheduled')}</option>
+              <option value="completed">{t('completed')}</option>
             </select>
           </div>
           <Link
             to="/schedule"
             className="bg-sky-500 hover:bg-sky-400 text-white px-4 py-2 rounded-lg font-bold text-sm"
           >
-            📅 الذهاب إلى الجدول
+            📅 {t('goToSchedule')}
           </Link>
         </div>
 
@@ -402,24 +404,24 @@ export default function Orders() {
           <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
             <div className="bg-[#0B111E]/95 border border-white/10 rounded-xl p-6 max-w-3xl w-full max-h-[90vh] overflow-y-auto">
               <h2 className="text-xl font-black tracking-tight text-white mb-4">
-                {editingOrder ? '✏️ تعديل الطلب' : '➕ طلب جديد'}
+                {editingOrder ? `✏️ ${t('editOrder')}` : `➕ ${t('newOrder')}`}
               </h2>
 
               {editingOrder?.orderNo && (
-                <p className="text-xs font-bold text-sky-400 mb-3">🆔 رقم الطلب: <span className="text-white">{editingOrder.orderNo}</span></p>
+                <p className="text-xs font-bold text-sky-400 mb-3">🆔 {t('orderNo')}: <span className="text-white">{editingOrder.orderNo}</span></p>
               )}
 
               <form onSubmit={handleSubmit} className="space-y-4">
-                {/* التاريخ والوقت */}
+                {/* Date and time */}
                 <div className="grid grid-cols-2 gap-4">
                   <DatePicker
                     value={form.orderDate}
                     onChange={(val) => setForm(prev => ({ ...prev, orderDate: val }))}
-                    label="📅 تاريخ الطلب"
+                    label={`📅 ${t('orderDate')}`}
                     required
                   />
                   <div>
-                    <label className="text-xs text-slate-400 font-semibold mb-1 block">🕐 وقت الطلب</label>
+                    <label className="text-xs text-slate-400 font-semibold mb-1 block">🕐 {t('orderTime')}</label>
                     <input
                       type="time"
                       name="orderTime"
@@ -431,12 +433,12 @@ export default function Orders() {
                   </div>
                 </div>
 
-                {/* بيانات العميل */}
+                {/* Customer data */}
                 <div className="bg-[#0B111E] p-4 rounded-lg border border-white/10">
-                  <h3 className="text-sm font-bold text-sky-400 mb-3">👤 بيانات العميل</h3>
+                  <h3 className="text-sm font-bold text-sky-400 mb-3">👤 {t('customerData')}</h3>
                   <div className="grid grid-cols-1 gap-3 mb-3">
                     <div>
-                      <label className="text-xs text-slate-400 mb-1 block">العميل (من قاعدة العملاء) — اختياري، يملأ الاسم والهاتف تلقائياً</label>
+                      <label className="text-xs text-slate-400 mb-1 block">{t('customerFromBase')}</label>
                       <select
                         name="customerId"
                         value={form.customerId}
@@ -450,14 +452,14 @@ export default function Orders() {
                         }}
                         className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]"
                       >
-                        <option value="">— بدون اختيار (أدخل يدوياً) —</option>
+                        <option value="">— {t('noSelection')} —</option>
                         {customers.map(c => <option key={c.id} value={c.id}>{c.code} · {c.name}</option>)}
                       </select>
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="text-xs text-slate-400 mb-1 block">اسم العميل *</label>
+                      <label className="text-xs text-slate-400 mb-1 block">{t('customerName')} *</label>
                       <input
                         type="text"
                         name="customerName"
@@ -468,7 +470,7 @@ export default function Orders() {
                       />
                     </div>
                     <div>
-                      <label className="text-xs text-slate-400 mb-1 block">رقم الهاتف *</label>
+                      <label className="text-xs text-slate-400 mb-1 block">{t('phone')} *</label>
                       <input
                         type="tel"
                         name="customerPhone"
@@ -481,12 +483,12 @@ export default function Orders() {
                   </div>
                 </div>
 
-                {/* بيانات المشروع */}
+                {/* Project data */}
                 <div className="bg-[#0B111E] p-4 rounded-lg border border-white/10">
-                  <h3 className="text-sm font-bold text-sky-400 mb-3">🏗️ بيانات المشروع</h3>
+                  <h3 className="text-sm font-bold text-sky-400 mb-3">🏗️ {t('projectData')}</h3>
                   <div className="space-y-3">
                     <div>
-                      <label className="text-xs text-slate-400 mb-1 block">اسم المشروع *</label>
+                      <label className="text-xs text-slate-400 mb-1 block">{t('projectName')} *</label>
                       <input
                         type="text"
                         name="projectName"
@@ -497,7 +499,7 @@ export default function Orders() {
                       />
                     </div>
                     <div>
-                      <label className="text-xs text-slate-400 mb-1 block">عنوان المشروع</label>
+                      <label className="text-xs text-slate-400 mb-1 block">{t('projectAddress')}</label>
                       <input
                         type="text"
                         name="projectLocation"
@@ -507,7 +509,7 @@ export default function Orders() {
                       />
                     </div>
                     <div>
-                      <label className="text-xs text-slate-400 mb-1 block">إحداثيات الموقع (lat, lng)</label>
+                      <label className="text-xs text-slate-400 mb-1 block">{t('locationCoords')}</label>
                       <input
                         type="text"
                         name="locationCoords"
@@ -520,25 +522,25 @@ export default function Orders() {
                   </div>
                 </div>
 
-                {/* تفاصيل الطلب */}
+                {/* Order details */}
                 <div className="bg-[#0B111E] p-4 rounded-lg border border-white/10">
-                  <h3 className="text-sm font-bold text-sky-400 mb-3">📦 تفاصيل الطلب</h3>
+                  <h3 className="text-sm font-bold text-sky-400 mb-3">📦 {t('orderDetails')}</h3>
                   <div className="space-y-3">
                     <div>
-                      <label className="text-xs text-slate-400 mb-1 block">نوع الطلب *</label>
+                      <label className="text-xs text-slate-400 mb-1 block">{t('orderType')} *</label>
                       <select
                         name="orderType"
                         value={form.orderType}
                         onChange={handleInputChange}
                         className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]"
                       >
-                        <option value="concrete">🏗️ خرسانة</option>
-                        <option value="blocks">🧱 بلوك</option>
+                        <option value="concrete">🏗️ {t('concrete')}</option>
+                        <option value="blocks">🧱 {t('blocks')}</option>
                       </select>
                     </div>
 
                     <div>
-                      <label className="text-xs text-slate-400 mb-1 block">نوع العنصر *</label>
+                      <label className="text-xs text-slate-400 mb-1 block">{t('elementType')} *</label>
                       <select
                         name="elementType"
                         value={form.elementType}
@@ -546,19 +548,19 @@ export default function Orders() {
                         className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]"
                         required
                       >
-                        <option value="foundation">🏗️ قواعد/أساسات</option>
-                        <option value="columns">🏛️ أعمدة</option>
-                        <option value="beams">📏 كمرات</option>
-                        <option value="slab">🏠 سقف/بلاطة</option>
-                        <option value="walls">🧱 حوائط</option>
-                        <option value="stairs">🪜 سلالم</option>
-                        <option value="cleaning_layer">🧹 فرشة نظافة</option>
-                        <option value="other">📦 أخرى</option>
+                        <option value="foundation">🏗️ {t('elementFoundation')}</option>
+                        <option value="columns">🏛️ {t('elementColumns')}</option>
+                        <option value="beams">📏 {t('elementBeams')}</option>
+                        <option value="slab">🏠 {t('elementSlab')}</option>
+                        <option value="walls">🧱 {t('elementWalls')}</option>
+                        <option value="stairs">🪜 {t('elementStairs')}</option>
+                        <option value="cleaning_layer">🧹 {t('elementCleaningLayer')}</option>
+                        <option value="other">📦 {t('elementOther')}</option>
                       </select>
                     </div>
 
                     <div>
-                      <label className="text-xs text-slate-400 mb-1 block">الكمية *</label>
+                      <label className="text-xs text-slate-400 mb-1 block">{t('quantity')} *</label>
                       <input
                         type="number"
                         name="quantity"
@@ -570,7 +572,7 @@ export default function Orders() {
                         required
                       />
                       <p className="text-xs text-slate-500 mt-1">
-                        {form.orderType === 'concrete' ? 'المتر المكعب' : 'عدد البلوك'}
+                        {form.orderType === 'concrete' ? t('cubicMeter') : t('blocksCount')}
                       </p>
                     </div>
 
@@ -578,7 +580,7 @@ export default function Orders() {
                       <>
                         <div className="grid grid-cols-2 gap-3">
                           <div>
-                            <label className="text-xs text-slate-400 mb-1 block">قوة الخرسانة *</label>
+                            <label className="text-xs text-slate-400 mb-1 block">{t('concreteStrength')} *</label>
                             <select
                               name="concreteType"
                               value={form.concreteType}
@@ -586,16 +588,16 @@ export default function Orders() {
                               className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]"
                               required
                             >
-                              <option value="2000">2000 (عادية)</option>
+                              <option value="2000">2000 ({t('ordinary')})</option>
                               <option value="2500">2500</option>
                               <option value="3000">3000</option>
                               <option value="3500">3500</option>
                               <option value="4000">4000</option>
-                              <option value="5000">5000 (عالية القوة)</option>
+                              <option value="5000">5000 ({t('highStrength')})</option>
                             </select>
                           </div>
                           <div>
-                            <label className="text-xs text-slate-400 mb-1 block">Slump (cm)</label>
+                            <label className="text-xs text-slate-400 mb-1 block">{t('slumpCm')}</label>
                             <input
                               type="number"
                               name="slump"
@@ -609,7 +611,7 @@ export default function Orders() {
                         </div>
 
                         <div>
-                          <label className="text-xs text-slate-400 mb-1 block">نوع الأسمنت *</label>
+                          <label className="text-xs text-slate-400 mb-1 block">{t('cementType')} *</label>
                           <select
                             name="cementType"
                             value={form.cementType}
@@ -617,16 +619,16 @@ export default function Orders() {
                             className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]"
                             required
                           >
-                            <option value="ordinary">🏭 عادي (OPC)</option>
-                            <option value="resistant">🛡️ مقاوم للكبريتات (SRC)</option>
+                            <option value="ordinary">🏭 {t('ordinary')} (OPC)</option>
+                            <option value="resistant">🛡️ {t('cementResistant')} (SRC)</option>
                           </select>
                         </div>
                       </>
                     )}
 
-                    {/* جاهزية الموقع */}
+                    {/* Site readiness */}
                     <div className="border-t border-white/10 pt-3 mt-3">
-                      <label className="text-xs text-sky-400 font-bold mb-2 block">🏗️ جاهزية الموقع</label>
+                      <label className="text-xs text-sky-400 font-bold mb-2 block">🏗️ {t('siteReadiness')}</label>
                       <div className="grid grid-cols-2 gap-3">
                         <label className="flex items-center gap-2 text-xs text-slate-400 cursor-pointer bg-white/[0.06] p-2 rounded">
                           <input
@@ -636,7 +638,7 @@ export default function Orders() {
                             onChange={e => setForm({ ...form, siteReady: e.target.checked })}
                             className="w-4 h-4"
                           />
-                          <span>✓ الموقع جاهز للصب</span>
+                          <span>✓ {t('siteReadyForPour')}</span>
                         </label>
                         <label className="flex items-center gap-2 text-xs text-slate-400 cursor-pointer bg-white/[0.06] p-2 rounded">
                           <input
@@ -646,14 +648,14 @@ export default function Orders() {
                             onChange={e => setForm({ ...form, pumpAccessible: e.target.checked })}
                             className="w-4 h-4"
                           />
-                          <span>✓ يمكن للمضخة الوصول</span>
+                          <span>✓ {t('pumpAccessible')}</span>
                         </label>
                       </div>
                     </div>
 
-                    {/* المتطلبات */}
+                    {/* Requirements */}
                     <div className="border-t border-white/10 pt-3 mt-3">
-                      <label className="text-xs text-sky-400 font-bold mb-2 block">📋 المتطلبات</label>
+                      <label className="text-xs text-sky-400 font-bold mb-2 block">📋 {t('requirements')}</label>
                       <div className="grid grid-cols-2 gap-3">
                         <label className="flex items-center gap-2 text-xs text-slate-400 cursor-pointer bg-white/[0.06] p-2 rounded">
                           <input
@@ -663,7 +665,7 @@ export default function Orders() {
                             onChange={e => setForm({ ...form, requiresPump: e.target.checked })}
                             className="w-4 h-4"
                           />
-                          <span>🚰 طالب تلج (مضخة)</span>
+                          <span>🚰 {t('requiresPump')}</span>
                         </label>
                         <label className="flex items-center gap-2 text-xs text-slate-400 cursor-pointer bg-white/[0.06] p-2 rounded">
                           <input
@@ -673,61 +675,61 @@ export default function Orders() {
                             onChange={e => setForm({ ...form, requiresLab: e.target.checked })}
                             className="w-4 h-4"
                           />
-                          <span>🧪 يحتاج معمل (اختبارات)</span>
+                          <span>🧪 {t('requiresLab')}</span>
                         </label>
                       </div>
                     </div>
                   </div>
                 </div>
 
-                {/* المندوب والمحاسب */}
+                {/* Sales rep and accountant */}
                 <div className="bg-white/[0.03] p-4 rounded-lg border border-sky-500/30">
-                  <h3 className="text-sm font-bold text-sky-400 mb-3">👥 المندوب والمحاسب</h3>
+                  <h3 className="text-sm font-bold text-sky-400 mb-3">👥 {t('salesRepAccountant')}</h3>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="text-xs text-slate-400 mb-1 block">📱 اسم المندوب *</label>
+                      <label className="text-xs text-slate-400 mb-1 block">📱 {t('salesRepName')} *</label>
                       <input
                         type="text"
                         name="salesRep"
                         value={form.salesRep}
                         onChange={handleInputChange}
-                        placeholder="اسم مندوب المبيعات"
+                        placeholder={t('salesRepPlaceholder')}
                         className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]"
                         required
                       />
                     </div>
                     <div>
-                      <label className="text-xs text-slate-400 mb-1 block">💼 اسم المحاسب *</label>
+                      <label className="text-xs text-slate-400 mb-1 block">💼 {t('accountantName')} *</label>
                       <input
                         type="text"
                         name="accountant"
                         value={form.accountant}
                         onChange={handleInputChange}
-                        placeholder="اسم المحاسب المسئول"
+                        placeholder={t('accountantPlaceholder')}
                         className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]"
                         required
                       />
                     </div>
                   </div>
                   <div className="mt-3">
-                    <label className="text-xs text-slate-400 mb-1 block">🔢 كود العميل (يحدده المحاسب)</label>
+                    <label className="text-xs text-slate-400 mb-1 block">🔢 {t('customerCode')}</label>
                     <input
                       type="text"
                       name="customerCode"
                       value={form.customerCode}
                       onChange={handleInputChange}
-                      placeholder="سيتم إنشاؤه بعد الموافقة"
+                      placeholder={t('codeAfterApproval')}
                       className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]"
                     />
                   </div>
                 </div>
 
-                {/* قرار المحاسب */}
+                {/* Accountant decision */}
                 <div className="bg-[#0B111E] p-4 rounded-lg border border-orange-500/30">
-                  <h3 className="text-sm font-bold text-orange-400 mb-3">💰 قرار المحاسب</h3>
+                  <h3 className="text-sm font-bold text-orange-400 mb-3">💰 {t('accountantDecision')}</h3>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="text-xs text-slate-400 mb-1 block">قرار المحاسب *</label>
+                      <label className="text-xs text-slate-400 mb-1 block">{t('accountantDecision')} *</label>
                       <select
                         name="accountantDecision"
                         value={form.accountantDecision}
@@ -735,44 +737,44 @@ export default function Orders() {
                         className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]"
                         required
                       >
-                        <option value="execute">✅ تنفيذ</option>
-                        <option value="postpone">⏸️ تأجيل</option>
-                        <option value="cancel">❌ إلغاء</option>
+                        <option value="execute">✅ {t('execute')}</option>
+                        <option value="postpone">⏸️ {t('postpone')}</option>
+                        <option value="cancel">❌ {t('cancel')}</option>
                       </select>
                     </div>
                     <div>
-                      <label className="text-xs text-slate-400 mb-1 block">حالة الحسابات</label>
+                      <label className="text-xs text-slate-400 mb-1 block">{t('accountStatus')}</label>
                       <select
                         name="accountStatus"
                         value={form.accountStatus}
                         onChange={handleInputChange}
                         className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]"
                       >
-                        <option value="pending">⏳ بانتظار المراجعة</option>
-                        <option value="approved">✅ موافق عليه</option>
-                        <option value="rejected">❌ مرفوض</option>
-                        <option value="postponed">⏸️ مؤجل</option>
+                        <option value="pending">⏳ {t('awaitingReview')}</option>
+                        <option value="approved">✅ {t('approved')}</option>
+                        <option value="rejected">❌ {t('rejected')}</option>
+                        <option value="postponed">⏸️ {t('postponed')}</option>
                       </select>
                     </div>
                   </div>
                   <div className="mt-3">
-                    <label className="text-xs text-slate-400 mb-1 block">⚠️ حالة الديون</label>
+                    <label className="text-xs text-slate-400 mb-1 block">⚠️ {t('debtStatus')}</label>
                     <select
                       name="debtStatus"
                       value={form.debtStatus}
                       onChange={handleInputChange}
                       className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]"
                     >
-                      <option value="clear">✅ لا يوجد ديون</option>
-                      <option value="has_debt">⚠️ عليه ديون</option>
-                      <option value="blocked">🚫 محظور (ديون كبيرة)</option>
+                      <option value="clear">✅ {t('noDebt')}</option>
+                      <option value="has_debt">⚠️ {t('hasDebt')}</option>
+                      <option value="blocked">🚫 {t('blockedLargeDebt')}</option>
                     </select>
                   </div>
                 </div>
 
-                {/* ملاحظات */}
+                {/* Notes */}
                 <div>
-                  <label className="text-xs text-slate-400 mb-1 block">ملاحظات إضافية</label>
+                  <label className="text-xs text-slate-400 mb-1 block">{t('additionalNotes')}</label>
                   <textarea
                     name="notes"
                     value={form.notes}
@@ -782,20 +784,20 @@ export default function Orders() {
                   />
                 </div>
 
-                {/* أزرار */}
+                {/* Buttons */}
                 <div className="flex gap-3">
                   <button
                     type="submit"
                     className="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-2 rounded-lg"
                   >
-                    💾 {editingOrder ? 'تحديث' : 'حفظ'} الطلب
+                    💾 {editingOrder ? t('update') : t('save')} {t('order')}
                   </button>
                   <button
                     type="button"
                     onClick={() => { setShowForm(false); setEditingOrder(null); resetForm(); }}
                     className="flex-1 bg-white/[0.06] hover:bg-white/[0.1] text-white font-bold py-2 rounded-lg"
                   >
-                    ❌ إلغاء
+                    ❌ {t('cancel')}
                   </button>
                 </div>
               </form>
@@ -809,23 +811,23 @@ export default function Orders() {
             <table className="w-full">
               <thead className="bg-white/[0.04] border-b border-white/10">
                 <tr>
-                  <th className="text-right p-3 text-[10px] uppercase tracking-wider text-slate-400">التاريخ/الوقت</th>
-                  <th className="text-right p-3 text-[10px] uppercase tracking-wider text-slate-400">رقم الطلب</th>
-                  <th className="text-right p-3 text-[10px] uppercase tracking-wider text-slate-400">العميل</th>
-                  <th className="text-right p-3 text-[10px] uppercase tracking-wider text-slate-400">المشروع</th>
-                  <th className="text-right p-3 text-[10px] uppercase tracking-wider text-slate-400">النوع</th>
-                  <th className="text-right p-3 text-[10px] uppercase tracking-wider text-slate-400">الكمية</th>
-                  <th className="text-right p-3 text-[10px] uppercase tracking-wider text-slate-400">الحسابات</th>
-                  <th className="text-right p-3 text-[10px] uppercase tracking-wider text-slate-400">الديون</th>
-                  <th className="text-right p-3 text-[10px] uppercase tracking-wider text-slate-400">الحالة</th>
-                  <th className="text-right p-3 text-[10px] uppercase tracking-wider text-slate-400">إجراءات</th>
+                  <th className="text-right p-3 text-[10px] uppercase tracking-wider text-slate-400">{t('dateTime')}</th>
+                  <th className="text-right p-3 text-[10px] uppercase tracking-wider text-slate-400">{t('orderNo')}</th>
+                  <th className="text-right p-3 text-[10px] uppercase tracking-wider text-slate-400">{t('customer')}</th>
+                  <th className="text-right p-3 text-[10px] uppercase tracking-wider text-slate-400">{t('project')}</th>
+                  <th className="text-right p-3 text-[10px] uppercase tracking-wider text-slate-400">{t('type')}</th>
+                  <th className="text-right p-3 text-[10px] uppercase tracking-wider text-slate-400">{t('quantity')}</th>
+                  <th className="text-right p-3 text-[10px] uppercase tracking-wider text-slate-400">{t('accounts')}</th>
+                  <th className="text-right p-3 text-[10px] uppercase tracking-wider text-slate-400">{t('debt')}</th>
+                  <th className="text-right p-3 text-[10px] uppercase tracking-wider text-slate-400">{t('status')}</th>
+                  <th className="text-right p-3 text-[10px] uppercase tracking-wider text-slate-400">{t('actions')}</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredOrders.length === 0 ? (
                   <tr>
                     <td colSpan={10} className="text-center py-12 text-slate-500">
-                      لا توجد طلبات
+                      {t('noOrders')}
                     </td>
                   </tr>
                 ) : (
@@ -850,7 +852,7 @@ export default function Orders() {
                             ? 'bg-sky-500/20 text-sky-400'
                             : 'bg-cyan-500/20 text-cyan-400'
                         }`}>
-                          {order.orderType === 'concrete' ? '🏗️ خرسانة' : '🧱 بلوك'}
+                          {order.orderType === 'concrete' ? `🏗️ ${t('concrete')}` : `🧱 ${t('blocks')}`}
                         </span>
                         {order.concreteType && (
                           <div className="text-xs text-slate-400 mt-1">{order.concreteType}</div>
@@ -859,7 +861,7 @@ export default function Orders() {
                       <td className="p-3 text-white text-sm">
                         {order.quantity}
                         <div className="text-xs text-slate-400">
-                          {order.orderType === 'concrete' ? 'م³' : 'بلوك'}
+                          {order.orderType === 'concrete' ? 'm³' : t('blocks')}
                         </div>
                       </td>
                       <td className="p-3">
@@ -874,9 +876,9 @@ export default function Orders() {
                               : 'bg-orange-500/20 text-orange-400'
                           }`}
                         >
-                          <option value="pending">⏳ بانتظار</option>
-                          <option value="approved">✅ موافق</option>
-                          <option value="rejected">❌ مرفوض</option>
+                          <option value="pending">⏳ {t('pending')}</option>
+                          <option value="approved">✅ {t('approved')}</option>
+                          <option value="rejected">❌ {t('rejected')}</option>
                         </select>
                       </td>
                       <td className="p-3">
@@ -888,7 +890,7 @@ export default function Orders() {
                             : 'bg-red-500/20 text-red-400'
                         }`}>
                           {order.debtStatus === 'clear' ? '✅' : order.debtStatus === 'has_debt' ? '⚠️' : '🚫'}
-                          {order.debtStatus === 'clear' ? 'واضح' : order.debtStatus === 'has_debt' ? 'ديون' : 'محظور'}
+                          {order.debtStatus === 'clear' ? t('clear') : order.debtStatus === 'has_debt' ? t('debt') : t('blocked')}
                         </span>
                       </td>
                       <td className="p-3">
@@ -899,7 +901,7 @@ export default function Orders() {
                             ? 'bg-sky-500/20 text-sky-400'
                             : 'bg-emerald-500/20 text-emerald-400'
                         }`}>
-                          {order.status === 'pending' ? '⏳ انتظار' : order.status === 'scheduled' ? '📅 مجدول' : '✅ مكتمل'}
+                          {order.status === 'pending' ? `⏳ ${t('pending')}` : order.status === 'scheduled' ? `📅 ${t('scheduled')}` : `✅ ${t('completed')}`}
                         </span>
                       </td>
                       <td className="p-3">
@@ -909,7 +911,7 @@ export default function Orders() {
                               onClick={() => handleMarkScheduled(order.id)}
                               className="bg-sky-500 hover:bg-sky-400 text-white px-2 py-1 rounded text-xs"
                             >
-                              📅 جدولة
+                              📅 {t('schedule')}
                             </button>
                           )}
                           {order.status === 'scheduled' && (
@@ -917,7 +919,7 @@ export default function Orders() {
                               onClick={() => handleMarkCompleted(order.id)}
                               className="bg-emerald-600 hover:bg-emerald-700 text-white px-2 py-1 rounded text-xs"
                             >
-                              ✅ تم
+                              ✅ {t('done')}
                             </button>
                           )}
                           {order.status === 'completed' && (
@@ -925,7 +927,7 @@ export default function Orders() {
                               onClick={() => setInvoiceFor(order)}
                               className="bg-teal-600 hover:bg-teal-700 text-white px-2 py-1 rounded text-xs"
                             >
-                              🧾 فاتورة
+                              🧾 {t('invoice')}
                             </button>
                           )}
                           <button
@@ -952,13 +954,13 @@ export default function Orders() {
 
         {/* Info Box */}
         <div className="mt-6 bg-sky-500/10 border border-sky-500/30 rounded-lg p-4">
-          <h3 className="text-sm font-bold text-sky-400 mb-2">💡 كيفية الاستخدام</h3>
+          <h3 className="text-sm font-bold text-sky-400 mb-2">💡 {t('howToUse')}</h3>
           <ul className="text-xs text-slate-300 space-y-1">
-            <li>✅ أضف الطلبات مع تحديد تاريخ ووقت الطلب</li>
-            <li>✅ اوافق على الحسابات بعد التحقق من حالة العميل</li>
-            <li>✅ إذا كان العميل محظور (ديون كبيرة) لن يتم جدولة الطلب</li>
-            <li>✅ بعد الموافقة، اضغط "📅 جدولة" لنقل الطلب إلى صفحة الجدول</li>
-            <li>✅ في صفحة الجدول، استخدم "Import من الطلبات" لاستيراد الطلبات المجدولة تلقائياً</li>
+            <li>✅ {t('helpAddOrders')}</li>
+            <li>✅ {t('helpApproveAccounts')}</li>
+            <li>✅ {t('helpBlockedCustomer')}</li>
+            <li>✅ {t('helpSchedule')}</li>
+            <li>✅ {t('helpImportOrders')}</li>
           </ul>
         </div>
       </div>
@@ -966,7 +968,7 @@ export default function Orders() {
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-[#0B111E]/95 border border-white/10 rounded-xl p-6 max-w-lg w-full max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-lg font-black tracking-tight text-white">👥 إدارة العملاء</h2>
+              <h2 className="text-lg font-black tracking-tight text-white">👥 {t('manageCustomers')}</h2>
               <button onClick={() => setShowCustomers(false)} className="bg-red-500 hover:bg-red-600 text-white w-7 h-7 rounded-full font-bold text-sm">✕</button>
             </div>
             <CustomersManager onSelect={(c) => {

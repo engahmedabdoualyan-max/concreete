@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useLang } from '../context/LangContext';
 import { loadOrders, loadTrips } from '../firebase/firestore';
 import DatePicker from '../components/DatePicker';
 import QuickJump from '../components/QuickJump';
@@ -89,6 +90,7 @@ const filterByDate = <T extends { date?: string; orderDate?: string }>(items: T[
 
 export default function Evaluation() {
   const { currentUser } = useAuth();
+  const { t } = useLang();
   const [fromDate, setFromDate] = useState(() => {
     const today = new Date();
     const monthAgo = new Date(today);
@@ -150,7 +152,7 @@ export default function Evaluation() {
 
   // 1. Mixing Stations Rating
   const mixingStationsRating = useMemo(() => {
-    if (stations.length === 0) return { score: 0, details: 'لا توجد بيانات', maxScore: 100 };
+    if (stations.length === 0) return { score: 0, details: t('noData'), maxScore: 100 };
 
     let totalScore = 0;
     let activeStations = 0;
@@ -170,18 +172,18 @@ export default function Evaluation() {
 
     return {
       score: Math.round(finalScore),
-      details: `الكفاءة: ${avgEfficiency.toFixed(1)}% | التوفر: ${stationAvailability.toFixed(1)}% (${activeStations}/${stations.length} محطة)`,
+      details: `${t('efficiency')}: ${avgEfficiency.toFixed(1)}% | ${t('availability')}: ${stationAvailability.toFixed(1)}% (${activeStations}/${stations.length} ${t('station')})`,
       maxScore: 100
     };
-  }, [stations]);
+  }, [stations, t]);
 
   // 2. Mixer Trucks Rating
   const mixerTrucksRating = useMemo(() => {
-    if (filteredTrips.length === 0) return { score: 0, details: 'لا توجد رحلات', maxScore: 100 };
+    if (filteredTrips.length === 0) return { score: 0, details: t('noTrips'), maxScore: 100 };
 
     const totalQty = filteredTrips.reduce((sum, t) => sum + (t.qty || 0), 0);
     const avgDailyQty = totalQty / daysCount;
-    const targetDaily = 1000; // م³ في اليوم
+    const targetDaily = 1000; // m³ per day
 
     // Completion rate
     const completedTrips = filteredTrips.filter(t => t.status === 'COMPLETED').length;
@@ -194,26 +196,26 @@ export default function Evaluation() {
 
     return {
       score: Math.round(finalScore),
-      details: `الإنجاز: ${qtyAchievement.toFixed(1)}% | معدل الإكمال: ${completionRate.toFixed(1)}% | المتوسط: ${avgDailyQty.toFixed(0)} م³/يوم`,
+      details: `${t('achievement')}: ${qtyAchievement.toFixed(1)}% | ${t('completionRate')}: ${completionRate.toFixed(1)}% | ${t('average')}: ${avgDailyQty.toFixed(0)} m³/day`,
       maxScore: 100
     };
-  }, [filteredTrips, daysCount]);
+  }, [filteredTrips, daysCount, t]);
 
-  // 3. Pumps Rating (مع حساب أوقات الانتظار وأسباب التأخير)
+  // 3. Pumps Rating
   const pumpsRating = useMemo(() => {
-    if (filteredTrips.length === 0) return { score: 0, details: 'لا توجد بيانات', maxScore: 100 };
+    if (filteredTrips.length === 0) return { score: 0, details: t('noData'), maxScore: 100 };
 
     const tripsWithPump = filteredTrips.filter(t => t.pump && t.pump !== '--');
-    if (tripsWithPump.length === 0) return { score: 0, details: 'لا توجد رحلات بمضخات', maxScore: 100 };
+    if (tripsWithPump.length === 0) return { score: 0, details: t('noTripsWithPumps'), maxScore: 100 };
 
-    // حساب إحصائيات المضخات
+    // Calculate pump statistics
     const pumpStats: Record<string, { trips: number; qty: number; delays: number; waitingTime: number }> = {};
     tripsWithPump.forEach(t => {
       if (!pumpStats[t.pump]) pumpStats[t.pump] = { trips: 0, qty: 0, delays: 0, waitingTime: 0 };
       pumpStats[t.pump].trips++;
       pumpStats[t.pump].qty += t.qty || 0;
       
-      // حساب وقت الانتظار
+      // Calculate waiting time
       if (t.pumpArrivalTime && t.pourStartTime && t.pumpArrivalTime !== '00:00' && t.pourStartTime !== '00:00') {
         const arrTime = t.pumpArrivalTime.split(':');
         const pourTime = t.pourStartTime.split(':');
@@ -225,7 +227,7 @@ export default function Evaluation() {
         }
       }
       
-      // حساب عدد التأخيرات
+      // Count delays
       if (t.delayReason && t.delayReason !== 'ready') {
         pumpStats[t.pump].delays++;
       }
@@ -235,21 +237,21 @@ export default function Evaluation() {
     const avgTripsPerPump = tripsWithPump.length / pumpCount;
     const avgQtyPerPump = tripsWithPump.reduce((s, t) => s + (t.qty || 0), 0) / pumpCount;
     
-    // حساب متوسط وقت الانتظار
+    // Calculate average waiting time
     const totalWaitingTime = Object.values(pumpStats).reduce((s, p) => s + p.waitingTime, 0);
     const avgWaitingTime = totalWaitingTime / tripsWithPump.length;
     
-    // حساب نسبة التأخيرات
+    // Calculate delay rate
     const totalDelays = Object.values(pumpStats).reduce((s, p) => s + p.delays, 0);
     const delayRate = (totalDelays / tripsWithPump.length) * 100;
     
-    // تصنيف أسباب التأخير
+    // Classify delay reasons
     const delayReasons: Record<string, number> = {};
-    tripsWithPump.forEach(t => {
-      if (t.delayReason && t.delayReason !== 'ready') {
-        const reason = t.delayReason === 'site_not_ready' ? 'عدم جاهزية الموقع' :
-                      t.delayReason === 'breakdown' ? 'عطل فني' :
-                      t.delayReason === 'emergency' ? 'أمر طارئ' : 'أسباب أخرى';
+    tripsWithPump.forEach(tr => {
+      if (tr.delayReason && tr.delayReason !== 'ready') {
+        const reason = tr.delayReason === 'site_not_ready' ? t('siteNotReady') :
+                      tr.delayReason === 'breakdown' ? t('technicalFailure') :
+                      tr.delayReason === 'emergency' ? t('emergencyOrder') : t('otherReasons');
         delayReasons[reason] = (delayReasons[reason] || 0) + 1;
       }
     });
@@ -261,27 +263,27 @@ export default function Evaluation() {
     const tripEfficiency = Math.min((avgTripsPerPump / targetTrips) * 100, 100);
     const qtyEfficiency = Math.min((avgQtyPerPump / targetQty) * 100, 100);
     
-    // عقوبة وقت الانتظار (كل 30 دقيقة انتظار = -5 نقاط)
+    // Waiting time penalty (every 30 min waiting = -5 points)
     const waitingPenalty = Math.min((avgWaitingTime / 30) * 5, 30);
     
-    // عقوبة التأخيرات (كل 10% تأخير = -5 نقاط)
+    // Delay penalty (every 10% delay = -5 points)
     const delayPenalty = Math.min((delayRate / 10) * 5, 20);
 
     const finalScore = Math.max(0, (tripEfficiency * 0.4) + (qtyEfficiency * 0.4) + (100 - waitingPenalty - delayPenalty) * 0.2);
 
     const topDelayReason = Object.entries(delayReasons).sort((a, b) => b[1] - a[1])[0];
-    const delayReasonText = topDelayReason ? ` | السبب الرئيسي: ${topDelayReason[0]} (${topDelayReason[1]})` : '';
+    const delayReasonText = topDelayReason ? ` | ${t('mainReason')}: ${topDelayReason[0]} (${topDelayReason[1]})` : '';
 
     return {
       score: Math.round(finalScore),
-      details: `عدد المضخات: ${pumpCount} | متوسط الرحلات: ${avgTripsPerPump.toFixed(1)} | متوسط الكمية: ${avgQtyPerPump.toFixed(0)} م³ | متوسط الانتظار: ${avgWaitingTime.toFixed(0)} دقيقة | نسبة التأخير: ${delayRate.toFixed(1)}%${delayReasonText}`,
+      details: `${t('pumpCount')}: ${pumpCount} | ${t('avgTrips')}: ${avgTripsPerPump.toFixed(1)} | ${t('avgQty')}: ${avgQtyPerPump.toFixed(0)} m³ | ${t('avgWaiting')}: ${avgWaitingTime.toFixed(0)} ${t('minutes')} | ${t('delayRate')}: ${delayRate.toFixed(1)}%${delayReasonText}`,
       maxScore: 100
     };
-  }, [filteredTrips, daysCount]);
+  }, [filteredTrips, daysCount, t]);
 
   // 4. Workshop Rating
   const workshopRating = useMemo(() => {
-    if (filteredBreakdowns.length === 0 && breakdowns.length === 0) return { score: 100, details: 'لا توجد أعطال', maxScore: 100 };
+    if (filteredBreakdowns.length === 0 && breakdowns.length === 0) return { score: 100, details: t('noBreakdowns'), maxScore: 100 };
 
     const totalBreakdowns = filteredBreakdowns.length;
     const resolvedBreakdowns = filteredBreakdowns.filter(b => b.status === 'Resolved').length;
@@ -302,10 +304,10 @@ export default function Evaluation() {
 
     return {
       score: Math.round(finalScore),
-      details: `معدل الحل: ${resolutionRate.toFixed(1)}% | أعطال مفتوحة: ${openBreakdowns} | متوسط تكلفة العطل: $${avgCostPerBreakdown.toFixed(0)}`,
+      details: `${t('resolutionRate')}: ${resolutionRate.toFixed(1)}% | ${t('openBreakdowns')}: ${openBreakdowns} | ${t('avgBreakdownCost')}: $${avgCostPerBreakdown.toFixed(0)}`,
       maxScore: 100
     };
-  }, [filteredBreakdowns, breakdowns]);
+  }, [filteredBreakdowns, breakdowns, t]);
 
   // 5. Sales Rating
   const salesRating = useMemo(() => {
@@ -330,14 +332,14 @@ export default function Evaluation() {
 
     return {
       score: Math.round(finalScore),
-      details: `الكمية المباعة: ${totalQty.toFixed(0)} م³ | المتوسط اليومي: ${avgDailyQty.toFixed(0)} م³ | الهدف: ${targetDaily.toFixed(0)} م³/يوم`,
+      details: `${t('soldQty')}: ${totalQty.toFixed(0)} m³ | ${t('dailyAvg')}: ${avgDailyQty.toFixed(0)} m³ | ${t('target')}: ${targetDaily.toFixed(0)} m³/day`,
       maxScore: 100
     };
-  }, [filteredTrips, stations, daysCount]);
+  }, [filteredTrips, stations, daysCount, t]);
 
   // 6. Orders Rating
   const ordersRating = useMemo(() => {
-    if (filteredOrders.length === 0) return { score: 0, details: 'لا توجد طلبات', maxScore: 100 };
+    if (filteredOrders.length === 0) return { score: 0, details: t('noOrders'), maxScore: 100 };
 
     const totalOrders = filteredOrders.length;
     const completedOrders = filteredOrders.filter(o => o.status === 'completed').length;
@@ -356,10 +358,10 @@ export default function Evaluation() {
 
     return {
       score: Math.round(Math.max(0, finalScore)),
-      details: `إجمالي الطلبات: ${totalOrders} | مكتملة: ${completedOrders} | مجدولة: ${scheduledOrders} | ملغاة: ${cancelledOrders} | موافقة: ${approvalRate.toFixed(1)}%`,
+      details: `${t('totalOrders')}: ${totalOrders} | ${t('completedCount')}: ${completedOrders} | ${t('scheduledCount')}: ${scheduledOrders} | ${t('cancelledCount')}: ${cancelledOrders} | ${t('approvalRate')}: ${approvalRate.toFixed(1)}%`,
       maxScore: 100
     };
-  }, [filteredOrders]);
+  }, [filteredOrders, t]);
 
   // ============ Final Rating ============
   const finalRating = useMemo(() => {
@@ -386,11 +388,11 @@ export default function Evaluation() {
   };
 
   const getRatingLabel = (score: number): string => {
-    if (score >= 85) return 'ممتاز';
-    if (score >= 70) return 'جيد جداً';
-    if (score >= 55) return 'جيد';
-    if (score >= 40) return 'مقبول';
-    return 'ضعيف';
+    if (score >= 85) return t('excellent');
+    if (score >= 70) return t('veryGood');
+    if (score >= 55) return t('good');
+    if (score >= 40) return t('acceptable');
+    return t('poor');
   };
 
   const getProgressColor = (score: number): string => {
@@ -404,7 +406,7 @@ export default function Evaluation() {
   // ============ Rating Sections ============
   const ratingSections: RatingSection[] = [
     {
-      name: 'محطات الخلط',
+      name: t('mixingStations'),
       icon: '🏭',
       score: mixingStationsRating.score,
       maxScore: mixingStationsRating.maxScore,
@@ -412,7 +414,7 @@ export default function Evaluation() {
       color: 'border-sky-500'
     },
     {
-      name: 'السيارات الخلاطة',
+      name: t('mixerTrucks'),
       icon: '🚛',
       score: mixerTrucksRating.score,
       maxScore: mixerTrucksRating.maxScore,
@@ -420,7 +422,7 @@ export default function Evaluation() {
       color: 'border-green-500'
     },
     {
-      name: 'المضخات',
+      name: t('pumps'),
       icon: '🚰',
       score: pumpsRating.score,
       maxScore: pumpsRating.maxScore,
@@ -428,7 +430,7 @@ export default function Evaluation() {
       color: 'border-sky-500'
     },
     {
-      name: 'الورشة',
+      name: t('workshop'),
       icon: '🔧',
       score: workshopRating.score,
       maxScore: workshopRating.maxScore,
@@ -436,7 +438,7 @@ export default function Evaluation() {
       color: 'border-orange-500'
     },
     {
-      name: 'المبيعات',
+      name: t('sales'),
       icon: '💰',
       score: salesRating.score,
       maxScore: salesRating.maxScore,
@@ -444,7 +446,7 @@ export default function Evaluation() {
       color: 'border-emerald-500'
     },
     {
-      name: 'الطلبات',
+      name: t('orders'),
       icon: '📦',
       score: ordersRating.score,
       maxScore: ordersRating.maxScore,
@@ -457,8 +459,8 @@ export default function Evaluation() {
     return (
       <div className="min-h-screen bg-[#0B111E] flex items-center justify-center">
         <div className="text-center">
-          <p className="text-red-400 text-xl mb-4">🔒 Access Denied</p>
-          <Link to="/" className="text-sky-400 underline">Back to Login</Link>
+          <p className="text-red-400 text-xl mb-4">🔒 {t('accessDenied')}</p>
+          <Link to="/" className="text-sky-400 underline">{t('backToLogin')}</Link>
         </div>
       </div>
     );
@@ -470,10 +472,10 @@ export default function Evaluation() {
       <div className="bg-[#0B111E]/80 backdrop-blur-xl border-b border-white/10 px-6 py-2.5 flex flex-wrap justify-between items-center gap-x-3 gap-y-1.5 sticky top-0 z-50 shadow-lg">
         <div className="flex flex-wrap items-center gap-3">
           <BrandLogo width={56} />
-          <Link to="/" className="text-slate-400 text-xs border border-white/10 px-2 py-1 rounded hover:text-white">← Dashboard</Link>
+          <Link to="/" className="text-slate-400 text-xs border border-white/10 px-2 py-1 rounded hover:text-white">← {t('backToDashboard')}</Link>
           <QuickJump />
           <LangSelector />
-          <h1 className="text-sm font-bold text-white">📊 التقييم العام للمصنع</h1>
+          <h1 className="text-sm font-bold text-white">📊 {t('plantOverallRating')}</h1>
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <span className="bg-emerald-500/15 text-emerald-500 text-xs px-3 py-1.5 rounded-lg font-bold border border-emerald-500/30">🟢 {currentUser.plantName}</span>
@@ -484,27 +486,27 @@ export default function Evaluation() {
       <div className="max-w-7xl mx-auto p-6">
         {/* Date Filter */}
         <div className="bg-white/[0.04] border border-white/10 rounded-xl p-4 mb-6 backdrop-blur-xl">
-          <h3 className="text-sm font-bold text-white mb-3">📅 فترة التقييم</h3>
+          <h3 className="text-sm font-bold text-white mb-3">📅 {t('evaluationPeriod')}</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <DatePicker
               value={fromDate}
               onChange={setFromDate}
-              label="من تاريخ"
+              label={t('fromDate')}
             />
             <DatePicker
               value={toDate}
               onChange={setToDate}
-              label="إلى تاريخ"
+              label={t('toDate')}
             />
           </div>
           <div className="mt-3 text-xs text-slate-400">
-            📊 عدد الأيام: <span className="text-white font-bold">{daysCount}</span> يوم
+            📊 {t('daysCount')}: <span className="text-white font-bold">{daysCount}</span> {t('day')}
           </div>
         </div>
 
         {/* Final Rating */}
         <div className="bg-gradient-to-br from-white/[0.06] to-white/[0.02] border-2 border-white/10 rounded-xl p-8 mb-6 text-center backdrop-blur-xl">
-          <h2 className="text-xl font-bold text-white mb-4">🏆 التقييم النهائي لأداء المصنع</h2>
+          <h2 className="text-xl font-bold text-white mb-4">🏆 {t('finalRatingTitle')}</h2>
           <div className="relative inline-block">
             <div className={`text-7xl font-black ${getRatingColor(finalRating)}`}>
               {finalRating}
@@ -565,24 +567,24 @@ export default function Evaluation() {
 
         {/* Summary Stats */}
         <div className="bg-white/[0.04] border border-white/10 rounded-xl p-6 backdrop-blur-xl">
-          <h3 className="text-lg font-black tracking-tight text-white mb-4">📈 ملخص الإحصائيات</h3>
+          <h3 className="text-lg font-black tracking-tight text-white mb-4">📈 {t('statsSummary')}</h3>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div className="bg-white/[0.02] rounded-lg p-4">
-              <p className="text-xs text-slate-400 mb-1">إجمالي الرحلات</p>
+              <p className="text-xs text-slate-400 mb-1">{t('totalTrips')}</p>
               <p className="text-2xl font-bold text-white">{filteredTrips.length}</p>
             </div>
             <div className="bg-white/[0.02] rounded-lg p-4">
-              <p className="text-xs text-slate-400 mb-1">إجمالي الكمية</p>
+              <p className="text-xs text-slate-400 mb-1">{t('totalQuantity')}</p>
               <p className="text-2xl font-bold text-emerald-400">
-                {filteredTrips.reduce((s, t) => s + (t.qty || 0), 0).toFixed(0)} م³
+                {filteredTrips.reduce((s, t) => s + (t.qty || 0), 0).toFixed(0)} m³
               </p>
             </div>
             <div className="bg-white/[0.02] rounded-lg p-4">
-              <p className="text-xs text-slate-400 mb-1">إجمالي الطلبات</p>
+              <p className="text-xs text-slate-400 mb-1">{t('totalOrders')}</p>
               <p className="text-2xl font-bold text-sky-400">{filteredOrders.length}</p>
             </div>
             <div className="bg-white/[0.02] rounded-lg p-4">
-              <p className="text-xs text-slate-400 mb-1">الأعطال</p>
+              <p className="text-xs text-slate-400 mb-1">{t('breakdowns')}</p>
               <p className="text-2xl font-bold text-red-400">
                 {filteredBreakdowns.filter(b => b.status !== 'Resolved').length}
               </p>
@@ -592,28 +594,28 @@ export default function Evaluation() {
 
         {/* Recommendations */}
         <div className="bg-sky-500/10 border border-sky-500/30 rounded-xl p-6 mt-6">
-          <h3 className="text-lg font-black tracking-tight text-sky-400 mb-4">💡 التوصيات</h3>
+          <h3 className="text-lg font-black tracking-tight text-sky-400 mb-4">💡 {t('recommendations')}</h3>
           <ul className="space-y-2 text-sm text-slate-300">
             {mixingStationsRating.score < 70 && (
-              <li>⚠️ <strong>محطات الخلط:</strong> يجب تحسين الكفاءة التشغيلية للمحطات</li>
+              <li>⚠️ <strong>{t('mixingStations')}:</strong> {t('mixingStationsReco')}</li>
             )}
             {mixerTrucksRating.score < 70 && (
-              <li>⚠️ <strong>السيارات الخلاطة:</strong> زيادة عدد الرحلات اليومية وتحسين الجدولة</li>
+              <li>⚠️ <strong>{t('mixerTrucks')}:</strong> {t('mixerTrucksReco')}</li>
             )}
             {pumpsRating.score < 70 && (
-              <li>⚠️ <strong>المضخات:</strong> تحسين توزيع المضخات وزيادة استخدامها</li>
+              <li>⚠️ <strong>{t('pumps')}:</strong> {t('pumpsReco')}</li>
             )}
             {workshopRating.score < 70 && (
-              <li>⚠️ <strong>الورشة:</strong> تسريع إصلاح الأعطال وتقليل التكاليف</li>
+              <li>⚠️ <strong>{t('workshop')}:</strong> {t('workshopReco')}</li>
             )}
             {salesRating.score < 70 && (
-              <li>⚠️ <strong>المبيعات:</strong> زيادة حجم المبيعات اليومية للوصول للهدف</li>
+              <li>⚠️ <strong>{t('sales')}:</strong> {t('salesReco')}</li>
             )}
             {ordersRating.score < 70 && (
-              <li>⚠️ <strong>الطلبات:</strong> تحسين معدل إكمال الطلبات وتقليل الإلغاءات</li>
+              <li>⚠️ <strong>{t('orders')}:</strong> {t('ordersReco')}</li>
             )}
             {finalRating >= 85 && (
-              <li>✅ <strong>أداء ممتاز!</strong> استمر في الحفاظ على هذا المستوى العالي</li>
+              <li>✅ <strong>{t('excellentPerformance')}!</strong> {t('excellentPerformanceReco')}</li>
             )}
           </ul>
         </div>
@@ -624,7 +626,7 @@ export default function Evaluation() {
             onClick={() => window.print()}
             className="bg-sky-500 hover:bg-sky-400 text-white font-bold py-3 px-8 rounded-lg shadow-[0_0_20px_rgba(56,189,248,0.3)]"
           >
-            🖨️ طباعة التقرير
+            🖨️ {t('printReport')}
           </button>
         </div>
       </div>

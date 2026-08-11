@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useLang } from '../context/LangContext';
 import { loadAssets, saveAssets, loadGpsConfig, saveGpsConfig, savePlantGPS, loadPlantGPS } from '../firebase/firestore';
 import { saveGpsLocationToSupabase } from '../supabase/supabase';
 
@@ -23,6 +24,7 @@ async function apiFetch(url: string, user: string, pass: string) {
 
 export default function GpsPanel({ onToast }: { onToast: (msg: string) => void }) {
   const { currentUser } = useAuth();
+  const { t } = useLang();
   const [cfg, setCfg] = useState<GpsConfig>({ server: '', username: '', password: '', liveEnabled: false, refreshSec: 15 });
   const [assets, setAssets] = useState<any[]>([]);
   const [devices, setDevices] = useState<GpsDevice[]>([]);
@@ -44,23 +46,23 @@ export default function GpsPanel({ onToast }: { onToast: (msg: string) => void }
 
   const saveCfg = async () => {
     if (!currentUser) return;
-    try { await saveGpsConfig(currentUser.username, cfg); onToast('✅ GPS feed configuration saved.'); } catch { onToast('⚠️ Could not save configuration.'); }
+    try { await saveGpsConfig(currentUser.username, cfg); onToast('✅ ' + t('gpsConfigSaved')); } catch { onToast('⚠️ ' + t('gpsConfigSaveFailed')); }
   };
 
   const testConnection = async () => {
-    if (!cfg.server) { setLiveMsg('⚠️ Enter your GPS server URL first.'); return; }
-    setLiveMsg('⏳ Testing connection...');
+    if (!cfg.server) { setLiveMsg('⚠️ ' + t('enterGpsServerUrl')); return; }
+    setLiveMsg('⏳ ' + t('testingConnection'));
     try {
       const base = cfg.server.replace(/\/+$/, '');
       const devs = await apiFetch(base + '/api/devices', cfg.username, cfg.password);
-      setLiveMsg(`✅ Connection OK — server returned ${Array.isArray(devs) ? devs.length : 0} device(s).`);
+      setLiveMsg(`✅ ${t('connectionOkDevices')} ${Array.isArray(devs) ? devs.length : 0}.`);
     } catch (e: any) {
-      setLiveMsg(`⚠️ ${e.message || 'Connection failed.'} — verify URL/port, credentials and CORS on the server.`);
+      setLiveMsg(`⚠️ ${e.message || t('connectionFailed')} — ${t('verifyServerCors')}.`);
     }
   };
 
   const discover = async () => {
-    if (!cfg.server) { setMsg('⚠️ Enter your GPS server URL first.'); return; }
+    if (!cfg.server) { setMsg('⚠️ ' + t('enterGpsServerUrl')); return; }
     setBusy('discover');
     setMsg('');
     try {
@@ -69,15 +71,15 @@ export default function GpsPanel({ onToast }: { onToast: (msg: string) => void }
       setDevices(Array.isArray(data) ? data : []);
       const total = Array.isArray(data) ? data.length : 0;
       const linked = Array.isArray(data) ? data.filter((d: GpsDevice) => assets.some(a => a.gpsId === d.uniqueId)).length : 0;
-      setMsg(`✅ Found ${total} device(s) on server — ${linked} already linked to assets (by Tracker ID / IMEI).`);
+      setMsg(`✅ ${t('foundDevices')} ${total} — ${linked} ${t('alreadyLinkedAssets')}.`);
     } catch (e: any) {
-      setMsg(`⚠️ ${e.message || 'Could not reach the GPS server.'} — make sure CORS is enabled on the server and the URL/port is correct.`);
+      setMsg(`⚠️ ${e.message || t('gpsServerUnreachable')} — ${t('corsError')}.`);
     }
     setBusy('');
   };
 
   const syncAll = async () => {
-    if (!cfg.server) { setMsg('⚠️ Enter your GPS server URL first.'); return; }
+    if (!cfg.server) { setMsg('⚠️ ' + t('enterGpsServerUrl')); return; }
     setBusy('sync');
     setMsg('');
     try {
@@ -110,9 +112,9 @@ export default function GpsPanel({ onToast }: { onToast: (msg: string) => void }
           saveGpsLocationToSupabase({ username: currentUser!.username, label: `asset:${a.id}`, lat: a.gpsLat, lng: a.gpsLng }).catch(() => {});
         }
       }
-      setMsg(`✅ Synced positions: ${updated} asset(s) updated from ${pos.length} device(s). Map & all sections updated.`);
+      setMsg(`✅ ${t('syncedPositions')}: ${updated} ${t('assetUpdated')} ${pos.length} ${t('deviceUpdated')}.`);
     } catch (e: any) {
-      setMsg(`⚠️ ${e.message || 'Sync failed.'} — verify server URL, credentials and CORS.`);
+      setMsg(`⚠️ ${e.message || t('syncFailed')} — ${t('verifyServerCors')}.`);
     }
     setBusy('');
   };
@@ -120,7 +122,7 @@ export default function GpsPanel({ onToast }: { onToast: (msg: string) => void }
   const detectPlantGps = () => {
     setBusy('detect');
     setMsg('');
-    if (!navigator.geolocation) { setMsg('⚠️ Geolocation not supported by this browser.'); setBusy(''); return; }
+    if (!navigator.geolocation) { setMsg('⚠️ ' + t('geolocationNotSupported')); setBusy(''); return; }
     navigator.geolocation.getCurrentPosition(
       async pos => {
         const { latitude, longitude } = pos.coords;
@@ -129,20 +131,20 @@ export default function GpsPanel({ onToast }: { onToast: (msg: string) => void }
           try { await savePlantGPS(currentUser.username, latitude, longitude); } catch {}
           saveGpsLocationToSupabase({ username: currentUser.username, label: 'plant', lat: latitude, lng: longitude }).catch(() => {});
         }
-        setMsg(`✅ Plant GPS updated (${latitude.toFixed(5)}, ${longitude.toFixed(5)}) — shared with all sections.`);
+        setMsg(`✅ ${t('plantGpsUpdated')} (${latitude.toFixed(5)}, ${longitude.toFixed(5)}).`);
         setBusy('');
       },
-      err => { setMsg(`⚠️ ${err.message} — allow location access or enter coordinates manually in Assets & Fleet.`); setBusy(''); },
+      err => { setMsg(`⚠️ ${err.message} — ${t('locationAccessHint')}.`); setBusy(''); },
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 },
     );
   };
 
   const linked = Array.isArray(assets) ? assets.filter(a => a.gpsId) : [];
   const methods = [
-    { icon: '📱', title: 'Browser Geolocation', desc: 'Press "Detect My Location" to auto-fill the plant position from the device browser (works on mobile & PC).', action: 'detect' },
-    { icon: '✍️', title: 'Manual Coordinates', desc: 'Type Latitude/Longitude directly for each asset (Assets & Fleet sub-tab) and for the plant (Plant Profile sub-tab).', action: '' },
-    { icon: '📡', title: 'Live Tracker Feed (API)', desc: 'Register your tracker IMEI in "Tracker ID" per asset, then configure the server below and Sync All to pull live positions.', action: 'discover' },
-    { icon: '🔗', title: 'Shared Markers', desc: 'Every saved position is written to the shared database (Firestore + Supabase) so the map and all sections see the same data.', action: '' },
+    { icon: '📱', title: t('browserGeolocation'), desc: t('browserGeolocationDesc'), action: 'detect' },
+    { icon: '✍️', title: t('manualCoordinates'), desc: t('manualCoordinatesDesc'), action: '' },
+    { icon: '📡', title: t('liveTrackerFeed'), desc: t('liveTrackerFeedDesc'), action: 'discover' },
+    { icon: '🔗', title: t('sharedMarkers'), desc: t('sharedMarkersDesc'), action: '' },
   ];
 
   return (
@@ -150,7 +152,7 @@ export default function GpsPanel({ onToast }: { onToast: (msg: string) => void }
       {msg && <p className={`text-xs font-bold ${msg.includes('✅') ? 'text-emerald-400' : 'text-yellow-400'} bg-white/[0.04] border border-white/10 rounded-lg px-4 py-3`}>{msg}</p>}
 
       <div className="bg-white/[0.04] rounded-2xl border border-white/10 p-6">
-        <h2 className="text-lg font-bold text-white mb-4">🔗 GPS Linking Methods</h2>
+        <h2 className="text-lg font-bold text-white mb-4">🔗 {t('gpsLinkingMethods')}</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {methods.map(m => (
             <div key={m.title} className="bg-white/[0.04] border border-white/10 rounded-xl p-4 flex flex-col">
@@ -159,73 +161,73 @@ export default function GpsPanel({ onToast }: { onToast: (msg: string) => void }
               <p className="text-[11px] text-slate-400 flex-1">{m.desc}</p>
               {m.action === 'detect' && (
                 <button onClick={detectPlantGps} disabled={busy === 'detect'} className="mt-3 bg-sky-600/20 text-sky-400 border border-sky-500/30 hover:bg-sky-600/30 text-xs px-3 py-2 rounded-lg font-bold transition-colors disabled:opacity-50">
-                  {busy === 'detect' ? '⏳ Detecting...' : '📍 Detect My Location'}
+                  {busy === 'detect' ? '⏳ ' + t('detecting') : '📍 ' + t('detectMyLocation')}
                 </button>
               )}
               {m.action === 'discover' && (
                 <button onClick={discover} disabled={busy === 'discover'} className="mt-3 bg-sky-500/20 text-sky-400 border border-sky-500/50 hover:bg-sky-500/30 text-xs px-3 py-2 rounded-lg font-bold transition-colors disabled:opacity-50">
-                  {busy === 'discover' ? '⏳ Scanning...' : '🔍 Discover Trackers'}
+                  {busy === 'discover' ? '⏳ ' + t('scanning') : '🔍 ' + t('discoverTrackers')}
                 </button>
               )}
             </div>
           ))}
         </div>
-        {plantGps && <p className="text-xs text-slate-400 mt-4">📍 Plant position: <b className="text-white">{plantGps.lat.toFixed(5)}, {plantGps.lng.toFixed(5)}</b></p>}
+        {plantGps && <p className="text-xs text-slate-400 mt-4">📍 {t('plantPosition')}: <b className="text-white">{plantGps.lat.toFixed(5)}, {plantGps.lng.toFixed(5)}</b></p>}
       </div>
 
       <div className="bg-white/[0.04] rounded-2xl border border-white/10 p-6">
         <div className="flex items-center justify-between mb-2">
-          <h2 className="text-lg font-bold text-white">📡 GPS Server Feed (Traccar / GpsGate / Teltonika)</h2>
-          <span className="text-xs px-2.5 py-1 rounded font-bold bg-sky-500/20 text-sky-400">Live linking</span>
+          <h2 className="text-lg font-bold text-white">📡 {t('gpsServerFeed')}</h2>
+          <span className="text-xs px-2.5 py-1 rounded font-bold bg-sky-500/20 text-sky-400">{t('liveLinking')}</span>
         </div>
-        <p className="text-xs text-slate-400 mb-4">Connect your tracking platform. This panel calls its REST API (basic auth) to pull device positions and link them to your assets by Tracker ID (IMEI). Requires the server to allow browser access (CORS).</p>
+        <p className="text-xs text-slate-400 mb-4">{t('gpsServerHint')}</p>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div><label className="text-[10px] text-slate-400 font-semibold">Server URL (e.g. https://gps.example.com)</label>
+          <div><label className="text-[10px] text-slate-400 font-semibold">{t('serverUrl')}</label>
             <input value={cfg.server} onChange={e => setCfg({ ...cfg, server: e.target.value })} placeholder="https://gps.example.com" className={inputCls} /></div>
-          <div><label className="text-[10px] text-slate-400 font-semibold">API Username</label>
+          <div><label className="text-[10px] text-slate-400 font-semibold">{t('apiUsername')}</label>
             <input value={cfg.username} onChange={e => setCfg({ ...cfg, username: e.target.value })} placeholder="admin" className={inputCls} /></div>
-          <div><label className="text-[10px] text-slate-400 font-semibold">API Password</label>
+          <div><label className="text-[10px] text-slate-400 font-semibold">{t('apiPassword')}</label>
             <input type="password" value={cfg.password} onChange={e => setCfg({ ...cfg, password: e.target.value })} placeholder="••••••" className={inputCls} /></div>
         </div>
         <div className="flex gap-2 mt-4">
-          <button onClick={saveCfg} className="bg-emerald-600/20 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-600/30 text-xs px-5 py-2 rounded-lg font-bold transition-colors">💾 Save Config</button>
-          <button onClick={discover} disabled={busy === 'discover'} className="bg-sky-500/20 text-sky-400 border border-sky-500/50 hover:bg-sky-500/30 text-xs px-5 py-2 rounded-lg font-bold transition-colors disabled:opacity-50">{busy === 'discover' ? '⏳' : '🔍 Discover Trackers'}</button>
-          <button onClick={syncAll} disabled={busy === 'sync'} className="bg-sky-500/20 text-sky-400 border border-sky-500/50 hover:bg-sky-500/30 text-xs px-5 py-2 rounded-lg font-bold transition-colors disabled:opacity-50">{busy === 'sync' ? '⏳ Syncing...' : '⚡ Sync All Positions'}</button>
+          <button onClick={saveCfg} className="bg-emerald-600/20 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-600/30 text-xs px-5 py-2 rounded-lg font-bold transition-colors">💾 {t('saveConfig')}</button>
+          <button onClick={discover} disabled={busy === 'discover'} className="bg-sky-500/20 text-sky-400 border border-sky-500/50 hover:bg-sky-500/30 text-xs px-5 py-2 rounded-lg font-bold transition-colors disabled:opacity-50">{busy === 'discover' ? '⏳' : '🔍 ' + t('discoverTrackers')}</button>
+          <button onClick={syncAll} disabled={busy === 'sync'} className="bg-sky-500/20 text-sky-400 border border-sky-500/50 hover:bg-sky-500/30 text-xs px-5 py-2 rounded-lg font-bold transition-colors disabled:opacity-50">{busy === 'sync' ? '⏳ ' + t('syncing') : '⚡ ' + t('syncAllPositions')}</button>
         </div>
 
         <div className="mt-5 border-t border-white/10 pt-5">
           <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
-            <h3 className="text-sm font-bold text-white">🔴 Live Tracking (real-time map polling)</h3>
+            <h3 className="text-sm font-bold text-white">🔴 {t('liveTracking')}</h3>
             <div className="flex items-center gap-3">
               <select value={cfg.refreshSec || 15} onChange={e => setCfg({ ...cfg, refreshSec: Number(e.target.value) })} className={inputCls}>
-                {[5, 10, 15, 30, 60].map(s => <option key={s} value={s}>Every {s} sec</option>)}
+                {[5, 10, 15, 30, 60].map(s => <option key={s} value={s}>{t('everySec')} {s} {t('sec')}</option>)}
               </select>
               <label className="flex items-center gap-2 cursor-pointer">
                 <input type="checkbox" checked={!!cfg.liveEnabled} onChange={e => setCfg({ ...cfg, liveEnabled: e.target.checked })} className="w-4 h-4 accent-emerald-500" />
-                <span className="text-xs font-bold text-emerald-400">Enable Live Feed</span>
+                <span className="text-xs font-bold text-emerald-400">{t('enableLiveFeed')}</span>
               </label>
             </div>
           </div>
-          <p className="text-xs text-slate-400 mb-3">When enabled, the GPS Fleet Map polls the server API every interval and moves the mixers/pumps live. Positions are also written back to the shared database (throttled every 60s).</p>
+          <p className="text-xs text-slate-400 mb-3">{t('liveTrackingHint')}</p>
           {liveMsg && <p className={`text-xs font-bold mb-3 ${liveMsg.includes('✅') ? 'text-emerald-400' : 'text-yellow-400'}`}>{liveMsg}</p>}
           <div className="flex gap-2">
-            <button onClick={testConnection} className="bg-sky-600/20 text-sky-400 border border-sky-500/50 hover:bg-sky-600/30 text-xs px-5 py-2 rounded-lg font-bold transition-colors">🧪 Test Connection</button>
-            <button onClick={saveCfg} className="bg-emerald-600/20 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-600/30 text-xs px-5 py-2 rounded-lg font-bold transition-colors">💾 Save Config</button>
+            <button onClick={testConnection} className="bg-sky-600/20 text-sky-400 border border-sky-500/50 hover:bg-sky-600/30 text-xs px-5 py-2 rounded-lg font-bold transition-colors">🧪 {t('testConnection')}</button>
+            <button onClick={saveCfg} className="bg-emerald-600/20 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-600/30 text-xs px-5 py-2 rounded-lg font-bold transition-colors">💾 {t('saveConfig')}</button>
           </div>
         </div>
       </div>
 
       <div className="bg-white/[0.04] rounded-2xl border border-white/10 p-6">
         <div className="flex items-center justify-between mb-2">
-          <h2 className="text-lg font-bold text-white">🧭 Discovered Trackers</h2>
-          <span className="text-xs px-2.5 py-1 rounded font-bold bg-sky-500/20 text-sky-400">{devices.length} on server</span>
+          <h2 className="text-lg font-bold text-white">🧭 {t('discoveredTrackers')}</h2>
+          <span className="text-xs px-2.5 py-1 rounded font-bold bg-sky-500/20 text-sky-400">{devices.length} {t('onServer')}</span>
         </div>
         {devices.length === 0 ? (
-          <p className="text-xs text-slate-400">Press "Discover Trackers" to list devices from your GPS server. Link each device by entering its IMEI in the asset's <b className="text-slate-200">Tracker ID / IMEI</b> field (Assets & Fleet sub-tab).</p>
+          <p className="text-xs text-slate-400">{t('discoverHint')}</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-xs text-slate-300">
-              <thead className="bg-white/[0.04] text-slate-400"><tr>{['Device ID', 'IMEI / Unique ID', 'Name', 'Status', 'Linked Asset'].map(h => <th key={h} className="p-2 text-[10px] uppercase tracking-wider">{h}</th>)}</tr></thead>
+              <thead className="bg-white/[0.04] text-slate-400"><tr>{[t('deviceId'), t('imeiUniqueId'), t('name'), t('status'), t('linkedAsset')].map(h => <th key={h} className="p-2 text-[10px] uppercase tracking-wider">{h}</th>)}</tr></thead>
               <tbody>
                 {devices.map(d => {
                   const linkedAsset = (Array.isArray(assets) ? assets : []).find(a => a.gpsId === d.uniqueId);
@@ -234,8 +236,8 @@ export default function GpsPanel({ onToast }: { onToast: (msg: string) => void }
                       <td className="p-2">{d.id}</td>
                       <td className="p-2 font-bold text-white">{d.uniqueId}</td>
                       <td className="p-2">{d.name || '—'}</td>
-                      <td className="p-2"><span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${d.status === 'online' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-slate-500/20 text-slate-400'}`}>{d.status || 'unknown'}</span></td>
-                      <td className="p-2">{linkedAsset ? <span className="text-emerald-400 font-bold">✅ {linkedAsset.id} ({linkedAsset.plate})</span> : <span className="text-slate-500">— not linked —</span>}</td>
+                      <td className="p-2"><span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${d.status === 'online' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-slate-500/20 text-slate-400'}`}>{d.status || t('unknown')}</span></td>
+                      <td className="p-2">{linkedAsset ? <span className="text-emerald-400 font-bold">✅ {linkedAsset.id} ({linkedAsset.plate})</span> : <span className="text-slate-500">— {t('notLinked')} —</span>}</td>
                     </tr>
                   );
                 })}
@@ -247,22 +249,22 @@ export default function GpsPanel({ onToast }: { onToast: (msg: string) => void }
 
       <div className="bg-white/[0.04] rounded-2xl border border-white/10 p-6">
         <div className="flex items-center justify-between mb-2">
-          <h2 className="text-lg font-bold text-white">🔑 Linked Trackers on Assets</h2>
-          <span className="text-xs px-2.5 py-1 rounded font-bold bg-emerald-500/20 text-emerald-400">{linked.length} linked</span>
+          <h2 className="text-lg font-bold text-white">🔑 {t('linkedTrackersOnAssets')}</h2>
+          <span className="text-xs px-2.5 py-1 rounded font-bold bg-emerald-500/20 text-emerald-400">{linked.length} {t('linked')}</span>
         </div>
         {linked.length === 0 ? (
-          <p className="text-xs text-slate-400">No asset has a Tracker ID yet. Go to <b className="text-slate-200">Assets & Fleet</b> and set "Tracker ID / IMEI" on each vehicle, then Sync All.</p>
+          <p className="text-xs text-slate-400">{t('noTrackerIdHint')}</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-xs text-slate-300">
-              <thead className="bg-white/[0.04] text-slate-400"><tr>{['Asset', 'Plate', 'Tracker ID', 'Last Position', 'Updated'].map(h => <th key={h} className="p-2 text-[10px] uppercase tracking-wider">{h}</th>)}</tr></thead>
+              <thead className="bg-white/[0.04] text-slate-400"><tr>{[t('assetCode'), t('plateNumber'), t('trackerIdImei'), t('lastPosition'), t('updated')].map(h => <th key={h} className="p-2 text-[10px] uppercase tracking-wider">{h}</th>)}</tr></thead>
               <tbody>
                 {linked.map(a => (
                   <tr key={a.id} className="border-b border-white/10">
                     <td className="p-2 font-bold text-white">{a.id}</td>
                     <td className="p-2">{a.plate || '—'}</td>
                     <td className="p-2">{a.gpsId}</td>
-                    <td className="p-2">{a.gpsLat && a.gpsLng ? `${a.gpsLat.toFixed(4)}, ${a.gpsLng.toFixed(4)}` : <span className="text-slate-500">No fix yet</span>}</td>
+                    <td className="p-2">{a.gpsLat && a.gpsLng ? `${a.gpsLat.toFixed(4)}, ${a.gpsLng.toFixed(4)}` : <span className="text-slate-500">{t('noFixYet')}</span>}</td>
                     <td className="p-2 text-slate-400">{a.gpsUpdatedAt ? new Date(a.gpsUpdatedAt).toLocaleString() : '—'}</td>
                   </tr>
                 ))}

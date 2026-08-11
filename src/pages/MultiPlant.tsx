@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useAdmin } from '../context/AdminContext';
+import { useLang } from '../context/LangContext';
 import { getAllPlantsSummary } from '../firebase/firestore';
 import QuickJump from '../components/QuickJump';
 import LangSelector from '../components/LangSelector';
@@ -12,6 +13,7 @@ interface Row { username: string; plantName: string; country: string; city: stri
 export default function MultiPlant() {
   const { currentUser } = useAuth();
   const { canManageAdmin } = useAdmin();
+  const { t } = useLang();
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('');
@@ -26,7 +28,7 @@ export default function MultiPlant() {
   if (!currentUser || !canManageAdmin()) {
     return (
       <div className="min-h-screen bg-[#0B111E] flex items-center justify-center">
-        <div className="text-center"><p className="text-red-400 text-xl mb-2">🔒 Owner Access Only</p><p className="text-slate-400 text-sm mb-4">This unified multi-plant dashboard is for the owner/manager role.</p><Link to="/" className="text-sky-400 underline">Back to Dashboard</Link></div>
+        <div className="text-center"><p className="text-red-400 text-xl mb-2">🔒 {t('ownerAccessOnly')}</p><p className="text-slate-400 text-sm mb-4">{t('multiPlantAccessDesc')}</p><Link to="/" className="text-sky-400 underline">{t('backToDashboard')}</Link></div>
       </div>
     );
   }
@@ -48,36 +50,36 @@ export default function MultiPlant() {
       <div className="bg-[#0B111E]/80 backdrop-blur-xl border-b border-white/10 px-6 py-2.5 flex flex-wrap justify-between items-center gap-x-3 gap-y-1.5 sticky top-0 z-50 shadow-lg">
         <div className="flex flex-wrap items-center gap-3">
           <BrandLogo width={56} />
-          <Link to="/" className="text-slate-400 text-xs border border-white/10 px-2.5 py-1 rounded hover:text-white transition">← Dashboard</Link>
+          <Link to="/" className="text-slate-400 text-xs border border-white/10 px-2.5 py-1 rounded hover:text-white transition">← {t('backToDashboard')}</Link>
           <QuickJump /> <LangSelector />
-          <h1 className="text-sm font-bold text-white">🏭 Multi-Plant Command Center</h1>
+          <h1 className="text-sm font-bold text-white">🏭 {t('multiPlantCommandCenter')}</h1>
         </div>
         <span className="bg-emerald-500/15 text-emerald-500 text-xs px-3 py-1.5 rounded-lg font-bold border border-emerald-500/30">👑 {currentUser.username}</span>
       </div>
 
       <div className="max-w-7xl mx-auto p-6">
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
-          <div className="bg-white/[0.04] rounded-2xl p-4 border border-white/10 backdrop-blur-xl"><p className="text-xs text-slate-400">Plants</p><p className="text-xl font-bold text-white">{rows.length}</p></div>
-          <div className="bg-white/[0.04] rounded-2xl p-4 border border-white/10 backdrop-blur-xl"><p className="text-xs text-slate-400">Trips</p><p className="text-xl font-bold text-sky-400">{totalTrips}</p></div>
-          <div className="bg-white/[0.04] rounded-2xl p-4 border border-white/10 backdrop-blur-xl"><p className="text-xs text-slate-400">Volume (m³)</p><p className="text-xl font-bold text-sky-400">{totalVolume.toFixed(0)}</p></div>
-          <div className="bg-white/[0.04] rounded-2xl p-4 border border-white/10 backdrop-blur-xl"><p className="text-xs text-slate-400">QC tests</p><p className="text-xl font-bold text-emerald-400">{totalQC}</p></div>
-          <div className="bg-white/[0.04] rounded-2xl p-4 border border-white/10 backdrop-blur-xl"><p className="text-xs text-slate-400">Orders</p><p className="text-xl font-bold text-orange-400">{totalOrders}</p></div>
+          <div className="bg-white/[0.04] rounded-2xl p-4 border border-white/10 backdrop-blur-xl"><p className="text-xs text-slate-400">{t('plants')}</p><p className="text-xl font-bold text-white">{rows.length}</p></div>
+          <div className="bg-white/[0.04] rounded-2xl p-4 border border-white/10 backdrop-blur-xl"><p className="text-xs text-slate-400">{t('trips')}</p><p className="text-xl font-bold text-sky-400">{totalTrips}</p></div>
+          <div className="bg-white/[0.04] rounded-2xl p-4 border border-white/10 backdrop-blur-xl"><p className="text-xs text-slate-400">{t('volumeM3')}</p><p className="text-xl font-bold text-sky-400">{totalVolume.toFixed(0)}</p></div>
+          <div className="bg-white/[0.04] rounded-2xl p-4 border border-white/10 backdrop-blur-xl"><p className="text-xs text-slate-400">{t('qcTests')}</p><p className="text-xl font-bold text-emerald-400">{totalQC}</p></div>
+          <div className="bg-white/[0.04] rounded-2xl p-4 border border-white/10 backdrop-blur-xl"><p className="text-xs text-slate-400">{t('modOrders')}</p><p className="text-xl font-bold text-orange-400">{totalOrders}</p></div>
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-3 gap-2 p-1 mb-4 bg-white/[0.04] rounded-2xl border border-white/10 backdrop-blur-xl max-w-lg">
-          <button onClick={() => setCostView('consolidated')} className={`py-2 px-4 rounded-lg font-bold text-sm ${costView === 'consolidated' ? 'bg-emerald-500 text-white shadow-[0_0_25px_rgba(16,185,129,0.35)]' : 'text-slate-400 hover:text-white'}`}>🏢 Consolidated HQ</button>
-          <button onClick={() => setCostView('separate')} className={`py-2 px-4 rounded-lg font-bold text-sm ${costView === 'separate' ? 'bg-sky-500 text-white shadow-[0_0_25px_rgba(56,189,248,0.35)]' : 'text-slate-400 hover:text-white'}`}>🏭 Separate cost centers</button>
-          <div className="py-2 px-4 rounded-lg text-[10px] text-slate-400 self-center text-center">Net = collected − PO spend</div>
+          <button onClick={() => setCostView('consolidated')} className={`py-2 px-4 rounded-lg font-bold text-sm ${costView === 'consolidated' ? 'bg-emerald-500 text-white shadow-[0_0_25px_rgba(16,185,129,0.35)]' : 'text-slate-400 hover:text-white'}`}>🏢 {t('consolidatedHQ')}</button>
+          <button onClick={() => setCostView('separate')} className={`py-2 px-4 rounded-lg font-bold text-sm ${costView === 'separate' ? 'bg-sky-500 text-white shadow-[0_0_25px_rgba(56,189,248,0.35)]' : 'text-slate-400 hover:text-white'}`}>🏭 {t('separateCostCenters')}</button>
+          <div className="py-2 px-4 rounded-lg text-[10px] text-slate-400 self-center text-center">{t('netFormula')}</div>
         </div>
 
         {costView === 'consolidated' && (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-            <div className="bg-white/[0.04] rounded-2xl p-4 border border-emerald-500/40 backdrop-blur-xl"><p className="text-xs text-slate-400">Collected (SAR)</p><p className="text-xl font-bold text-emerald-400">{totalCollected.toLocaleString()}</p></div>
-            <div className="bg-white/[0.04] rounded-2xl p-4 border border-white/10 backdrop-blur-xl"><p className="text-xs text-slate-400">Outstanding (SAR)</p><p className="text-xl font-bold text-yellow-400">{totalOutstanding.toLocaleString()}</p></div>
-            <div className="bg-white/[0.04] rounded-2xl p-4 border border-white/10 backdrop-blur-xl"><p className="text-xs text-slate-400">PO spend (SAR)</p><p className="text-xl font-bold text-orange-400">{totalPOValue.toLocaleString()}</p></div>
-            <div className="bg-white/[0.04] rounded-2xl p-4 border border-white/10 backdrop-blur-xl"><p className="text-xs text-slate-400">Open POs</p><p className="text-xl font-bold text-white">{openPOs}</p></div>
+            <div className="bg-white/[0.04] rounded-2xl p-4 border border-emerald-500/40 backdrop-blur-xl"><p className="text-xs text-slate-400">{t('collectedSar')}</p><p className="text-xl font-bold text-emerald-400">{totalCollected.toLocaleString()}</p></div>
+            <div className="bg-white/[0.04] rounded-2xl p-4 border border-white/10 backdrop-blur-xl"><p className="text-xs text-slate-400">{t('outstandingSar')}</p><p className="text-xl font-bold text-yellow-400">{totalOutstanding.toLocaleString()}</p></div>
+            <div className="bg-white/[0.04] rounded-2xl p-4 border border-white/10 backdrop-blur-xl"><p className="text-xs text-slate-400">{t('poSpendSar')}</p><p className="text-xl font-bold text-orange-400">{totalPOValue.toLocaleString()}</p></div>
+            <div className="bg-white/[0.04] rounded-2xl p-4 border border-white/10 backdrop-blur-xl"><p className="text-xs text-slate-400">{t('openPOs')}</p><p className="text-xl font-bold text-white">{openPOs}</p></div>
             <div className="col-span-2 md:col-span-4 bg-white/[0.03] rounded-2xl p-4 border border-emerald-500/30">
-              <p className="text-xs text-slate-400">Group net position (SAR)</p>
+              <p className="text-xs text-slate-400">{t('groupNetPositionSar')}</p>
               <p className={`text-3xl font-black ${revenue >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{revenue >= 0 ? '+' : ''}{revenue.toLocaleString()}</p>
             </div>
           </div>
@@ -85,22 +87,22 @@ export default function MultiPlant() {
 
         {plantsWithQCLow > 0 && (
           <div className="bg-yellow-500/10 border border-yellow-500/40 rounded-xl p-4 mb-5 text-sm text-yellow-300">
-            ⚠️ {plantsWithQCLow} plant{plantsWithQCLow > 1 ? 's have' : ' has'} no QC records yet — quality monitoring gap detected.
+            ⚠️ {plantsWithQCLow} {plantsWithQCLow > 1 ? t('plantsHaveNoQc') : t('plantHasNoQc')}
           </div>
         )}
 
-        <div className="mb-4"><input value={filter} onChange={e => setFilter(e.target.value)} placeholder="🔍 Filter by plant / city / username..." className="w-full max-w-md bg-white/[0.04] border border-white/10 rounded-lg p-3 text-white text-sm" /></div>
+        <div className="mb-4"><input value={filter} onChange={e => setFilter(e.target.value)} placeholder={t('filterByPlant')} className="w-full max-w-md bg-white/[0.04] border border-white/10 rounded-lg p-3 text-white text-sm" /></div>
 
-        {loading && <p className="text-slate-400 text-sm animate-pulse">Loading plants...</p>}
+        {loading && <p className="text-slate-400 text-sm animate-pulse">{t('loadingPlants')}</p>}
 
         <div className="bg-white/[0.04] border border-white/10 rounded-2xl overflow-hidden backdrop-blur-xl">
           <div className="overflow-x-auto">
             <table className="w-full text-xs text-slate-300">
-              <thead className="bg-white/[0.03] text-[10px]"><tr><th className="p-2">Plant</th><th className="p-2">Location</th><th className="p-2">Trips</th><th className="p-2">Volume</th><th className="p-2">Cement</th><th className="p-2">Sand</th><th className="p-2">Gravel</th><th className="p-2">QC</th><th className="p-2">Orders</th>{costView === 'separate' && <th className="p-2">Collected</th>}{costView === 'separate' && <th className="p-2">Net</th>}<th className="p-2">Health</th></tr></thead>
+              <thead className="bg-white/[0.03] text-[10px]"><tr><th className="p-2">{t('plant')}</th><th className="p-2">{t('location')}</th><th className="p-2">{t('trips')}</th><th className="p-2">{t('volume')}</th><th className="p-2">{t('cement')}</th><th className="p-2">{t('sand')}</th><th className="p-2">{t('gravel')}</th><th className="p-2">{t('qc')}</th><th className="p-2">{t('modOrders')}</th>{costView === 'separate' && <th className="p-2">{t('collected')}</th>}{costView === 'separate' && <th className="p-2">{t('net')}</th>}<th className="p-2">{t('health')}</th></tr></thead>
               <tbody>
                 {filtered.map(r => {
                   const cement = Number(r.inventory?.cement) || 0;
-                  const health = r.qcCount > 0 && cement > 0 ? '🟢 Healthy' : (r.qcCount === 0 ? '🟡 No QC' : '🔴 Stock risk');
+                  const health = r.qcCount > 0 && cement > 0 ? `🟢 ${t('healthy')}` : (r.qcCount === 0 ? `🟡 ${t('noQc')}` : `🔴 ${t('stockRisk')}`);
                   const healthColor = r.qcCount === 0 ? 'text-yellow-400' : (cement > 0 ? 'text-emerald-400' : 'text-red-400');
                   const collected = r.payments?.filter((p: any) => p.status === 'paid').reduce((s: number, p: any) => s + (Number(p.amount) || 0), 0) || 0;
                   const poSpend = r.pos?.reduce((s: number, po: any) => s + (Number(po.total) || 0), 0) || 0;
@@ -124,7 +126,7 @@ export default function MultiPlant() {
               </tbody>
             </table>
           </div>
-          {!loading && filtered.length === 0 && <p className="p-6 text-center text-slate-500 text-sm">No plants match the filter.</p>}
+          {!loading && filtered.length === 0 && <p className="p-6 text-center text-slate-500 text-sm">{t('noMatchFilter')}</p>}
         </div>
       </div>
     </div>

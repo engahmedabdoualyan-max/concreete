@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useLang } from '../context/LangContext';
 import { loadOrders, saveOrders } from '../firebase/firestore';
 import QuickJump from '../components/QuickJump';
 import LangSelector from '../components/LangSelector';
@@ -37,6 +38,7 @@ interface Route {
 
 export default function Schedule() {
   const { currentUser } = useAuth();
+  const { t } = useLang();
   const mapRef = useRef<L.Map | null>(null);
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const markersRef = useRef<L.Marker[]>([]);
@@ -112,7 +114,7 @@ export default function Schedule() {
 
     L.marker([lat, lng], { icon: plantIcon })
       .addTo(map)
-      .bindPopup('Plant Location');
+      .bindPopup(t('plantLocation'));
 
     // Click handler for selecting location
     map.on('click', (e: L.LeafletMouseEvent) => {
@@ -160,7 +162,7 @@ export default function Schedule() {
   // Search address using Nominatim
   const searchAddress = async () => {
     if (!addressSearch.trim()) {
-      toast('Please enter an address to search', 'error');
+      toast(t('enterAddressToSearch'), 'error');
       return;
     }
 
@@ -186,12 +188,12 @@ export default function Schedule() {
           mapRef.current.setView([parseFloat(lat), parseFloat(lon)], 15);
         }
 
-        toast(`Location found: ${display_name}`, 'success');
+        toast(`${t('locationFound')}: ${display_name}`, 'success');
       } else {
-        toast('Address not found', 'error');
+        toast(t('addressNotFound'), 'error');
       }
     } catch (error) {
-      toast('Error searching address', 'error');
+      toast(t('errorSearchingAddress'), 'error');
     }
   };
 
@@ -282,12 +284,12 @@ export default function Schedule() {
   // Add customer
   const addCustomer = () => {
     if (!form.code || !form.name || !form.phone || !form.project || !form.qty || !form.geo) {
-      toast('Please fill all required fields and select location from map', 'error');
+      toast(t('fillRequiredFieldsSelectLocation'), 'error');
       return;
     }
 
     if (customers.find(c => c.code === form.code)) {
-      toast('Customer code already exists', 'error');
+      toast(t('customerCodeExists'), 'error');
       return;
     }
 
@@ -299,7 +301,7 @@ export default function Schedule() {
     };
 
     setCustomers([...customers, newCustomer]);
-    toast('Customer added successfully', 'success');
+    toast(t('customerAddedSuccessfully'), 'success');
 
     // Reset form
     setForm({
@@ -331,7 +333,7 @@ export default function Schedule() {
   // Generate schedule
   const generateSchedule = () => {
     if (customers.length === 0) {
-      toast('Please add customers first', 'error');
+      toast(t('addCustomersFirst'), 'error');
       return;
     }
 
@@ -434,7 +436,7 @@ export default function Schedule() {
     }
 
     if (!orders.length) {
-      toast('لا توجد طلبات في النظام', 'error');
+      toast(t('noOrdersInSystem'), 'error');
       return;
     }
 
@@ -449,7 +451,7 @@ export default function Schedule() {
     }
 
     if (ordersToImport.length === 0) {
-      toast('لا توجد طلبات موافق عليها ومتاحة للاستيراد', 'error');
+      toast(t('noApprovedOrdersForImport'), 'error');
       return;
     }
 
@@ -478,7 +480,7 @@ export default function Schedule() {
     const uniqueNewCustomers = newCustomers.filter(c => !existingCodes.has(c.code));
 
     if (uniqueNewCustomers.length === 0) {
-      toast('جميع الطلبات موجودة بالفعل في الجدول', 'error');
+      toast(t('allOrdersAlreadyScheduled'), 'error');
       return;
     }
 
@@ -495,7 +497,7 @@ export default function Schedule() {
     localStorage.setItem(ordersKey, JSON.stringify(updatedOrders));
     if (currentUser) saveOrders(currentUser.username, updatedOrders).catch(() => {});
 
-    toast(`تم استيراد ${uniqueNewCustomers.length} طلب(ات) بنجاح`, 'success');
+    toast(`${uniqueNewCustomers.length} ${t('ordersImportedSuccessfully')}`, 'success');
     setShowImportModal(false);
   };
 
@@ -532,8 +534,8 @@ export default function Schedule() {
     return (
       <div className="min-h-screen bg-[#0B111E] flex items-center justify-center">
         <div className="text-center">
-          <p className="text-red-400 text-xl mb-4">🔒 Access Denied</p>
-          <Link to="/" className="text-sky-400 underline">Back to Login</Link>
+          <p className="text-red-400 text-xl mb-4">🔒 {t('accessDenied')}</p>
+          <Link to="/" className="text-sky-400 underline">{t('backToLogin')}</Link>
         </div>
       </div>
     );
@@ -545,36 +547,36 @@ export default function Schedule() {
       <div className="bg-[#0B111E]/80 backdrop-blur-xl border-b border-white/10 px-6 py-2.5 flex flex-wrap justify-between items-center gap-x-3 gap-y-1.5 sticky top-0 z-50 shadow-lg">
         <div className="flex flex-wrap items-center gap-3">
           <BrandLogo width={56} />
-          <Link to="/" className="text-slate-400 text-xs border border-white/10 px-2 py-1 rounded hover:text-white">← Dashboard</Link>
+          <Link to="/" className="text-slate-400 text-xs border border-white/10 px-2 py-1 rounded hover:text-white">← {t('dashboard')}</Link>
           <QuickJump />
           <LangSelector />
           <Link
             to="/orders"
             className="bg-sky-500 hover:bg-sky-400 text-white px-3 py-1 rounded text-xs font-bold"
           >
-            📦 الطلبات
+            📦 {t('orders')}
           </Link>
-          <h1 className="text-sm font-black tracking-tight text-white">📅 Smart Pouring Schedule</h1>
+          <h1 className="text-sm font-black tracking-tight text-white">📅 {t('smartPouringSchedule')}</h1>
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <span className="bg-emerald-500/15 text-emerald-500 text-xs px-3 py-1.5 rounded-lg font-bold border border-emerald-500/30">🟢 {currentUser.plantName}</span>
-          <p className="text-[10px] text-emerald-500/80">Dr. Ahmad Abdo Alyan</p>
+          <p className="text-[10px] text-emerald-500/80">{t('designBy')}</p>
         </div>
       </div>
 
       <div className="flex flex-col lg:flex-row h-[calc(100vh-80px)]">
         {/* Left Panel - Form */}
         <div className="lg:w-[450px] bg-white/[0.04] border-r border-white/10 p-6 overflow-y-auto">
-          <h2 className="text-lg font-black tracking-tight text-white mb-4">📅 Pouring Wizard</h2>
+          <h2 className="text-lg font-black tracking-tight text-white mb-4">📅 {t('pouringWizard')}</h2>
 
           {/* Address Search */}
           <div className="mb-4 p-4 bg-[#0B111E] rounded-lg border border-white/10">
-            <label className="text-xs text-sky-400 font-bold mb-2 block">🔍 Search Address</label>
+            <label className="text-xs text-sky-400 font-bold mb-2 block">🔍 {t('searchAddress')}</label>
             <div className="flex gap-2">
               <input
                 value={addressSearch}
                 onChange={e => setAddressSearch(e.target.value)}
-                placeholder="Enter address (e.g., King Fahd Road, Dammam)"
+                placeholder={t('enterAddressExample')}
                 className="flex-1 bg-white/[0.04] border border-white/10 rounded-lg p-2 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]"
                 onKeyPress={e => e.key === 'Enter' && searchAddress()}
               />
@@ -589,7 +591,7 @@ export default function Schedule() {
 
           {/* Schedule Date */}
           <div className="mb-4">
-            <label className="text-xs text-slate-400 font-semibold mb-1 block">📅 Schedule Date</label>
+            <label className="text-xs text-slate-400 font-semibold mb-1 block">📅 {t('scheduleDate')}</label>
             <input
               type="date"
               value={scheduleDate}
@@ -600,7 +602,7 @@ export default function Schedule() {
 
           {/* Plant Location */}
           <div className="mb-4 p-4 bg-[#0B111E] rounded-lg border border-white/10">
-            <label className="text-xs text-sky-400 font-bold mb-2 block">🏭 Plant Location</label>
+            <label className="text-xs text-sky-400 font-bold mb-2 block">🏭 {t('plantLocation')}</label>
             <input
               value={plantGeo}
               readOnly
@@ -613,17 +615,17 @@ export default function Schedule() {
               onClick={() => {
                 setActiveGeoField('plant');
                 setIsSelectingLocation(true);
-                toast('Click on the map to select plant location', 'success');
+                toast(t('clickMapSelectPlantLocation'), 'success');
               }}
               className="w-full bg-white/[0.04] border border-white/10 text-white py-2 rounded-lg text-xs font-bold"
             >
-              📍 Select from Map
+              📍 {t('selectFromMap')}
             </button>
           </div>
 
           {/* Mode Selection */}
           <div className="mb-4">
-            <label className="text-xs text-slate-400 font-semibold mb-2 block">⚙️ Scheduling Mode</label>
+            <label className="text-xs text-slate-400 font-semibold mb-2 block">⚙️ {t('schedulingMode')}</label>
             <div className="grid grid-cols-2 gap-2">
               <button
                 onClick={() => setMode('manual')}
@@ -631,7 +633,7 @@ export default function Schedule() {
                   mode === 'manual' ? 'bg-emerald-500 text-white' : 'bg-white/[0.06] text-slate-400'
                 }`}
               >
-                ✍️ Manual
+                ✍️ {t('manual')}
               </button>
               <button
                 onClick={() => setMode('auto')}
@@ -639,26 +641,26 @@ export default function Schedule() {
                   mode === 'auto' ? 'bg-emerald-500 text-white' : 'bg-white/[0.06] text-slate-400'
                 }`}
               >
-                🤖 Auto
+                🤖 {t('auto')}
               </button>
             </div>
           </div>
 
           {/* Customer Form */}
           <div className="mb-4 p-4 bg-[#0B111E] rounded-lg border border-white/10">
-            <label className="text-xs text-sky-400 font-bold mb-2 block">👥 Add Customer</label>
+            <label className="text-xs text-sky-400 font-bold mb-2 block">👥 {t('addCustomer')}</label>
 
             <div className="grid grid-cols-2 gap-2 mb-2">
               <input
                 value={form.code}
                 onChange={e => setForm({ ...form, code: e.target.value })}
-                placeholder="Customer Code"
+                placeholder={t('customerCode')}
                 className="bg-white/[0.04] border border-white/10 rounded-lg p-2 text-white text-xs outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]"
               />
               <input
                 value={form.phone}
                 onChange={e => setForm({ ...form, phone: e.target.value })}
-                placeholder="Phone"
+                placeholder={t('phone')}
                 className="bg-white/[0.04] border border-white/10 rounded-lg p-2 text-white text-xs outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]"
               />
             </div>
@@ -666,14 +668,14 @@ export default function Schedule() {
             <input
               value={form.name}
               onChange={e => setForm({ ...form, name: e.target.value })}
-              placeholder="Customer Name"
+              placeholder={t('customerName')}
               className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2 text-white text-xs outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)] mb-2"
             />
 
             <input
               value={form.project}
               onChange={e => setForm({ ...form, project: e.target.value })}
-              placeholder="Project Name"
+              placeholder={t('projectName')}
               className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2 text-white text-xs outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)] mb-2"
             />
 
@@ -683,18 +685,18 @@ export default function Schedule() {
                 onChange={e => setForm({ ...form, paymentType: e.target.value })}
                 className="bg-white/[0.04] border border-white/10 rounded-lg p-2 text-white text-xs outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]"
               >
-                <option value="cash">💵 Cash</option>
-                <option value="credit">📋 Credit</option>
-                <option value="debt">📌 Debt</option>
+                <option value="cash">💵 {t('cash')}</option>
+                <option value="credit">📋 {t('credit')}</option>
+                <option value="debt">📌 {t('debt')}</option>
               </select>
               <select
                 value={form.category}
                 onChange={e => setForm({ ...form, category: e.target.value })}
                 className="bg-white/[0.04] border border-white/10 rounded-lg p-2 text-white text-xs outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]"
               >
-                <option value="A">🏆 Category A</option>
-                <option value="B">⭐ Category B</option>
-                <option value="C">📍 Category C</option>
+                <option value="A">🏆 {t('categoryA')}</option>
+                <option value="B">⭐ {t('categoryB')}</option>
+                <option value="C">📍 {t('categoryC')}</option>
               </select>
             </div>
 
@@ -704,18 +706,18 @@ export default function Schedule() {
                 onChange={e => setForm({ ...form, orderType: e.target.value })}
                 className="bg-white/[0.04] border border-white/10 rounded-lg p-2 text-white text-xs outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]"
               >
-                <option value="ready-mix">🚚 Ready Mix</option>
-                <option value="blocks">🧱 Blocks</option>
+                <option value="ready-mix">🚚 {t('readyMix')}</option>
+                <option value="blocks">🧱 {t('blocks')}</option>
               </select>
               <select
                 value={form.elementType}
                 onChange={e => setForm({ ...form, elementType: e.target.value })}
                 className="bg-white/[0.04] border border-white/10 rounded-lg p-2 text-white text-xs outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]"
               >
-                <option value="foundation">🏗️ Foundation</option>
-                <option value="columns">🏛️ Columns</option>
-                <option value="slab">🏠 Slab</option>
-                <option value="walls">🧱 Walls</option>
+                <option value="foundation">🏗️ {t('elementFoundation')}</option>
+                <option value="columns">🏛️ {t('elementColumns')}</option>
+                <option value="slab">🏠 {t('elementSlab')}</option>
+                <option value="walls">🧱 {t('elementWalls')}</option>
               </select>
             </div>
 
@@ -724,7 +726,7 @@ export default function Schedule() {
                 type="number"
                 value={form.priority}
                 onChange={e => setForm({ ...form, priority: e.target.value })}
-                placeholder="Priority (1-10)"
+                placeholder={t('priority')}
                 min="1"
                 max="10"
                 className="bg-white/[0.04] border border-white/10 rounded-lg p-2 text-white text-xs outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]"
@@ -733,7 +735,7 @@ export default function Schedule() {
                 type="number"
                 value={form.qty}
                 onChange={e => setForm({ ...form, qty: e.target.value })}
-                placeholder="Quantity (m³)"
+                placeholder={t('quantity')}
                 step="0.1"
                 className="bg-white/[0.04] border border-white/10 rounded-lg p-2 text-white text-xs outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]"
               />
@@ -753,7 +755,7 @@ export default function Schedule() {
               <input
                 value={form.slump}
                 onChange={e => setForm({ ...form, slump: e.target.value })}
-                placeholder="Slump (cm)"
+                placeholder={t('slumpCm')}
                 className="bg-white/[0.04] border border-white/10 rounded-lg p-2 text-white text-xs outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]"
               />
             </div>
@@ -764,7 +766,7 @@ export default function Schedule() {
                 value={form.geo}
                 readOnly
                 className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2 text-white text-xs mb-1"
-                placeholder="Location coordinates"
+                placeholder={t('locationCoords')}
               />
               {form.locationName && (
                 <p className="text-[10px] text-slate-400 mb-1">{form.locationName}</p>
@@ -773,11 +775,11 @@ export default function Schedule() {
                 onClick={() => {
                   setActiveGeoField('customer');
                   setIsSelectingLocation(true);
-                  toast('Click on the map to select customer location', 'success');
+                  toast(t('clickMapSelectCustomerLocation'), 'success');
                 }}
                 className="w-full bg-white/[0.04] border border-white/10 text-white py-2 rounded-lg text-xs font-bold"
               >
-                📍 Select from Map
+                📍 {t('selectFromMap')}
               </button>
             </div>
 
@@ -788,20 +790,20 @@ export default function Schedule() {
                 onChange={e => setForm({ ...form, ignoreRestrictions: e.target.checked })}
                 className="w-4 h-4"
               />
-              ⏭️ Ignore Time Restrictions
+              ⏭️ {t('ignoreTimeRestrictions')}
             </label>
 
             <button
               onClick={addCustomer}
               className="w-full bg-white/[0.04] border border-white/10 text-white py-2 rounded-lg text-sm font-bold"
             >
-              ➕ Add Customer
+              ➕ {t('addCustomer')}
             </button>
           </div>
 
           {/* Restrictions */}
           <div className="mb-4 p-4 bg-[#0B111E] rounded-lg border border-white/10">
-            <label className="text-xs text-sky-400 font-bold mb-2 block">⏸️ Time Restrictions</label>
+            <label className="text-xs text-sky-400 font-bold mb-2 block">⏸️ {t('timeRestrictions')}</label>
             {restrictions.map((r, i) => (
               <div key={i} className="flex gap-2 mb-2">
                 <input
@@ -837,14 +839,14 @@ export default function Schedule() {
               onClick={() => setRestrictions([...restrictions, { start: '', end: '' }])}
               className="w-full bg-white/[0.06] hover:bg-white/[0.1] text-white py-2 rounded-lg text-xs"
             >
-              + Add Restriction
+              + {t('addRestriction')}
             </button>
           </div>
 
           {/* Added Customers */}
           {customers.length > 0 && (
             <div className="mb-4">
-              <label className="text-xs text-sky-400 font-bold mb-2 block">📋 Added Customers ({customers.length})</label>
+              <label className="text-xs text-sky-400 font-bold mb-2 block">📋 {t('addedCustomers')} ({customers.length})</label>
               <div className="space-y-2 max-h-[300px] overflow-y-auto">
                 {customers.map((c, i) => (
                   <div key={i} className="bg-[#0B111E] border border-white/10 rounded-lg p-3 text-xs">
@@ -861,7 +863,7 @@ export default function Schedule() {
                       <p>📱 {c.phone} | 📍 {c.project}</p>
                       <p>💰 {c.paymentType} | 🏆 <span className={c.category === 'A' ? 'text-orange-400' : c.category === 'B' ? 'text-sky-400' : 'text-emerald-400'}>{c.category}</span></p>
                       <p>📦 {c.orderType} | ⭐ {c.priority} | 📐 {c.qty} m³ | {c.concreteType}</p>
-                      {c.ignoreRestrictions && <span className="bg-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded text-[10px] font-bold">⏭️ Ignore</span>}
+                      {c.ignoreRestrictions && <span className="bg-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded text-[10px] font-bold">⏭️ {t('ignore')}</span>}
                     </div>
                     {c.time && (
                       <div className="mt-2 p-2 bg-emerald-500/10 border border-emerald-500/30 rounded">
@@ -891,13 +893,13 @@ export default function Schedule() {
               onClick={generateSchedule}
               className="w-full bg-emerald-500 hover:bg-emerald-600 text-white py-3 rounded-lg text-sm font-bold shadow-[0_0_20px_rgba(56,189,248,0.3)]"
             >
-              🤖 Generate Schedule
+              🤖 {t('generateSchedule')}
             </button>
             <button
               onClick={() => setShowImportModal(true)}
               className="w-full bg-sky-500 hover:bg-sky-400 text-white py-3 rounded-lg text-sm font-bold"
             >
-              📦 Import من الطلبات
+              📦 {t('importFromOrders')}
             </button>
           </div>
         </div>
@@ -907,7 +909,7 @@ export default function Schedule() {
           <div ref={mapContainerRef} className="w-full h-full" />
           {isSelectingLocation && (
             <div className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-yellow-500 text-slate-900 px-4 py-2 rounded-lg font-bold text-sm shadow-lg">
-              📍 Click on the map to select location
+              📍 {t('clickMapSelectLocation')}
             </div>
           )}
         </div>
@@ -926,34 +928,34 @@ export default function Schedule() {
       {showImportModal && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-[#0B111E]/95 border border-white/10 rounded-xl p-6 max-w-md w-full">
-            <h2 className="text-lg font-black tracking-tight text-white mb-4">📦 استيراد من الطلبات</h2>
+            <h2 className="text-lg font-black tracking-tight text-white mb-4">📦 {t('importFromOrders')}</h2>
             <p className="text-sm text-slate-300 mb-4">
-              اختر نوع الاستيراد:
+              {t('chooseImportType')}
             </p>
             <div className="space-y-2 mb-4">
               <button
                 onClick={() => handleImportFromOrders('all')}
                 className="w-full bg-emerald-500 hover:bg-emerald-600 text-white py-3 rounded-lg text-sm font-bold shadow-[0_0_20px_rgba(56,189,248,0.3)]"
               >
-                ✅ استيراد جميع الطلبات الموافق عليها
+                ✅ {t('importAllApprovedOrders')}
               </button>
               <button
                 onClick={() => handleImportFromOrders('pending')}
                 className="w-full bg-sky-500 hover:bg-sky-400 text-white py-3 rounded-lg text-sm font-bold"
               >
-                📅 استيراد الطلبات المجدولة فقط
+                📅 {t('importScheduledOrdersOnly')}
               </button>
             </div>
             <div className="bg-sky-500/10 border border-sky-500/30 rounded-lg p-3 mb-4">
               <p className="text-xs text-slate-300">
-                💡 <strong>ملاحظة:</strong> سيتم استيراد فقط الطلبات التي تم الموافقة عليها من الحسابات وليس عليها حظر.
+                💡 {t('importNote')}
               </p>
             </div>
             <button
               onClick={() => setShowImportModal(false)}
               className="w-full bg-white/[0.06] hover:bg-white/[0.1] text-white py-2 rounded-lg text-sm font-bold"
             >
-              ❌ إلغاء
+              ❌ {t('cancel')}
             </button>
           </div>
         </div>
@@ -967,7 +969,7 @@ export default function Schedule() {
               <div className="flex items-center gap-3">
                 <PlantLogo username={currentUser?.username || ''} height={48} />
                 <div>
-                  <h2 className="text-lg font-bold text-slate-800">📋 Optimized Schedule Report</h2>
+                  <h2 className="text-lg font-bold text-slate-800">📋 {t('optimizedScheduleReport')}</h2>
                   <p className="text-xs text-slate-500">🟢 {currentUser?.plantName || ''}</p>
                 </div>
               </div>
@@ -979,27 +981,27 @@ export default function Schedule() {
               </button>
             </div>
             <p className="text-xs text-slate-500 mb-4">
-              Date: {scheduleDate} | Mode: {mode === 'manual' ? 'Manual ✍️' : 'Auto Optimized 🤖'}
+              {t('date')}: {scheduleDate} | {t('mode')}: {mode === 'manual' ? `${t('manual')} ✍️` : `${t('autoOptimized')} 🤖`}
             </p>
             <table className="w-full text-[11px] border-collapse">
               <thead>
                 <tr className="bg-slate-700 text-white">
                   <th className="p-2 border">#</th>
-                  <th className="p-2 border">Code</th>
-                  <th className="p-2 border">Customer</th>
-                  <th className="p-2 border">Phone</th>
-                  <th className="p-2 border">Project</th>
-                  <th className="p-2 border">Type</th>
-                  <th className="p-2 border">Element</th>
-                  <th className="p-2 border">Pay</th>
-                  <th className="p-2 border">Cat</th>
-                  <th className="p-2 border">Prio</th>
-                  <th className="p-2 border">Qty</th>
-                  <th className="p-2 border">Concrete</th>
-                  <th className="p-2 border">Slump</th>
-                  <th className="p-2 border">Distance</th>
-                  <th className="p-2 border">Duration</th>
-                  <th className="p-2 border">Time</th>
+                  <th className="p-2 border">{t('code')}</th>
+                  <th className="p-2 border">{t('customer')}</th>
+                  <th className="p-2 border">{t('phone')}</th>
+                  <th className="p-2 border">{t('project')}</th>
+                  <th className="p-2 border">{t('type')}</th>
+                  <th className="p-2 border">{t('element')}</th>
+                  <th className="p-2 border">{t('pay')}</th>
+                  <th className="p-2 border">{t('cat')}</th>
+                  <th className="p-2 border">{t('prio')}</th>
+                  <th className="p-2 border">{t('qty')}</th>
+                  <th className="p-2 border">{t('concrete')}</th>
+                  <th className="p-2 border">{t('slump')}</th>
+                  <th className="p-2 border">{t('distance')}</th>
+                  <th className="p-2 border">{t('duration')}</th>
+                  <th className="p-2 border">{t('time')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -1042,19 +1044,19 @@ export default function Schedule() {
                 onClick={exportToExcel}
                 className="bg-emerald-500 hover:bg-emerald-600 text-white font-bold px-5 py-2 rounded text-sm"
               >
-                📊 Download CSV
+                📊 {t('downloadCsv')}
               </button>
               <button
                 onClick={printReport}
                 className="bg-orange-500 hover:bg-orange-600 text-white font-bold px-5 py-2 rounded text-sm"
               >
-                🖨️ Print
+                🖨️ {t('print')}
               </button>
               <button
                 onClick={() => setShowReport(false)}
                 className="bg-slate-500 hover:bg-slate-600 text-white font-bold px-5 py-2 rounded text-sm"
               >
-                ✕ Close
+                ✕ {t('close')}
               </button>
             </div>
           </div>

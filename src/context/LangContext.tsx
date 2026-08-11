@@ -23,6 +23,7 @@ export function LangProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     localStorage.setItem('fimtosoft_lang', lang);
+    document.documentElement.dir = lang === 'ar' || lang === 'ur' ? 'rtl' : 'ltr';
   }, [lang]);
 
   return (

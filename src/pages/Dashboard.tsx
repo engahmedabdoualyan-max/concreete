@@ -2,6 +2,7 @@ import { useState, useEffect, type FormEvent, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth, type UserSession } from '../context/AuthContext';
 import { useAdmin } from '../context/AdminContext';
+import { useLang } from '../context/LangContext';
 import { loadTrips } from '../firebase/firestore';
 import QuickJump from '../components/QuickJump';
 import LangSelector from '../components/LangSelector';
@@ -160,6 +161,7 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const { currentUser, login, register, verifyAndActivate, generatedCode, logout, loginAsGuest } = useAuth();
   const { canAccess, canManageAdmin } = useAdmin();
+  const { t } = useLang();
   const [showLogin, setShowLogin] = useState(!currentUser);
   const [tab, setTab] = useState<'login' | 'register' | 'verify'>('login');
   const [error, setError] = useState('');
@@ -200,7 +202,7 @@ export default function Dashboard() {
     setBusy(true);
     const { username, password, country, city, plantName, phonePrefix, phone, email } = reg;
     if (!username || !password || !country || !city || !plantName || !phone || !email) {
-      setError("Please fill all fields");
+      setError(t('fillAll'));
       setBusy(false);
       return;
     }
@@ -213,16 +215,16 @@ export default function Dashboard() {
       setSentState(res.emailSent);
       setTab('verify');
     } else {
-      setError("Username already taken! Please choose another.");
+      setError(t('usernameTaken'));
     }
     setBusy(false);
   };
 
   const handleVerify = async () => {
-    if (!verifyCode) { setError("Please enter verification code"); return; }
+    if (!verifyCode) { setError(t('enterVerificationCode')); return; }
     const ok = await verifyAndActivate(verifyCode);
     if (ok) setShowLogin(false);
-    else setError("Incorrect verification code!");
+    else setError(t('incorrectVerificationCode'));
   };
 
   const handleLogin = async (e: FormEvent) => {
@@ -230,7 +232,7 @@ export default function Dashboard() {
     setError('');
     const ok = await login(loginForm.username, loginForm.password);
     if (ok) setShowLogin(false);
-    else setError("Invalid Credentials!");
+    else setError(t('invalidCredentials'));
   };
 
   const go = (module: string) => navigate(`/${module}`);
@@ -253,50 +255,50 @@ export default function Dashboard() {
                 <BrandLogo width={200} fill rounded="rounded-2xl" />
               </div>
               <h2 className="text-2xl font-black text-white mb-2">
-                {tab === "login" ? "Welcome Back" : tab === "register" ? "Create Account" : "Verify Email"}
+                {tab === "login" ? t('welcomeBack') : tab === "register" ? t('createAccount') : t('verifyEmail')}
               </h2>
-              <p className="text-sm text-slate-400">Technical Management Program for Concrete Plants</p>
-              <p className="text-xs text-sky-400 mt-1 font-semibold">Design by Dr. Ahmad Abdo Alyan</p>
+              <p className="text-sm text-slate-400">{t('techMgmtProgram')}</p>
+              <p className="text-xs text-sky-400 mt-1 font-semibold">{t('designBy')}</p>
             </div>
 
             {tab === "register" && (
               <form onSubmit={handleRegister} className="space-y-3">
                 <div className="bg-sky-500/10 border border-dashed border-sky-500/40 rounded-lg p-3 text-sky-300 text-xs text-center mb-3">
-                  🆓 Free Trial Registration — All features unlocked<br />
-                  💾 Each account gets a private 300 MB storage database (قاعدة بيانات خاصة 300 ميجا)<br />
-                  <span className="text-sky-400/70">إذا احتجت قاعدة أكبر تواصل مع المبرمج بعد التسجيل</span>
+                  🆓 {t('freeTrialRegistration')}<br />
+                  💾 {t('privateStorage300mb')}<br />
+                  <span className="text-sky-400/70">{t('biggerDbContact')}</span>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="flex flex-col">
-                    <label className="text-xs text-slate-400 font-semibold mb-1">Username *</label>
+                    <label className="text-xs text-slate-400 font-semibold mb-1">{t('username')} *</label>
                     <input value={reg.username} onChange={o => setReg({ ...reg, username: o.target.value })} className={inputCls} />
                   </div>
                   <div className="flex flex-col">
-                    <label className="text-xs text-slate-400 font-semibold mb-1">Password *</label>
+                    <label className="text-xs text-slate-400 font-semibold mb-1">{t('password')} *</label>
                     <input type="password" value={reg.password} onChange={o => setReg({ ...reg, password: o.target.value })} className={inputCls} />
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="flex flex-col">
-                    <label className="text-xs text-slate-400 font-semibold mb-1">Country *</label>
+                    <label className="text-xs text-slate-400 font-semibold mb-1">{t('country')} *</label>
                     <select value={reg.country} onChange={o => setReg({ ...reg, country: o.target.value, city: "" })} className={inputCls}>
                       {COUNTRIES.map(c => <option key={c} value={c}>{c}</option>)}
                     </select>
                   </div>
                   <div className="flex flex-col">
-                    <label className="text-xs text-slate-400 font-semibold mb-1">City *</label>
+                    <label className="text-xs text-slate-400 font-semibold mb-1">{t('city')} *</label>
                     <select value={reg.city} onChange={o => setReg({ ...reg, city: o.target.value })} className={inputCls}>
-                      <option value="">Select City</option>
+                      <option value="">{t('selectCity')}</option>
                       {(CITIES[reg.country] || []).map(c => <option key={c} value={c}>{c}</option>)}
                     </select>
                   </div>
                 </div>
                 <div className="flex flex-col">
-                  <label className="text-xs text-slate-400 font-semibold mb-1">Plant / Company Name *</label>
-                  <input value={reg.plantName} onChange={o => setReg({ ...reg, plantName: o.target.value })} placeholder="e.g. Al-Khaleej Concrete Plant" className={inputCls} />
+                  <label className="text-xs text-slate-400 font-semibold mb-1">{t('plantCompanyName')} *</label>
+                  <input value={reg.plantName} onChange={o => setReg({ ...reg, plantName: o.target.value })} placeholder={t('plantPlaceholder')} className={inputCls} />
                 </div>
                 <div className="flex flex-col">
-                  <label className="text-xs text-slate-400 font-semibold mb-1">Phone Number *</label>
+                  <label className="text-xs text-slate-400 font-semibold mb-1">{t('phoneNumber')} *</label>
                   <div className="flex gap-2">
                     <select value={reg.phonePrefix} onChange={o => setReg({ ...reg, phonePrefix: o.target.value })} className={`${inputCls} w-[35%]`}>
                       <option value="+20">+20 (EG)</option>
@@ -309,15 +311,15 @@ export default function Dashboard() {
                   </div>
                 </div>
                 <div className="flex flex-col">
-                  <label className="text-xs text-slate-400 font-semibold mb-1">Email *</label>
+                  <label className="text-xs text-slate-400 font-semibold mb-1">{t('email')} *</label>
                   <input type="email" value={reg.email} onChange={o => setReg({ ...reg, email: o.target.value })} placeholder="example@email.com" className={inputCls} />
                 </div>
                 {error && <p className="text-red-400 text-sm text-center">{error}</p>}
                 <button type="submit" disabled={busy} className="w-full bg-gradient-to-r from-sky-500 to-cyan-500 hover:from-sky-400 hover:to-cyan-400 disabled:opacity-50 disabled:cursor-wait text-white font-bold py-3 rounded-lg text-sm transition shadow-[0_0_20px_rgba(56,189,248,0.3)]">
-                  {busy ? "⏳ Sending Verification Code..." : "📧 Register & Send Verification Code"}
+                  {busy ? `⏳ ${t('sendingVerificationCode')}...` : `📧 ${t('registerSendVerificationCode')}`}
                 </button>
                 <p className="text-center text-sm text-slate-400 mt-3">
-                  Already have an account? <span className="text-sky-400 cursor-pointer underline font-bold" onClick={() => { setTab('login'); setError(''); }}>Login</span>
+                  {t('alreadyHaveAccount')} <span className="text-sky-400 cursor-pointer underline font-bold" onClick={() => { setTab('login'); setError(''); }}>{t('login')}</span>
                 </p>
               </form>
             )}
@@ -327,35 +329,35 @@ export default function Dashboard() {
                 {sentState === true ? (
                   <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-4 text-center">
                     <p className="text-emerald-400 text-2xl mb-2">📧</p>
-                    <p className="text-sm text-slate-200 font-semibold">Verification Code Sent!</p>
+                    <p className="text-sm text-slate-200 font-semibold">{t('verificationCodeSent')}</p>
                     <p className="text-xs text-slate-400 mt-1">
-                      A 6-digit verification code has been sent to<br />
+                      {t('verificationCodeSentTo')}<br />
                       <strong className="text-sky-300 text-sm">{reg.email}</strong>
                     </p>
-                    <p className="text-xs text-slate-500 mt-2">Please check your inbox and spam folder</p>
+                    <p className="text-xs text-slate-500 mt-2">{t('checkInboxSpam')}</p>
                   </div>
                 ) : sentState === false ? (
                   <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-4 text-center">
                     <p className="text-yellow-400 text-2xl mb-2">⚠️</p>
-                    <p className="text-sm text-slate-200 font-semibold">Email Service Not Configured</p>
-                    <p className="text-xs text-slate-400 mt-1">EmailJS keys not set. Use this code for verification:</p>
+                    <p className="text-sm text-slate-200 font-semibold">{t('emailServiceNotConfigured')}</p>
+                    <p className="text-xs text-slate-400 mt-1">{t('emailjsKeysNotSet')}</p>
                     <p className="text-lg font-mono tracking-[0.3em] text-yellow-300 font-bold mt-2">{generatedCode}</p>
                   </div>
                 ) : (
                   <div className="text-center py-4">
                     <div className="animate-spin w-8 h-8 border-2 border-sky-400 border-t-transparent rounded-full mx-auto mb-3" />
                     <p className="text-sm text-slate-400">
-                      Sending verification code to<br />
+                      {t('sendingVerificationCodeTo')}<br />
                       <strong className="text-sky-300">{reg.email}</strong>...
                     </p>
                   </div>
                 )}
                 <div className="flex flex-col">
-                  <label className="text-xs text-slate-400 font-semibold mb-1">Verification Code</label>
-                  <input value={verifyCode} onChange={o => setVerifyCode(o.target.value)} placeholder="Enter 6-digit code" className={`${inputCls} text-center text-lg tracking-widest`} />
+                  <label className="text-xs text-slate-400 font-semibold mb-1">{t('verificationCode')}</label>
+                  <input value={verifyCode} onChange={o => setVerifyCode(o.target.value)} placeholder={t('enterSixDigitCode')} className={`${inputCls} text-center text-lg tracking-widest`} />
                 </div>
                 {error && <p className="text-red-400 text-sm text-center">{error}</p>}
-                <button onClick={handleVerify} className="w-full bg-gradient-to-r from-sky-500 to-cyan-500 hover:from-sky-400 hover:to-cyan-400 text-white font-bold py-3 rounded-lg transition">✅ Activate Account</button>
+                <button onClick={handleVerify} className="w-full bg-gradient-to-r from-sky-500 to-cyan-500 hover:from-sky-400 hover:to-cyan-400 text-white font-bold py-3 rounded-lg transition">✅ {t('activateAccount')}</button>
                 <button
                   onClick={() => {
                     const u: UserSession = { ...reg, phone: reg.phonePrefix + reg.phone, status: "FREE_TRIAL" };
@@ -364,33 +366,33 @@ export default function Dashboard() {
                   disabled={busy}
                   className="w-full bg-sky-500/10 hover:bg-sky-500/20 disabled:opacity-50 text-sky-300 font-bold py-2 rounded-lg text-sm transition border border-sky-500/30"
                 >
-                  {busy ? "⏳ Resending..." : "📧 Resend Verification Code"}
+                  {busy ? `⏳ ${t('resending')}...` : `📧 ${t('resendVerificationCode')}`}
                 </button>
-                <button onClick={() => { setTab('register'); setError(''); setSentState(null); }} className="w-full text-slate-400 text-sm underline mt-2">← Back to Registration</button>
+                <button onClick={() => { setTab('register'); setError(''); setSentState(null); }} className="w-full text-slate-400 text-sm underline mt-2">← {t('backToRegistration')}</button>
               </div>
             )}
 
             {tab === "login" && (
               <form onSubmit={handleLogin} className="space-y-4">
                 <div className="flex flex-col">
-                  <label className="text-xs text-slate-400 font-semibold mb-1">Username</label>
+                  <label className="text-xs text-slate-400 font-semibold mb-1">{t('username')}</label>
                   <input value={loginForm.username} onChange={o => setLoginForm({ ...loginForm, username: o.target.value })} className={inputCls} />
                 </div>
                 <div className="flex flex-col">
-                  <label className="text-xs text-slate-400 font-semibold mb-1">Password</label>
+                  <label className="text-xs text-slate-400 font-semibold mb-1">{t('password')}</label>
                   <input type="password" value={loginForm.password} onChange={o => setLoginForm({ ...loginForm, password: o.target.value })} className={inputCls} />
                 </div>
                 {error && <p className="text-red-400 text-sm text-center">{error}</p>}
-                <button type="submit" className="w-full bg-gradient-to-r from-sky-500 to-cyan-500 hover:from-sky-400 hover:to-cyan-400 text-white font-bold py-3 rounded-lg transition shadow-[0_0_20px_rgba(56,189,248,0.3)]">🔓 Login</button>
+                <button type="submit" className="w-full bg-gradient-to-r from-sky-500 to-cyan-500 hover:from-sky-400 hover:to-cyan-400 text-white font-bold py-3 rounded-lg transition shadow-[0_0_20px_rgba(56,189,248,0.3)]">🔓 {t('login')}</button>
                 <button
                   type="button"
                   onClick={() => { loginAsGuest(); setShowLogin(false); }}
                   className="w-full bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 text-slate-300 font-bold py-3 rounded-lg transition text-sm mt-2"
                 >
-                  👤 Continue as Guest
+                  👤 {t('continueAsGuest')}
                 </button>
                 <p className="text-center text-sm text-slate-400 mt-3">
-                  Don't have an account? <span className="text-sky-400 cursor-pointer underline font-bold" onClick={() => { setTab('register'); setError(''); }}>Register Free</span>
+                  {t('dontHaveAccount')} <span className="text-sky-400 cursor-pointer underline font-bold" onClick={() => { setTab('register'); setError(''); }}>{t('registerFree')}</span>
                 </p>
               </form>
             )}
@@ -406,7 +408,7 @@ export default function Dashboard() {
             <h1 className="font-display text-lg font-black tracking-wide text-white">
               CONCRETE <span className="text-sky-400 drop-shadow-[0_0_10px_rgba(56,189,248,0.7)]">ERP</span>
             </h1>
-            <p className="text-[11px] text-slate-400 font-medium">Fimto Soft — Technical Management Program · برنامج إدارة محطات الخرسانة</p>
+            <p className="text-[11px] text-slate-400 font-medium">{t('fimtoTagline')}</p>
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-3">
@@ -415,26 +417,26 @@ export default function Dashboard() {
           {currentUser ? (
             <div className="flex items-center gap-2">
               <span className="bg-sky-500/10 text-sky-300 text-xs px-3 py-1.5 rounded-lg font-bold border border-sky-500/30">
-                🟢 {currentUser.plantName} (Free Trial)
+                🟢 {currentUser.plantName} ({t('freeTrial')})
               </span>
               {canManageAdmin() && (
                 <button
                   onClick={() => navigate('/admin')}
                   className="bg-white/[0.05] text-slate-300 text-xs px-3 py-1.5 rounded-lg font-bold border border-white/10 hover:border-sky-400/60 hover:text-sky-300 transition-colors"
                 >
-                  Admin Panel
+                  {t('adminPanel')}
                 </button>
               )}
               <button
                 onClick={() => { logout(); navigate('/'); }}
                 className="bg-white/[0.05] text-slate-300 text-xs px-3 py-1.5 rounded-lg font-bold border border-white/10 hover:border-red-400/60 hover:text-red-300 transition-colors"
               >
-                Logout
+                {t('logout')}
               </button>
             </div>
           ) : (
             <span className="bg-white/[0.04] text-slate-400 text-xs px-3 py-1.5 rounded-lg font-bold border border-white/10">
-              Guest Session (🔒 Restricted)
+              {t('guestSessionRestricted')}
             </span>
           )}
         </div>
@@ -475,7 +477,7 @@ export default function Dashboard() {
               <div className="pointer-events-none absolute inset-0 -z-10 blur-3xl" style={{ background: "radial-gradient(ellipse 60% 60% at 50% 50%, rgba(56,189,248,0.22), transparent 70%)" }} />
               <img
                 src={mainPhoto}
-                alt="Concrete ERP command center"
+                alt={t('erpImgAlt')}
                 className="w-full h-auto object-contain rounded-2xl border border-white/10 shadow-[0_0_60px_rgba(56,189,248,0.12)]"
               />
             </div>
@@ -494,38 +496,38 @@ export default function Dashboard() {
       <div className="max-w-[1200px] mx-auto px-6 pb-10">
         <div className="rounded-2xl border border-white/10 bg-[#0B111E]/60 backdrop-blur-xl p-6">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-base font-black text-white tracking-tight">🚛 Recent Concrete Trips</h2>
-            <span className="text-[10px] uppercase tracking-widest text-slate-500 border border-white/10 px-2 py-1 rounded">Live Overview</span>
+            <h2 className="text-base font-black text-white tracking-tight">🚛 {t('recentConcreteTrips')}</h2>
+            <span className="text-[10px] uppercase tracking-widest text-slate-500 border border-white/10 px-2 py-1 rounded">{t('liveOverview')}</span>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {recent.map(t => {
-              const p = plantMins(t.stationArr, t.stationDep);
-              const je = diffMin(t.stationDep, t.siteArr);
+            {recent.map(tr => {
+              const p = plantMins(tr.stationArr, tr.stationDep);
+              const je = diffMin(tr.stationDep, tr.siteArr);
               const Me = je > 120;
               return (
-                <div key={t.id} className={`rounded-xl border bg-white/[0.03] backdrop-blur-xl p-4 ${Me ? "border-red-500/50 animate-pulse" : "border-white/10"}`}>
+                <div key={tr.id} className={`rounded-xl border bg-white/[0.03] backdrop-blur-xl p-4 ${Me ? "border-red-500/50 animate-pulse" : "border-white/10"}`}>
                   <div className="flex justify-between items-center mb-2">
-                    <span className="text-[10px] font-bold uppercase tracking-wider bg-sky-500/10 text-sky-300 px-2 py-0.5 rounded border border-sky-500/20">{t.status}</span>
-                    <span className="text-[11px] text-slate-500">{t.date}</span>
+                    <span className="text-[10px] font-bold uppercase tracking-wider bg-sky-500/10 text-sky-300 px-2 py-0.5 rounded border border-sky-500/20">{tr.status}</span>
+                    <span className="text-[11px] text-slate-500">{tr.date}</span>
                   </div>
-                  <h3 className="text-lg font-black text-white">{t.code}</h3>
+                  <h3 className="text-lg font-black text-white">{tr.code}</h3>
                   <div className="text-xs text-slate-400 mt-2 space-y-1">
-                    <p><span className="text-slate-500">Plant:</span> <strong className="text-slate-300">{t.plant}</strong></p>
-                    <p><span className="text-slate-500">Driver:</span> {t.driver}</p>
-                    <p><span className="text-slate-500">Load:</span> {t.qty} m³ | Pump: {t.pump}</p>
-                    <p><span className="text-slate-500">Project:</span> {t.siteName} ({t.projectName})</p>
+                    <p><span className="text-slate-500">{t('plant')}:</span> <strong className="text-slate-300">{tr.plant}</strong></p>
+                    <p><span className="text-slate-500">{t('driver')}:</span> {tr.driver}</p>
+                    <p><span className="text-slate-500">{t('load')}:</span> {tr.qty} m³ | {t('pump')}: {tr.pump}</p>
+                    <p><span className="text-slate-500">{t('project')}:</span> {tr.siteName} ({tr.projectName})</p>
                     <p className={p > 12 ? "text-red-400 font-bold" : "text-emerald-400 font-bold"}>
-                      🏭 Plant: {p > 12 ? `Delay ${p - 12}m` : `On Time (${p}m)`}
+                      🏭 {t('plant')}: {p > 12 ? `${t('delay')} ${p - 12}m` : `${t('onTime')} (${p}m)`}
                     </p>
-                    <p className={Me ? "text-red-400 font-extrabold animate-pulse" : je > Number(t.estTime) ? "text-red-400 font-bold" : "text-emerald-400 font-bold"}>
-                      🚚 Transit: {Me ? `🚨 CRITICAL ${je}m (>2hrs)` : je > Number(t.estTime) ? `Delay ${je - Number(t.estTime)}m` : `On Time (${je}m)`}
+                    <p className={Me ? "text-red-400 font-extrabold animate-pulse" : je > Number(tr.estTime) ? "text-red-400 font-bold" : "text-emerald-400 font-bold"}>
+                      🚚 {t('transit')}: {Me ? `🚨 ${t('critical')} ${je}m ${t('over2hrs')}` : je > Number(tr.estTime) ? `${t('delay')} ${je - Number(tr.estTime)}m` : `${t('onTime')} (${je}m)`}
                     </p>
                   </div>
                   <div className="grid grid-cols-2 gap-2 mt-3 pt-3 border-t border-white/10 text-[10px] text-slate-500">
-                    <div>Arr Plant: <span className="text-slate-200">{to12h(t.stationArr)}</span></div>
-                    <div>Dep Plant: <span className="text-slate-200">{to12h(t.stationDep)}</span></div>
-                    <div>Arr Site: <span className="text-slate-200">{to12h(t.siteArr)}</span></div>
-                    <div>Dep Site: <span className="text-slate-200">{to12h(t.siteDep)}</span></div>
+                    <div>{t('arrPlant')}: <span className="text-slate-200">{to12h(tr.stationArr)}</span></div>
+                    <div>{t('depPlant')}: <span className="text-slate-200">{to12h(tr.stationDep)}</span></div>
+                    <div>{t('arrSite')}: <span className="text-slate-200">{to12h(tr.siteArr)}</span></div>
+                    <div>{t('depSite')}: <span className="text-slate-200">{to12h(tr.siteDep)}</span></div>
                   </div>
                 </div>
               );
@@ -536,12 +538,12 @@ export default function Dashboard() {
 
       {/* ===== FOOTER ===== */}
       <div className="max-w-[1200px] mx-auto px-6 text-center text-xs text-slate-500 border-t border-white/10 pt-6 pb-10 space-y-2">
-        <p className="text-sky-400 font-bold text-sm">🏗️ Technical Management Program — Enterprise ERP | Version 1.6</p>
-        <p className="text-slate-300 font-semibold text-sm">Designed & Developed by Dr. Ahmed Abdou Alyan</p>
+        <p className="text-sky-400 font-bold text-sm">🏗️ {t('erpName')}</p>
+        <p className="text-slate-300 font-semibold text-sm">{t('developedBy')}</p>
         <div className="flex gap-4 flex-wrap justify-center text-xs">
           <span>📞 <b className="text-slate-400">EG:</b> <a href="tel:0201001006627" className="text-sky-400 font-semibold">0201001006627</a></span>
           <span>📞 <b className="text-slate-400">KSA:</b> <a href="tel:+996500439617" className="text-sky-400 font-semibold">+996500439617</a></span>
-          <span>📧 <b className="text-slate-400">Email:</b> <a href="mailto:ahmed@concrete-erp.com" className="text-sky-400 font-semibold">ahmed@concrete-erp.com</a></span>
+          <span>📧 <b className="text-slate-400">{t('email')}:</b> <a href="mailto:ahmed@concrete-erp.com" className="text-sky-400 font-semibold">ahmed@concrete-erp.com</a></span>
         </div>
       </div>
     </div>

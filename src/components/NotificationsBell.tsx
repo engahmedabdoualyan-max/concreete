@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useLang } from '../context/LangContext';
 import { loadNotifications, markNotificationsRead, type Notification } from '../firebase/firestore';
 
 const LEVEL_STYLE: Record<string, string> = {
@@ -11,6 +12,7 @@ const LEVEL_STYLE: Record<string, string> = {
 
 export default function NotificationsBell() {
   const { currentUser } = useAuth();
+  const { t } = useLang();
   const [items, setItems] = useState<Notification[]>([]);
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement | null>(null);
@@ -43,7 +45,7 @@ export default function NotificationsBell() {
 
   return (
     <div className="relative" ref={ref}>
-      <button onClick={openBell} className="relative w-9 h-9 rounded-lg bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 text-sm transition-all" title="الإشعارات">
+      <button onClick={openBell} className="relative w-9 h-9 rounded-lg bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 text-sm transition-all" title={t('notifications')}>
         🔔
         {unread > 0 && (
           <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center border border-red-500/50">{unread > 9 ? '9+' : unread}</span>
@@ -52,10 +54,10 @@ export default function NotificationsBell() {
       {open && (
         <div className="absolute right-0 mt-2 w-96 max-w-[90vw] max-h-[70vh] overflow-y-auto bg-[#0B111E]/95 border border-white/10 rounded-xl shadow-2xl z-[100]">
           <div className="sticky top-0 bg-[#0B111E]/95 border-b border-white/10 px-4 py-2.5 flex items-center justify-between">
-            <p className="text-xs font-bold text-white">🔔 إشعارات النظام</p>
+            <p className="text-xs font-bold text-white">🔔 {t('systemNotifications')}</p>
             <button onClick={reload} className="text-[10px] text-slate-400 hover:text-white">🔄</button>
           </div>
-          {items.length === 0 && <p className="p-4 text-xs text-slate-500">لا توجد إشعارات بعد.</p>}
+          {items.length === 0 && <p className="p-4 text-xs text-slate-500">{t('noNotificationsYet')}</p>}
           {items.map(n => (
             <div key={n.id} className={`px-4 py-3 border-b border-white/10 ${LEVEL_STYLE[n.level] || ''}`}>
               <p className="text-xs font-bold text-white">{n.title}</p>

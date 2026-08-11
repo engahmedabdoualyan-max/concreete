@@ -1,13 +1,16 @@
 import fimtoLogo from '../assets/logos/fimtosoftlogo.png';
+import { useLang } from '../context/LangContext';
+import type { Translations } from '../context/translations';
 
-const QUICK_LINKS: { label: string; href?: string }[] = [
-  { label: 'Home', href: 'https://concrete.fimtosoft.com/' },
-  { label: 'About' },
-  { label: 'Services' },
-  { label: 'Contact' },
+const QUICK_LINKS: { key: keyof Translations; href?: string }[] = [
+  { key: 'home', href: 'https://concrete.fimtosoft.com/' },
+  { key: 'about' },
+  { key: 'services' },
+  { key: 'contact' },
 ];
 
 export default function FimtoFooter() {
+  const { t } = useLang();
   return (
     <footer className="w-full bg-[#0B111E]/80 border-t border-white/10 py-12">
       <div className="max-w-[1100px] mx-auto px-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-10">
@@ -15,28 +18,24 @@ export default function FimtoFooter() {
           <div className="flex items-center gap-3">
             <img
               src={fimtoLogo}
-              alt="Fimto Soft logo"
+              alt={t('fimtoLogoAlt')}
               className="h-12 w-12 rounded-xl object-contain bg-white p-1 shadow-lg"
             />
             <div>
               <h3 className="text-white font-extrabold text-xl tracking-tight">Fimto Soft</h3>
-              <p className="text-emerald-500 text-sm font-semibold mt-0.5">Integrated Tech Solutions</p>
+              <p className="text-emerald-500 text-sm font-semibold mt-0.5">{t('integratedTechSolutions')}</p>
             </div>
           </div>
           <p className="text-slate-400 text-sm leading-relaxed mt-4">
-            We provide comprehensive software solutions including advanced interactive ERP systems, maintenance and
-            development of ready-mix concrete plants, web design and development, distinguished digital marketing,
-            creation and development of security and surveillance systems, establishment and development of
-            infrastructure networks, creation and development of AI applications, and establishment and development
-            of smart home systems.
+            {t('footerDescription')}
           </p>
         </div>
 
         <div>
-          <h4 className="text-white font-bold text-sm uppercase tracking-wider mb-4">Quick Links</h4>
+          <h4 className="text-white font-bold text-sm uppercase tracking-wider mb-4">{t('quickLinks')}</h4>
           <ul className="space-y-2 text-sm">
             {QUICK_LINKS.map(l => (
-              <li key={l.label}>
+              <li key={l.key}>
                 {l.href ? (
                   <a
                     href={l.href}
@@ -44,10 +43,10 @@ export default function FimtoFooter() {
                     rel="noopener noreferrer"
                     className="text-slate-400 hover:text-sky-400 cursor-pointer transition-colors"
                   >
-                    ▸ {l.label}
+                    ▸ {t(l.key)}
                   </a>
                 ) : (
-                  <span className="text-slate-400 hover:text-sky-400 cursor-pointer transition-colors">▸ {l.label}</span>
+                  <span className="text-slate-400 hover:text-sky-400 cursor-pointer transition-colors">▸ {t(l.key)}</span>
                 )}
               </li>
             ))}
@@ -55,7 +54,7 @@ export default function FimtoFooter() {
         </div>
 
         <div>
-          <h4 className="text-white font-bold text-sm uppercase tracking-wider mb-4">Contact</h4>
+          <h4 className="text-white font-bold text-sm uppercase tracking-wider mb-4">{t('contact')}</h4>
           <ul className="space-y-2 text-sm text-slate-400">
             <li>
               ✉️{' '}
@@ -79,20 +78,20 @@ export default function FimtoFooter() {
         </div>
 
         <div>
-          <h4 className="text-white font-bold text-sm uppercase tracking-wider mb-4">Our Locations</h4>
+          <h4 className="text-white font-bold text-sm uppercase tracking-wider mb-4">{t('ourLocations')}</h4>
           <ul className="space-y-2 text-sm text-slate-400">
             <li>
-              <span className="inline-block w-6 text-center" title="Egypt">🇪🇬</span> Cairo, Egypt
+              <span className="inline-block w-6 text-center" title={t('egypt')}>🇪🇬</span> {t('cairo')}, {t('egypt')}
             </li>
             <li>
-              <span className="inline-block w-6 text-center" title="Saudi Arabia">🇸🇦</span> Riyadh, Saudi Arabia
+              <span className="inline-block w-6 text-center" title={t('saudiArabia')}>🇸🇦</span> {t('riyadh')}, {t('saudiArabia')}
             </li>
           </ul>
         </div>
       </div>
 
       <div className="max-w-[1100px] mx-auto px-6 mt-10 pt-6 border-t border-white/10 text-center text-xs text-slate-500">
-        © {new Date().getFullYear()} Fimto Soft — Integrated Tech Solutions. All rights reserved.
+        © {new Date().getFullYear()} Fimto Soft — {t('integratedTechSolutions')}. {t('allRightsReserved')}
       </div>
     </footer>
   );

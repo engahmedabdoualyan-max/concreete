@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useLang } from '../context/LangContext';
 import { loadRecipes, saveRecipes, loadCalibrationLogs, saveCalibrationLogs, loadQCRecords, saveQCRecords, loadPlantLogo, loadOrders, loadTrips, addNotification } from '../firebase/firestore';
 import DatePicker from '../components/DatePicker';
 import QuickJump from '../components/QuickJump';
@@ -28,6 +29,7 @@ const DEF_RECIPES: Recipe[] = [
 
 export default function MixingQuality() {
   const { currentUser } = useAuth();
+  const { t } = useLang();
   const [tab, setTab] = useState<Tab>('recipes');
   
   // Data states
@@ -110,11 +112,11 @@ export default function MixingQuality() {
     e.preventDefault();
     const code = recipeForm.code.trim().toUpperCase();
     if (!code) return;
-    if (recipes.some(r => r.code === code)) { alert('❌ Recipe code already exists!'); return; }
+    if (recipes.some(r => r.code === code)) { alert('❌ ' + t('recipeCodeExists')); return; }
     setRecipes(prev => [...prev, { code, cement: +recipeForm.cement, sand: +recipeForm.sand, gravel: +recipeForm.gravel, water: +recipeForm.water, admixture: +recipeForm.admixture }]);
     setRecipeForm({ code: '', cement: '', sand: '', gravel: '', water: '', admixture: '' });
   };
-  const deleteRecipe = (idx: number) => { if (confirm('Remove this recipe?')) setRecipes(prev => prev.filter((_, i) => i !== idx)); };
+  const deleteRecipe = (idx: number) => { if (confirm(t('removeThisRecipe'))) setRecipes(prev => prev.filter((_, i) => i !== idx)); };
 
   // ============ Calibration Functions ============
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -134,7 +136,7 @@ export default function MixingQuality() {
     setCalibLogs(prev => [...prev, { id: Date.now(), date: calForm.date, scaleType, target, measured, dev, status, reportFile: calForm.reportFile, reportFileName: calForm.reportFileName, accreditation: calForm.accreditation, accreditingBody: calForm.accreditingBody, accreditationDate: calForm.accreditationDate, notes: calForm.notes }]);
     setCalForm({ date: new Date().toISOString().split('T')[0], scaleType: 'Cement Scale', measured: '', reportFileName: '', reportFile: '', accreditation: '', accreditingBody: '', accreditationDate: '', notes: '' });
   };
-  const deleteCalibration = (id: number) => { if (confirm('Delete?')) setCalibLogs(prev => prev.filter(c => c.id !== id)); };
+  const deleteCalibration = (id: number) => { if (confirm(t('deleteQuestion'))) setCalibLogs(prev => prev.filter(c => c.id !== id)); };
 
   // ============ Mix Designer Functions (with environment compensation) ============
   const calculateMixDesign = (e: React.FormEvent) => {
@@ -169,7 +171,7 @@ export default function MixingQuality() {
     const admixCorr = (temp - 25) * 0.05 + (60 - humidity) * 0.02;
     const water = Math.round((waterEstimate + waterCorr) * 10) / 10;
     const admixture = parseFloat((baseAdmix + admixCorr).toFixed(2));
-    const note = waterCorr > 1.5 ? '⚠️ Hot/dry weather: water & admixture increased to protect workability' : waterCorr < -1.5 ? '🧊 Cool/humid weather: water & admixture reduced' : '✓ Ambient conditions within standard range';
+    const note = waterCorr > 1.5 ? t('hotDryWeatherNote') : waterCorr < -1.5 ? t('coolHumidWeatherNote') : t('ambientWithinRange');
 
     setDesignerResult({
       base: { code: `C${target}`, cement: Math.round(cement / 5) * 5, sand: Math.round(sand / 5) * 5, gravel: Math.round(coarseAgg / 5) * 5, water: Math.round(waterEstimate), admixture: parseFloat(baseAdmix.toFixed(1)) },
@@ -180,9 +182,9 @@ export default function MixingQuality() {
   const saveDesignAsRecipe = () => {
     if (!designerResult) return;
     const code = designerResult.base.code;
-    if (recipes.some(r => r.code === code)) { alert('❌ Recipe code already exists!'); return; }
+    if (recipes.some(r => r.code === code)) { alert('❌ ' + t('recipeCodeExists')); return; }
     setRecipes(prev => [...prev, { ...designerResult.base, water: designerResult.water, admixture: designerResult.admixture }]);
-    alert('✅ Saved as recipe ' + code);
+    alert('✅ ' + t('savedAsRecipe') + ' ' + code);
   };
 
   // ============ QC Functions ============
@@ -194,10 +196,10 @@ export default function MixingQuality() {
     setQcRecords(prev => [...prev, { id: Date.now(), date: new Date().toISOString().split('T')[0], truck: qcForm.truck, design: qcForm.design, slump: +qcForm.slump, break7d: +qcForm.break7d, break28d: +qcForm.break28d, blade: qcForm.blade, bonNo: qcForm.bonNo || sampleId, customer: order?.customerName || qcForm.customer, site: order?.projectName || qcForm.site, mixDesignCode: qcForm.mixDesignCode, orderId, sampleId: sampleId || undefined }]);
     setQcForm({ truck: 'm01', design: 'C30', slump: '', break7d: '', break28d: '', blade: 'Optimal', bonNo: '', customer: '', site: '', mixDesignCode: '', orderId: '' });
     if (order && currentUser) addNotification(currentUser.username, {
-      level: 'info', title: '🔬 عينة معمل ' + (sampleId || order.orderNo),
-      body: `طلب ${order.orderNo} · شاحنة ${qcForm.truck} · ${qcForm.design} — العينة أُخذت من كود العميل (${order.customerCode || 'NA'}) + الطلب`,
+      level: 'info', title: '🔬 ' + t('labSampleNotificationTitle') + ' ' + (sampleId || order.orderNo),
+      body: t('labSampleNotificationBody') + ' ' + order.orderNo + ' · ' + t('truck') + ' ' + qcForm.truck + ' · ' + qcForm.design + ' — ' + sampleId,
     }).catch(() => {});
-    alert('🔬 QC data saved!' + (sampleId ? ` — Sample ID: ${sampleId}` : ''));
+    alert('🔬 ' + t('qcDataSaved') + (sampleId ? ` — ${t('sampleId')}: ${sampleId}` : ''));
   };
 
   const printQCRecord = async (r: QCRecord) => {
@@ -206,7 +208,7 @@ export default function MixingQuality() {
     const logo = currentUser ? await loadPlantLogo(currentUser.username).catch(() => '') : '';
     const w = window.open('', '_blank', 'width=800,height=600');
     if (!w) return;
-    w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Quality Report — ${r.bonNo || r.id}</title>
+    w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${t('qualityReport')} — ${r.bonNo || r.id}</title>
       <style>
         body{font-family:Arial,sans-serif;color:#0f172a;padding:32px;max-width:760px;margin:auto}
         h1{font-size:20px;margin:0 0 4px}h2{font-size:13px;color:#64748b;font-weight:normal;margin:0 0 20px}
@@ -222,24 +224,24 @@ export default function MixingQuality() {
       <div class="head">
         <div style="display:flex;align-items:center;gap:14px">
           ${logo ? `<img src="${logo}" style="height:64px;max-width:110px;object-fit:contain" />` : ''}
-          <div><h1>🔬 Concrete Quality Test Report</h1><h2>${currentUser?.plantName || 'Ready-Mix Concrete Plant'}</h2></div>
+          <div><h1>🔬 ${t('concreteQualityTestReport')}</h1><h2>${currentUser?.plantName || t('readyMixConcretePlant')}</h2></div>
         </div>
-        <div style="text-align:right"><div class="field" style="font-size:12px"><b>Report Date</b>${r.date}</div><div class="field" style="font-size:12px"><b>Ticket / Bon No</b>${r.bonNo || '—'}</div></div>
+        <div style="text-align:right"><div class="field" style="font-size:12px"><b>${t('reportDate')}</b>${r.date}</div><div class="field" style="font-size:12px"><b>${t('ticketBonNo')}</b>${r.bonNo || '—'}</div></div>
       </div>
       <div class="grid">
-        <div class="field"><b>Mix Design</b>${r.design}${r.mixDesignCode ? ' (' + r.mixDesignCode + ')' : ''}</div>
-        <div class="field"><b>Mixer Truck</b>${r.truck}</div>
-        <div class="field"><b>Customer</b>${r.customer || '—'}</div>
-        <div class="field"><b>Site / Project</b>${r.site || '—'}</div>
+        <div class="field"><b>${t('mixDesign')}</b>${r.design}${r.mixDesignCode ? ' (' + r.mixDesignCode + ')' : ''}</div>
+        <div class="field"><b>${t('mixerTruck')}</b>${r.truck}</div>
+        <div class="field"><b>${t('customer')}</b>${r.customer || '—'}</div>
+        <div class="field"><b>${t('siteProject')}</b>${r.site || '—'}</div>
       </div>
       <table>
-        <tr><th>Test</th><th>Result</th><th>Requirement</th><th>Status</th></tr>
-        <tr><td>Slump Test</td><td>${r.slump} cm</td><td>Design slump</td><td>${r.slump >= 8 && r.slump <= 18 ? '<span class="pass">✓ Pass</span>' : '<span class="fail">✗ Check</span>'}</td></tr>
-        <tr><td>Compressive Strength — 7 Days</td><td>${r.break7d} MPa</td><td>≈ ${(target * 0.65).toFixed(1)} MPa</td><td>${r.break7d >= target * 0.65 ? '<span class="pass">✓ Pass</span>' : '<span class="fail">✗ Fail</span>'}</td></tr>
-        <tr><td>Compressive Strength — 28 Days</td><td>${r.break28d} MPa</td><td>${target} MPa</td><td>${pass ? '<span class="pass">✓ Pass</span>' : '<span class="fail">✗ Fail</span>'}</td></tr>
+        <tr><th>${t('test')}</th><th>${t('result')}</th><th>${t('requirement')}</th><th>${t('status')}</th></tr>
+        <tr><td>${t('slumpTest')}</td><td>${r.slump} cm</td><td>${t('designSlump')}</td><td>${r.slump >= 8 && r.slump <= 18 ? '<span class="pass">✓ ' + t('pass') + '</span>' : '<span class="fail">✗ ' + t('check') + '</span>'}</td></tr>
+        <tr><td>${t('compressive7Days')}</td><td>${r.break7d} MPa</td><td>≈ ${(target * 0.65).toFixed(1)} MPa</td><td>${r.break7d >= target * 0.65 ? '<span class="pass">✓ ' + t('pass') + '</span>' : '<span class="fail">✗ ' + t('fail') + '</span>'}</td></tr>
+        <tr><td>${t('compressive28Days')}</td><td>${r.break28d} MPa</td><td>${target} MPa</td><td>${pass ? '<span class="pass">✓ ' + t('pass') + '</span>' : '<span class="fail">✗ ' + t('fail') + '</span>'}</td></tr>
       </table>
-      <p style="font-size:11px;color:#64748b;margin-top:16px">Blade condition: <b>${r.blade}</b></p>
-      <div class="footer"><span>Certified by Fimto Soft Technical Management</span><span>This report is linked to delivery ticket (bon) for traceability</span></div>
+      <p style="font-size:11px;color:#64748b;margin-top:16px">${t('bladeCondition')}: <b>${r.blade}</b></p>
+      <div class="footer"><span>${t('certifiedByFimto')}</span><span>${t('reportLinkedToBon')}</span></div>
       <script>window.onload=function(){window.print()}<\/script>
       </body></html>`);
     w.document.close();
@@ -354,7 +356,7 @@ export default function MixingQuality() {
     const blob = new Blob([csv], { type: 'text/csv' }); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'quality_records.csv'; a.click();
   };
 
-  if (!currentUser) return <div className="min-h-screen bg-[#0B111E] flex items-center justify-center"><div className="text-center"><p className="text-red-400 text-xl mb-4">🔒 Access Denied</p><Link to="/" className="text-sky-400 underline">Back to Login</Link></div></div>;
+  if (!currentUser) return <div className="min-h-screen bg-[#0B111E] flex items-center justify-center"><div className="text-center"><p className="text-red-400 text-xl mb-4">🔒 {t('accessDenied')}</p><Link to="/" className="text-sky-400 underline">{t('backToLogin')}</Link></div></div>;
 
   return (
     <div className="min-h-screen bg-[#0B111E] text-slate-200">
@@ -362,9 +364,9 @@ export default function MixingQuality() {
       <div className="bg-[#0B111E]/80 backdrop-blur-xl border-b border-white/10 px-6 py-2.5 flex flex-wrap justify-between items-center gap-x-3 gap-y-1.5 sticky top-0 z-50 shadow-lg">
         <div className="flex flex-wrap items-center gap-3">
           <BrandLogo width={56} />
-          <Link to="/" className="text-slate-400 text-xs border border-white/10 px-2 py-1 rounded hover:text-white">← Dashboard</Link>
+          <Link to="/" className="text-slate-400 text-xs border border-white/10 px-2 py-1 rounded hover:text-white">← {t('dashboard')}</Link>
           <QuickJump /> <LangSelector />
-          <h1 className="text-sm font-black tracking-tight text-white">🎛️ Mixing & Quality Control</h1>
+          <h1 className="text-sm font-black tracking-tight text-white">🎛️ {t('mixingQualityControl')}</h1>
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <NotificationsBell />
@@ -375,14 +377,14 @@ export default function MixingQuality() {
       {/* Tabs */}
       <div className="grid grid-cols-4 gap-2 p-4 max-w-6xl mx-auto">
         {[
-          { id: 'recipes', label: '📋 Recipes', icon: '📋' },
-          { id: 'calibration', label: '⚖️ Calibration', icon: '⚖️' },
-          { id: 'mixDesigner', label: '🧮 Mix Designer', icon: '🧮' },
-          { id: 'quality', label: '🔬 Quality Control', icon: '🔬' },
-          { id: 'aiPredictor', label: '🤖 AI Predictor', icon: '🤖' },
-        ].map(t => (
-          <button key={t.id} onClick={() => setTab(t.id as Tab)} className={`py-2 px-4 rounded-lg font-bold text-sm transition ${tab === t.id ? 'bg-sky-500/15 text-sky-300 border border-sky-500/40' : 'bg-white/[0.03] text-slate-400 border border-white/10 hover:text-sky-300 hover:bg-white/[0.06]'}`}>
-            {t.label}
+          { id: 'recipes', label: `📋 ${t('recipes')}`, icon: '📋' },
+          { id: 'calibration', label: `⚖️ ${t('calibration')}`, icon: '⚖️' },
+          { id: 'mixDesigner', label: `🧮 ${t('mixDesigner')}`, icon: '🧮' },
+          { id: 'quality', label: `🔬 ${t('qualityControl')}`, icon: '🔬' },
+          { id: 'aiPredictor', label: `🤖 ${t('aiPredictor')}`, icon: '🤖' },
+        ].map(tb => (
+          <button key={tb.id} onClick={() => setTab(tb.id as Tab)} className={`py-2 px-4 rounded-lg font-bold text-sm transition ${tab === tb.id ? 'bg-sky-500/15 text-sky-300 border border-sky-500/40' : 'bg-white/[0.03] text-slate-400 border border-white/10 hover:text-sky-300 hover:bg-white/[0.06]'}`}>
+            {tb.label}
           </button>
         ))}
       </div>
@@ -392,30 +394,30 @@ export default function MixingQuality() {
         {tab === 'recipes' && (
           <div className="grid grid-cols-1 lg:grid-cols-[400px_1fr] gap-6">
             <div className="bg-white/[0.04] border border-white/10 rounded-xl p-6">
-              <h3 className="text-lg font-black tracking-tight text-white mb-4">➕ Add Recipe</h3>
+              <h3 className="text-lg font-black tracking-tight text-white mb-4">➕ {t('addRecipe')}</h3>
               <form onSubmit={addRecipe} className="space-y-3">
-                <div><label className="text-xs text-slate-400 font-semibold">Code</label><input value={recipeForm.code} onChange={e => setRecipeForm({ ...recipeForm, code: e.target.value })} placeholder="C30" className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]" required /></div>
-                <div><label className="text-xs text-slate-400 font-semibold">Cement (kg)</label><input type="number" value={recipeForm.cement} onChange={e => setRecipeForm({ ...recipeForm, cement: e.target.value })} placeholder="350" className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]" required /></div>
+                <div><label className="text-xs text-slate-400 font-semibold">{t('code')}</label><input value={recipeForm.code} onChange={e => setRecipeForm({ ...recipeForm, code: e.target.value })} placeholder="C30" className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]" required /></div>
+                <div><label className="text-xs text-slate-400 font-semibold">{t('cementKg')}</label><input type="number" value={recipeForm.cement} onChange={e => setRecipeForm({ ...recipeForm, cement: e.target.value })} placeholder="350" className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]" required /></div>
                 <div className="grid grid-cols-2 gap-3">
-                  <div><label className="text-xs text-slate-400 font-semibold">Sand (kg)</label><input type="number" value={recipeForm.sand} onChange={e => setRecipeForm({ ...recipeForm, sand: e.target.value })} placeholder="750" className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]" required /></div>
-                  <div><label className="text-xs text-slate-400 font-semibold">Gravel (kg)</label><input type="number" value={recipeForm.gravel} onChange={e => setRecipeForm({ ...recipeForm, gravel: e.target.value })} placeholder="1100" className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]" required /></div>
+                  <div><label className="text-xs text-slate-400 font-semibold">{t('sandKg')}</label><input type="number" value={recipeForm.sand} onChange={e => setRecipeForm({ ...recipeForm, sand: e.target.value })} placeholder="750" className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]" required /></div>
+                  <div><label className="text-xs text-slate-400 font-semibold">{t('gravelKg')}</label><input type="number" value={recipeForm.gravel} onChange={e => setRecipeForm({ ...recipeForm, gravel: e.target.value })} placeholder="1100" className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]" required /></div>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
-                  <div><label className="text-xs text-slate-400 font-semibold">Water (kg)</label><input type="number" value={recipeForm.water} onChange={e => setRecipeForm({ ...recipeForm, water: e.target.value })} placeholder="160" className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]" required /></div>
-                  <div><label className="text-xs text-slate-400 font-semibold">Admixture (kg)</label><input type="number" step="0.1" value={recipeForm.admixture} onChange={e => setRecipeForm({ ...recipeForm, admixture: e.target.value })} placeholder="5.5" className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]" required /></div>
+                  <div><label className="text-xs text-slate-400 font-semibold">{t('waterKg')}</label><input type="number" value={recipeForm.water} onChange={e => setRecipeForm({ ...recipeForm, water: e.target.value })} placeholder="160" className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]" required /></div>
+                  <div><label className="text-xs text-slate-400 font-semibold">{t('admixtureKg')}</label><input type="number" step="0.1" value={recipeForm.admixture} onChange={e => setRecipeForm({ ...recipeForm, admixture: e.target.value })} placeholder="5.5" className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]" required /></div>
                 </div>
-                <button type="submit" className="w-full bg-sky-500 hover:bg-sky-400 text-white font-bold py-3 rounded-lg shadow-[0_0_20px_rgba(56,189,248,0.3)]">💾 Save Recipe</button>
+                <button type="submit" className="w-full bg-sky-500 hover:bg-sky-400 text-white font-bold py-3 rounded-lg shadow-[0_0_20px_rgba(56,189,248,0.3)]">💾 {t('saveRecipe')}</button>
               </form>
             </div>
             <div className="bg-white/[0.04] border border-white/10 rounded-xl p-6">
               <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-black tracking-tight text-white">📋 Recipes ({recipes.length})</h3>
-                <button onClick={exportRecipesCSV} className="bg-yellow-500 text-slate-900 text-xs px-3 py-1.5 rounded font-bold">📊 Export CSV</button>
+                <h3 className="text-lg font-black tracking-tight text-white">📋 {t('recipes')} ({recipes.length})</h3>
+                <button onClick={exportRecipesCSV} className="bg-yellow-500 text-slate-900 text-xs px-3 py-1.5 rounded font-bold">📊 {t('exportCsv')}</button>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-xs text-slate-300">
                   <thead className="bg-white/[0.04] text-slate-400 text-[10px]">
-                    <tr><th className="p-2">Code</th><th className="p-2">Cement</th><th className="p-2">Sand</th><th className="p-2">Gravel</th><th className="p-2">Water</th><th className="p-2">Admix</th><th className="p-2">Act</th></tr>
+                    <tr><th className="p-2">{t('code')}</th><th className="p-2">{t('cement')}</th><th className="p-2">{t('sand')}</th><th className="p-2">{t('gravel')}</th><th className="p-2">{t('water')}</th><th className="p-2">{t('admix')}</th><th className="p-2">{t('act')}</th></tr>
                   </thead>
                   <tbody>
                     {recipes.map((r, i) => (
@@ -423,7 +425,7 @@ export default function MixingQuality() {
                         <td className="p-2 font-bold text-purple-400">{r.code}</td>
                         <td className="p-2">{r.cement}</td><td className="p-2">{r.sand}</td><td className="p-2">{r.gravel}</td>
                         <td className="p-2">{r.water}</td><td className="p-2">{r.admixture}</td>
-                        <td className="p-2"><button onClick={() => deleteRecipe(i)} className="bg-red-600 text-white text-[10px] px-2 py-0.5 rounded">Del</button></td>
+                        <td className="p-2"><button onClick={() => deleteRecipe(i)} className="bg-red-600 text-white text-[10px] px-2 py-0.5 rounded">{t('del')}</button></td>
                       </tr>
                     ))}
                   </tbody>
@@ -437,27 +439,27 @@ export default function MixingQuality() {
         {tab === 'calibration' && (
           <div className="grid grid-cols-1 lg:grid-cols-[450px_1fr] gap-6">
             <div className="bg-white/[0.04] border border-white/10 rounded-xl p-6">
-              <h3 className="text-lg font-black tracking-tight text-white mb-4">⚖️ Calibration Record</h3>
+              <h3 className="text-lg font-black tracking-tight text-white mb-4">⚖️ {t('calibrationRecord')}</h3>
               <form onSubmit={addCalibration} className="space-y-3">
-                <DatePicker value={calForm.date} onChange={val => setCalForm({ ...calForm, date: val })} label="Date" required />
-                <div><label className="text-xs text-slate-400 font-semibold">Scale Type</label>
+                <DatePicker value={calForm.date} onChange={val => setCalForm({ ...calForm, date: val })} label={t('date')} required />
+                <div><label className="text-xs text-slate-400 font-semibold">{t('scaleType')}</label>
                   <select value={calForm.scaleType} onChange={e => setCalForm({ ...calForm, scaleType: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]">
-                    <option>Cement Scale (500kg)</option><option>Aggregate Scale (1000kg)</option><option>Water Scale (200kg)</option>
+                    <option>{t('cementScale500')}</option><option>{t('aggregateScale1000')}</option><option>{t('waterScale200')}</option>
                   </select>
                 </div>
-                <div><label className="text-xs text-slate-400 font-semibold">Measured Weight (kg)</label><input type="number" step="0.01" value={calForm.measured} onChange={e => setCalForm({ ...calForm, measured: e.target.value })} placeholder="502.5" className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]" required /></div>
-                <div><label className="text-xs text-slate-400 font-semibold">Upload Report</label><input type="file" accept=".pdf,.jpg,.png" onChange={handleFileUpload} className="w-full text-xs text-slate-400" /></div>
+                <div><label className="text-xs text-slate-400 font-semibold">{t('measuredWeightKg')}</label><input type="number" step="0.01" value={calForm.measured} onChange={e => setCalForm({ ...calForm, measured: e.target.value })} placeholder="502.5" className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]" required /></div>
+                <div><label className="text-xs text-slate-400 font-semibold">{t('uploadReport')}</label><input type="file" accept=".pdf,.jpg,.png" onChange={handleFileUpload} className="w-full text-xs text-slate-400" /></div>
                 {calForm.reportFileName && <p className="text-xs text-emerald-400">✓ {calForm.reportFileName}</p>}
-                <div><label className="text-xs text-slate-400 font-semibold">Accreditation</label><input value={calForm.accreditation} onChange={e => setCalForm({ ...calForm, accreditation: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]" /></div>
-                <button type="submit" className="w-full bg-sky-500 hover:bg-sky-400 text-white font-bold py-3 rounded-lg shadow-[0_0_20px_rgba(56,189,248,0.3)]">💾 Save Calibration</button>
+                <div><label className="text-xs text-slate-400 font-semibold">{t('accreditation')}</label><input value={calForm.accreditation} onChange={e => setCalForm({ ...calForm, accreditation: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]" /></div>
+                <button type="submit" className="w-full bg-sky-500 hover:bg-sky-400 text-white font-bold py-3 rounded-lg shadow-[0_0_20px_rgba(56,189,248,0.3)]">💾 {t('saveCalibration')}</button>
               </form>
             </div>
             <div className="bg-white/[0.04] border border-white/10 rounded-xl p-6">
-              <h3 className="text-lg font-black tracking-tight text-white mb-4">⚖️ Calibration Logs ({filteredCalib.length})</h3>
-              <div className="grid grid-cols-2 gap-3 mb-4"><DatePicker value={fromDate} onChange={setFromDate} label="From" /><DatePicker value={toDate} onChange={setToDate} label="To" /></div>
+              <h3 className="text-lg font-black tracking-tight text-white mb-4">⚖️ {t('calibrationLogs')} ({filteredCalib.length})</h3>
+              <div className="grid grid-cols-2 gap-3 mb-4"><DatePicker value={fromDate} onChange={setFromDate} label={t('from')} /><DatePicker value={toDate} onChange={setToDate} label={t('to')} /></div>
               <div className="overflow-x-auto">
                 <table className="w-full text-xs text-slate-300">
-                  <thead className="bg-white/[0.04] text-slate-400 text-[10px]"><tr><th className="p-2">Date</th><th className="p-2">Scale</th><th className="p-2">Target</th><th className="p-2">Measured</th><th className="p-2">Dev%</th><th className="p-2">Status</th><th className="p-2">Report</th><th className="p-2">Act</th></tr></thead>
+                  <thead className="bg-white/[0.04] text-slate-400 text-[10px]"><tr><th className="p-2">{t('date')}</th><th className="p-2">{t('scale')}</th><th className="p-2">{t('target')}</th><th className="p-2">{t('measured')}</th><th className="p-2">Dev%</th><th className="p-2">{t('status')}</th><th className="p-2">{t('report')}</th><th className="p-2">{t('act')}</th></tr></thead>
                   <tbody>
                     {filteredCalib.map(c => (
                       <tr key={c.id} className="border-b border-white/10">
@@ -466,7 +468,7 @@ export default function MixingQuality() {
                         <td className={`p-2 font-bold ${Math.abs(c.dev) > 1.5 ? 'text-red-400' : Math.abs(c.dev) > 0.8 ? 'text-yellow-400' : 'text-emerald-400'}`}>{c.dev.toFixed(2)}%</td>
                         <td className="p-2"><span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${c.status === 'Passed' ? 'bg-emerald-500/20 text-emerald-400' : c.status === 'Warning' ? 'bg-yellow-500/20 text-yellow-400' : 'bg-red-500/20 text-red-400'}`}>{c.status}</span></td>
                         <td className="p-2">{c.reportFileName ? <a href={c.reportFile} download={c.reportFileName} className="text-sky-400 underline">📄</a> : '-'}</td>
-                        <td className="p-2"><button onClick={() => deleteCalibration(c.id)} className="bg-red-600 text-white text-[10px] px-2 py-0.5 rounded">Del</button></td>
+                        <td className="p-2"><button onClick={() => deleteCalibration(c.id)} className="bg-red-600 text-white text-[10px] px-2 py-0.5 rounded">{t('del')}</button></td>
                       </tr>
                     ))}
                   </tbody>
@@ -480,27 +482,27 @@ export default function MixingQuality() {
         {tab === 'mixDesigner' && (
           <div className="grid grid-cols-1 lg:grid-cols-[450px_1fr] gap-6">
             <div className="bg-white/[0.04] border border-white/10 rounded-xl p-6">
-              <h3 className="text-lg font-black tracking-tight text-white mb-4">🧮 Mix Design Calculator</h3>
+              <h3 className="text-lg font-black tracking-tight text-white mb-4">🧮 {t('mixDesignCalculator')}</h3>
               <form onSubmit={calculateMixDesign} className="space-y-3">
-                <div><label className="text-xs text-slate-400 font-semibold">Target Strength (MPa)</label><input type="number" value={designerForm.targetStrength} onChange={e => setDesignerForm({ ...designerForm, targetStrength: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]" required /></div>
-                <div><label className="text-xs text-slate-400 font-semibold">Max Aggregate Size (mm)</label>
+                <div><label className="text-xs text-slate-400 font-semibold">{t('targetStrengthMpa')}</label><input type="number" value={designerForm.targetStrength} onChange={e => setDesignerForm({ ...designerForm, targetStrength: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]" required /></div>
+                <div><label className="text-xs text-slate-400 font-semibold">{t('maxAggregateSizeMm')}</label>
                   <select value={designerForm.maxAggregateSize} onChange={e => setDesignerForm({ ...designerForm, maxAggregateSize: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]">
                     <option value="10">10mm</option><option value="20">20mm</option><option value="40">40mm</option>
                   </select>
                 </div>
-                <div><label className="text-xs text-slate-400 font-semibold">Slump (cm)</label><input type="number" value={designerForm.slump} onChange={e => setDesignerForm({ ...designerForm, slump: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]" required /></div>
-                <div><label className="text-xs text-slate-400 font-semibold">Fine Modulus</label><input type="number" step="0.1" value={designerForm.fineModulus} onChange={e => setDesignerForm({ ...designerForm, fineModulus: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]" required /></div>
+                <div><label className="text-xs text-slate-400 font-semibold">{t('slumpCm')}</label><input type="number" value={designerForm.slump} onChange={e => setDesignerForm({ ...designerForm, slump: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]" required /></div>
+                <div><label className="text-xs text-slate-400 font-semibold">{t('fineModulus')}</label><input type="number" step="0.1" value={designerForm.fineModulus} onChange={e => setDesignerForm({ ...designerForm, fineModulus: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]" required /></div>
                 <div className="grid grid-cols-2 gap-3">
-                  <div><label className="text-xs text-slate-400 font-semibold">Ambient Temp (°C)</label><input type="number" value={designerForm.ambientTemp} onChange={e => setDesignerForm({ ...designerForm, ambientTemp: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]" required /></div>
-                  <div><label className="text-xs text-slate-400 font-semibold">Humidity (%)</label><input type="number" value={designerForm.humidity} onChange={e => setDesignerForm({ ...designerForm, humidity: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]" required /></div>
+                  <div><label className="text-xs text-slate-400 font-semibold">{t('ambientTempC')}</label><input type="number" value={designerForm.ambientTemp} onChange={e => setDesignerForm({ ...designerForm, ambientTemp: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]" required /></div>
+                  <div><label className="text-xs text-slate-400 font-semibold">{t('humidityPercent')}</label><input type="number" value={designerForm.humidity} onChange={e => setDesignerForm({ ...designerForm, humidity: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]" required /></div>
                 </div>
-                <button type="submit" className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3 rounded-lg shadow-[0_0_20px_rgba(56,189,248,0.3)]">🧮 Calculate (with Environment Compensation)</button>
+                <button type="submit" className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3 rounded-lg shadow-[0_0_20px_rgba(56,189,248,0.3)]">🧮 {t('calculateWithEnvCompensation')}</button>
               </form>
             </div>
             <div className="bg-white/[0.04] border border-white/10 rounded-xl p-6">
               <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-black tracking-tight text-white mb-0">📊 Result</h3>
-                {designerResult && <button onClick={saveDesignAsRecipe} className="bg-sky-500 hover:bg-sky-400 text-white text-xs px-3 py-1.5 rounded font-bold">💾 Save as Recipe</button>}
+                <h3 className="text-lg font-black tracking-tight text-white mb-0">📊 {t('result')}</h3>
+                {designerResult && <button onClick={saveDesignAsRecipe} className="bg-sky-500 hover:bg-sky-400 text-white text-xs px-3 py-1.5 rounded font-bold">💾 {t('saveAsRecipe')}</button>}
               </div>
               {designerResult ? (
                 <div className="space-y-3">
@@ -509,24 +511,24 @@ export default function MixingQuality() {
                     <p className="text-xs text-slate-400">{designerResult.note}</p>
                   </div>
                   <div className="bg-[#0B111E] border border-white/10 rounded-lg p-3">
-                    <p className="text-xs text-slate-400 mb-1">🌡️ Environment: {designerResult.temp}°C / {designerResult.humidity}% RH</p>
+                    <p className="text-xs text-slate-400 mb-1">🌡️ {t('environment')}: {designerResult.temp}°C / {designerResult.humidity}% RH</p>
                     <div className="grid grid-cols-2 gap-2 text-xs">
-                      <div className="flex justify-between"><span className="text-slate-400">Base Water</span><b className="text-white">{designerResult.base.water} kg</b></div>
-                      <div className="flex justify-between"><span className="text-yellow-400">Adjusted Water</span><b className="text-yellow-300">{designerResult.water} kg</b></div>
-                      <div className="flex justify-between"><span className="text-slate-400">Base Admixture</span><b className="text-white">{designerResult.base.admixture} kg</b></div>
-                      <div className="flex justify-between"><span className="text-yellow-400">Adjusted Admixture</span><b className="text-yellow-300">{designerResult.admixture} kg</b></div>
+                      <div className="flex justify-between"><span className="text-slate-400">{t('baseWater')}</span><b className="text-white">{designerResult.base.water} kg</b></div>
+                      <div className="flex justify-between"><span className="text-yellow-400">{t('adjustedWater')}</span><b className="text-yellow-300">{designerResult.water} kg</b></div>
+                      <div className="flex justify-between"><span className="text-slate-400">{t('baseAdmixture')}</span><b className="text-white">{designerResult.base.admixture} kg</b></div>
+                      <div className="flex justify-between"><span className="text-yellow-400">{t('adjustedAdmixture')}</span><b className="text-yellow-300">{designerResult.admixture} kg</b></div>
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
-                    <div className="bg-[#0B111E] rounded-lg p-4"><p className="text-xs text-slate-400">Cement</p><p className="text-lg font-black tracking-tight text-white">{designerResult.base.cement} kg</p></div>
-                    <div className="bg-[#0B111E] rounded-lg p-4"><p className="text-xs text-slate-400">Sand</p><p className="text-lg font-black tracking-tight text-white">{designerResult.base.sand} kg</p></div>
-                    <div className="bg-[#0B111E] rounded-lg p-4"><p className="text-xs text-slate-400">Gravel</p><p className="text-lg font-black tracking-tight text-white">{designerResult.base.gravel} kg</p></div>
-                    <div className="bg-[#0B111E] rounded-lg p-4"><p className="text-xs text-slate-400">Water (adjusted)</p><p className="text-lg font-bold text-yellow-300">{designerResult.water} kg</p></div>
-                    <div className="bg-[#0B111E] rounded-lg p-4"><p className="text-xs text-slate-400">Admixture (adjusted)</p><p className="text-lg font-bold text-yellow-300">{designerResult.admixture} kg</p></div>
+                    <div className="bg-[#0B111E] rounded-lg p-4"><p className="text-xs text-slate-400">{t('cement')}</p><p className="text-lg font-black tracking-tight text-white">{designerResult.base.cement} kg</p></div>
+                    <div className="bg-[#0B111E] rounded-lg p-4"><p className="text-xs text-slate-400">{t('sand')}</p><p className="text-lg font-black tracking-tight text-white">{designerResult.base.sand} kg</p></div>
+                    <div className="bg-[#0B111E] rounded-lg p-4"><p className="text-xs text-slate-400">{t('gravel')}</p><p className="text-lg font-black tracking-tight text-white">{designerResult.base.gravel} kg</p></div>
+                    <div className="bg-[#0B111E] rounded-lg p-4"><p className="text-xs text-slate-400">{t('waterAdjusted')}</p><p className="text-lg font-bold text-yellow-300">{designerResult.water} kg</p></div>
+                    <div className="bg-[#0B111E] rounded-lg p-4"><p className="text-xs text-slate-400">{t('admixtureAdjusted')}</p><p className="text-lg font-bold text-yellow-300">{designerResult.admixture} kg</p></div>
                   </div>
                 </div>
               ) : (
-                <p className="text-slate-500 text-center py-12">Enter parameters and calculate</p>
+                <p className="text-slate-500 text-center py-12">{t('enterParametersAndCalculate')}</p>
               )}
             </div>
           </div>
@@ -536,49 +538,49 @@ export default function MixingQuality() {
         {tab === 'quality' && (
           <div className="grid grid-cols-1 lg:grid-cols-[380px_1fr] gap-6">
             <div className="bg-white/[0.04] border border-white/10 rounded-xl p-6">
-              <h3 className="text-lg font-black tracking-tight text-white mb-4">🔬 QC Record</h3>
+              <h3 className="text-lg font-black tracking-tight text-white mb-4">🔬 {t('qcRecord')}</h3>
               <form onSubmit={addQCRecord} className="space-y-3">
                 <div className="grid grid-cols-2 gap-3">
-                  <div><label className="text-xs text-slate-400 font-semibold">Bon / Ticket No</label><input value={qcForm.bonNo} onChange={e => setQcForm({ ...qcForm, bonNo: e.target.value })} placeholder="BON-1024" className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]" required /></div>
-                  <div><label className="text-xs text-slate-400 font-semibold">Mix Design Code</label><input value={qcForm.mixDesignCode} onChange={e => setQcForm({ ...qcForm, mixDesignCode: e.target.value })} placeholder="C30-v2" className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]" /></div>
+                  <div><label className="text-xs text-slate-400 font-semibold">{t('bonTicketNo')}</label><input value={qcForm.bonNo} onChange={e => setQcForm({ ...qcForm, bonNo: e.target.value })} placeholder="BON-1024" className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]" required /></div>
+                  <div><label className="text-xs text-slate-400 font-semibold">{t('mixDesignCode')}</label><input value={qcForm.mixDesignCode} onChange={e => setQcForm({ ...qcForm, mixDesignCode: e.target.value })} placeholder="C30-v2" className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]" /></div>
                 </div>
-                <div><label className="text-xs text-slate-400 font-semibold">Customer</label><input value={qcForm.customer} onChange={e => setQcForm({ ...qcForm, customer: e.target.value })} placeholder="Client name" className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]" /></div>
-                <div><label className="text-xs text-slate-400 font-semibold">Site / Project</label><input value={qcForm.site} onChange={e => setQcForm({ ...qcForm, site: e.target.value })} placeholder="Project site" className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]" /></div>
-                <div><label className="text-xs text-slate-400 font-semibold">Truck</label><select value={qcForm.truck} onChange={e => setQcForm({ ...qcForm, truck: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]">{trucks.map(t => <option key={t} value={t}>{t}</option>)}</select></div>
+                <div><label className="text-xs text-slate-400 font-semibold">{t('customer')}</label><input value={qcForm.customer} onChange={e => setQcForm({ ...qcForm, customer: e.target.value })} placeholder={t('clientNamePlaceholder')} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]" /></div>
+                <div><label className="text-xs text-slate-400 font-semibold">{t('siteProject')}</label><input value={qcForm.site} onChange={e => setQcForm({ ...qcForm, site: e.target.value })} placeholder={t('projectSitePlaceholder')} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]" /></div>
+                <div><label className="text-xs text-slate-400 font-semibold">{t('truck')}</label><select value={qcForm.truck} onChange={e => setQcForm({ ...qcForm, truck: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]">{trucks.map(tr => <option key={tr} value={tr}>{tr}</option>)}</select></div>
                 <div>
-                  <label className="text-xs text-slate-400 font-semibold">ربط العينة بالطلب (اختياري)</label>
+                  <label className="text-xs text-slate-400 font-semibold">{t('linkSampleToOrder')}</label>
                   <select value={qcForm.orderId} onChange={e => {
                     const id = e.target.value;
                     setQcForm(prev => ({ ...prev, orderId: id }));
                     const o = orders.find(x => x.id === id);
                     if (o) setQcForm(prev => ({ ...prev, customer: o.customerName, site: o.projectName }));
                   }} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]">
-                    <option value="">— بدون ربط —</option>
+                    <option value="">{t('noLink')}</option>
                     {orders.filter((o: any) => o.accountStatus === 'approved').map((o: any) => <option key={o.id} value={o.id}>{o.orderNo || o.id} · {o.customerName}</option>)}
                   </select>
                 </div>
-                <div><label className="text-xs text-slate-400 font-semibold">Design</label><select value={qcForm.design} onChange={e => setQcForm({ ...qcForm, design: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]"><option value="C25">C25</option><option value="C30">C30</option><option value="C35">C35</option><option value="C40">C40</option></select></div>
-                <div><label className="text-xs text-slate-400 font-semibold">Slump (cm)</label><input type="number" value={qcForm.slump} onChange={e => setQcForm({ ...qcForm, slump: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]" required /></div>
-                <div><label className="text-xs text-slate-400 font-semibold">7-Day (MPa)</label><input type="number" step="0.1" value={qcForm.break7d} onChange={e => setQcForm({ ...qcForm, break7d: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]" required /></div>
-                <div><label className="text-xs text-slate-400 font-semibold">28-Day (MPa)</label><input type="number" step="0.1" value={qcForm.break28d} onChange={e => setQcForm({ ...qcForm, break28d: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]" required /></div>
-                <button type="submit" className="w-full bg-sky-500 hover:bg-sky-400 text-white font-bold py-3 rounded-lg shadow-[0_0_20px_rgba(56,189,248,0.3)]">💾 Save</button>
+                <div><label className="text-xs text-slate-400 font-semibold">{t('design')}</label><select value={qcForm.design} onChange={e => setQcForm({ ...qcForm, design: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]"><option value="C25">C25</option><option value="C30">C30</option><option value="C35">C35</option><option value="C40">C40</option></select></div>
+                <div><label className="text-xs text-slate-400 font-semibold">{t('slumpCm')}</label><input type="number" value={qcForm.slump} onChange={e => setQcForm({ ...qcForm, slump: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]" required /></div>
+                <div><label className="text-xs text-slate-400 font-semibold">{t('day7Mpa')}</label><input type="number" step="0.1" value={qcForm.break7d} onChange={e => setQcForm({ ...qcForm, break7d: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]" required /></div>
+                <div><label className="text-xs text-slate-400 font-semibold">{t('day28Mpa')}</label><input type="number" step="0.1" value={qcForm.break28d} onChange={e => setQcForm({ ...qcForm, break28d: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]" required /></div>
+                <button type="submit" className="w-full bg-sky-500 hover:bg-sky-400 text-white font-bold py-3 rounded-lg shadow-[0_0_20px_rgba(56,189,248,0.3)]">💾 {t('save')}</button>
               </form>
             </div>
             <div className="bg-white/[0.04] border border-white/10 rounded-xl p-6">
               <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-black tracking-tight text-white">🔬 QC Records ({filteredQC.length})</h3>
-                <button onClick={exportQCCSV} className="bg-yellow-500 text-slate-900 text-xs px-3 py-1.5 rounded font-bold">📊 Export</button>
+                <h3 className="text-lg font-black tracking-tight text-white">🔬 {t('qcRecords')} ({filteredQC.length})</h3>
+                <button onClick={exportQCCSV} className="bg-yellow-500 text-slate-900 text-xs px-3 py-1.5 rounded font-bold">📊 {t('export')}</button>
               </div>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-                <div className="bg-[#0B111E] rounded-lg p-3"><p className="text-xs text-slate-400">Samples</p><p className="text-lg font-black tracking-tight text-white">{filteredQC.length}</p></div>
-                <div className="bg-[#0B111E] rounded-lg p-3"><p className="text-xs text-slate-400">7-Day Avg</p><p className="text-lg font-bold text-sky-400">{(total7d / count).toFixed(1)} MPa</p></div>
-                <div className="bg-[#0B111E] rounded-lg p-3"><p className="text-xs text-slate-400">28-Day Pass</p><p className="text-lg font-bold text-emerald-400">{((passed28d / count) * 100).toFixed(0)}%</p></div>
-                <div className="bg-[#0B111E] rounded-lg p-3"><p className="text-xs text-slate-400">Slump Avg</p><p className="text-lg font-bold text-yellow-400">{(totalSlump / count).toFixed(1)} cm</p></div>
+                <div className="bg-[#0B111E] rounded-lg p-3"><p className="text-xs text-slate-400">{t('samples')}</p><p className="text-lg font-black tracking-tight text-white">{filteredQC.length}</p></div>
+                <div className="bg-[#0B111E] rounded-lg p-3"><p className="text-xs text-slate-400">{t('day7Avg')}</p><p className="text-lg font-bold text-sky-400">{(total7d / count).toFixed(1)} MPa</p></div>
+                <div className="bg-[#0B111E] rounded-lg p-3"><p className="text-xs text-slate-400">{t('day28Pass')}</p><p className="text-lg font-bold text-emerald-400">{((passed28d / count) * 100).toFixed(0)}%</p></div>
+                <div className="bg-[#0B111E] rounded-lg p-3"><p className="text-xs text-slate-400">{t('slumpAvg')}</p><p className="text-lg font-bold text-yellow-400">{(totalSlump / count).toFixed(1)} cm</p></div>
               </div>
-              <div className="grid grid-cols-2 gap-3 mb-4"><DatePicker value={fromDate} onChange={setFromDate} label="From" /><DatePicker value={toDate} onChange={setToDate} label="To" /></div>
+              <div className="grid grid-cols-2 gap-3 mb-4"><DatePicker value={fromDate} onChange={setFromDate} label={t('from')} /><DatePicker value={toDate} onChange={setToDate} label={t('to')} /></div>
               <div className="overflow-x-auto">
                 <table className="w-full text-xs text-slate-300">
-                  <thead className="bg-white/[0.04] text-slate-400 text-[10px]"><tr><th className="p-2">Date</th><th className="p-2">Bon No</th><th className="p-2">Customer</th><th className="p-2">Truck</th><th className="p-2">Design</th><th className="p-2">Slump</th><th className="p-2">7-Day</th><th className="p-2">28-Day</th><th className="p-2">Pass</th><th className="p-2">Report</th></tr></thead>
+                  <thead className="bg-white/[0.04] text-slate-400 text-[10px]"><tr><th className="p-2">{t('date')}</th><th className="p-2">{t('bonNo')}</th><th className="p-2">{t('customer')}</th><th className="p-2">{t('truck')}</th><th className="p-2">{t('design')}</th><th className="p-2">{t('slump')}</th><th className="p-2">{t('day7Short')}</th><th className="p-2">{t('day28Short')}</th><th className="p-2">{t('pass')}</th><th className="p-2">{t('report')}</th></tr></thead>
                   <tbody>
                     {filteredQC.map(r => {
                       const target = parseInt(r.design.replace('C', ''));
@@ -586,11 +588,11 @@ export default function MixingQuality() {
                       return (
                         <tr key={r.id} className="border-b border-white/10">
                           <td className="p-2">{r.date}</td>
-                          <td className="p-2 font-bold text-cyan-400">{r.sampleId || r.bonNo || '—'}{r.orderId && <div className="text-[9px] text-slate-500 font-normal">طلب: {r.orderId}</div>}</td>
+                          <td className="p-2 font-bold text-cyan-400">{r.sampleId || r.bonNo || '—'}{r.orderId && <div className="text-[9px] text-slate-500 font-normal">{t('order')}: {r.orderId}</div>}</td>
                           <td className="p-2">{r.customer || '—'}</td><td className="p-2 font-bold">{r.truck}</td><td className="p-2 text-sky-400">{r.design}</td>
                           <td className="p-2">{r.slump}</td><td className="p-2">{r.break7d}</td><td className="p-2">{r.break28d}</td>
                           <td className="p-2"><span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${pass ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'}`}>{pass ? '✓' : '✗'}</span></td>
-                          <td className="p-2"><button onClick={() => printQCRecord(r)} className="bg-sky-600 hover:bg-sky-700 text-white text-[10px] px-2 py-0.5 rounded">🖨️ Report</button></td>
+                          <td className="p-2"><button onClick={() => printQCRecord(r)} className="bg-sky-600 hover:bg-sky-700 text-white text-[10px] px-2 py-0.5 rounded">🖨️ {t('report')}</button></td>
                         </tr>
                       );
                     })}
