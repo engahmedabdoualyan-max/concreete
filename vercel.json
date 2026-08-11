@@ -4,7 +4,6 @@
   "installCommand": "npm install --workspaces --if-present --ignore-scripts",
   "framework": "nextjs",
   "outputDirectory": ".next",
-  "ignoreCommand": "git diff --quiet HEAD^ HEAD -- 'website-app/apps/mobile/**' 'website-app/**' || echo 'mobile-or-site-changed'",
   "rewrites": [
     {
       "source": "/api/:path*",
