@@ -7,6 +7,7 @@ import QuickJump from '../components/QuickJump';
 import LangSelector from '../components/LangSelector';
 import BrandLogo from '../components/BrandLogo';
 import QuotaBanner from '../components/QuotaBanner';
+import { API_BASE } from '../api/client';
 
 interface Trip {
   id: number; plant: string; date: string; code: string; driver: string;
@@ -539,10 +540,43 @@ export default function Dashboard() {
               );
             })}
           </div>
+</div>
+    </div>
+
+    {/* ===== DOWNLOAD APP ===== */}
+    <div className="max-w-[1200px] mx-auto px-6 pb-8">
+      <div className="rounded-2xl border border-sky-400/30 bg-gradient-to-r from-sky-500/10 via-cyan-500/5 to-sky-500/10 backdrop-blur-xl p-6 md:p-8 flex flex-col md:flex-row items-center justify-between gap-6 relative overflow-hidden">
+        <div className="absolute inset-0 pointer-events-none" style={{ background: "radial-gradient(ellipse 60% 100% at 50% 0%, rgba(56,189,248,0.12), transparent)" }} />
+        <div className="flex-1 min-w-[280px] relative z-10">
+          <p className="text-[10px] tracking-[0.3em] text-sky-400 uppercase mb-2">📱 تطبيق الموبايل</p>
+          <h3 className="text-2xl md:text-3xl font-black text-white mb-2">Fimto Concrete ERP</h3>
+          <p className="text-slate-300 text-base md:text-lg max-w-xl">
+            تطبيق السائق (7 بوابات + GPS مباشر) وتطبيق مندوب المبيعات — قاعدة بيانات موحدة مع الموقع
+          </p>
+        </div>
+        <div className="flex flex-col sm:flex-row gap-3 relative z-10">
+          {/* Android */}
+          <a
+            href={`${API_BASE}/downloads/fimto-android.apk`}
+            download
+            className="flex items-center gap-2 bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-400 hover:to-green-500 text-white font-bold px-6 py-3.5 rounded-xl shadow-[0_0_24px_rgba(16,185,129,0.35)] transition-all min-w-[160px] justify-center"
+          >
+            <span className="text-xl">🤖</span> تحميل APK
+          </a>
+          {/* iOS */}
+          <a
+            href="https://apps.apple.com/app/fimto-concrete-erp"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-2 bg-gradient-to-r from-sky-500 to-cyan-500 hover:from-sky-400 hover:to-cyan-400 text-white font-bold px-6 py-3.5 rounded-xl shadow-[0_0_24px_rgba(56,189,248,0.35)] transition-all min-w-[160px] justify-center"
+          >
+            <span className="text-xl">🍎</span> App Store
+          </a>
         </div>
       </div>
+    </div>
 
-      {/* ===== FOOTER ===== */}
+    {/* ===== FOOTER ===== */}
       <div className="max-w-[1200px] mx-auto px-6 text-center text-xs text-slate-500 border-t border-white/10 pt-6 pb-10 space-y-2">
         <p className="text-sky-400 font-bold text-sm">🏗️ Technical Management Program — Enterprise ERP | Version 1.6</p>
         <p className="text-slate-300 font-semibold text-sm">Designed & Developed by Dr. Ahmed Abdou Alyan</p>
