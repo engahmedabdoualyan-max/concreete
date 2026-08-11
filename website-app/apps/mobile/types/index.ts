@@ -422,6 +422,16 @@ export const WEB_ACCOUNT_DELETION_URL =
 /** WhatsApp Business share deep-link base (used by report/ticket sharing). */
 export const WHATSAPP_SHARE_BASE = "https://wa.me/?text=";
 
+/**
+ * Public download links for the native apps (shared from the marketing site).
+ * Configure via env at release; defaults point at the hosted downloads folder.
+ */
+export const APK_DOWNLOAD_URL =
+  process.env.EXPO_PUBLIC_APK_URL ?? "https://concrete.fimtosoft.com/downloads/fimto-android.apk";
+
+export const IOS_DOWNLOAD_URL =
+  process.env.EXPO_PUBLIC_IOS_URL ?? "https://apps.apple.com/app/fimto-concrete-erp";
+
 /** WebSocket resilience tuning (Module 5). */
 export const SOCKET_RECONNECT = {
   reconnection: true,

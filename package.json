@@ -23,8 +23,7 @@
     "typecheck:site": "npm run typecheck --workspace website-app",
     "typecheck:mobile": "npm run typecheck --workspace website-app/apps/mobile",
     "typecheck:all": "npm run typecheck && npm run typecheck:site && npm run typecheck:mobile",
-    "lint": "eslint .",
-    "lint:all": "npm run lint && npm run lint:site"
+    "lint": "eslint ."
   },
   "dependencies": {
     "@types/bcryptjs": "^2.4.6",

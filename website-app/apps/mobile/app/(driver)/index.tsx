@@ -5,7 +5,7 @@
  * - Resilient socket + background GPS tracking
  */
 
-import { View, Text, ScrollView, RefreshControl } from "react-native";
+import { View, Text, ScrollView, RefreshControl, Linking, Alert } from "react-native";
 import { useState, useEffect, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { TripCard } from "@/components/driver/TripCard";
@@ -19,7 +19,7 @@ import { offlineSync } from "@/lib/offline-sync";
 import { useAuthStore } from "@/store/auth-store";
 import { useT } from "@/lib/i18n";
 import type { Trip, TripCheckpoint } from "@/types";
-import { CHECKPOINT_SEQUENCE } from "@/types";
+import { CHECKPOINT_SEQUENCE, APK_DOWNLOAD_URL, IOS_DOWNLOAD_URL } from "@/types";
 
 export default function DriverHomeScreen() {
   const queryClient = useQueryClient();
@@ -245,6 +245,30 @@ export default function DriverHomeScreen() {
           <Text className="text-emerald-700 text-center">{t("driver.completedHint")}</Text>
         </Card>
       )}
+
+      {/* Native app download buttons */}
+      <View className="flex-row items-center justify-center gap-3 mt-4 mb-2">
+        <Button
+          title={t("download.android")}
+          onPress={() => {
+            Linking.openURL(APK_DOWNLOAD_URL).catch(() =>
+              Alert.alert(t("download.failed"), t("download.androidError"))
+            );
+          }}
+          variant="secondary"
+          size="medium"
+        />
+        <Button
+          title={t("download.ios")}
+          onPress={() => {
+            Linking.openURL(IOS_DOWNLOAD_URL).catch(() =>
+              Alert.alert(t("download.failed"), t("download.iosError"))
+            );
+          }}
+          variant="secondary"
+          size="medium"
+        />
+      </View>
     </ScrollView>
   );
 }

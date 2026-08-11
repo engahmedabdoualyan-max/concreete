@@ -189,6 +189,13 @@ const en = {
   "offline.banner": "Offline — events are being saved on your device",
   "offline.syncing": "Back online — syncing saved events…",
   "offline.synced": "All saved events synced",
+
+  // ── Download buttons (native app installs) ───────────────────────────────
+  "download.android": "Download Android APK",
+  "download.ios": "Download iOS App",
+  "download.failed": "Download failed",
+  "download.androidError": "Unable to open the Android download link. Try again later.",
+  "download.iosError": "Unable to open the App Store link. Try again later.",
 } as const;
 
 // ─── Arabic (ar) ──────────────────────────────────────────────────────────────
@@ -289,6 +296,13 @@ const ar: Record<TranslationKey, string> = {
   "offline.banner": "غير متصل — يتم حفظ الأحداث على جهازك",
   "offline.syncing": "عاد الاتصال — جارٍ مزامنة الأحداث المحفوظة…",
   "offline.synced": "تمت مزامنة جميع الأحداث المحفوظة",
+
+  // ── Download buttons ──────────────────────────────────────────────────────
+  "download.android": "تنزيل APK أندرويد",
+  "download.ios": "تنزيل تطبيق iOS",
+  "download.failed": "فشل التحميل",
+  "download.androidError": "تعذّر فتح رابط تنزيل أندرويد. حاول مرة أخرى لاحقاً.",
+  "download.iosError": "تعذّر فتح رابط متجر التطبيقات. حاول مرة أخرى لاحقاً.",
 };
 
 // ─── Urdu (ur) ────────────────────────────────────────────────────────────────
@@ -389,6 +403,13 @@ const ur: Record<TranslationKey, string> = {
   "offline.banner": "آف لائن — واقعات آپ کے آلے پر محفوظ ہو رہے ہیں",
   "offline.syncing": "دوبارہ آن لائن — محفوظ واقعات کی مطابقت پذیری جاری ہے…",
   "offline.synced": "تمام محفوظ واقعات ہم آہنگ ہو گئے",
+
+  // ── Download buttons ──────────────────────────────────────────────────────
+  "download.android": "انڈروڈ ایپ ک ٹیلنا",
+  "download.ios": "iOS ایپ ڈاؤن لوڈ کریں",
+  "download.failed": "ڈاؤن لوڈ فیل ہو گیا",
+  "download.androidError": "انڈروڈ ڈاؤن لوڈ لینک کھل نہیں سکا۔ براہ کرم دوبارہ کوشش کریں۔",
+  "download.iosError": "ایپ اسٹور لینک کھل نہیں سکا۔ براہ کرم دوبارہ کوشش کریں۔",
 };
 
 // ─── Hindi (hi) ───────────────────────────────────────────────────────────────
