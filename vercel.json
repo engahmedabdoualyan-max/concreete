@@ -1,19 +1,7 @@
 {
-  "buildCommand": "npm run build",
-  "devCommand": "npm run dev",
-  "installCommand": "npm install --workspaces --if-present --ignore-scripts",
-  "framework": "nextjs",
-  "outputDirectory": ".next",
-  "rewrites": [
-    {
-      "source": "/api/:path*",
-      "destination": "/api/:path*"
-    }
-  ],
-  "env": {
-    "DATABASE_URL": "@database-url",
-    "JWT_SECRET": "@jwt-secret",
-    "JWT_EXPIRES_IN": "15m",
-    "REFRESH_TOKEN_EXPIRES_IN": "30d"
-  }
+  "buildCommand": "npx vite build",
+  "devCommand": "npx vite dev",
+  "installCommand": "npm install",
+  "framework": "vite",
+  "outputDirectory": "dist"
 }

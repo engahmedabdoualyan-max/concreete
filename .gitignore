@@ -33,3 +33,8 @@ public/downloads/*.ipa
 # Logs
 *.log
 npm-debug.log*
+.vercel
+.env*
+
+# local build output (root copy)
+dist/

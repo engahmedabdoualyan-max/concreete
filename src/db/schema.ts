@@ -37,6 +37,7 @@ import {
   index,
   primaryKey,
   decimal,
+  date,
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 
@@ -305,6 +306,16 @@ export const creditHoldStatusEnum = pgEnum("credit_hold_status", [
   "EXPIRED",                // Order cancelled after hold timeout
 ]);
 
+/**
+ * client_risk — automatic credit-risk assessment level.
+ * Computed by the risk engine from payment/delivery behaviour.
+ */
+export const clientRiskEnum = pgEnum("client_risk", [
+  "LOW",
+  "MEDIUM",
+  "HIGH",
+]);
+
 /** Fuel log record types */
 export const fuelLogTypeEnum = pgEnum("fuel_log_type", [
   "REFUEL",             // Normal refueling at plant or station
@@ -440,6 +451,15 @@ export const clients = pgTable(
     outstandingBalanceSar: integer("outstanding_balance_sar").notNull().default(0),
     /** Hard block: if true, no new orders are allowed regardless of credit */
     isBlacklisted: boolean("is_blacklisted").notNull().default(false),
+    /**
+     * Automatic credit-risk assessment (LOW/MEDIUM/HIGH) computed by the risk
+     * engine from outstanding balance, delivered-but-unpaid volume and
+     * historical credit-risk events. Recalculated on demand by finance.
+     */
+    riskScore: clientRiskEnum("risk_score").notNull().default("LOW"),
+    /** Human-readable breakdown of the risk factors that produced riskScore */
+    riskNotes: text("risk_notes"),
+    riskLastUpdatedAt: timestamp("risk_last_updated_at"),
     /** Manual paper clearance flag (set by finance, does NOT bypass e-approval) */
     paperClearanceGranted: boolean("paper_clearance_granted").notNull().default(false),
     notes: text("notes"),
@@ -841,6 +861,509 @@ export const financeActions = pgTable(
     index("idx_finance_actions_order").on(t.orderId),
     index("idx_finance_actions_by").on(t.performedById),
     index("idx_finance_actions_tenant").on(t.tenantId),
+  ]
+);
+
+/**
+ * bank_accounts — Company bank accounts (unified ledger). Balances stored in
+ * SAR cents (integer) to avoid float drift.
+ */
+export const bankAccounts = pgTable(
+  "bank_accounts",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    accountName: varchar("account_name", { length: 120 }).notNull(),
+    accountNumber: varchar("account_number", { length: 50 }).notNull(),
+    bankName: varchar("bank_name", { length: 100 }).notNull(),
+    branch: varchar("branch", { length: 100 }),
+    initialBalanceSar: integer("initial_balance_sar").notNull().default(0),
+    /** Running balance — maintained by the ledger service */
+    currentBalanceSar: integer("current_balance_sar").notNull().default(0),
+    isActive: boolean("is_active").notNull().default(true),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("idx_bank_accounts_tenant").on(t.tenantId),
+  ]
+);
+
+/** Ledger entry types — mirrors the RMC reference accounting model */
+export const ledgerEntryTypeEnum = pgEnum("ledger_entry_type", [
+  "income",
+  "expense",
+  "transfer",
+  "purchase",
+  "sale",
+  "adjustment",
+  "operational",
+]);
+
+/** Bank transaction types */
+export const bankTransactionTypeEnum = pgEnum("bank_transaction_type", [
+  "deposit",
+  "withdrawal",
+  "transfer",
+]);
+
+/**
+ * ledger_entries — Unified general ledger. Every financial movement (income,
+ * expense, transfer, purchase, sale, adjustment, operational) lands here.
+ */
+export const ledgerEntries = pgTable(
+  "ledger_entries",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    date: timestamp("date").notNull().defaultNow(),
+    description: varchar("description", { length: 255 }).notNull(),
+    /** Amount in SAR cents */
+    amountSar: integer("amount_sar").notNull(),
+    transactionType: ledgerEntryTypeEnum("transaction_type").notNull(),
+    referenceNumber: varchar("reference_number", { length: 50 }),
+    /** Linked bank account the entry posts against (nullable for non-bank entries) */
+    bankAccountId: uuid("bank_account_id").references(() => bankAccounts.id, {
+      onDelete: "set null",
+    }),
+    /** Counterparty classification (client / supplier / internal / other) */
+    counterpartyType: varchar("counterparty_type", { length: 20 }),
+    /** Counterparty id — client (clients.id) or future supplier, no hard FK */
+    counterpartyId: uuid("counterparty_id"),
+    counterpartyName: varchar("counterparty_name", { length: 200 }),
+    createdById: uuid("created_by_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("idx_ledger_entries_tenant").on(t.tenantId),
+    index("idx_ledger_entries_date").on(t.date),
+    index("idx_ledger_entries_type").on(t.transactionType),
+    index("idx_ledger_entries_account").on(t.bankAccountId),
+    index("idx_ledger_entries_counterparty").on(t.counterpartyId),
+  ]
+);
+
+/**
+ * bank_transactions — Deposits / withdrawals / transfers against a bank
+ * account. Balances are updated by the ledger service in the same write.
+ */
+export const bankTransactions = pgTable(
+  "bank_transactions",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    bankAccountId: uuid("bank_account_id")
+      .notNull()
+      .references(() => bankAccounts.id, { onDelete: "cascade" }),
+    /** Destination account for transfers */
+    destinationAccountId: uuid("destination_account_id").references(
+      () => bankAccounts.id,
+      { onDelete: "set null" }
+    ),
+    transactionType: bankTransactionTypeEnum("transaction_type").notNull(),
+    /** Amount in SAR cents */
+    amountSar: integer("amount_sar").notNull(),
+    date: timestamp("date").notNull().defaultNow(),
+    description: varchar("description", { length: 255 }).notNull(),
+    referenceNumber: varchar("reference_number", { length: 50 }),
+    /** Optional back-reference to the source ledger entry */
+    ledgerEntryId: uuid("ledger_entry_id").references(() => ledgerEntries.id, {
+      onDelete: "set null",
+    }),
+    createdById: uuid("created_by_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("idx_bank_transactions_tenant").on(t.tenantId),
+    index("idx_bank_transactions_account").on(t.bankAccountId),
+    index("idx_bank_transactions_date").on(t.date),
+    index("idx_bank_transactions_ledger").on(t.ledgerEntryId),
+  ]
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SECTION 7B — OPERATIONAL COMMITMENTS
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const commitmentTypeEnum = pgEnum("commitment_type", [
+  "emi",
+  "lease",
+  "insurance",
+  "maintenance",
+  "utilities",
+  "rent",
+  "other",
+]);
+
+export const commitmentFrequencyEnum = pgEnum("commitment_frequency", [
+  "monthly",
+  "quarterly",
+  "half_yearly",
+  "yearly",
+  "one_time",
+]);
+
+export const commitmentStatusEnum = pgEnum("commitment_status", [
+  "active",
+  "completed",
+  "terminated",
+]);
+
+export const commitmentPaymentModeEnum = pgEnum("commitment_payment_mode", [
+  "CASH",
+  "CHEQUE",
+  "BANK",
+  "UPI",
+  "AUTO_DEBIT",
+  "OTHER",
+]);
+
+/**
+ * commitments — Recurring operational obligations (EMIs, leases, insurance,
+ * utilities, rent...) with auto-rolling payment schedules.
+ */
+export const commitments = pgTable(
+  "commitments",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    title: varchar("title", { length: 200 }).notNull(),
+    commitmentType: commitmentTypeEnum("commitment_type").notNull().default("other"),
+    description: text("description"),
+    /** Amount in SAR cents */
+    amountSar: integer("amount_sar").notNull(),
+    /** Contract / policy number */
+    referenceNumber: varchar("reference_number", { length: 100 }),
+    startDate: date("start_date").notNull(),
+    /** Leave blank for indefinite commitments */
+    endDate: date("end_date"),
+    paymentFrequency: commitmentFrequencyEnum("payment_frequency").notNull().default("monthly"),
+    /** Day of the month when payment is due */
+    paymentDay: integer("payment_day").notNull().default(1),
+    nextPaymentDate: date("next_payment_date").notNull(),
+    currentPaymentIsPaid: boolean("current_payment_is_paid").notNull().default(false),
+    status: commitmentStatusEnum("status").notNull().default("active"),
+    isActive: boolean("is_active").notNull().default(true),
+    /** Institution/company to pay */
+    payeeName: varchar("payee_name", { length: 200 }).notNull(),
+    contactPerson: varchar("contact_person", { length: 100 }),
+    contactPhone: varchar("contact_phone", { length: 15 }),
+    contactEmail: varchar("contact_email", { length: 200 }),
+    contractDocumentUrl: text("contract_document_url"),
+    notes: text("notes"),
+    createdById: uuid("created_by_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("idx_commitments_tenant").on(t.tenantId),
+    index("idx_commitments_next_payment").on(t.nextPaymentDate),
+    index("idx_commitments_status").on(t.status),
+  ]
+);
+
+/**
+ * commitmentPayments — Each payment made against a commitment.
+ * Auto-links a ledger entry (transaction_type = operational).
+ */
+export const commitmentPayments = pgTable(
+  "commitment_payments",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    commitmentId: uuid("commitment_id")
+      .notNull()
+      .references(() => commitments.id, { onDelete: "cascade" }),
+    /** Amount in SAR cents */
+    amountSar: integer("amount_sar").notNull(),
+    paymentDate: date("payment_date").notNull(),
+    paymentMode: commitmentPaymentModeEnum("payment_mode").notNull().default("BANK"),
+    referenceNumber: varchar("reference_number", { length: 100 }),
+    remarks: text("remarks"),
+    receiptNumber: varchar("receipt_number", { length: 100 }),
+    /** Optional link to the generated ledger entry */
+    ledgerEntryId: uuid("ledger_entry_id").references(() => ledgerEntries.id, {
+      onDelete: "set null",
+    }),
+    createdById: uuid("created_by_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("idx_commitment_payments_tenant").on(t.tenantId),
+    index("idx_commitment_payments_commitment").on(t.commitmentId),
+    index("idx_commitment_payments_date").on(t.paymentDate),
+  ]
+);
+
+export const expenseCategoryEnum = pgEnum("expense_category", [
+  "vehicle",
+  "fuel",
+  "office",
+  "materials",
+  "maintenance",
+  "utilities",
+  "rent",
+  "salary",
+  "other",
+]);
+
+export const expensePaymentMethodEnum = pgEnum("expense_payment_method", [
+  "cash",
+  "bank_transfer",
+  "credit_card",
+  "upi",
+  "cheque",
+]);
+
+/**
+ * expenses — Day-to-day operating expenses with optional vehicle /
+ * material / delivery linkage and an auto-linked ledger entry.
+ */
+export const expenses = pgTable(
+  "expenses",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    category: expenseCategoryEnum("category").notNull(),
+    /** Amount in SAR cents */
+    amountSar: integer("amount_sar").notNull(),
+    date: date("date").notNull(),
+    paymentMethod: expensePaymentMethodEnum("payment_method").notNull().default("cash"),
+    description: text("description"),
+    /** Optional related vehicle */
+    vehicleId: uuid("vehicle_id").references(() => fleetVehicles.id, { onDelete: "set null" }),
+    referenceNumber: varchar("reference_number", { length: 100 }),
+    billUrl: text("bill_url"),
+    /** Optional link to the generated ledger entry */
+    ledgerEntryId: uuid("ledger_entry_id").references(() => ledgerEntries.id, {
+      onDelete: "set null",
+    }),
+    createdById: uuid("created_by_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("idx_expenses_tenant").on(t.tenantId),
+    index("idx_expenses_date").on(t.date),
+    index("idx_expenses_category").on(t.category),
+    index("idx_expenses_vehicle").on(t.vehicleId),
+  ]
+);
+
+/**
+ * salaries — Monthly payroll records per employee.
+ * month = first day of the paid month. Auto-links a ledger entry.
+ */
+export const salaries = pgTable(
+  "salaries",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    employeeId: uuid("employee_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    /** Amount in SAR cents */
+    amountSar: integer("amount_sar").notNull(),
+    /** First day of the paid month */
+    month: date("month").notNull(),
+    paidOn: date("paid_on").notNull(),
+    notes: text("notes"),
+    /** Optional link to the generated ledger entry */
+    ledgerEntryId: uuid("ledger_entry_id").references(() => ledgerEntries.id, {
+      onDelete: "set null",
+    }),
+    createdById: uuid("created_by_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("idx_salaries_tenant").on(t.tenantId),
+    index("idx_salaries_employee").on(t.employeeId),
+    index("idx_salaries_month").on(t.month),
+  ]
+);
+
+export const supplierPaymentModeEnum = pgEnum("supplier_payment_mode", [
+  "CASH",
+  "CHEQUE",
+  "BANK",
+  "CREDIT",
+  "UPI",
+  "OTHER",
+]);
+
+export const purchaseOrderStatusEnum = pgEnum("purchase_order_status", [
+  "DRAFT",
+  "ORDERED",
+  "PARTIAL_RECEIVED",
+  "RECEIVED",
+  "CANCELLED",
+]);
+
+/**
+ * suppliers — Material / service vendors.
+ */
+export const suppliers = pgTable(
+  "suppliers",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    name: varchar("name", { length: 150 }).notNull(),
+    contactPerson: varchar("contact_person", { length: 100 }),
+    phone: varchar("phone", { length: 20 }).notNull(),
+    email: varchar("email", { length: 200 }),
+    /** VAT number (Saudi / GCC) */
+    vatNumber: varchar("vat_number", { length: 20 }),
+    address: text("address"),
+    notes: text("notes"),
+    isActive: boolean("is_active").notNull().default(true),
+    createdById: uuid("created_by_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("idx_suppliers_tenant").on(t.tenantId),
+    index("idx_suppliers_active").on(t.isActive),
+  ]
+);
+
+/**
+ * purchaseOrders — Purchase orders placed with suppliers.
+ * totals in SAR cents; inventoryUpdated marks stock posting.
+ */
+export const purchaseOrders = pgTable(
+  "purchase_orders",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    poNumber: varchar("po_number", { length: 30 }).notNull().unique(), // e.g. "PO-2026-00042"
+    supplierId: uuid("supplier_id")
+      .notNull()
+      .references(() => suppliers.id, { onDelete: "restrict" }),
+    purchaseDate: date("purchase_date").notNull(),
+    dueDate: date("due_date"),
+    /** Subtotals in SAR cents */
+    subtotalSar: integer("subtotal_sar").notNull().default(0),
+    vatPercent: integer("vat_percent").notNull().default(15),
+    vatAmountSar: integer("vat_amount_sar").notNull().default(0),
+    transportCostSar: integer("transport_cost_sar").notNull().default(0),
+    totalAmountSar: integer("total_amount_sar").notNull().default(0),
+    paidAmountSar: integer("paid_amount_sar").notNull().default(0),
+    status: purchaseOrderStatusEnum("status").notNull().default("DRAFT"),
+    notes: text("notes"),
+    inventoryUpdated: boolean("inventory_updated").notNull().default(false),
+    createdById: uuid("created_by_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("idx_po_tenant").on(t.tenantId),
+    index("idx_po_supplier").on(t.supplierId),
+    index("idx_po_status").on(t.status),
+    index("idx_po_date").on(t.purchaseDate),
+  ]
+);
+
+/**
+ * purchaseOrderItems — Line items on a purchase order.
+ * Quantities in kg, rate per kg (ratePerKgSar in SAR cents per kg → use integer
+ * micro-rupiah style: rate stored as cents/kg).
+ */
+export const purchaseOrderItems = pgTable(
+  "purchase_order_items",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    purchaseOrderId: uuid("purchase_order_id")
+      .notNull()
+      .references(() => purchaseOrders.id, { onDelete: "cascade" }),
+    /** Target silo receiving the material */
+    siloId: uuid("silo_id").references(() => inventorySilos.id, { onDelete: "set null" }),
+    materialCategory: materialCategoryEnum("material_category").notNull(),
+    materialName: varchar("material_name", { length: 100 }).notNull(),
+    quantityKg: decimal("quantity_kg", { precision: 12, scale: 3 }).notNull(),
+    /** SAR cents per kg */
+    ratePerKgSar: integer("rate_per_kg_sar").notNull(),
+    /** quantityKg * ratePerKgSar */
+    lineTotalSar: integer("line_total_sar").notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("idx_po_items_tenant").on(t.tenantId),
+    index("idx_po_items_po").on(t.purchaseOrderId),
+    index("idx_po_items_silo").on(t.siloId),
+  ]
+);
+
+/**
+ * supplierPayments — Payments made to suppliers against POs.
+ * Auto-links a ledger entry (transaction_type = purchase).
+ */
+export const supplierPayments = pgTable(
+  "supplier_payments",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    supplierId: uuid("supplier_id")
+      .notNull()
+      .references(() => suppliers.id, { onDelete: "restrict" }),
+    purchaseOrderId: uuid("purchase_order_id")
+      .notNull()
+      .references(() => purchaseOrders.id, { onDelete: "cascade" }),
+    amountSar: integer("amount_sar").notNull(),
+    paymentMode: supplierPaymentModeEnum("payment_mode").notNull().default("BANK"),
+    paymentDate: date("payment_date").notNull(),
+    dueDate: date("due_date"),
+    referenceNumber: varchar("reference_number", { length: 50 }),
+    remarks: text("remarks"),
+    ledgerEntryId: uuid("ledger_entry_id").references(() => ledgerEntries.id, {
+      onDelete: "set null",
+    }),
+    createdById: uuid("created_by_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("idx_supplier_payments_tenant").on(t.tenantId),
+    index("idx_supplier_payments_supplier").on(t.supplierId),
+    index("idx_supplier_payments_po").on(t.purchaseOrderId),
   ]
 );
 
@@ -2150,6 +2673,69 @@ export const aggregateRecyclingLogsRelations = relations(aggregateRecyclingLogs,
   }),
 }));
 
+export const commitmentsRelations = relations(commitments, ({ many, one }) => ({
+  payments: many(commitmentPayments),
+  createdBy: one(users, { fields: [commitments.createdById], references: [users.id] }),
+}));
+
+export const commitmentPaymentsRelations = relations(commitmentPayments, ({ one }) => ({
+  commitment: one(commitments, {
+    fields: [commitmentPayments.commitmentId],
+    references: [commitments.id],
+  }),
+  ledgerEntry: one(ledgerEntries, {
+    fields: [commitmentPayments.ledgerEntryId],
+    references: [ledgerEntries.id],
+  }),
+  createdBy: one(users, { fields: [commitmentPayments.createdById], references: [users.id] }),
+}));
+
+export const expensesRelations = relations(expenses, ({ one }) => ({
+  vehicle: one(fleetVehicles, { fields: [expenses.vehicleId], references: [fleetVehicles.id] }),
+  ledgerEntry: one(ledgerEntries, { fields: [expenses.ledgerEntryId], references: [ledgerEntries.id] }),
+  createdBy: one(users, { fields: [expenses.createdById], references: [users.id] }),
+}));
+
+export const salariesRelations = relations(salaries, ({ one }) => ({
+  employee: one(users, { fields: [salaries.employeeId], references: [users.id] }),
+  ledgerEntry: one(ledgerEntries, { fields: [salaries.ledgerEntryId], references: [ledgerEntries.id] }),
+  createdBy: one(users, { fields: [salaries.createdById], references: [users.id] }),
+}));
+
+export const suppliersRelations = relations(suppliers, ({ many, one }) => ({
+  purchaseOrders: many(purchaseOrders),
+  payments: many(supplierPayments),
+  createdBy: one(users, { fields: [suppliers.createdById], references: [users.id] }),
+}));
+
+export const purchaseOrdersRelations = relations(purchaseOrders, ({ many, one }) => ({
+  supplier: one(suppliers, { fields: [purchaseOrders.supplierId], references: [suppliers.id] }),
+  items: many(purchaseOrderItems),
+  payments: many(supplierPayments),
+  createdBy: one(users, { fields: [purchaseOrders.createdById], references: [users.id] }),
+}));
+
+export const purchaseOrderItemsRelations = relations(purchaseOrderItems, ({ one }) => ({
+  purchaseOrder: one(purchaseOrders, {
+    fields: [purchaseOrderItems.purchaseOrderId],
+    references: [purchaseOrders.id],
+  }),
+  silo: one(inventorySilos, { fields: [purchaseOrderItems.siloId], references: [inventorySilos.id] }),
+}));
+
+export const supplierPaymentsRelations = relations(supplierPayments, ({ one }) => ({
+  supplier: one(suppliers, { fields: [supplierPayments.supplierId], references: [suppliers.id] }),
+  purchaseOrder: one(purchaseOrders, {
+    fields: [supplierPayments.purchaseOrderId],
+    references: [purchaseOrders.id],
+  }),
+  ledgerEntry: one(ledgerEntries, {
+    fields: [supplierPayments.ledgerEntryId],
+    references: [ledgerEntries.id],
+  }),
+  createdBy: one(users, { fields: [supplierPayments.createdById], references: [users.id] }),
+}));
+
 // Driver locations are linked to trips via tripsRelations above
 
 // Export all table names for easy reference in API routes
@@ -2173,3 +2759,14 @@ export type CalibrationResult = (typeof calibrationResultEnum.enumValues)[number
 export type PlantStatus = (typeof plantStatusEnum.enumValues)[number];
 export type PurchaseRequestStatus = (typeof purchaseRequestStatusEnum.enumValues)[number];
 export type CreditHoldStatus = (typeof creditHoldStatusEnum.enumValues)[number];
+export type ClientRisk = (typeof clientRiskEnum.enumValues)[number];
+export type LedgerEntryType = (typeof ledgerEntryTypeEnum.enumValues)[number];
+export type BankTransactionType = (typeof bankTransactionTypeEnum.enumValues)[number];
+export type CommitmentType = (typeof commitmentTypeEnum.enumValues)[number];
+export type CommitmentFrequency = (typeof commitmentFrequencyEnum.enumValues)[number];
+export type CommitmentStatus = (typeof commitmentStatusEnum.enumValues)[number];
+export type CommitmentPaymentMode = (typeof commitmentPaymentModeEnum.enumValues)[number];
+export type ExpenseCategory = (typeof expenseCategoryEnum.enumValues)[number];
+export type ExpensePaymentMethod = (typeof expensePaymentMethodEnum.enumValues)[number];
+export type SupplierPaymentMode = (typeof supplierPaymentModeEnum.enumValues)[number];
+export type PurchaseOrderStatus = (typeof purchaseOrderStatusEnum.enumValues)[number];

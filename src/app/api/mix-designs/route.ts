@@ -26,6 +26,16 @@ export async function GET(req: NextRequest) {
       gradeDescription: mixDesigns.gradeDescription,
       targetStrengthMpa: mixDesigns.targetStrengthMpa,
       targetSlumpCm: mixDesigns.targetSlumpCm,
+      cementKgPerM3: mixDesigns.cementKgPerM3,
+      sandKgPerM3: mixDesigns.sandKgPerM3,
+      gravel10mmKgPerM3: mixDesigns.gravel10mmKgPerM3,
+      gravel20mmKgPerM3: mixDesigns.gravel20mmKgPerM3,
+      gravel40mmKgPerM3: mixDesigns.gravel40mmKgPerM3,
+      waterLitresPerM3: mixDesigns.waterLitresPerM3,
+      admixturePlasiticzerLPerM3: mixDesigns.admixturePlasiticzerLPerM3,
+      admixtureRetarderLPerM3: mixDesigns.admixtureRetarderLPerM3,
+      flyAshKgPerM3: mixDesigns.flyAshKgPerM3,
+      silicaFumeKgPerM3: mixDesigns.silicaFumeKgPerM3,
       isActive: mixDesigns.isActive,
     })
     .from(mixDesigns)

@@ -16,5 +16,20 @@ service cloud.firestore {
     match /userData/{userId} {
       allow read, write: if true;
     }
+
+    // Company app-tree (app login accounts per company)
+    match /companyTrees/{companyUsername} {
+      allow read, write: if true;
+    }
+
+    // Console admin site-level config (custom sections + uploaded images metadata)
+    match /siteConfig/{docId} {
+      allow read, write: if true;
+    }
+
+    // Uploaded console images (compressed base64, one doc per image)
+    match /media/{mediaId} {
+      allow read, write: if true;
+    }
   }
 }

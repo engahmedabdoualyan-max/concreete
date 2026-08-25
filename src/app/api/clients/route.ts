@@ -28,6 +28,12 @@ export async function GET(req: NextRequest) {
       phone: clients.phone,
       email: clients.email,
       isActive: clients.isActive,
+      creditLimitSar: clients.creditLimitSar,
+      outstandingBalanceSar: clients.outstandingBalanceSar,
+      isBlacklisted: clients.isBlacklisted,
+      riskScore: clients.riskScore,
+      riskNotes: clients.riskNotes,
+      riskLastUpdatedAt: clients.riskLastUpdatedAt,
     })
     .from(clients)
     .where(
