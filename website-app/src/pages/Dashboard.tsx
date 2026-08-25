@@ -8,7 +8,7 @@ import QuickJump from '../components/QuickJump';
 import LangSelector from '../components/LangSelector';
 import BrandLogo from '../components/BrandLogo';
 import QuotaBanner from '../components/QuotaBanner';
-import mainPhoto from '../assets/logos/mainphoto.png';
+import mainPhoto from '../assets/logos/mainphoto.jpg';
 
 interface Trip {
   id: number; plant: string; date: string; code: string; driver: string;

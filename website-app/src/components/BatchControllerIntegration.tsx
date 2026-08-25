@@ -162,6 +162,7 @@ export default function BatchControllerIntegration({ onClose }: BatchControllerI
           <div>
             <h2 className="text-lg font-black tracking-tight text-white">🏭 ربط متحكم المحطة</h2>
             <p className="text-xs text-slate-400">Batch Plant Controller Integration · OPC-UA / Modbus / REST / MQTT</p>
+            <span className="mt-1 inline-block bg-yellow-500/15 text-yellow-400 border border-yellow-500/30 text-[10px] font-bold px-2 py-0.5 rounded">⚠️ وضع تجريبي — يحتاج بوابة خادم حقيقية للتفعيل</span>
           </div>
           <button onClick={onClose} className="bg-white/[0.06] hover:bg-white/10 text-slate-300 w-9 h-9 rounded-lg font-bold">✕</button>
         </div>

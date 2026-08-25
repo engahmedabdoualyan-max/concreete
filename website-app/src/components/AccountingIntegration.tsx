@@ -350,6 +350,7 @@ export default function AccountingIntegration({ onClose }: AccountingIntegration
             <div>
               <h2 className="text-lg font-bold text-white">Accounting Integration</h2>
               <p className="text-xs text-slate-400">ربط برامج المحاسبة — QuickBooks &amp; Sage</p>
+              <span className="mt-1 inline-block bg-yellow-500/15 text-yellow-400 border border-yellow-500/30 text-[10px] font-bold px-2 py-0.5 rounded">⚠️ وضع تجريبي — التصدير CSV/QBO جاهز، المزامنة المباشرة تحتاج OAuth خادم</span>
             </div>
           </div>
         </div>

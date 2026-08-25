@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useLang } from '../context/LangContext';
-import { loadAssets, saveAssets, loadWorkshopConfig, saveWorkshopConfig } from '../firebase/firestore';
+import { loadAssets, saveAssets, loadWorkshopConfig, saveWorkshopConfig, loadFuelLogs, saveFuelLogs, loadOilLogs, saveOilLogs, loadSparePartLogs, saveSparePartLogs, loadBreakdowns, saveBreakdowns, loadWarehouse, saveWarehouse, loadPurchaseReqs, savePurchaseReqs, loadStations, saveStations, loadPeriodicMaints, savePeriodicMaints } from '../firebase/firestore';
 import { api } from '../api/client';
 import QuickJump from '../components/QuickJump';
 import LangSelector from '../components/LangSelector';
@@ -98,8 +98,34 @@ export default function Workshop() {
   const [pmForm, setPmForm] = useState({ stationId: 0, date: new Date().toISOString().split('T')[0], taskType: 'Greasing' as PeriodicMaint['taskType'], description: '', technician: '', nextDue: '', status: 'Scheduled' as PeriodicMaint['status'], cost: '', notes: '' });
   const [editingPmId, setEditingPmId] = useState<number|null>(null);
 
-  // Load Firebase
-  useEffect(() => { if (!currentUser) return; Promise.all([loadAssets(currentUser.username), loadWorkshopConfig(currentUser.username)]).then(([a,c]) => { if (a?.length) setAssets(a); if (c) setConfig(c); setLoaded(true); }).catch(() => setLoaded(true)); }, [currentUser?.username]);
+  // Load Firebase (assets + config + all workshop operational data)
+  useEffect(() => {
+    if (!currentUser) return;
+    Promise.all([
+      loadAssets(currentUser.username),
+      loadWorkshopConfig(currentUser.username),
+      loadFuelLogs(currentUser.username),
+      loadOilLogs(currentUser.username),
+      loadSparePartLogs(currentUser.username),
+      loadBreakdowns(currentUser.username),
+      loadWarehouse(currentUser.username),
+      loadPurchaseReqs(currentUser.username),
+      loadStations(currentUser.username),
+      loadPeriodicMaints(currentUser.username),
+    ]).then(([a, c, fuel, oil, parts, bd, wh, pr, st, pm]) => {
+      if (a?.length) setAssets(a);
+      if (c) setConfig(c);
+      if (Array.isArray(fuel) && fuel.length) setFuelLogs(fuel);
+      if (Array.isArray(oil) && oil.length) setOilLogs(oil);
+      if (Array.isArray(parts) && parts.length) setSparePartLogs(parts);
+      if (Array.isArray(bd) && bd.length) setBreakdowns(bd);
+      if (Array.isArray(wh) && wh.length) setWarehouse(wh);
+      if (Array.isArray(pr) && pr.length) setPurchaseReqs(pr);
+      if (Array.isArray(st) && st.length) setStations(st);
+      if (Array.isArray(pm) && pm.length) setPeriodicMaints(pm);
+      setLoaded(true);
+    }).catch(() => setLoaded(true));
+  }, [currentUser?.username]);
 
   // Load ERP workshop data → driver-submitted breakdown reports (work orders)
   useEffect(() => {
@@ -109,14 +135,14 @@ export default function Workshop() {
   }, []);
   useEffect(() => { if (!loaded||!currentUser) return; localStorage.setItem('fms_assets_'+currentUser.plantName,JSON.stringify(assets)); saveAssets(currentUser.username, assets).catch(()=>{}); }, [assets,loaded]);
   useEffect(() => { if (!loaded||!currentUser) return; localStorage.setItem('fms_cfg_'+currentUser.plantName,JSON.stringify(config)); saveWorkshopConfig(currentUser.username, config).catch(()=>{}); }, [config,loaded]);
-  useEffect(() => { localStorage.setItem('ws_fuel', JSON.stringify(fuelLogs)); }, [fuelLogs]);
-  useEffect(() => { localStorage.setItem('ws_oil', JSON.stringify(oilLogs)); }, [oilLogs]);
-  useEffect(() => { localStorage.setItem('ws_parts', JSON.stringify(sparePartLogs)); }, [sparePartLogs]);
-  useEffect(() => { localStorage.setItem('ws_breakdowns', JSON.stringify(breakdowns)); }, [breakdowns]);
-  useEffect(() => { localStorage.setItem('ws_warehouse', JSON.stringify(warehouse)); }, [warehouse]);
-  useEffect(() => { localStorage.setItem('ws_purchreq', JSON.stringify(purchaseReqs)); }, [purchaseReqs]);
-  useEffect(() => { localStorage.setItem('ws_stations', JSON.stringify(stations)); }, [stations]);
-  useEffect(() => { localStorage.setItem('ws_maints', JSON.stringify(periodicMaints)); }, [periodicMaints]);
+  useEffect(() => { if (!loaded) return; localStorage.setItem('ws_fuel', JSON.stringify(fuelLogs)); if (currentUser) saveFuelLogs(currentUser.username, fuelLogs).catch(()=>{}); }, [fuelLogs, loaded]);
+  useEffect(() => { if (!loaded) return; localStorage.setItem('ws_oil', JSON.stringify(oilLogs)); if (currentUser) saveOilLogs(currentUser.username, oilLogs).catch(()=>{}); }, [oilLogs, loaded]);
+  useEffect(() => { if (!loaded) return; localStorage.setItem('ws_parts', JSON.stringify(sparePartLogs)); if (currentUser) saveSparePartLogs(currentUser.username, sparePartLogs).catch(()=>{}); }, [sparePartLogs, loaded]);
+  useEffect(() => { if (!loaded) return; localStorage.setItem('ws_breakdowns', JSON.stringify(breakdowns)); if (currentUser) saveBreakdowns(currentUser.username, breakdowns).catch(()=>{}); }, [breakdowns, loaded]);
+  useEffect(() => { if (!loaded) return; localStorage.setItem('ws_warehouse', JSON.stringify(warehouse)); if (currentUser) saveWarehouse(currentUser.username, warehouse).catch(()=>{}); }, [warehouse, loaded]);
+  useEffect(() => { if (!loaded) return; localStorage.setItem('ws_purchreq', JSON.stringify(purchaseReqs)); if (currentUser) savePurchaseReqs(currentUser.username, purchaseReqs).catch(()=>{}); }, [purchaseReqs, loaded]);
+  useEffect(() => { if (!loaded) return; localStorage.setItem('ws_stations', JSON.stringify(stations)); if (currentUser) saveStations(currentUser.username, stations).catch(()=>{}); }, [stations, loaded]);
+  useEffect(() => { if (!loaded) return; localStorage.setItem('ws_maints', JSON.stringify(periodicMaints)); if (currentUser) savePeriodicMaints(currentUser.username, periodicMaints).catch(()=>{}); }, [periodicMaints, loaded]);
 
   // Sync breakdowns
   useEffect(() => { if (!loaded) return; const openIds = new Set(breakdowns.filter(b => b.status==='Open'||b.status==='In Repair').map(b => b.assetId)); let changed = false; const updated = assets.map(a => { if (openIds.has(a.id) && a.status!=='Workshop') { changed=true; return {...a, status:'Workshop'}; } if (!openIds.has(a.id) && a.status==='Workshop') { changed=true; return {...a, status:'Ready'}; } return a; }); if (changed) setAssets(updated); }, [breakdowns, loaded]);
