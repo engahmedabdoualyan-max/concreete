@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import QRCode from 'qrcode';
 
 interface ChallanProps {
@@ -6,6 +6,101 @@ interface ChallanProps {
   order: any;
   challan: any;
   onClose: () => void;
+  onSignatureSave?: (signature: string) => void;
+}
+
+/** Interactive signature pad for capturing customer signature */
+function SignaturePad({ onSave }: { onSave: (data: string) => void }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [isDrawing, setIsDrawing] = useState(false);
+  const [hasSignature, setHasSignature] = useState(false);
+  const strokesRef = useRef<Array<Array<[number, number]>>>([]);
+  const currentStrokeRef = useRef<Array<[number, number]>>([]);
+
+  const getPos = (e: React.TouchEvent | React.MouseEvent) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return [0, 0];
+    const rect = canvas.getBoundingClientRect();
+    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+    const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+    return [(clientX - rect.left) / rect.width, (clientY - rect.top) / rect.height];
+  };
+
+  const startDraw = (e: React.TouchEvent | React.MouseEvent) => {
+    e.preventDefault();
+    setIsDrawing(true);
+    currentStrokeRef.current = [getPos(e)];
+  };
+
+  const draw = (e: React.TouchEvent | React.MouseEvent) => {
+    if (!isDrawing) return;
+    e.preventDefault();
+    currentStrokeRef.current.push(getPos(e));
+    // Draw on canvas
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    const pts = currentStrokeRef.current;
+    if (pts.length < 2) return;
+    const [x1, y1] = pts[pts.length - 2];
+    const [x2, y2] = pts[pts.length - 1];
+    ctx.beginPath();
+    ctx.moveTo(x1 * canvas.width, y1 * canvas.height);
+    ctx.lineTo(x2 * canvas.width, y2 * canvas.height);
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = 3;
+    ctx.lineCap = 'round';
+    ctx.stroke();
+    setHasSignature(true);
+  };
+
+  const endDraw = () => {
+    if (!isDrawing) return;
+    setIsDrawing(false);
+    if (currentStrokeRef.current.length > 0) {
+      strokesRef.current.push(currentStrokeRef.current);
+      currentStrokeRef.current = [];
+    }
+  };
+
+  const clear = () => {
+    const canvas = canvasRef.current;
+    if (canvas) {
+      const ctx = canvas.getContext('2d');
+      ctx?.clearRect(0, 0, canvas.width, canvas.height);
+    }
+    strokesRef.current = [];
+    setHasSignature(false);
+  };
+
+  const save = () => {
+    if (strokesRef.current.length === 0) return;
+    onSave(JSON.stringify(strokesRef.current));
+  };
+
+  return (
+    <div>
+      <canvas
+        ref={canvasRef}
+        width={400}
+        height={150}
+        className="w-full border-2 border-dashed border-gray-300 rounded-lg bg-white cursor-crosshair touch-none"
+        onMouseDown={startDraw}
+        onMouseMove={draw}
+        onMouseUp={endDraw}
+        onMouseLeave={endDraw}
+        onTouchStart={startDraw}
+        onTouchMove={draw}
+        onTouchEnd={endDraw}
+      />
+      <p className="text-[10px] text-gray-500 mt-1 text-center">امسح بإصبعك هنا للتوقيع</p>
+      <div className="flex gap-2 mt-2">
+        <button onClick={clear} className="flex-1 bg-gray-200 hover:bg-gray-300 text-black text-xs font-bold py-2 rounded-lg">🗑️ مسح</button>
+        <button onClick={save} disabled={!hasSignature} className={`flex-1 text-white text-xs font-bold py-2 rounded-lg ${hasSignature ? 'bg-emerald-500 hover:bg-emerald-600' : 'bg-gray-400 cursor-not-allowed'}`}>💾 حفظ التوقيع</button>
+      </div>
+    </div>
+  );
 }
 
 /** Renders normalized signature strokes (JSON) as an SVG path. */
@@ -37,8 +132,10 @@ function SignatureSvg({ raw, size }: { raw?: string; size: number }) {
   );
 }
 
-export default function Challan({ trip, order, challan, onClose }: ChallanProps) {
+export default function Challan({ trip, order, challan, onClose, onSignatureSave }: ChallanProps) {
   const [qr, setQr] = useState('');
+  const [showSignaturePad, setShowSignaturePad] = useState(false);
+  const [savedSignature, setSavedSignature] = useState(challan?.customerSignature || '');
   const code = String(trip?.code ?? trip?.id ?? '');
   const qty = Number(trip?.qty ?? 0);
   const orderNo = order?.orderNo || order?.id || trip?.orderId || '—';
@@ -46,6 +143,12 @@ export default function Challan({ trip, order, challan, onClose }: ChallanProps)
   const siteName = order?.projectName || trip?.siteName || '—';
   const mixDesign = String(trip?.code ?? order?.concreteType ?? '—');
   const challanNo = challan?.number || `CH-${trip?.date?.replace?.(/-/g, '') || ''}-${trip?.id || ''}`;
+
+  const handleSignatureSave = (sig: string) => {
+    setSavedSignature(sig);
+    setShowSignaturePad(false);
+    if (onSignatureSave) onSignatureSave(sig);
+  };
 
   useEffect(() => {
     const payload =
@@ -106,20 +209,34 @@ export default function Challan({ trip, order, challan, onClose }: ChallanProps)
             )}
           </div>
 
-          <div className="grid grid-cols-2 gap-3 py-3 border-b border-gray-300">
-            <div>
-              <p className="text-[10px] text-gray-500 mb-1">توقيع المستلم</p>
-              <div className="border border-gray-300 rounded overflow-hidden" style={{ height: 90 }}>
-                <SignatureSvg raw={challan?.customerSignature} size={88} />
+          <div className="py-3 border-b border-gray-300">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <p className="text-[10px] text-gray-500 mb-1">توقيع المستلم</p>
+                <div className="border border-gray-300 rounded overflow-hidden" style={{ height: 90 }}>
+                  <SignatureSvg raw={savedSignature} size={88} />
+                </div>
+                <p className="text-xs mt-1 font-bold">المستلم: {challan?.receivedBy || '—'}</p>
+                <button
+                  onClick={() => setShowSignaturePad(!showSignaturePad)}
+                  className="mt-2 w-full bg-sky-500 hover:bg-sky-600 text-white text-[10px] font-bold py-1.5 rounded-lg"
+                >
+                  {showSignaturePad ? 'إغلاق لوحة التوقيع' : '✍️ توقيع المستلم على التابلت'}
+                </button>
               </div>
-              <p className="text-xs mt-1 font-bold">المستلم: {challan?.receivedBy || '—'}</p>
+              <div className="flex flex-col items-center justify-center">
+                {qr
+                  ? <img src={qr} alt="QR" className="w-28 h-28 border border-gray-300 rounded" />
+                  : <div className="w-28 h-28 bg-gray-200 rounded flex items-center justify-center text-[10px] text-gray-500">QR...</div>}
+                <p className="text-[9px] text-gray-500 mt-1">للاستعلام عن الشيكارة</p>
+              </div>
             </div>
-            <div className="flex flex-col items-center justify-center">
-              {qr
-                ? <img src={qr} alt="QR" className="w-28 h-28 border border-gray-300 rounded" />
-                : <div className="w-28 h-28 bg-gray-200 rounded flex items-center justify-center text-[10px] text-gray-500">QR...</div>}
-              <p className="text-[9px] text-gray-500 mt-1">للاستعلام عن الشيكارة</p>
-            </div>
+            {showSignaturePad && (
+              <div className="mt-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                <p className="text-xs font-bold text-gray-700 mb-2">✍️ توقيع المستلم</p>
+                <SignaturePad onSave={handleSignatureSave} />
+              </div>
+            )}
           </div>
 
           <div className="flex gap-2 mt-4">

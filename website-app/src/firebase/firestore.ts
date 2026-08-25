@@ -806,6 +806,22 @@ export async function loadRawStock(userId: string) {
   return await loadUserData(userId, 'rawStock');
 }
 
+// ====================== R&D (Research & Development) ======================
+export async function saveRnDData(userId: string, data: { projects: any[]; innovations: any[]; trainings: any[] }) {
+  await saveUserData(userId, 'rndData', data);
+}
+export async function loadRnDData(userId: string) {
+  return await loadUserData(userId, 'rndData');
+}
+
+// ====================== Additives (Production) ======================
+export async function saveAdditives(userId: string, additives: any[]) {
+  await saveUserData(userId, 'additives', additives);
+}
+export async function loadAdditives(userId: string) {
+  return await loadUserData(userId, 'additives');
+}
+
 // ====================== Orders (Orders page) ======================
 export async function saveOrders(userId: string, records: any[]) {
   await saveUserData(userId, 'orders', records);

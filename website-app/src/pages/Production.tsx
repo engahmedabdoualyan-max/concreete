@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { loadInventory, saveInventory, loadDeliveries, saveDeliveries, loadProductionRuns, saveProductionRuns, loadOrders, saveOrders, addNotification } from '../firebase/firestore';
+import { loadInventory, saveInventory, loadDeliveries, saveDeliveries, loadProductionRuns, saveProductionRuns, loadOrders, saveOrders, loadAdditives, saveAdditives, addNotification } from '../firebase/firestore';
 import DatePicker from '../components/DatePicker';
 import QuickJump from '../components/QuickJump';
 import LangSelector from '../components/LangSelector';
@@ -70,15 +70,10 @@ export default function Production() {
   const [inventory, setInventory] = useState<Record<string, number>>(DEF_INV);
   const [deliveries, setDeliveries] = useState<Delivery[]>(DEF_DELIV);
   const [prodRuns, setProdRuns] = useState<ProdRun[]>([]);
-  // بيانات إضافية سيتم استخدامها في الواجهة لاحقاً
-  const [additions] = useState<Addition[]>(() => {
-    const saved = localStorage.getItem('plantAdditions');
-    return saved ? JSON.parse(saved) : [
-      { id: 1, name: 'مضاف تأخير شك', type: 'delay_set', dosagePerM3: 2.5, currentStock: 500, minStock: 100, unit: 'كجم', supplier: 'شركة الكيمياويات', costPerUnit: 15 },
-      { id: 2, name: 'مضاف زيادة قوة', type: 'strength_enhance', dosagePerM3: 3.0, currentStock: 300, minStock: 80, unit: 'كجم', supplier: 'مصنع الإضافات', costPerUnit: 25 },
-      { id: 3, name: 'مضاف متكامل', type: 'integrated', dosagePerM3: 4.0, currentStock: 400, minStock: 100, unit: 'كجم', supplier: 'شركة البناء', costPerUnit: 20 },
-    ];
-  });
+  // بيانات الإضافات (قابلة للتعديل)
+  const [additions, setAdditions] = useState<Addition[]>([]);
+  const [additionForm, setAdditionForm] = useState({ name: '', type: 'delay_set' as Addition['type'], dosagePerM3: '', currentStock: '', minStock: '', unit: 'كجم', supplier: '', costPerUnit: '' });
+  const [editingAddition, setEditingAddition] = useState<number | null>(null);
   const [blocks, setBlocks] = useState<BlockType[]>(() => {
     const saved = localStorage.getItem('plantBlocks');
     return saved ? JSON.parse(saved) : [
@@ -132,8 +127,79 @@ export default function Production() {
   useEffect(() => { if (!loaded || !currentUser) return; localStorage.setItem('plantInventory', JSON.stringify(inventory)); saveInventory(currentUser.username, inventory).catch(() => {}); }, [inventory, loaded]);
   useEffect(() => { if (!loaded || !currentUser) return; localStorage.setItem('plantDeliveries', JSON.stringify(deliveries)); saveDeliveries(currentUser.username, deliveries).catch(() => {}); }, [deliveries, loaded]);
   useEffect(() => { if (!loaded || !currentUser) return; localStorage.setItem('plantProductionRuns', JSON.stringify(prodRuns)); saveProductionRuns(currentUser.username, prodRuns).catch(() => {}); }, [prodRuns, loaded]);
-  useEffect(() => { if (!loaded) return; localStorage.setItem('plantAdditions', JSON.stringify(additions)); }, [additions, loaded]);
+  useEffect(() => { if (!loaded || !currentUser) return; saveAdditives(currentUser.username, additions).catch(() => {}); }, [additions, loaded]);
   useEffect(() => { if (!loaded) return; localStorage.setItem('plantBlocks', JSON.stringify(blocks)); }, [blocks, loaded]);
+
+  // تحميل الإضافات من Firebase
+  useEffect(() => {
+    if (!currentUser) return;
+    loadAdditives(currentUser.username).then(data => {
+      if (Array.isArray(data) && data.length > 0) {
+        setAdditions(data);
+      } else {
+        // بيانات افتراضية
+        setAdditions([
+          { id: 1, name: 'مضاف تأخير شك', type: 'delay_set', dosagePerM3: 2.5, currentStock: 500, minStock: 100, unit: 'كجم', supplier: 'شركة الكيمياويات', costPerUnit: 15 },
+          { id: 2, name: 'مضاف زيادة قوة', type: 'strength_enhance', dosagePerM3: 3.0, currentStock: 300, minStock: 80, unit: 'كجم', supplier: 'مصنع الإضافات', costPerUnit: 25 },
+          { id: 3, name: 'مضاف متكامل', type: 'integrated', dosagePerM3: 4.0, currentStock: 400, minStock: 100, unit: 'كجم', supplier: 'شركة البناء', costPerUnit: 20 },
+        ]);
+      }
+    }).catch(() => {});
+  }, [currentUser?.username]);
+
+  // CRUD functions for additives
+  const addAddition = () => {
+    if (!additionForm.name) return;
+    const newAddition: Addition = {
+      id: Date.now(),
+      name: additionForm.name,
+      type: additionForm.type,
+      dosagePerM3: parseFloat(additionForm.dosagePerM3) || 0,
+      currentStock: parseFloat(additionForm.currentStock) || 0,
+      minStock: parseFloat(additionForm.minStock) || 0,
+      unit: additionForm.unit,
+      supplier: additionForm.supplier,
+      costPerUnit: parseFloat(additionForm.costPerUnit) || 0,
+    };
+    setAdditions([...additions, newAddition]);
+    setAdditionForm({ name: '', type: 'delay_set', dosagePerM3: '', currentStock: '', minStock: '', unit: 'كجم', supplier: '', costPerUnit: '' });
+  };
+
+  const updateAddition = (id: number) => {
+    setAdditions(additions.map(a => a.id === id ? {
+      ...a,
+      name: additionForm.name || a.name,
+      type: additionForm.type,
+      dosagePerM3: parseFloat(additionForm.dosagePerM3) || a.dosagePerM3,
+      currentStock: parseFloat(additionForm.currentStock) || a.currentStock,
+      minStock: parseFloat(additionForm.minStock) || a.minStock,
+      unit: additionForm.unit,
+      supplier: additionForm.supplier || a.supplier,
+      costPerUnit: parseFloat(additionForm.costPerUnit) || a.costPerUnit,
+    } : a));
+    setEditingAddition(null);
+    setAdditionForm({ name: '', type: 'delay_set', dosagePerM3: '', currentStock: '', minStock: '', unit: 'كجم', supplier: '', costPerUnit: '' });
+  };
+
+  const deleteAddition = (id: number) => {
+    if (confirm('هل تريد حذف هذا المضاف؟')) {
+      setAdditions(additions.filter(a => a.id !== id));
+    }
+  };
+
+  const startEditAddition = (a: Addition) => {
+    setEditingAddition(a.id);
+    setAdditionForm({
+      name: a.name,
+      type: a.type,
+      dosagePerM3: a.dosagePerM3.toString(),
+      currentStock: a.currentStock.toString(),
+      minStock: a.minStock.toString(),
+      unit: a.unit,
+      supplier: a.supplier,
+      costPerUnit: a.costPerUnit.toString(),
+    });
+  };
   const [delivForm, setDelivForm] = useState({ type: 'cement', qty: '', invoice: '' });
   const [batchForm, setBatchForm] = useState({ recipe: 'C30', volume: '', orderId: '' });
   const [orders, setOrders] = useState<any[]>([]);
@@ -397,6 +463,34 @@ export default function Production() {
               <div><label className="text-xs text-slate-400 font-semibold">Quantity (Blocks)</label><input type="number" min="1" value={blockProdForm.quantity} onChange={e => setBlockProdForm({ ...blockProdForm, quantity: e.target.value })} placeholder="1000" className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm" required /></div>
               <button type="submit" className="w-full bg-sky-500 hover:bg-sky-400 text-white font-bold py-3 rounded-lg">🧱 Produce Blocks</button>
             </form>
+
+            {/* 🧪 إدارة الإضافات الكيماوية */}
+            <h3 className="text-lg font-black tracking-tight text-white mt-8 mb-4 pb-2 border-b border-white/10">🧪 إدارة الإضافات الكيماوية</h3>
+            <div className="space-y-3">
+              <input value={additionForm.name} onChange={e => setAdditionForm({ ...additionForm, name: e.target.value })} placeholder="اسم المضاف" className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm" />
+              <select value={additionForm.type} onChange={e => setAdditionForm({ ...additionForm, type: e.target.value as Addition['type'] })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm">
+                <option value="delay_set">🧪 تأخير شك</option>
+                <option value="strength_enhance">💪 زيادة قوة</option>
+                <option value="integrated">🔬 متكامل</option>
+              </select>
+              <div className="grid grid-cols-2 gap-2">
+                <input type="number" step="0.1" value={additionForm.dosagePerM3} onChange={e => setAdditionForm({ ...additionForm, dosagePerM3: e.target.value })} placeholder="الجرعة/م³" className="bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm" />
+                <input type="number" step="0.1" value={additionForm.currentStock} onChange={e => setAdditionForm({ ...additionForm, currentStock: e.target.value })} placeholder="المخزون الحالي" className="bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm" />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <input type="number" step="0.1" value={additionForm.minStock} onChange={e => setAdditionForm({ ...additionForm, minStock: e.target.value })} placeholder="الحد الأدنى" className="bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm" />
+                <input type="number" step="0.1" value={additionForm.costPerUnit} onChange={e => setAdditionForm({ ...additionForm, costPerUnit: e.target.value })} placeholder="التكلفة/وحدة" className="bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm" />
+              </div>
+              <input value={additionForm.supplier} onChange={e => setAdditionForm({ ...additionForm, supplier: e.target.value })} placeholder="المورد" className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm" />
+              {editingAddition ? (
+                <div className="flex gap-2">
+                  <button onClick={() => updateAddition(editingAddition)} className="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-2 rounded-lg">💾 حفظ التعديل</button>
+                  <button onClick={() => { setEditingAddition(null); setAdditionForm({ name: '', type: 'delay_set', dosagePerM3: '', currentStock: '', minStock: '', unit: 'كجم', supplier: '', costPerUnit: '' }); }} className="flex-1 bg-slate-500 hover:bg-slate-600 text-white font-bold py-2 rounded-lg">❌ إلغاء</button>
+                </div>
+              ) : (
+                <button onClick={addAddition} className="w-full bg-purple-500 hover:bg-purple-600 text-white font-bold py-2 rounded-lg">➕ إضافة مضاف</button>
+              )}
+            </div>
           </div>
 
           {/* 📊 مقارنة المخزون بالطلبات */}
@@ -457,9 +551,30 @@ export default function Production() {
             </div>
 
             <h4 className="text-xs text-slate-400 uppercase mb-2">🧱 Recent Block Productions</h4>
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto mb-6">
               <table className="w-full text-left text-sm text-slate-300"><thead className="bg-white/[0.04] text-slate-400 text-xs uppercase"><tr><th className="p-3">Date</th><th className="p-3">Block Code</th><th className="p-3">Qty</th><th className="p-3">Cement</th><th className="p-3">Sand</th><th className="p-3">Status</th></tr></thead>
                 <tbody>{blockProductions.slice(-5).reverse().map((p, i) => <tr key={i} className="border-b border-white/10"><td className="p-3">{p.date}</td><td className="p-3 font-bold text-sky-400">{p.blockCode}</td><td className="p-3">{p.quantity}</td><td className="p-3">{p.totalCement.toFixed(2)} T</td><td className="p-3">{p.totalSand.toFixed(2)} T</td><td className="p-3"><span className="bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded text-xs font-bold">Produced</span></td></tr>)}</tbody></table>
+            </div>
+
+            <h4 className="text-xs text-slate-400 uppercase mb-2">🧪 الإضافات الكيماوية ({additions.length})</h4>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm text-slate-300"><thead className="bg-white/[0.04] text-slate-400 text-xs uppercase"><tr><th className="p-3">الاسم</th><th className="p-3">النوع</th><th className="p-3">الجرعة/م³</th><th className="p-3">المخزون</th><th className="p-3">الحد الأدنى</th><th className="p-3">المورد</th><th className="p-3">الإجراءات</th></tr></thead>
+                <tbody>{additions.map(a => (
+                  <tr key={a.id} className="border-b border-white/10">
+                    <td className="p-3 font-bold text-white">{a.name}</td>
+                    <td className="p-3"><span className={`px-2 py-0.5 rounded text-xs font-bold ${a.type === 'delay_set' ? 'bg-blue-500/20 text-blue-400' : a.type === 'strength_enhance' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-purple-500/20 text-purple-400'}`}>{a.type === 'delay_set' ? 'تأخير شك' : a.type === 'strength_enhance' ? 'زيادة قوة' : 'متكامل'}</span></td>
+                    <td className="p-3">{a.dosagePerM3} {a.unit}</td>
+                    <td className="p-3"><span className={a.currentStock < a.minStock ? 'text-red-400 font-bold' : 'text-emerald-400'}>{a.currentStock} {a.unit}</span></td>
+                    <td className="p-3">{a.minStock} {a.unit}</td>
+                    <td className="p-3">{a.supplier}</td>
+                    <td className="p-3">
+                      <div className="flex gap-1">
+                        <button onClick={() => startEditAddition(a)} className="bg-sky-500/20 text-sky-400 text-[10px] px-2 py-0.5 rounded hover:bg-sky-500/30">✏️</button>
+                        <button onClick={() => deleteAddition(a.id)} className="bg-red-500/20 text-red-400 text-[10px] px-2 py-0.5 rounded hover:bg-red-500/30">🗑️</button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}</tbody></table>
             </div>
           </div>
         </div>

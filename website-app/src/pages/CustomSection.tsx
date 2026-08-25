@@ -5,7 +5,7 @@ import { loadEffectiveConfig } from '../firebase/firestore';
 export default function CustomSection() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const [info, setInfo] = useState<{ en?: string; ar?: string; image?: string }>(() => {
+  const [info, setInfo] = useState<{ en?: string; ar?: string; image?: string; bgImage?: string; desc?: string }>(() => {
     try {
       const cfg = JSON.parse(localStorage.getItem('fimto_module_config') || '{}');
       return (cfg.custom || []).find((c: any) => c.id === id) || {};
@@ -22,29 +22,45 @@ export default function CustomSection() {
     return () => { mounted = false; };
   }, [id]);
 
+  const bgStyle = info.bgImage
+    ? { backgroundImage: `url(${info.bgImage})`, backgroundSize: 'cover', backgroundPosition: 'center' }
+    : { background: "radial-gradient(ellipse 80% 40% at 50% -10%, rgba(56,189,248,0.13), transparent), #080C14" };
+
   return (
-    <div
-      className="min-h-screen relative flex flex-col items-center justify-center p-6 text-center text-slate-200"
-      style={{ background: "radial-gradient(ellipse 80% 40% at 50% -10%, rgba(56,189,248,0.13), transparent), #080C14" }}
-    >
-      <div className="pointer-events-none absolute inset-0 blur-3xl" style={{ background: "radial-gradient(ellipse 40% 50% at 50% 40%, rgba(56,189,248,0.2), transparent 70%)" }} />
-      <div className="relative w-full max-w-md rounded-2xl border border-white/10 bg-[#0B111E]/60 backdrop-blur-xl p-8">
-        {info.image && (
-          <img src={info.image} alt="" className="w-24 h-24 rounded-2xl object-cover mx-auto mb-4 border border-white/10 shadow-[0_0_30px_rgba(56,189,248,0.25)]" />
-        )}
-        <h1 className="text-3xl font-black font-display text-white tracking-tight">
-          {info.en || 'Custom Section'}
-        </h1>
-        {info.ar && <p className="text-lg font-bold text-sky-400 mt-2">{info.ar}</p>}
-        <p className="text-sm text-slate-400 mt-5 leading-relaxed">
-          هذا القسم قيد الإنشاء — سيتم تفعيله قريباً 🚧
-        </p>
-        <button
-          onClick={() => navigate('/')}
-          className="mt-8 w-full bg-gradient-to-r from-sky-500 to-cyan-500 hover:from-sky-400 hover:to-cyan-400 text-white font-bold py-3 rounded-lg transition shadow-[0_0_20px_rgba(56,189,248,0.3)]"
-        >
-          ← العودة للوحة الرئيسية
-        </button>
+    <div className="min-h-screen relative text-slate-200" style={bgStyle}>
+      <div className="pointer-events-none absolute inset-0 bg-[#0B111E]/70" />
+      <div className="relative z-10 flex flex-col items-center justify-center min-h-screen p-6 text-center">
+        <div className="w-full max-w-2xl rounded-2xl border border-white/10 bg-[#0B111E]/80 backdrop-blur-xl p-8 shadow-2xl">
+          {info.image && (
+            <img src={info.image} alt="" className="w-32 h-32 rounded-2xl object-cover mx-auto mb-6 border border-white/10 shadow-[0_0_40px_rgba(56,189,248,0.3)]" />
+          )}
+          <h1 className="text-4xl font-black font-display text-white tracking-tight">
+            {info.en || 'Custom Section'}
+          </h1>
+          {info.ar && <p className="text-xl font-bold text-sky-400 mt-3">{info.ar}</p>}
+          {info.desc && <p className="text-sm text-slate-300 mt-4 leading-relaxed max-w-lg mx-auto">{info.desc}</p>}
+          
+          <div className="mt-8 p-6 bg-white/[0.04] border border-white/10 rounded-xl">
+            <div className="flex items-center justify-center gap-3 mb-4">
+              <div className="w-12 h-12 rounded-xl bg-sky-500/20 flex items-center justify-center text-2xl">📦</div>
+              <div className="text-left">
+                <p className="text-sm font-bold text-white">قسم مخصص</p>
+                <p className="text-xs text-slate-400">Custom Section · {id}</p>
+              </div>
+            </div>
+            <p className="text-xs text-slate-400 leading-relaxed">
+              هذا القسم مخصص ويمكن للمدير إضافته من خلال لوحة الإدارة.
+              <br />يمكن ربطه بأي محتوى أو تطبيق مخصص.
+            </p>
+          </div>
+
+          <button
+            onClick={() => navigate('/')}
+            className="mt-8 w-full bg-gradient-to-r from-sky-500 to-cyan-500 hover:from-sky-400 hover:to-cyan-400 text-white font-bold py-3 rounded-lg transition shadow-[0_0_20px_rgba(56,189,248,0.3)]"
+          >
+            ← العودة للوحة الرئيسية
+          </button>
+        </div>
       </div>
     </div>
   );

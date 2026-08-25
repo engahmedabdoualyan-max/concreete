@@ -10,7 +10,7 @@ import EInvoice from '../components/EInvoice';
 import CustomersManager, { type Customer } from '../components/CustomersManager';
 import NotificationsBell from '../components/NotificationsBell';
 import { addNotification } from '../firebase/firestore';
-import { sendOrderStatusEmail } from '../lib/notifications';
+import { sendOrderStatusEmail, sendWhatsAppNotification } from '../lib/notifications';
 
 interface Order {
   id: string;
@@ -320,6 +320,16 @@ export default function Orders() {
         concreteType: o.concreteType,
         status: status === 'approved' ? 'approved' : 'cancelled',
       }).catch(() => {});
+      // Send WhatsApp notification to customer
+      sendWhatsAppNotification({
+        customerName: o.customerName,
+        customerPhone: o.customerPhone,
+        orderNo: o.orderNo,
+        projectName: o.projectName,
+        quantity: o.quantity,
+        concreteType: o.concreteType,
+        status: status === 'approved' ? 'approved' : 'cancelled',
+      });
       const accountantName = currentUser?.fullName || currentUser?.plantName || currentUser?.username || 'المحاسب';
       return { ...o, accountStatus: status, accountant: status === 'approved' ? accountantName : o.accountant };
     }));
@@ -348,6 +358,16 @@ export default function Orders() {
         concreteType: o.concreteType,
         status: 'scheduled',
       }).catch(() => {});
+      // Send WhatsApp notification to customer
+      sendWhatsAppNotification({
+        customerName: o.customerName,
+        customerPhone: o.customerPhone,
+        orderNo: o.orderNo,
+        projectName: o.projectName,
+        quantity: o.quantity,
+        concreteType: o.concreteType,
+        status: 'scheduled',
+      });
       return { ...o, status: 'scheduled' };
     }));
   };
@@ -370,6 +390,16 @@ export default function Orders() {
         concreteType: o.concreteType,
         status: 'completed',
       }).catch(() => {});
+      // Send WhatsApp notification to customer
+      sendWhatsAppNotification({
+        customerName: o.customerName,
+        customerPhone: o.customerPhone,
+        orderNo: o.orderNo,
+        projectName: o.projectName,
+        quantity: o.quantity,
+        concreteType: o.concreteType,
+        status: 'completed',
+      });
       return { ...o, status: 'completed' };
     }));
   };

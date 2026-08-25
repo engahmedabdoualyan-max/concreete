@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { loadRnDData, saveRnDData } from '../firebase/firestore';
 import QuickJump from '../components/QuickJump';
 import LangSelector from '../components/LangSelector';
 import BrandLogo from '../components/BrandLogo';
@@ -41,18 +42,33 @@ interface Training {
 export default function ResearchDevelopment() {
   const { currentUser } = useAuth();
   const [tab, setTab] = useState<'research' | 'innovation' | 'training'>('research');
+  const [loaded, setLoaded] = useState(false);
+  const loadedRef = useRef(false);
 
-  // Data states
-  const [projects, setProjects] = useState<ResearchProject[]>([
-    { id: 1, title: 'خرسانة صديقة للبيئة', category: 'sustainability', status: 'in_progress', startDate: '2026-01-01', endDate: '2026-06-30', budget: 50000, team: 'د. أحمد، م. محمد', description: 'تطوير خرسانة باستخدام مواد معاد تدويرها', results: '' },
-    { id: 2, title: 'أتمتة محطة الخلط', category: 'automation', status: 'planning', startDate: '2026-03-01', endDate: '2026-12-31', budget: 100000, team: 'فريق IT', description: 'نظام تحكم آلي كامل للمحطة', results: '' },
-  ]);
-  const [innovations, setInnovations] = useState<Innovation[]>([
-    { id: 1, title: 'نظام تتبع ذكي للشاحنات', type: 'technology', impact: 'high', status: 'implemented', date: '2026-01-15', description: 'نظام GPS متقدم مع تحليل البيانات' },
-  ]);
-  const [trainings, setTrainings] = useState<Training[]>([
-    { id: 1, title: 'اختبارات الجودة المتقدمة', category: 'quality', target: 'فريق المعمل', duration: '3 أيام', date: '2026-02-15', status: 'completed' },
-  ]);
+  // Data states - starts empty, loaded from Firebase
+  const [projects, setProjects] = useState<ResearchProject[]>([]);
+  const [innovations, setInnovations] = useState<Innovation[]>([]);
+  const [trainings, setTrainings] = useState<Training[]>([]);
+
+  // Load from Firebase on mount
+  useEffect(() => {
+    if (!currentUser || loadedRef.current) return;
+    loadedRef.current = true;
+    loadRnDData(currentUser.username).then(d => {
+      if (d && typeof d === 'object') {
+        if (Array.isArray(d.projects)) setProjects(d.projects);
+        if (Array.isArray(d.innovations)) setInnovations(d.innovations);
+        if (Array.isArray(d.trainings)) setTrainings(d.trainings);
+      }
+      setLoaded(true);
+    }).catch(() => setLoaded(true));
+  }, [currentUser]);
+
+  // Save to Firebase on changes
+  useEffect(() => {
+    if (!loaded || !currentUser) return;
+    saveRnDData(currentUser.username, { projects, innovations, trainings }).catch(() => {});
+  }, [projects, innovations, trainings, loaded]);
 
   // Forms
   const [projectForm, setProjectForm] = useState({ title: '', category: 'concrete' as ResearchProject['category'], status: 'planning' as ResearchProject['status'], startDate: '', endDate: '', budget: '', team: '', description: '' });

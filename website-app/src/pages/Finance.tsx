@@ -151,11 +151,11 @@ export default function Finance() {
           <button onClick={() => setTab('reorder')} className={`py-2 px-4 rounded-lg font-bold text-sm ${tab === 'reorder' ? 'bg-amber-500 text-white' : 'text-slate-400 hover:text-sky-300'}`}>📦 Auto Reorder (POs)</button>
         </div>
 
-        {['SUPER_ADMIN', 'ACCOUNTANT', 'FINANCE'].includes(currentUser.role || '') && <ErpFinance />}
-        {['SUPER_ADMIN', 'ACCOUNTANT', 'FINANCE'].includes(currentUser.role || '') && <ErpLedger />}
-        {['SUPER_ADMIN', 'ACCOUNTANT', 'FINANCE'].includes(currentUser.role || '') && <ErpCommitments />}
-        {['SUPER_ADMIN', 'ACCOUNTANT', 'FINANCE'].includes(currentUser.role || '') && <ErpExpenses />}
-        {['SUPER_ADMIN', 'ACCOUNTANT', 'FINANCE'].includes(currentUser.role || '') && <ErpSuppliers />}
+        {['sysadmin', 'accountant', 'ptown'].includes(currentUser.role || '') && <ErpFinance />}
+        {['sysadmin', 'accountant', 'ptown'].includes(currentUser.role || '') && <ErpLedger />}
+        {['sysadmin', 'accountant', 'ptown'].includes(currentUser.role || '') && <ErpCommitments />}
+        {['sysadmin', 'accountant', 'ptown'].includes(currentUser.role || '') && <ErpExpenses />}
+        {['sysadmin', 'accountant', 'ptown'].includes(currentUser.role || '') && <ErpSuppliers />}
 
         {tab === 'payments' && (
           <div className="grid grid-cols-1 lg:grid-cols-[380px_1fr] gap-6">

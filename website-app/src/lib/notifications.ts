@@ -17,6 +17,38 @@ const STATUS_LABELS: Record<string, { ar: string; icon: string }> = {
 };
 
 /**
+ * Send WhatsApp notification to customer (opens WhatsApp with pre-filled message).
+ * Free - no API required, uses wa.me URL scheme.
+ */
+export function sendWhatsAppNotification(order: {
+  customerName: string;
+  customerPhone: string;
+  orderNo?: string;
+  projectName: string;
+  quantity: number;
+  concreteType: string;
+  status: string;
+}): void {
+  const st = STATUS_LABELS[order.status] || STATUS_LABELS.pending;
+  const phone = order.customerPhone.replace(/[^0-9]/g, '');
+  
+  const message = encodeURIComponent(
+    `مرحباً ${order.customerName} 👋\n\n` +
+    `تحديث حالة طلبك #${order.orderNo || '—'}:\n\n` +
+    `📦 المشروع: ${order.projectName}\n` +
+    `🏗️ الكمية: ${order.quantity} م³\n` +
+    `🧱 نوع الخرسانة: ${order.concreteType}\n` +
+    `📊 الحالة: ${st.icon} ${st.ar}\n\n` +
+    `للمتابعة: https://concrete.fimtosoft.com/#/portal\n\n` +
+    `مع خالص التحيات,\nفريق Fimto Soft`
+  );
+  
+  // Open WhatsApp with pre-filled message
+  const url = `https://wa.me/${phone}?text=${message}`;
+  window.open(url, '_blank');
+}
+
+/**
  * Send email notification to customer when order status changes.
  * In demo mode, this just logs to console. In production, configure EmailJS templates.
  */
