@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://concrete.fimtosoft.com/sitemap.xml

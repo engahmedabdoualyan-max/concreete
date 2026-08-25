@@ -22,7 +22,8 @@ import { api } from "./api";
 export type OfflineEventType =
   | "CHECKPOINT"
   | "LOCATION"
-  | "QR_SCAN";
+  | "QR_SCAN"
+  | "BREAKDOWN_REPORT";
 
 export interface OfflineEvent {
   /** Client-generated idempotency key */
@@ -133,6 +134,23 @@ class OfflineSyncEngine {
           return true;
         case "QR_SCAN":
           await api.verifyTicketQr(event.payload as Record<string, unknown>);
+          return true;
+        case "BREAKDOWN_REPORT":
+          await api.reportBreakdown(
+            event.payload as {
+              description: string;
+              severity?: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+              vehicleId?: string;
+              vehicleCode?: string;
+              tripId?: string;
+              latitude?: number | null;
+              longitude?: number | null;
+              vehicleType?: string;
+              photoBase64?: string | null;
+              audioBase64?: string | null;
+              capturedAt?: string;
+            }
+          );
           return true;
         default:
           return true; // unknown → drop to avoid poison-pill blocking the queue

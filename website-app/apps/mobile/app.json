@@ -2,7 +2,7 @@
   "expo": {
     "name": "Fimto Concrete ERP",
     "slug": "fimto-concrete-erp",
-    "version": "1.0.0",
+    "version": "1.2.0",
     "orientation": "portrait",
     "scheme": "fimto",
     "userInterfaceStyle": "light",
@@ -27,7 +27,7 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#000410"
+        "backgroundColor": "#FFFFFF"
       },
       "package": "com.fimtosoft.concrete",
       "permissions": [
@@ -69,6 +69,12 @@
         "expo-camera",
         {
           "cameraPermission": "Fimto uses the camera to scan encrypted delivery-ticket QR codes at project sites."
+        }
+      ],
+      [
+        "expo-av",
+        {
+          "microphonePermission": "Fimto uses the microphone to let drivers record a short voice note about a vehicle breakdown."
         }
       ],
       "expo-font"

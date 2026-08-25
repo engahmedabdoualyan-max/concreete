@@ -1,0 +1,1037 @@
+import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
+import { useLang } from '../context/LangContext';
+import { loadOrders, saveOrders } from '../firebase/firestore';
+import { loadTrips } from '../firebase/firestore';import QuickJump from '../components/QuickJump';
+import LangSelector from '../components/LangSelector';
+import BrandLogo from '../components/BrandLogo';
+import DatePicker from '../components/DatePicker';
+import EInvoice from '../components/EInvoice';
+import CustomersManager, { type Customer } from '../components/CustomersManager';
+import NotificationsBell from '../components/NotificationsBell';
+import { addNotification } from '../firebase/firestore';
+
+interface Order {
+  id: string;
+  orderNo?: string;
+  customerId?: string;
+  orderDate: string;
+  orderTime: string;
+  customerName: string;
+  customerPhone: string;
+  customerCode: string; // كود العميل من المحاسب
+  projectName: string;
+  projectLocation: string;
+  locationCoords: string;
+  orderType: 'concrete' | 'blocks';
+  elementType: string; // نوع العنصر (قواعد، أعمدة، سقف، إلخ)
+  quantity: number;
+  concreteType: string; // 2000, 2500, 3000, 3500, 4000, 5000
+  slump: string;
+  cementType: 'ordinary' | 'resistant'; // عادي أو مقاوم
+  siteReady: boolean; // جاهزية الموقع
+  pumpAccessible: boolean; // إمكانية وصول المضخة
+  requiresPump: boolean; // طالب تلج
+  requiresLab: boolean; // وجود معمل
+  salesRep: string; // اسم المندوب
+  accountant: string; // اسم المحاسب
+  accountStatus: 'approved' | 'pending' | 'rejected' | 'postponed'; // موافق / مرفوض / مؤجل
+  accountantDecision: 'execute' | 'postpone' | 'cancel'; // تنفيذ / تأجيل / إلغاء
+  debtStatus: 'clear' | 'has_debt' | 'blocked';
+  notes: string;
+  status: 'pending' | 'approved' | 'scheduled' | 'in_progress' | 'completed' | 'cancelled';
+  dailyEvaluation?: {
+    plantScore: number;
+    truckScore: number;
+    laborScore: number;
+    totalScore: number;
+    notes: string;
+  };
+}
+
+const ORDERS_KEY = 'concrete_plant_orders';
+
+export default function Orders() {
+  const { currentUser } = useAuth();
+  const { t } = useLang();
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [showForm, setShowForm] = useState(false);
+  const [editingOrder, setEditingOrder] = useState<Order | null>(null);
+  const [filter, setFilter] = useState<'all' | 'pending' | 'scheduled' | 'completed'>('all');
+  const [invoiceFor, setInvoiceFor] = useState<Order | null>(null);
+  const [showCustomers, setShowCustomers] = useState(false);
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [trips, setTrips] = useState<any[]>([]);
+  useEffect(() => {
+    if (!currentUser) return;
+    loadTrips(currentUser.username).then(d => { if (Array.isArray(d)) setTrips(d); }).catch(() => {});
+  }, [currentUser?.username]);
+  const deliveredFor = (orderId?: string) =>
+    trips.filter(t => (t.orderId || t.orderNo) === orderId && String(t.status).toUpperCase() === 'COMPLETED')
+      .reduce((s, t) => s + (Number(t.qty) || 0), 0);
+  const isCustomerHeld = (o: any) => !!customers.find(c => (c.id === o.customerId || c.name === o.customerName) && c.creditHold);
+  useEffect(() => {
+    if (!currentUser) return;
+    import('../firebase/firestore').then(({ loadCustomers }) => loadCustomers(currentUser.username)).then(d => {
+      if (Array.isArray(d) && d.length) setCustomers(d);
+      else { const s = localStorage.getItem('concrete_plant_customers'); if (s) setCustomers(JSON.parse(s)); }
+    }).catch(() => {});
+  }, [currentUser?.username]);
+
+  const [form, setForm] = useState({
+    orderDate: new Date().toISOString().split('T')[0],
+    orderTime: '08:00',
+    customerId: '',
+    customerName: '',
+    customerPhone: '',
+    customerCode: '',
+    projectName: '',
+    projectLocation: '',
+    locationCoords: '',
+    orderType: 'concrete' as 'concrete' | 'blocks',
+    elementType: 'foundation',
+    quantity: '',
+    concreteType: '3000',
+    slump: '12',
+    cementType: 'ordinary' as 'ordinary' | 'resistant',
+    siteReady: true,
+    pumpAccessible: true,
+    requiresPump: false,
+    requiresLab: false,
+    salesRep: '',
+    accountant: '',
+    accountStatus: 'pending' as 'approved' | 'pending' | 'rejected' | 'postponed',
+    accountantDecision: 'execute' as 'execute' | 'postpone' | 'cancel',
+    debtStatus: 'clear' as 'clear' | 'has_debt' | 'blocked',
+    notes: '',
+  });
+
+  // Load orders from localStorage + Firestore
+  useEffect(() => {
+    if (!currentUser) return;
+    loadOrders(currentUser.username)
+      .then(data => {
+        if (data && Array.isArray(data) && data.length > 0) setOrders(data);
+        else {
+          const saved = localStorage.getItem(ORDERS_KEY);
+          if (saved) setOrders(JSON.parse(saved));
+        }
+      })
+      .catch(() => {
+        const saved = localStorage.getItem(ORDERS_KEY);
+        if (saved) setOrders(JSON.parse(saved));
+      });
+  }, [currentUser?.username]);
+
+  // Save orders to localStorage + Firestore
+  useEffect(() => {
+    if (!currentUser) return;
+    if (orders.length > 0 || localStorage.getItem(ORDERS_KEY)) {
+      localStorage.setItem(ORDERS_KEY, JSON.stringify(orders));
+    }
+    if (orders.length > 0) saveOrders(currentUser.username, orders).catch(() => {});
+  }, [orders, currentUser?.username]);
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target;
+    setForm(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!form.customerName || !form.customerPhone || !form.projectName || !form.quantity) {
+      alert(t('fillRequiredFields'));
+      return;
+    }
+
+    let orderNo = editingOrder?.orderNo;
+    if (!orderNo) {
+      const maxNum = orders.reduce((m, o) => Math.max(m, (parseInt(String(o.orderNo || '').replace('ORD-', ''), 10) || 0)), 0);
+      orderNo = 'ORD-' + String(maxNum + 1).padStart(4, '0');
+    }
+
+    const newOrder: Order = {
+      id: editingOrder?.id || Date.now().toString(),
+      orderNo,
+      customerId: form.customerId || editingOrder?.customerId,
+      orderDate: form.orderDate,
+      orderTime: form.orderTime,
+      customerName: form.customerName,
+      customerPhone: form.customerPhone,
+      projectName: form.projectName,
+      projectLocation: form.projectLocation,
+      locationCoords: form.locationCoords,
+      orderType: form.orderType,
+      elementType: form.elementType,
+      quantity: parseFloat(form.quantity),
+      concreteType: form.concreteType,
+      cementType: form.cementType,
+      slump: form.slump,
+      siteReady: form.siteReady,
+      pumpAccessible: form.pumpAccessible,
+      requiresPump: form.requiresPump,
+      requiresLab: form.requiresLab,
+      salesRep: form.salesRep,
+      accountant: form.accountant,
+      customerCode: form.customerCode,
+      accountantDecision: form.accountantDecision,
+      accountStatus: form.accountStatus,
+      debtStatus: form.debtStatus,
+      notes: form.notes,
+      status: 'pending',
+    };
+
+    if (editingOrder) {
+      setOrders(prev => prev.map(o => o.id === editingOrder.id ? newOrder : o));
+      setEditingOrder(null);
+      if (currentUser) addNotification(currentUser.username, { level: 'info', title: t('notificationOrderEdited') + ' ' + orderNo, body: `${form.customerName} · ${form.projectName}` }).catch(() => {});
+    } else {
+      setOrders(prev => [...prev, newOrder]);
+      if (currentUser) addNotification(currentUser.username, { level: 'info', title: t('notificationNewOrder') + ' ' + orderNo, body: `${form.customerName} · ${form.quantity} ${form.orderType === 'concrete' ? 'm³' : t('blocks')} · ${t('awaitingAccountsReview')}` }).catch(() => {});
+    }
+
+    resetForm();
+    setShowForm(false);
+  };
+
+  const resetForm = () => {
+    setForm({
+      orderDate: new Date().toISOString().split('T')[0],
+      orderTime: '08:00',
+      customerId: '',
+      customerName: '',
+      customerPhone: '',
+      customerCode: '',
+      projectName: '',
+      projectLocation: '',
+      locationCoords: '',
+      orderType: 'concrete',
+      elementType: 'foundation',
+      quantity: '',
+      concreteType: '3000',
+      slump: '12',
+      cementType: 'ordinary',
+      siteReady: true,
+      pumpAccessible: true,
+      requiresPump: false,
+      requiresLab: false,
+      salesRep: '',
+      accountant: '',
+      accountStatus: 'pending',
+      accountantDecision: 'execute',
+      debtStatus: 'clear',
+      notes: '',
+    });
+  };
+
+  const handleEdit = (order: Order) => {
+    setEditingOrder(order);
+    setForm({
+      orderDate: order.orderDate,
+      orderTime: order.orderTime,
+      customerId: order.customerId || '',
+      customerName: order.customerName,
+      customerPhone: order.customerPhone,
+      customerCode: order.customerCode || '',
+      projectName: order.projectName,
+      projectLocation: order.projectLocation,
+      locationCoords: order.locationCoords,
+      orderType: order.orderType,
+      elementType: order.elementType || 'foundation',
+      quantity: order.quantity.toString(),
+      concreteType: order.concreteType || '3000',
+      slump: order.slump || '12',
+      cementType: order.cementType || 'ordinary',
+      siteReady: order.siteReady !== false,
+      pumpAccessible: order.pumpAccessible !== false,
+      requiresPump: order.requiresPump === true,
+      requiresLab: order.requiresLab === true,
+      salesRep: order.salesRep || '',
+      accountant: order.accountant || '',
+      accountStatus: order.accountStatus,
+      accountantDecision: order.accountantDecision || 'execute',
+      debtStatus: order.debtStatus,
+      notes: order.notes,
+    });
+    setShowForm(true);
+  };
+
+  const handleDelete = (id: string) => {
+    if (confirm(t('confirmDeleteOrder'))) {
+      setOrders(prev => prev.filter(o => o.id !== id));
+    }
+  };
+
+  const handleApproveAccount = (id: string, status: 'approved' | 'rejected') => {
+    setOrders(prev => prev.map(o => {
+      if (o.id !== id) return o;
+      if (currentUser) addNotification(currentUser.username, {
+        level: status === 'approved' ? 'success' : 'error',
+        title: `${status === 'approved' ? t('accountsApproved') : t('accountsRejected')} ${o.orderNo || id}`,
+        body: `${o.customerName} · ${o.projectName}`,
+      }).catch(() => {});
+      return { ...o, accountStatus: status };
+    }));
+  };
+
+  const handleMarkScheduled = (id: string) => {
+    setOrders(prev => prev.map(o => {
+      if (o.id !== id) return o;
+      const held = customers.find(c => c.id === o.customerId);
+      if (held?.creditHold) {
+        alert(`⛔ العميل ${o.customerName} مجمّد ائتمانياً (Hold) — لا يمكن جدولة الطلب حتى فك التجميد.`);
+        return o;
+      }
+      if (currentUser) addNotification(currentUser.username, {
+        level: 'info', title: t('notificationScheduled') + ' ' + (o.orderNo || id),
+        body: `${o.customerName} · ${o.quantity} ${o.orderType === 'concrete' ? 'm³' : t('blocks')} — ${t('readyForOperation')}`,
+      }).catch(() => {});
+      return { ...o, status: 'scheduled' };
+    }));
+  };
+
+  const handleMarkCompleted = (id: string) => {
+    setOrders(prev => prev.map(o => {
+      if (o.id !== id) return o;
+      if (currentUser) addNotification(currentUser.username, {
+        level: 'success', title: t('notificationOrderCompleted') + ' ' + (o.orderNo || id),
+        body: `${o.customerName} · ${o.projectName}`,
+      }).catch(() => {});
+      return { ...o, status: 'completed' };
+    }));
+  };
+
+  const filteredOrders = orders.filter(o => {
+    if (filter === 'all') return true;
+    return o.status === filter;
+  });
+
+  const stats = {
+    total: orders.length,
+    pending: orders.filter(o => o.status === 'pending').length,
+    scheduled: orders.filter(o => o.status === 'scheduled').length,
+    completed: orders.filter(o => o.status === 'completed').length,
+    accountPending: orders.filter(o => o.accountStatus === 'pending').length,
+    hasDebt: orders.filter(o => o.debtStatus === 'has_debt').length,
+    blocked: orders.filter(o => o.debtStatus === 'blocked').length,
+  };
+
+  if (!currentUser) {
+    return (
+      <div className="min-h-screen bg-[#0B111E] flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-red-400 text-xl mb-4">🔒 {t('accessDenied')}</p>
+          <Link to="/" className="text-sky-400 underline">{t('backToLogin')}</Link>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-[#0B111E] text-slate-200">
+      {/* Header */}
+      <div className="bg-[#0B111E]/80 backdrop-blur-xl border-b border-white/10 px-6 py-2.5 flex flex-wrap justify-between items-center gap-x-3 gap-y-1.5 sticky top-0 z-50 shadow-lg">
+        <div className="flex flex-wrap items-center gap-3">
+          <BrandLogo width={56} />
+          <Link to="/" className="text-slate-400 text-xs border border-white/10 px-2 py-1 rounded hover:text-white">← {t('backToDashboard')}</Link>
+          <QuickJump />
+          <LangSelector />
+          <h1 className="text-sm font-black tracking-tight text-white">📦 {t('ordersSystem')}</h1>
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <NotificationsBell />
+          <span className="bg-emerald-500/15 text-emerald-500 text-xs px-3 py-1.5 rounded-lg font-bold border border-emerald-500/30">🟢 {currentUser.plantName}</span>
+        </div>
+      </div>
+
+      <div className="max-w-7xl mx-auto p-6">
+        {/* Statistics */}
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3 mb-6">
+          <div className="bg-white/[0.04] border border-white/10 rounded-lg p-4">
+            <p className="text-xs text-slate-400 mb-1">{t('totalOrders')}</p>
+            <p className="text-2xl font-bold text-white">{stats.total}</p>
+          </div>
+          <div className="bg-white/[0.04] border border-yellow-500/30 rounded-lg p-4">
+            <p className="text-xs text-slate-400 mb-1">{t('pending')}</p>
+            <p className="text-2xl font-bold text-yellow-400">{stats.pending}</p>
+          </div>
+          <div className="bg-white/[0.04] border border-sky-500/30 rounded-lg p-4">
+            <p className="text-xs text-slate-400 mb-1">{t('scheduled')}</p>
+            <p className="text-2xl font-bold text-sky-400">{stats.scheduled}</p>
+          </div>
+          <div className="bg-white/[0.04] border border-emerald-500/30 rounded-lg p-4">
+            <p className="text-xs text-slate-400 mb-1">{t('completed')}</p>
+            <p className="text-2xl font-bold text-emerald-400">{stats.completed}</p>
+          </div>
+          <div className="bg-white/[0.04] border border-orange-500/30 rounded-lg p-4">
+            <p className="text-xs text-slate-400 mb-1">{t('awaitingAccounts')}</p>
+            <p className="text-2xl font-bold text-orange-400">{stats.accountPending}</p>
+          </div>
+          <div className="bg-white/[0.04] border border-sky-500/30 rounded-lg p-4">
+            <p className="text-xs text-slate-400 mb-1">{t('hasDebt')}</p>
+            <p className="text-2xl font-bold text-sky-400">{stats.hasDebt}</p>
+          </div>
+          <div className="bg-white/[0.04] border border-red-500/30 rounded-lg p-4">
+            <p className="text-xs text-slate-400 mb-1">{t('blocked')}</p>
+            <p className="text-2xl font-bold text-red-400">{stats.blocked}</p>
+          </div>
+        </div>
+
+        {/* Actions */}
+        <div className="flex justify-between items-center mb-6">
+          <div className="flex gap-2">
+            <button
+              onClick={() => setShowCustomers(true)}
+              className="bg-sky-500 hover:bg-sky-400 text-white px-4 py-2 rounded-lg font-bold text-sm"
+            >
+              👥 {t('manageCustomers')}
+            </button>
+            <button
+              onClick={() => { resetForm(); setShowForm(true); }}
+              className="bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2 rounded-lg font-bold text-sm shadow-[0_0_20px_rgba(56,189,248,0.3)]"
+            >
+              ➕ {t('addNewOrder')}
+            </button>
+            <select
+              value={filter}
+              onChange={(e) => setFilter(e.target.value as any)}
+              className="bg-white/[0.04] border border-white/10 text-white px-4 py-2 rounded-lg text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]"
+            >
+              <option value="all">{t('allOrders')}</option>
+              <option value="pending">{t('pending')}</option>
+              <option value="scheduled">{t('scheduled')}</option>
+              <option value="completed">{t('completed')}</option>
+            </select>
+          </div>
+          <Link
+            to="/schedule"
+            className="bg-sky-500 hover:bg-sky-400 text-white px-4 py-2 rounded-lg font-bold text-sm"
+          >
+            📅 {t('goToSchedule')}
+          </Link>
+        </div>
+
+        {/* Order Form Modal */}
+        {showForm && (
+          <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+            <div className="bg-[#0B111E]/95 border border-white/10 rounded-xl p-6 max-w-3xl w-full max-h-[90vh] overflow-y-auto">
+              <h2 className="text-xl font-black tracking-tight text-white mb-4">
+                {editingOrder ? `✏️ ${t('editOrder')}` : `➕ ${t('newOrder')}`}
+              </h2>
+
+              {editingOrder?.orderNo && (
+                <p className="text-xs font-bold text-sky-400 mb-3">🆔 {t('orderNo')}: <span className="text-white">{editingOrder.orderNo}</span></p>
+              )}
+
+              <form onSubmit={handleSubmit} className="space-y-4">
+                {/* Date and time */}
+                <div className="grid grid-cols-2 gap-4">
+                  <DatePicker
+                    value={form.orderDate}
+                    onChange={(val) => setForm(prev => ({ ...prev, orderDate: val }))}
+                    label={`📅 ${t('orderDate')}`}
+                    required
+                  />
+                  <div>
+                    <label className="text-xs text-slate-400 font-semibold mb-1 block">🕐 {t('orderTime')}</label>
+                    <input
+                      type="time"
+                      name="orderTime"
+                      value={form.orderTime}
+                      onChange={handleInputChange}
+                      className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]"
+                      required
+                    />
+                  </div>
+                </div>
+
+                {/* Customer data */}
+                <div className="bg-[#0B111E] p-4 rounded-lg border border-white/10">
+                  <h3 className="text-sm font-bold text-sky-400 mb-3">👤 {t('customerData')}</h3>
+                  <div className="grid grid-cols-1 gap-3 mb-3">
+                    <div>
+                      <label className="text-xs text-slate-400 mb-1 block">{t('customerFromBase')}</label>
+                      <select
+                        name="customerId"
+                        value={form.customerId}
+                        onChange={(e) => {
+                          const id = e.target.value;
+                          setForm(prev => ({ ...prev, customerId: id }));
+                          if (id) {
+                            const c = [...customers].find(x => x.id === id);
+                            if (c) setForm(prev => ({ ...prev, customerName: c.name, customerPhone: c.phone, customerCode: c.code }));
+                          }
+                        }}
+                        className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]"
+                      >
+                        <option value="">— {t('noSelection')} —</option>
+                        {customers.map(c => <option key={c.id} value={c.id}>{c.code} · {c.name}</option>)}
+                      </select>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs text-slate-400 mb-1 block">{t('customerName')} *</label>
+                      <input
+                        type="text"
+                        name="customerName"
+                        value={form.customerName}
+                        onChange={handleInputChange}
+                        className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs text-slate-400 mb-1 block">{t('phone')} *</label>
+                      <input
+                        type="tel"
+                        name="customerPhone"
+                        value={form.customerPhone}
+                        onChange={handleInputChange}
+                        className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]"
+                        required
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Project data */}
+                <div className="bg-[#0B111E] p-4 rounded-lg border border-white/10">
+                  <h3 className="text-sm font-bold text-sky-400 mb-3">🏗️ {t('projectData')}</h3>
+                  <div className="space-y-3">
+                    <div>
+                      <label className="text-xs text-slate-400 mb-1 block">{t('projectName')} *</label>
+                      <input
+                        type="text"
+                        name="projectName"
+                        value={form.projectName}
+                        onChange={handleInputChange}
+                        className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs text-slate-400 mb-1 block">{t('projectAddress')}</label>
+                      <input
+                        type="text"
+                        name="projectLocation"
+                        value={form.projectLocation}
+                        onChange={handleInputChange}
+                        className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs text-slate-400 mb-1 block">{t('locationCoords')}</label>
+                      <input
+                        type="text"
+                        name="locationCoords"
+                        value={form.locationCoords}
+                        onChange={handleInputChange}
+                        placeholder="26.4207, 50.0888"
+                        className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Order details */}
+                <div className="bg-[#0B111E] p-4 rounded-lg border border-white/10">
+                  <h3 className="text-sm font-bold text-sky-400 mb-3">📦 {t('orderDetails')}</h3>
+                  <div className="space-y-3">
+                    <div>
+                      <label className="text-xs text-slate-400 mb-1 block">{t('orderType')} *</label>
+                      <select
+                        name="orderType"
+                        value={form.orderType}
+                        onChange={handleInputChange}
+                        className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]"
+                      >
+                        <option value="concrete">🏗️ {t('concrete')}</option>
+                        <option value="blocks">🧱 {t('blocks')}</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="text-xs text-slate-400 mb-1 block">{t('elementType')} *</label>
+                      <select
+                        name="elementType"
+                        value={form.elementType}
+                        onChange={handleInputChange}
+                        className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]"
+                        required
+                      >
+                        <option value="foundation">🏗️ {t('elementFoundation')}</option>
+                        <option value="columns">🏛️ {t('elementColumns')}</option>
+                        <option value="beams">📏 {t('elementBeams')}</option>
+                        <option value="slab">🏠 {t('elementSlab')}</option>
+                        <option value="walls">🧱 {t('elementWalls')}</option>
+                        <option value="stairs">🪜 {t('elementStairs')}</option>
+                        <option value="cleaning_layer">🧹 {t('elementCleaningLayer')}</option>
+                        <option value="other">📦 {t('elementOther')}</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="text-xs text-slate-400 mb-1 block">{t('quantity')} *</label>
+                      <input
+                        type="number"
+                        name="quantity"
+                        value={form.quantity}
+                        onChange={handleInputChange}
+                        step="0.5"
+                        min="0"
+                        className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]"
+                        required
+                      />
+                      <p className="text-xs text-slate-500 mt-1">
+                        {form.orderType === 'concrete' ? t('cubicMeter') : t('blocksCount')}
+                      </p>
+                    </div>
+
+                    {form.orderType === 'concrete' && (
+                      <>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label className="text-xs text-slate-400 mb-1 block">{t('concreteStrength')} *</label>
+                            <select
+                              name="concreteType"
+                              value={form.concreteType}
+                              onChange={handleInputChange}
+                              className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]"
+                              required
+                            >
+                              <option value="2000">2000 ({t('ordinary')})</option>
+                              <option value="2500">2500</option>
+                              <option value="3000">3000</option>
+                              <option value="3500">3500</option>
+                              <option value="4000">4000</option>
+                              <option value="5000">5000 ({t('highStrength')})</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="text-xs text-slate-400 mb-1 block">{t('slumpCm')}</label>
+                            <input
+                              type="number"
+                              name="slump"
+                              value={form.slump}
+                              onChange={handleInputChange}
+                              min="5"
+                              max="20"
+                              className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]"
+                            />
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="text-xs text-slate-400 mb-1 block">{t('cementType')} *</label>
+                          <select
+                            name="cementType"
+                            value={form.cementType}
+                            onChange={handleInputChange}
+                            className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]"
+                            required
+                          >
+                            <option value="ordinary">🏭 {t('ordinary')} (OPC)</option>
+                            <option value="resistant">🛡️ {t('cementResistant')} (SRC)</option>
+                          </select>
+                        </div>
+                      </>
+                    )}
+
+                    {/* Site readiness */}
+                    <div className="border-t border-white/10 pt-3 mt-3">
+                      <label className="text-xs text-sky-400 font-bold mb-2 block">🏗️ {t('siteReadiness')}</label>
+                      <div className="grid grid-cols-2 gap-3">
+                        <label className="flex items-center gap-2 text-xs text-slate-400 cursor-pointer bg-white/[0.06] p-2 rounded">
+                          <input
+                            type="checkbox"
+                            name="siteReady"
+                            checked={form.siteReady}
+                            onChange={e => setForm({ ...form, siteReady: e.target.checked })}
+                            className="w-4 h-4"
+                          />
+                          <span>✓ {t('siteReadyForPour')}</span>
+                        </label>
+                        <label className="flex items-center gap-2 text-xs text-slate-400 cursor-pointer bg-white/[0.06] p-2 rounded">
+                          <input
+                            type="checkbox"
+                            name="pumpAccessible"
+                            checked={form.pumpAccessible}
+                            onChange={e => setForm({ ...form, pumpAccessible: e.target.checked })}
+                            className="w-4 h-4"
+                          />
+                          <span>✓ {t('pumpAccessible')}</span>
+                        </label>
+                      </div>
+                    </div>
+
+                    {/* Requirements */}
+                    <div className="border-t border-white/10 pt-3 mt-3">
+                      <label className="text-xs text-sky-400 font-bold mb-2 block">📋 {t('requirements')}</label>
+                      <div className="grid grid-cols-2 gap-3">
+                        <label className="flex items-center gap-2 text-xs text-slate-400 cursor-pointer bg-white/[0.06] p-2 rounded">
+                          <input
+                            type="checkbox"
+                            name="requiresPump"
+                            checked={form.requiresPump}
+                            onChange={e => setForm({ ...form, requiresPump: e.target.checked })}
+                            className="w-4 h-4"
+                          />
+                          <span>🚰 {t('requiresPump')}</span>
+                        </label>
+                        <label className="flex items-center gap-2 text-xs text-slate-400 cursor-pointer bg-white/[0.06] p-2 rounded">
+                          <input
+                            type="checkbox"
+                            name="requiresLab"
+                            checked={form.requiresLab}
+                            onChange={e => setForm({ ...form, requiresLab: e.target.checked })}
+                            className="w-4 h-4"
+                          />
+                          <span>🧪 {t('requiresLab')}</span>
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Sales rep and accountant */}
+                <div className="bg-white/[0.03] p-4 rounded-lg border border-sky-500/30">
+                  <h3 className="text-sm font-bold text-sky-400 mb-3">👥 {t('salesRepAccountant')}</h3>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs text-slate-400 mb-1 block">📱 {t('salesRepName')} *</label>
+                      <input
+                        type="text"
+                        name="salesRep"
+                        value={form.salesRep}
+                        onChange={handleInputChange}
+                        placeholder={t('salesRepPlaceholder')}
+                        className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs text-slate-400 mb-1 block">💼 {t('accountantName')} *</label>
+                      <input
+                        type="text"
+                        name="accountant"
+                        value={form.accountant}
+                        onChange={handleInputChange}
+                        placeholder={t('accountantPlaceholder')}
+                        className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]"
+                        required
+                      />
+                    </div>
+                  </div>
+                  <div className="mt-3">
+                    <label className="text-xs text-slate-400 mb-1 block">🔢 {t('customerCode')}</label>
+                    <input
+                      type="text"
+                      name="customerCode"
+                      value={form.customerCode}
+                      onChange={handleInputChange}
+                      placeholder={t('codeAfterApproval')}
+                      className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]"
+                    />
+                  </div>
+                </div>
+
+                {/* Accountant decision */}
+                <div className="bg-[#0B111E] p-4 rounded-lg border border-orange-500/30">
+                  <h3 className="text-sm font-bold text-orange-400 mb-3">💰 {t('accountantDecision')}</h3>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs text-slate-400 mb-1 block">{t('accountantDecision')} *</label>
+                      <select
+                        name="accountantDecision"
+                        value={form.accountantDecision}
+                        onChange={handleInputChange}
+                        className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]"
+                        required
+                      >
+                        <option value="execute">✅ {t('execute')}</option>
+                        <option value="postpone">⏸️ {t('postpone')}</option>
+                        <option value="cancel">❌ {t('cancel')}</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-xs text-slate-400 mb-1 block">{t('accountStatus')}</label>
+                      <select
+                        name="accountStatus"
+                        value={form.accountStatus}
+                        onChange={handleInputChange}
+                        className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]"
+                      >
+                        <option value="pending">⏳ {t('awaitingReview')}</option>
+                        <option value="approved">✅ {t('approved')}</option>
+                        <option value="rejected">❌ {t('rejected')}</option>
+                        <option value="postponed">⏸️ {t('postponed')}</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div className="mt-3">
+                    <label className="text-xs text-slate-400 mb-1 block">⚠️ {t('debtStatus')}</label>
+                    <select
+                      name="debtStatus"
+                      value={form.debtStatus}
+                      onChange={handleInputChange}
+                      className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]"
+                    >
+                      <option value="clear">✅ {t('noDebt')}</option>
+                      <option value="has_debt">⚠️ {t('hasDebt')}</option>
+                      <option value="blocked">🚫 {t('blockedLargeDebt')}</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Notes */}
+                <div>
+                  <label className="text-xs text-slate-400 mb-1 block">{t('additionalNotes')}</label>
+                  <textarea
+                    name="notes"
+                    value={form.notes}
+                    onChange={handleInputChange}
+                    rows={3}
+                    className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]"
+                  />
+                </div>
+
+                {/* Buttons */}
+                <div className="flex gap-3">
+                  <button
+                    type="submit"
+                    className="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-2 rounded-lg"
+                  >
+                    💾 {editingOrder ? t('update') : t('save')} {t('order')}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setShowForm(false); setEditingOrder(null); resetForm(); }}
+                    className="flex-1 bg-white/[0.06] hover:bg-white/[0.1] text-white font-bold py-2 rounded-lg"
+                  >
+                    ❌ {t('cancel')}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* Orders List */}
+        <div className="bg-white/[0.04] rounded-xl border border-white/10 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-white/[0.04] border-b border-white/10">
+                <tr>
+                  <th className="text-right p-3 text-[10px] uppercase tracking-wider text-slate-400">{t('dateTime')}</th>
+                  <th className="text-right p-3 text-[10px] uppercase tracking-wider text-slate-400">{t('orderNo')}</th>
+                  <th className="text-right p-3 text-[10px] uppercase tracking-wider text-slate-400">{t('customer')}</th>
+                  <th className="text-right p-3 text-[10px] uppercase tracking-wider text-slate-400">{t('project')}</th>
+                  <th className="text-right p-3 text-[10px] uppercase tracking-wider text-slate-400">{t('type')}</th>
+                  <th className="text-right p-3 text-[10px] uppercase tracking-wider text-slate-400">{t('quantity')}</th>
+                  <th className="text-right p-3 text-[10px] uppercase tracking-wider text-slate-400">{t('accounts')}</th>
+                  <th className="text-right p-3 text-[10px] uppercase tracking-wider text-slate-400">{t('debt')}</th>
+                  <th className="text-right p-3 text-[10px] uppercase tracking-wider text-slate-400">{t('status')}</th>
+                  <th className="text-right p-3 text-[10px] uppercase tracking-wider text-slate-400">{t('actions')}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredOrders.length === 0 ? (
+                  <tr>
+                    <td colSpan={10} className="text-center py-12 text-slate-500">
+                      {t('noOrders')}
+                    </td>
+                  </tr>
+                ) : (
+                  filteredOrders.map(order => (
+                    <tr key={order.id} className="border-b border-white/10 hover:bg-white/[0.05]">
+                      <td className="p-3 text-sm">
+                        <div className="text-white">{order.orderDate}</div>
+                        <div className="text-xs text-slate-400">{order.orderTime}</div>
+                      </td>
+                      <td className="p-3 text-sm">
+                        <div className="text-white font-bold text-sky-400">{order.orderNo || '—'}</div>
+                        <div className="text-xs text-slate-400">{order.customerCode || '—'}</div>
+                      </td>
+                      <td className="p-3">
+                        <div className="text-white text-sm">{order.customerName} {isCustomerHeld(order) && <span className="text-[9px] bg-red-500/20 text-red-400 px-1.5 py-0.5 rounded font-bold ml-1">⛔ HOLD</span>}</div>
+                        <div className="text-xs text-slate-400">{order.customerPhone}</div>
+                      </td>
+                      <td className="p-3 text-sm text-white">{order.projectName}</td>
+                      <td className="p-3">
+                        <span className={`px-2 py-1 rounded text-xs font-bold ${
+                          order.orderType === 'concrete'
+                            ? 'bg-sky-500/20 text-sky-400'
+                            : 'bg-cyan-500/20 text-cyan-400'
+                        }`}>
+                          {order.orderType === 'concrete' ? `🏗️ ${t('concrete')}` : `🧱 ${t('blocks')}`}
+                        </span>
+                        {order.concreteType && (
+                          <div className="text-xs text-slate-400 mt-1">{order.concreteType}</div>
+                        )}
+                      </td>
+                      <td className="p-3 text-white text-sm">
+                        {(() => {
+                          const d = deliveredFor(order.id || order.orderNo);
+                          const total = Number(order.quantity) || 0;
+                          const pct = total > 0 ? Math.min(100, (d / total) * 100) : 0;
+                          return (
+                            <>
+                              <div className="flex items-center justify-between gap-2">
+                                <span>{order.quantity}</span>
+                                <span className="text-[10px] text-slate-400">{order.orderType === 'concrete' ? 'm³' : t('blocks')}</span>
+                              </div>
+                              {order.orderType === 'concrete' && (
+                                <div className="mt-1">
+                                  <div className="h-1.5 rounded-full bg-white/10 overflow-hidden">
+                                    <div className="h-full bg-emerald-500 transition-all" style={{ width: `${pct}%` }} />
+                                  </div>
+                                  <p className={`text-[10px] font-bold mt-0.5 ${pct >= 100 ? 'text-emerald-400' : 'text-slate-400'}`}>
+                                    {t('delivered')}: {d.toFixed(1)} / {total} m³
+                                  </p>
+                                </div>
+                              )}
+                            </>
+                          );
+                        })()}
+                      </td>
+                      <td className="p-3">
+                        <select
+                          value={order.accountStatus}
+                          onChange={(e) => handleApproveAccount(order.id, e.target.value as any)}
+                          className={`px-2 py-1 rounded text-xs font-bold ${
+                            order.accountStatus === 'approved'
+                              ? 'bg-emerald-500/20 text-emerald-400'
+                              : order.accountStatus === 'rejected'
+                              ? 'bg-red-500/20 text-red-400'
+                              : 'bg-orange-500/20 text-orange-400'
+                          }`}
+                        >
+                          <option value="pending">⏳ {t('pending')}</option>
+                          <option value="approved">✅ {t('approved')}</option>
+                          <option value="rejected">❌ {t('rejected')}</option>
+                        </select>
+                      </td>
+                      <td className="p-3">
+                        <span className={`px-2 py-1 rounded text-xs font-bold ${
+                          order.debtStatus === 'clear'
+                            ? 'bg-emerald-500/20 text-emerald-400'
+                            : order.debtStatus === 'has_debt'
+                            ? 'bg-yellow-500/20 text-yellow-400'
+                            : 'bg-red-500/20 text-red-400'
+                        }`}>
+                          {order.debtStatus === 'clear' ? '✅' : order.debtStatus === 'has_debt' ? '⚠️' : '🚫'}
+                          {order.debtStatus === 'clear' ? t('clear') : order.debtStatus === 'has_debt' ? t('debt') : t('blocked')}
+                        </span>
+                      </td>
+                      <td className="p-3">
+                        <span className={`px-2 py-1 rounded text-xs font-bold ${
+                          order.status === 'pending'
+                            ? 'bg-yellow-500/20 text-yellow-400'
+                            : order.status === 'scheduled'
+                            ? 'bg-sky-500/20 text-sky-400'
+                            : 'bg-emerald-500/20 text-emerald-400'
+                        }`}>
+                          {order.status === 'pending' ? `⏳ ${t('pending')}` : order.status === 'scheduled' ? `📅 ${t('scheduled')}` : `✅ ${t('completed')}`}
+                        </span>
+                      </td>
+                      <td className="p-3">
+                        <div className="flex gap-1 flex-wrap">
+                          {order.status === 'pending' && order.accountStatus === 'approved' && order.debtStatus !== 'blocked' && (
+                            <button
+                              onClick={() => handleMarkScheduled(order.id)}
+                              disabled={isCustomerHeld(order)}
+                              className={`${isCustomerHeld(order) ? 'bg-slate-600 cursor-not-allowed' : 'bg-sky-500 hover:bg-sky-400'} text-white px-2 py-1 rounded text-xs`}
+                              title={isCustomerHeld(order) ? 'العميل مجمّد ائتمانياً' : ''}
+                            >
+                              📅 {t('schedule')}
+                            </button>
+                          )}
+                          {order.status === 'scheduled' && (
+                            <button
+                              onClick={() => handleMarkCompleted(order.id)}
+                              className="bg-emerald-600 hover:bg-emerald-700 text-white px-2 py-1 rounded text-xs"
+                            >
+                              ✅ {t('done')}
+                            </button>
+                          )}
+                          {order.status === 'completed' && (
+                            <button
+                              onClick={() => setInvoiceFor(order)}
+                              className="bg-teal-600 hover:bg-teal-700 text-white px-2 py-1 rounded text-xs"
+                            >
+                              🧾 {t('invoice')}
+                            </button>
+                          )}
+                          <button
+                            onClick={() => handleEdit(order)}
+                            className="bg-orange-600 hover:bg-orange-700 text-white px-2 py-1 rounded text-xs"
+                          >
+                            ✏️
+                          </button>
+                          <button
+                            onClick={() => handleDelete(order.id)}
+                            className="bg-red-600 hover:bg-red-700 text-white px-2 py-1 rounded text-xs"
+                          >
+                            🗑️
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Info Box */}
+        <div className="mt-6 bg-sky-500/10 border border-sky-500/30 rounded-lg p-4">
+          <h3 className="text-sm font-bold text-sky-400 mb-2">💡 {t('howToUse')}</h3>
+          <ul className="text-xs text-slate-300 space-y-1">
+            <li>✅ {t('helpAddOrders')}</li>
+            <li>✅ {t('helpApproveAccounts')}</li>
+            <li>✅ {t('helpBlockedCustomer')}</li>
+            <li>✅ {t('helpSchedule')}</li>
+            <li>✅ {t('helpImportOrders')}</li>
+          </ul>
+        </div>
+      </div>
+      {showCustomers && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-[#0B111E]/95 border border-white/10 rounded-xl p-6 max-w-lg w-full max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-lg font-black tracking-tight text-white">👥 {t('manageCustomers')}</h2>
+              <button onClick={() => setShowCustomers(false)} className="bg-red-500 hover:bg-red-600 text-white w-7 h-7 rounded-full font-bold text-sm">✕</button>
+            </div>
+            <CustomersManager onSelect={(c) => {
+              if (c) {
+                setForm(prev => ({ ...prev, customerId: c.id, customerName: c.name, customerPhone: c.phone, customerCode: c.code }));
+                setShowCustomers(false);
+                setShowForm(true);
+              }
+            }} />
+          </div>
+        </div>
+      )}
+
+      {invoiceFor && (
+        <EInvoice
+          invoiceNo={`INV-${invoiceFor.id.slice(0, 6).toUpperCase()}`}
+          date={invoiceFor.orderDate}
+          time={invoiceFor.orderTime}
+          customerName={invoiceFor.customerName}
+          customerCode={invoiceFor.customerCode}
+          customerPhone={invoiceFor.customerPhone}
+          projectName={invoiceFor.projectName}
+          orderType={invoiceFor.orderType}
+          quantity={invoiceFor.quantity}
+          concreteType={invoiceFor.concreteType}
+          onClose={() => setInvoiceFor(null)}
+        />
+      )}
+    </div>
+  );
+}

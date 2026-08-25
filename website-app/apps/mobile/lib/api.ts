@@ -185,6 +185,11 @@ class ApiClient {
     return response.data.data;
   }
 
+  async getMyTripHistory(): Promise<any[]> {
+    const response = await this.client.get("/dispatch/history");
+    return response.data.data ?? [];
+  }
+
   async updateTripCheckpoint(
     tripId: string,
     checkpoint: string,
@@ -195,6 +200,27 @@ class ApiClient {
       latitude: location?.latitude,
       longitude: location?.longitude,
     });
+  }
+
+  // ─── Delivery Challan (Package 1) ────────────────────────────────────────────
+
+  async getTripChallan(tripId: string): Promise<any> {
+    const response = await this.client.get(`/dispatch/${tripId}/challan`);
+    return response.data.data;
+  }
+
+  async saveTripChallan(
+    tripId: string,
+    data: {
+      receivedBy: string;
+      customerSignature?: string;
+      slumpMm?: number | null;
+      temperatureC?: number | null;
+      distanceKm?: number | null;
+    }
+  ): Promise<any> {
+    const response = await this.client.post(`/dispatch/${tripId}/challan`, data);
+    return response.data.data;
   }
 
   async sendLocationUpdate(
@@ -244,6 +270,8 @@ class ApiClient {
       mixDesignId: data.mixDesignId,
       totalVolumeM3: data.volumeM3,
       scheduledDate: data.scheduledDate,
+      latitude: data.location?.latitude,
+      longitude: data.location?.longitude,
     });
     return response.data.data;
   }
@@ -267,6 +295,25 @@ class ApiClient {
 
   async getMixDesigns(): Promise<any[]> {
     const response = await this.client.get("/mix-designs");
+    return response.data.data;
+  }
+
+  // ─── Workshop / Driver Breakdown Reports ────────────────────────────────────
+
+  async reportBreakdown(payload: {
+    description: string;
+    severity?: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+    vehicleId?: string;
+    vehicleCode?: string;
+    tripId?: string;
+    latitude?: number | null;
+    longitude?: number | null;
+    vehicleType?: string;
+    photoBase64?: string | null;
+    audioBase64?: string | null;
+    capturedAt?: string;
+  }): Promise<any> {
+    const response = await this.client.post("/workshop/driver-report", payload);
     return response.data.data;
   }
 }

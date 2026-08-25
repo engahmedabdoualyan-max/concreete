@@ -7,7 +7,8 @@ import { Stack, Redirect, useSegments } from "expo-router";
 import { useEffect, type ReactElement } from "react";
 import { ActivityIndicator, View, Text } from "react-native";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { useAuthStore, isDriver, isSalesRep } from "@/store/auth-store";
+import { useAuthStore, isDriver, isSalesRep, isOperationsMgr, isProductionMgr, isStationTech, isAccountant, isScheduleMgr, isLabTech, isWorkshopManager, isRepsManager } from "@/store/auth-store";
+import { isSubscriptionExpired } from "@/lib/tree-auth";
 import "../global.css";
 
 const queryClient = new QueryClient({
@@ -35,13 +36,37 @@ export default function RootLayout() {
 
   if (!isLoading) {
     if (isAuthenticated && user) {
-      const home = isDriver(user)
-        ? "/(driver)"
-        : isSalesRep(user)
-          ? "/(sales)"
-          : "/(driver)";
-      if (segments[0] === "(auth)" || segments[0] === undefined) {
-        redirect = <Redirect href={home} />;
+      // Locked company — expired subscription blocks every user (owner included)
+      // until it is renewed in the website Console.
+      if (isSubscriptionExpired(user)) {
+        if ((segments[0] as any) !== "(subscription)") {
+          redirect = <Redirect href={"/(subscription)" as any} />;
+        }
+      } else {
+        const home = isDriver(user)
+          ? "/(driver)"
+          : isSalesRep(user)
+            ? "/(sales)"
+            : isAccountant(user)
+              ? "/(accountant)"
+              : isScheduleMgr(user)
+                ? "/(schedule)"
+                : isStationTech(user)
+                ? "/(stationtech)"
+                : isOperationsMgr(user)
+                  ? "/(opsmgr)"
+                  : isProductionMgr(user)
+                    ? "/(prodmgr)"
+                : isLabTech(user)
+                  ? "/(lab)"
+                  : isWorkshopManager(user)
+                    ? "/(workshop)"
+                    : isRepsManager(user)
+                      ? "/(repsmgr)"
+                      : "/(dashboard)";
+        if (segments[0] === "(auth)" || segments[0] === undefined) {
+          redirect = <Redirect href={home as any} />;
+        }
       }
     } else if (segments[0] !== "(auth)") {
       redirect = <Redirect href="/(auth)/login" />;
@@ -57,8 +82,18 @@ export default function RootLayout() {
         }}
       >
         <Stack.Screen name="(auth)/login" />
+        <Stack.Screen name="(subscription)" />
         <Stack.Screen name="(driver)" />
         <Stack.Screen name="(sales)" />
+        <Stack.Screen name="(accountant)" />
+        <Stack.Screen name="(schedule)" />
+        <Stack.Screen name="(stationtech)" />
+        <Stack.Screen name="(opsmgr)" />
+        <Stack.Screen name="(prodmgr)" />
+        <Stack.Screen name="(lab)" />
+        <Stack.Screen name="(workshop)" />
+        <Stack.Screen name="(repsmgr)" />
+        <Stack.Screen name="(dashboard)" />
       </Stack>
       {redirect}
       {isLoading && (

@@ -9,6 +9,7 @@ import { View, Text, ScrollView, RefreshControl, Linking, Alert } from "react-na
 import { useState, useEffect, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { TripCard } from "@/components/driver/TripCard";
+import ReportBreakdownModal from "@/components/driver/ReportBreakdownModal";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { BackgroundLocationDisclosure } from "@/components/BackgroundLocationDisclosure";
@@ -30,12 +31,15 @@ export default function DriverHomeScreen() {
   const [trackingReady, setTrackingReady] = useState(false);
   const [isConnected, setIsConnected] = useState(true);
   const [pendingCount, setPendingCount] = useState(0);
+  const [showBreakdown, setShowBreakdown] = useState(false);
 
   const { data: trip, isLoading } = useQuery<Trip>({
     queryKey: ["my-active-trip"],
     queryFn: () => api.getMyActiveTrip(),
     refetchInterval: 30000,
   });
+
+  const assignedVehicleType = user?.vehicleType || "";
 
   const updateCheckpointMutation = useMutation({
     mutationFn: async ({
@@ -177,13 +181,32 @@ export default function DriverHomeScreen() {
           <Text className="text-slate-600 text-center text-base mb-6">
             سيتم إخطارك عند تعيين رحلة جديدة
           </Text>
+
+          <View className="w-full px-4 mb-6">
+            <Text className="text-slate-600 font-semibold mb-2 text-center">نوع سيارتك (محدد من الإدارة)</Text>
+            <View className="bg-slate-50 border-2 border-slate-200 rounded-xl px-4 py-3 items-center">
+              <Text className="font-bold text-slate-800 text-lg">{assignedVehicleType}</Text>
+            </View>
+          </View>
+
           <Button
             title="تحديث"
             onPress={() => queryClient.invalidateQueries({ queryKey: ["my-active-trip"] })}
             variant="primary"
             size="medium"
           />
+          <Button
+            title="🛠️ إبلاغ عن عطل"
+            onPress={() => setShowBreakdown(true)}
+            variant="secondary"
+            size="medium"
+          />
         </Card>
+        <ReportBreakdownModal
+          visible={showBreakdown}
+          onClose={() => setShowBreakdown(false)}
+          vehicleType={assignedVehicleType}
+        />
       </View>
     );
   }
@@ -223,6 +246,14 @@ export default function DriverHomeScreen() {
         </Text>
       </View>
 
+      {/* Vehicle Type (set by owner in admin) */}
+      <View className="bg-white rounded-2xl p-4 mb-4 border-2 border-slate-100">
+        <Text className="text-slate-600 font-semibold mb-2 text-center">🚛 نوع سيارتك (محدد من الإدارة)</Text>
+        <View className="bg-slate-50 border-2 border-slate-200 rounded-xl px-4 py-3 items-center">
+          <Text className="font-bold text-slate-800 text-lg">{assignedVehicleType}</Text>
+        </View>
+      </View>
+
       <TripCard
         trip={trip}
         onCheckpointAction={handleCheckpointAction}
@@ -245,6 +276,24 @@ export default function DriverHomeScreen() {
           <Text className="text-emerald-700 text-center">{t("driver.completedHint")}</Text>
         </Card>
       )}
+
+      <View className="mt-4">
+        <Button
+          title="🛠️ إبلاغ عن عطل"
+          onPress={() => setShowBreakdown(true)}
+          variant="secondary"
+          size="medium"
+        />
+      </View>
+
+      <ReportBreakdownModal
+        visible={showBreakdown}
+        onClose={() => setShowBreakdown(false)}
+        vehicleId={trip.vehicleId}
+        vehicleCode={trip.vehicleCode}
+        tripId={trip.id}
+        vehicleType={assignedVehicleType}
+      />
 
       {/* Native app download buttons */}
       <View className="flex-row items-center justify-center gap-3 mt-4 mb-2">

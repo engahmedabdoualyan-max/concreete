@@ -5,7 +5,40 @@
 
 import { create } from "zustand";
 import { api } from "@/lib/api";
+import { setItem, removeItem, STORAGE_KEYS } from "@/lib/storage";
+import { findTreeAccount, treeAccountToUser } from "@/lib/tree-auth";
+import { erp } from "@/lib/firestore";
 import type { AuthUser, UserRole } from "@/types";
+
+/** Merge the company subscription (from companyTrees doc) into the user. */
+async function withSubscription(user: AuthUser): Promise<AuthUser> {
+  const zone = (user.zone || "").trim().toLowerCase();
+  if (!zone) return user;
+  try {
+    const sub = await erp.loadCompanySubscription(zone);
+    if (sub) {
+      return {
+        ...user,
+        subscriptionStart: sub.subscriptionStart || user.subscriptionStart,
+        subscriptionEnd: sub.subscriptionEnd || user.subscriptionEnd,
+        subscriptionStatus: sub.subscriptionStatus || user.subscriptionStatus,
+      };
+    }
+  } catch {}
+  return user;
+}
+
+/** Best-effort: enrich the user with the plant display name from the users doc. */
+async function withPlantName(user: AuthUser): Promise<AuthUser> {
+  if (user.plantName) return user;
+  const zone = (user.zone || "").trim().toLowerCase();
+  if (!zone) return user;
+  try {
+    const name = await erp.loadPlantName(zone);
+    if (name && name !== zone) return { ...user, plantName: name };
+  } catch {}
+  return { ...user, plantName: zone };
+}
 
 interface AuthState {
   user: AuthUser | null;
@@ -31,15 +64,25 @@ export const useAuthStore = create<AuthState>((set) => ({
     set({ isLoading: true, error: null });
     try {
       const auth = await api.login(phone, password);
-      set({ user: auth.user, isAuthenticated: true, isLoading: false });
-    } catch (error) {
-      set({
-        error: "بيانات الدخول غير صحيحة",
-        isLoading: false,
-        isAuthenticated: false,
-      });
-      throw error;
-    }
+      const user = await withPlantName(await withSubscription(auth.user));
+      await setItem(STORAGE_KEYS.USER, JSON.stringify(user));
+      set({ user, isAuthenticated: true, isLoading: false });
+    } catch (apiError) {
+      // Backend unreachable (or no such server account): fall back to the
+      // owner's app-tree accounts (Firestore companyTrees).
+      const tree = await findTreeAccount(phone, password);
+      if (!tree) {
+        set({
+          error: "بيانات الدخول غير صحيحة",
+          isLoading: false,
+          isAuthenticated: false,
+        });
+        throw apiError;
+      }
+      const treeUser = await withPlantName(treeAccountToUser(tree));
+      // Persist the local session (no server tokens exist for tree accounts).
+      await setItem(STORAGE_KEYS.USER, JSON.stringify(treeUser));
+      set({ user: treeUser, isAuthenticated: true, isLoading: false });    }
   },
 
   logout: async () => {
@@ -62,8 +105,10 @@ export const useAuthStore = create<AuthState>((set) => ({
   initialize: async () => {
     set({ isLoading: true });
     try {
-      const user = await api.getCurrentUser();
+      let user = await api.getCurrentUser();
       if (user) {
+        user = await withPlantName(await withSubscription(user));
+        if (user) await setItem(STORAGE_KEYS.USER, JSON.stringify(user));
         set({ user, isAuthenticated: true, isLoading: false });
       } else {
         set({ user: null, isAuthenticated: false, isLoading: false });
@@ -79,29 +124,36 @@ export const useAuthStore = create<AuthState>((set) => ({
 // ─── Role-based routing helpers ────────────────────────────────────────────────
 
 /**
- * The ERP exposes 10 roles in total:
- *   • 4 PRIMARY (mobile-facing): SUPER_ADMIN · FINANCE · SALES_REP · DRIVER
- *   • 6 SUPPORTING sub-roles: DISPATCHER · BATCH_OPERATOR · LAB_TECH ·
- *     WORKSHOP_MGR · WORKSHOP_MECHANIC · LAB_TECHNICIAN
- *
- * Mobile routing only distinguishes between the DRIVER view and the
- * SALES_REP view. All other roles are routed through the web dashboard.
- * SUPER_ADMIN falls through to the driver view on mobile for field
- * visibility (they can override via the web app).
+ * Mobile routing:
+ *   • DRIVER         → native driver field view
+ *   • SALES_REP      → native sales field view
+ *   • STATION_TECH   → native station maintenance view
+ *   • every other role (SUPER_ADMIN / PTown, FINANCE, workshop, lab, batch,
+ *     storekeeper, mechanic…) → native ERP dashboard
  */
 export function isDriver(user: AuthUser | null): boolean {
-  if (!user) return false;
-  // SUB-ROLES that share the driver field workflow:
-  //   DRIVER · WORKSHOP_MGR (also operates vehicles on the road)
-  //   SUPER_ADMIN (field override mode on mobile)
-  return user.role === "DRIVER" || user.role === "WORKSHOP_MGR" || user.role === "SUPER_ADMIN";
+  return user?.role === "DRIVER";
 }
 
 export function isSalesRep(user: AuthUser | null): boolean {
+  return user?.role === "SALES_REP";
+}
+
+export function isAccountant(user: AuthUser | null): boolean {
+  return user?.role === "FINANCE" || user?.role === "ACCOUNTANT";
+}
+
+export function isScheduleMgr(user: AuthUser | null): boolean {
+  return user?.role === "SCHEDULE_MGR";
+}
+
+export function isDashboardUser(user: AuthUser | null): boolean {
   if (!user) return false;
-  // SUB-ROLES that share the sales field workflow:
-  //   SALES_REP · FINANCE (also manages client pipelines on the road)
-  return user.role === "SALES_REP" || user.role === "FINANCE";
+  return user.role !== "DRIVER" && user.role !== "SALES_REP";
+}
+
+export function isCompanyOwner(user: AuthUser | null): boolean {
+  return user?.role === "SUPER_ADMIN";
 }
 
 export function isBatchOperator(user: AuthUser | null): boolean {
@@ -114,6 +166,22 @@ export function isLabTech(user: AuthUser | null): boolean {
 
 export function isWorkshopManager(user: AuthUser | null): boolean {
   return user?.role === "WORKSHOP_MGR";
+}
+
+export function isStationTech(user: AuthUser | null): boolean {
+  return user?.role === "STATION_TECH";
+}
+
+export function isOperationsMgr(user: AuthUser | null): boolean {
+  return user?.role === "OPERATIONS_MGR";
+}
+
+export function isProductionMgr(user: AuthUser | null): boolean {
+  return user?.role === "PRODUCTION_MGR";
+}
+
+export function isRepsManager(user: AuthUser | null): boolean {
+  return user?.role === "REPS_MGR";
 }
 
 export function canAccessFinance(user: AuthUser | null): boolean {

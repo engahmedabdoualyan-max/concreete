@@ -16,6 +16,7 @@ import {
   Linking,
   ActivityIndicator,
 } from "react-native";
+import Constants from "expo-constants";
 import { useRouter } from "expo-router";
 import { useAuthStore } from "@/store/auth-store";
 import { useT } from "@/lib/i18n";
@@ -31,6 +32,7 @@ export function ProfileScreen() {
   const [busy, setBusy] = useState(false);
 
   const align = isRtl ? "right" : "left";
+  const appVersion = Constants.expoConfig?.version ?? "1.0.0";
 
   const handleDelete = async () => {
     if (confirmText.trim().toUpperCase() !== "DELETE") return;
@@ -72,6 +74,9 @@ export function ProfileScreen() {
             <Text className="text-orange-700 font-semibold text-xs">{user.role}</Text>
           </View>
         ) : null}
+        <Text className="text-slate-400 text-xs mt-3">
+          {t("profile.appVersion")} {appVersion}
+        </Text>
       </View>
 
       {/* Sign out */}

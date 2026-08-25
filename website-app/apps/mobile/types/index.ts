@@ -13,12 +13,20 @@ export type UserRole =
   | "BATCH_OPERATOR"
   | "SALES_REP"
   | "DRIVER"
+  | "STATION_TECH"
   // Operational aliases retained for backward compatibility
   | "FINANCE"
   | "DISPATCHER"
   | "WORKSHOP_MGR"
   | "LAB_TECHNICIAN"
-  | "WORKSHOP_MECHANIC";
+  | "WORKSHOP_MECHANIC"
+  // Department managers
+  | "OPERATIONS_MGR"
+  | "PRODUCTION_MGR"
+  // Reps (sales field team) manager — tracks rep routes and assigns daily tasks
+  | "REPS_MGR"
+  // Schedule officer — approves the daily schedule after the accountant
+  | "SCHEDULE_MGR";
 
 export interface AuthUser {
   id: string;
@@ -27,6 +35,17 @@ export interface AuthUser {
   email: string;
   role: UserRole;
   zone?: string;
+  /** Website app-tree modules this account may access (mirrors treeRoles.ts mods). */
+  mods?: string[];
+  /** Vehicle type assigned by the owner in the tree (truck field). */
+  vehicleType?: string;
+  /** Company subscription — set by the owner in the tree (Console). */
+  subscriptionStart?: string;
+  subscriptionEnd?: string;
+  /** "active" | "trial" | "expired" | "" */
+  subscriptionStatus?: string;
+  /** Plant/factory display name — shown in headers so cross-plant data is obvious. */
+  plantName?: string;
 }
 
 export interface AuthResponse {
@@ -113,6 +132,29 @@ export interface Trip {
   gradeDescription?: string;
   totalVolumeM3?: string;
   remainingVolumeM3?: string;
+
+  // Delivery challan (Package 1 — midhuna-rmc style guard rails)
+  cycleTimeMin?: number;
+  stageTimes?: {
+    dispatchTime?: string | null;
+    siteArrivalTime?: string | null;
+    unloadingEndTime?: string | null;
+    returnTime?: string | null;
+  };
+  hasChallan?: boolean;
+}
+
+/** Customer signature captured on the pad → serialized strokes (JSON) or data URL. */
+export interface Challan {
+  number?: string;
+  receivedBy?: string;
+  customerSignature?: string;
+  slumpMm?: number | null;
+  temperatureC?: number | null;
+  distanceKm?: number | null;
+  qrCode?: string;
+  capturedAt?: string;
+  updatedAt?: string;
 }
 
 // ─── Simplified Order (Sales View) ─────────────────────────────────────────────
@@ -144,6 +186,7 @@ export interface Client {
   companyName: string;
   phone?: string;
   email?: string;
+  creditHold?: boolean;
 }
 
 export interface DeliverySite {

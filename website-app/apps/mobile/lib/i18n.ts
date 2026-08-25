@@ -165,6 +165,7 @@ const en = {
   // ── Profile / Account Deletion (Google Play compliance) ──────────────────
   "profile.title": "Profile & Settings",
   "profile.account": "Account",
+  "profile.appVersion": "App version:",
   "profile.deleteAccount": "Delete My Account & Personal Data",
   "profile.deleteWarningTitle": "Delete your account?",
   "profile.deleteWarning":
@@ -274,6 +275,7 @@ const ar: Record<TranslationKey, string> = {
 
   "profile.title": "الملف الشخصي والإعدادات",
   "profile.account": "الحساب",
+  "profile.appVersion": "إصدار التطبيق:",
   "profile.deleteAccount": "حذف حسابي وبياناتي الشخصية",
   "profile.deleteWarningTitle": "هل تريد حذف حسابك؟",
   "profile.deleteWarning":
@@ -381,6 +383,7 @@ const ur: Record<TranslationKey, string> = {
 
   "profile.title": "پروفائل اور ترتیبات",
   "profile.account": "اکاؤنٹ",
+  "profile.appVersion": "ایپ ورژن:",
   "profile.deleteAccount": "میرا اکاؤنٹ اور ذاتی ڈیٹا حذف کریں",
   "profile.deleteWarningTitle": "کیا آپ اپنا اکاؤنٹ حذف کرنا چاہتے ہیں؟",
   "profile.deleteWarning":

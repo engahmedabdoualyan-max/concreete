@@ -36,6 +36,11 @@ export default function SalesLayout() {
               <Text className="text-white text-sm">
                 مرحباً، {user?.fullName.split(" ")[0]}
               </Text>
+              {user?.plantName ? (
+                <Text className="text-white/80 text-xs">
+                  🏭 {user.plantName}
+                </Text>
+              ) : null}
             </View>
           ),
         }}
