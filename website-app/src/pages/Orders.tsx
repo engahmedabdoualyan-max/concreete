@@ -10,6 +10,7 @@ import EInvoice from '../components/EInvoice';
 import CustomersManager, { type Customer } from '../components/CustomersManager';
 import NotificationsBell from '../components/NotificationsBell';
 import { addNotification } from '../firebase/firestore';
+import { sendOrderStatusEmail } from '../lib/notifications';
 
 interface Order {
   id: string;
@@ -304,6 +305,17 @@ export default function Orders() {
           pendingStamps.current.push({ id, field: 'approvedAt' });
         }
       }
+      // Send email notification to customer
+      sendOrderStatusEmail({
+        customerName: o.customerName,
+        customerPhone: o.customerPhone,
+        customerEmail: (o as any).customerEmail,
+        orderNo: o.orderNo,
+        projectName: o.projectName,
+        quantity: o.quantity,
+        concreteType: o.concreteType,
+        status: status === 'approved' ? 'approved' : 'cancelled',
+      }).catch(() => {});
       const accountantName = currentUser?.fullName || currentUser?.plantName || currentUser?.username || 'المحاسب';
       return { ...o, accountStatus: status, accountant: status === 'approved' ? accountantName : o.accountant };
     }));
@@ -321,6 +333,17 @@ export default function Orders() {
         level: 'info', title: '📅 تمت جدولة ' + (o.orderNo || id),
         body: `${o.customerName} · ${o.quantity} ${o.orderType === 'concrete' ? 'م³' : 'بلوك'} — جاهز للتشغيل`,
       }).catch(() => {});
+      // Send email notification to customer
+      sendOrderStatusEmail({
+        customerName: o.customerName,
+        customerPhone: o.customerPhone,
+        customerEmail: (o as any).customerEmail,
+        orderNo: o.orderNo,
+        projectName: o.projectName,
+        quantity: o.quantity,
+        concreteType: o.concreteType,
+        status: 'scheduled',
+      }).catch(() => {});
       return { ...o, status: 'scheduled' };
     }));
   };
@@ -331,6 +354,17 @@ export default function Orders() {
       if (currentUser) addNotification(currentUser.username, {
         level: 'success', title: '✅ اكتمل الطلب ' + (o.orderNo || id),
         body: `${o.customerName} · ${o.projectName}`,
+      }).catch(() => {});
+      // Send email notification to customer
+      sendOrderStatusEmail({
+        customerName: o.customerName,
+        customerPhone: o.customerPhone,
+        customerEmail: (o as any).customerEmail,
+        orderNo: o.orderNo,
+        projectName: o.projectName,
+        quantity: o.quantity,
+        concreteType: o.concreteType,
+        status: 'completed',
       }).catch(() => {});
       return { ...o, status: 'completed' };
     }));

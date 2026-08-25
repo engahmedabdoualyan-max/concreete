@@ -923,3 +923,57 @@ export async function getAllPlantsSummary(): Promise<PlantSummary[]> {
   }
   return out;
 }
+
+/* ──────────────── Customer Portal (search across all companies) ──────────────── */
+
+/**
+ * Search all companies' orders for a given customer phone or invoice/order number.
+ * Returns matching orders across all plants.
+ */
+export async function loadAllOrdersForCustomer(identifier: string): Promise<any[]> {
+  const q = identifier.trim().toLowerCase();
+  const usersSnap = await getDocs(collection(db, 'users'));
+  const results: any[] = [];
+
+  for (const userDoc of usersSnap.docs) {
+    const ordersSnap = await getDoc(doc(db, 'users', userDoc.id, 'userData', 'orders'));
+    if (!ordersSnap.exists()) continue;
+    const data = ordersSnap.data();
+    const list = Array.isArray(data?.data) ? data.data : [];
+    for (const order of list) {
+      const phone = String(order.customerPhone || '').toLowerCase();
+      const orderNo = String(order.orderNo || '').toLowerCase();
+      const invoiceNo = String(order.invoiceNo || '').toLowerCase();
+      if (phone.includes(q) || orderNo.includes(q) || invoiceNo.includes(q)) {
+        results.push({ ...order, _plant: userDoc.id });
+      }
+    }
+  }
+  return results;
+}
+
+/**
+ * Search all companies' payments for a given customer phone or invoice/order number.
+ * Returns matching payments across all plants.
+ */
+export async function loadAllInvoicesForCustomer(identifier: string): Promise<any[]> {
+  const q = identifier.trim().toLowerCase();
+  const usersSnap = await getDocs(collection(db, 'users'));
+  const results: any[] = [];
+
+  for (const userDoc of usersSnap.docs) {
+    const paymentsSnap = await getDoc(doc(db, 'users', userDoc.id, 'userData', 'payments'));
+    if (!paymentsSnap.exists()) continue;
+    const data = paymentsSnap.data();
+    const list = Array.isArray(data?.data) ? data.data : [];
+    for (const payment of list) {
+      const phone = String(payment.customerPhone || '').toLowerCase();
+      const orderNo = String(payment.orderNo || '').toLowerCase();
+      const invoiceNo = String(payment.invoiceNo || '').toLowerCase();
+      if (phone.includes(q) || orderNo.includes(q) || invoiceNo.includes(q)) {
+        results.push({ ...payment, _plant: userDoc.id });
+      }
+    }
+  }
+  return results;
+}

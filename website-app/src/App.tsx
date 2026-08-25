@@ -22,6 +22,8 @@ import FimtoFooter from './components/FimtoFooter';
 import Admin from './pages/Admin';
 import Console from './pages/Console';
 import CustomSection from './pages/CustomSection';
+import CustomerPortal from './pages/CustomerPortal';
+import LandingPage from './pages/LandingPage';
 
 export default function App() {
   return (
@@ -32,8 +34,11 @@ export default function App() {
       <HashRouter>
         <Routes>
           <Route path="/login" element={<LoginRegister />} />
+          <Route path="/landing" element={<LandingPage />} />
           <Route path="/admin" element={<Admin />} />
           <Route path="/console" element={<Console />} />
+          <Route path="/portal" element={<CustomerPortal />} />
+          <Route path="/customer" element={<CustomerPortal />} />
           <Route path="/s/:id" element={<CustomSection />} />
           <Route path="/" element={<Dashboard />} />
           <Route path="/operation" element={<Operations />} />

@@ -6,12 +6,12 @@ import BrandLogo from '../components/BrandLogo';
 import type { UserSession } from '../context/AuthContext';
 import { TREE_ROLES, treeModsForRole } from '../lib/treeRoles';
 
-const EMAILJS_PUBLIC_KEY = 'UPIUNYeckrEK-z_xz';
-const EMAILJS_SERVICE_ID = 'service_mdtxmv8';
-const EMAILJS_TEMPLATE_ID = 'template_ablqhm3';
+const EMAILJS_PUBLIC_KEY = import.meta.env.VITE_EMAILJS_PUBLIC_KEY || 'UPIUNYeckrEK-z_xz';
+const EMAILJS_SERVICE_ID = import.meta.env.VITE_EMAILJS_SERVICE_ID || 'service_mdtxmv8';
+const EMAILJS_TEMPLATE_ID = import.meta.env.VITE_EMAILJS_TEMPLATE_ID || 'template_ablqhm3';
 
-const CONSOLE_EMAIL = 'eng.ahmedabdoualyan@gmail.com';
-const CONSOLE_PASSWORD = 'Fimto@ata';
+const CONSOLE_EMAIL = import.meta.env.VITE_CONSOLE_EMAIL || 'eng.ahmedabdoualyan@gmail.com';
+const CONSOLE_PASSWORD = import.meta.env.VITE_CONSOLE_PASSWORD || 'Fimto@ata';
 
 const STORAGE_KEY = 'fimto_module_config';
 const SESSION_KEY = 'fimto_console_session';
@@ -173,7 +173,7 @@ function ConsoleInner() {
   const [protectPass, setProtectPass] = useState('');
   const [protectSaving, setProtectSaving] = useState(false);
 
-const PROTECTION_PASSWORD = '01001006627';
+const PROTECTION_PASSWORD = import.meta.env.VITE_CONSOLE_PROTECTION_PASSWORD || '01001006627';
 
   const saveConfigBtn = async () => {
     setError('💾 جاري حفظ الاعدادات على القاعدة...');

@@ -90,17 +90,49 @@ const ICON = {
       <path d="M15.7 15.7c4.52-4.54 6.54-9.87 4.5-11.9-2.03-2.04-7.36-.02-11.9 4.5-4.52 4.54-6.54 9.87-4.5 11.9 2.03 2.04 7.36.02 11.9-4.5Z" />
     </>
   ),
+  shield: (
+    <>
+      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+      <path d="M9 12l2 2 4-4" />
+    </>
+  ),
+  coin: (
+    <>
+      <circle cx="12" cy="12" r="10" />
+      <path d="M12 6v12" />
+      <path d="M15 9.5c0-1.38-1.34-2.5-3-2.5s-3 1.12-3 2.5 1.34 2.5 3 2.5 3 1.12 3 2.5-1.34 2.5-3 2.5" />
+    </>
+  ),
+  layers: (
+    <>
+      <path d="M12 2L2 7l10 5 10-5-10-5z" />
+      <path d="M2 17l10 5 10-5" />
+      <path d="M2 12l10 5 10-5" />
+    </>
+  ),
+  grid: (
+    <>
+      <rect x="3" y="3" width="7" height="7" rx="1" />
+      <rect x="14" y="3" width="7" height="7" rx="1" />
+      <rect x="3" y="14" width="7" height="7" rx="1" />
+      <rect x="14" y="14" width="7" height="7" rx="1" />
+    </>
+  ),
 };
 
 const MODULES: ModuleDef[] = [
   { access: 'orders', path: 'orders', en: 'Orders', ar: 'الطلبات', desc: 'Order entry & approvals', icon: ICON.box },
   { access: 'operation', path: 'operations', en: 'Operations', ar: 'التشغيل', desc: 'Fleet dispatch & tracking', icon: ICON.truck },
   { access: 'production', path: 'production', en: 'Production', ar: 'الإنتاج', desc: 'Batching & inventory', icon: ICON.factory },
+  { access: 'materials', path: 'materials', en: 'Materials', ar: 'المواد', desc: 'Silo inventory & reorder', icon: ICON.layers },
   { access: 'workshop', path: 'workshop', en: 'Workshop', ar: 'الورشة', desc: 'Maintenance & fleet', icon: ICON.wrench },
   { access: 'mixing', path: 'mixing', en: 'Mixing & Quality', ar: 'المختبر والجودة', desc: 'QC samples & calibration', icon: ICON.flask },
+  { access: 'governance', path: 'governance', en: 'Governance', ar: 'الحوكمة', desc: 'Weighbridge & returns', icon: ICON.shield },
   { access: 'schedule', path: 'schedule', en: 'Schedule', ar: 'الجدول', desc: 'Smart daily pouring', icon: ICON.calendar },
   { access: 'evaluation', path: 'evaluation', en: 'Evaluation', ar: 'التقييم', desc: 'Plant OEE & KPI', icon: ICON.chart },
+  { access: 'finance', path: 'finance', en: 'Finance', ar: 'المالية', desc: 'Payments & POs', icon: ICON.coin },
   { access: 'rnd', path: 'rnd', en: 'R & D', ar: 'البحث والتطوير', desc: 'Innovation & training', icon: ICON.atom },
+  { access: 'multiplant', path: 'multiplant', en: 'Multi Plant', ar: 'المحطات', desc: 'Multi-plant command center', icon: ICON.grid },
 ];
 
 const DEFAULT_TRIPS: Trip[] = [
@@ -500,8 +532,28 @@ export default function Dashboard() {
         <QuotaBanner />
       </div>
 
+      {/* ===== QUICK KPIs (logged-in users only) ===== */}
+      {currentUser && (
+        <div className="px-4 sm:px-6 pt-6 max-w-[1280px] mx-auto w-full">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {[
+              { label: 'الطلبات النشطة', value: trips.filter(t => t.status !== 'COMPLETED').length, icon: '📦', color: 'text-sky-400' },
+              { label: 'تم التسليم اليوم', value: trips.filter(t => t.status === 'COMPLETED').length, icon: '✅', color: 'text-emerald-400' },
+              { label: 'إجمالي الشحنات', value: trips.length, icon: '🚛', color: 'text-white' },
+              { label: 'المحطة', value: currentUser.plantName || '—', icon: '🏭', color: 'text-cyan-300', isText: true },
+            ].map((kpi, i) => (
+              <div key={i} className="bg-white/[0.03] border border-white/10 rounded-xl p-3 text-center hover:border-white/20 transition">
+                <span className="text-xl">{kpi.icon}</span>
+                <p className={`text-lg font-black mt-1 ${kpi.color}`}>{kpi.isText ? kpi.value : kpi.value}</p>
+                <p className="text-[10px] text-slate-500 mt-0.5">{kpi.label}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* ===== MAIN ===== */}
-      <div className="max-w-[1440px] mx-auto px-4 sm:px-6 pt-12 sm:pt-16 lg:pt-20 pb-6 lg:pb-10">
+      <div className="max-w-[1440px] mx-auto px-4 sm:px-6 pt-8 sm:pt-12 lg:pt-16 pb-6 lg:pb-10">
 
         {/* Hero — brand statement */}
         <div className="relative text-center mb-10 lg:mb-14">
@@ -516,20 +568,20 @@ export default function Dashboard() {
           </p>
         </div>
 
-        {/* ===== Symmetric 3-3-1-1 Layout Architecture ===== */}
+        {/* ===== Layout Architecture ===== */}
         <div className="grid grid-cols-1 lg:grid-cols-[1.2fr_2fr_1.2fr] gap-6 items-stretch w-full max-w-[1280px] mx-auto">
 
-          {/* LEFT column — Operations & Logistics: Orders · Operations · Production */}
+          {/* LEFT column — Operations & Logistics: Orders · Operations · Production · Materials */}
           <div className="order-2 lg:order-1 flex flex-col gap-6 w-full">
-            {[eff(0), eff(1), eff(2)].filter(m => m && canAccess(m.access)).map(m => (
+            {[eff(0), eff(1), eff(2), eff(3)].filter(m => m && canAccess(m.access)).map(m => (
               <ModuleButton key={m!.path} m={m!} onGo={() => go(m!.path)} showDesc className="flex-1 min-h-[130px] lg:min-h-[150px]" />
             ))}
           </div>
 
-          {/* CENTER column — Schedule · Preview · Evaluation */}
+          {/* CENTER column — Schedule · Preview · Evaluation · Finance */}
           <div className="order-1 lg:order-2 flex flex-col gap-6 w-full">
-            {eff(5) && canAccess(eff(5)!.access) && (
-              <ModuleButton m={eff(5)!} onGo={() => go(eff(5)!.path)} className="min-h-[110px] lg:h-[118px] lg:min-h-0" />
+            {eff(7) && canAccess(eff(7)!.access) && (
+              <ModuleButton m={eff(7)!} onGo={() => go(eff(7)!.path)} className="min-h-[110px] lg:h-[118px] lg:min-h-0" />
             )}
             <div className="relative w-full flex-1 flex items-center justify-center">
               <div className="pointer-events-none absolute inset-0 -z-10 blur-3xl" style={{ background: "radial-gradient(ellipse 60% 60% at 50% 50%, rgba(56,189,248,0.3), transparent 70%)" }} />
@@ -539,18 +591,28 @@ export default function Dashboard() {
                 className="w-full h-auto object-contain rounded-2xl border border-white/10 shadow-[0_0_40px_rgba(56,189,248,0.25),0_0_120px_rgba(56,189,248,0.15)]"
               />
             </div>
-            {eff(6) && canAccess(eff(6)!.access) && (
-              <ModuleButton m={eff(6)!} onGo={() => go(eff(6)!.path)} className="min-h-[110px] lg:h-[118px] lg:min-h-0" />
+            {eff(8) && canAccess(eff(8)!.access) && (
+              <ModuleButton m={eff(8)!} onGo={() => go(eff(8)!.path)} className="min-h-[110px] lg:h-[118px] lg:min-h-0" />
+            )}
+            {eff(9) && canAccess(eff(9)!.access) && (
+              <ModuleButton m={eff(9)!} onGo={() => go(eff(9)!.path)} className="min-h-[110px] lg:h-[118px] lg:min-h-0" />
             )}
           </div>
 
-          {/* RIGHT column — Maintenance & Quality: Workshop · Mixing & Quality · R&D */}
+          {/* RIGHT column — Maintenance & Quality: Workshop · Mixing & Quality · Governance · R&D */}
           <div className="order-3 flex flex-col gap-6 w-full">
-            {[eff(3), eff(4), eff(7)].filter(m => m && canAccess(m.access)).map(m => (
+            {[eff(4), eff(5), eff(6), eff(10)].filter(m => m && canAccess(m.access)).map(m => (
               <ModuleButton key={m!.path} m={m!} onGo={() => go(m!.path)} showDesc className="flex-1 min-h-[130px] lg:min-h-[150px]" />
             ))}
           </div>
         </div>
+
+        {/* ===== Multi Plant — Full Width (for multi-plant owners) ===== */}
+        {eff(11) && canAccess(eff(11)!.access) && (
+          <div className="mt-6 w-full max-w-[1280px] mx-auto">
+            <ModuleButton m={eff(11)!} onGo={() => go(eff(11)!.path)} showDesc className="min-h-[110px] lg:min-h-[130px]" />
+          </div>
+        )}
 
         {/* ===== Custom sections (added from control panel) ===== */}
         {customMods.length > 0 && (
