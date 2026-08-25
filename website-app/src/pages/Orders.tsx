@@ -20,6 +20,7 @@ interface Order {
   orderTime: string;
   customerName: string;
   customerPhone: string;
+  customerEmail?: string;
   customerCode: string; // كود العميل من المحاسب
   projectName: string;
   projectLocation: string;
@@ -98,6 +99,7 @@ export default function Orders() {
     customerId: '',
     customerName: '',
     customerPhone: '',
+    customerEmail: '',
     customerCode: '',
     projectName: '',
     projectLocation: '',
@@ -185,6 +187,7 @@ export default function Orders() {
       orderTime: form.orderTime,
       customerName: form.customerName,
       customerPhone: form.customerPhone,
+      customerEmail: form.customerEmail,
       projectName: form.projectName,
       projectLocation: form.projectLocation,
       locationCoords: form.locationCoords,
@@ -230,6 +233,7 @@ export default function Orders() {
       customerId: '',
       customerName: '',
       customerPhone: '',
+      customerEmail: '',
       customerCode: '',
       projectName: '',
       projectLocation: '',
@@ -559,6 +563,17 @@ export default function Orders() {
                         onChange={handleInputChange}
                         className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]"
                         required
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs text-slate-400 mb-1 block">البريد الإلكتروني (لإشعارات التتبع)</label>
+                      <input
+                        type="email"
+                        name="customerEmail"
+                        value={form.customerEmail}
+                        onChange={handleInputChange}
+                        placeholder="example@email.com"
+                        className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]"
                       />
                     </div>
                   </div>

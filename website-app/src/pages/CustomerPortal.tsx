@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { loadAllOrdersForCustomer, loadAllInvoicesForCustomer } from '../firebase/firestore';
 import BrandLogo from '../components/BrandLogo';
+import emailjs from '@emailjs/browser';
 
 /* ─── Types ─── */
 interface Order {
@@ -74,15 +75,32 @@ export default function CustomerPortal() {
     if (!identifier.trim()) { setError('أدخل رقم الموبايل أو رقم الفاتورة'); return; }
     setBusy(true);
 
-    // Generate OTP and "send" it (in production, use SMS/email API)
+    // Generate OTP and send via EmailJS
     const code = generateOTP();
     setGeneratedOtp(code);
     setOtpSentTo(identifier);
     setPhase('otp');
     setBusy(false);
 
-    // Show OTP to user (demo mode — in production, this would be sent via SMS)
-    alert(`رمز التحقق الخاص بك: ${code}\n(في الإنتاج الإصدار يُرسل عبر SMS)`);
+    // Send OTP via EmailJS (configured in .env)
+    try {
+      await emailjs.send(
+        import.meta.env.VITE_EMAILJS_SERVICE_ID || 'service_mdtxmv8',
+        import.meta.env.VITE_EMAILJS_TEMPLATE_ID || 'template_ablqhm3',
+        {
+          to_email: identifier,
+          to_name: 'عميل Fimto',
+          subject: `🔐 رمز التحقق: ${code}`,
+          message: `مرحباً،\n\nرمز التحقق الخاص بك: ${code}\n\nهذا الرمز صالح لمدة 5 دقائق فقط.\n\nإذا لم تطلب هذا الرمز، تجاهل هذه الرسالة.\n\nمع خالص التحيات،\nفريق Fimto Soft`,
+        },
+        { publicKey: import.meta.env.VITE_EMAILJS_PUBLIC_KEY || 'UPIUNYeckrEK-z_xz' }
+      );
+      console.log('[OTP] Sent via EmailJS to', identifier);
+    } catch (err) {
+      console.warn('[OTP] EmailJS failed, showing in console:', err);
+      // Fallback: show in console if email fails
+      alert(`⚠️ فشل إرسال الإيميل. رمز التحقق: ${code}`);
+    }
   };
 
   /* ─── OTP Handler ─── */
