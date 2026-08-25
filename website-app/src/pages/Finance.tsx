@@ -12,6 +12,7 @@ import ErpLedger from '../components/ErpLedger';
 import ErpCommitments from '../components/ErpCommitments';
 import ErpExpenses from '../components/ErpExpenses';
 import ErpSuppliers from '../components/ErpSuppliers';
+import AccountingIntegration from '../components/AccountingIntegration';
 
 interface Payment { id: number; date: string; client: string; orderNo: string; amount: number; method: string; status: 'paid' | 'partial' | 'pending'; note: string; link?: string; qr?: string; ref?: string; }
 interface PO { id: number; date: string; material: string; qty: number; unit: string; supplier: string; unitPrice: number; total: number; status: 'open' | 'delivered'; reason: string; }
@@ -35,6 +36,7 @@ export default function Finance() {
   const [checked, setChecked] = useState<Record<string, boolean>>({});
   const [stock, setStock] = useState<Record<string, number>>({});
   const [demandM3, setDemandM3] = useState(0);
+  const [showAccounting, setShowAccounting] = useState(false);
 
   useEffect(() => {
     if (!currentUser) return;
@@ -156,6 +158,21 @@ export default function Finance() {
         {['sysadmin', 'accountant', 'ptown'].includes(currentUser.role || '') && <ErpCommitments />}
         {['sysadmin', 'accountant', 'ptown'].includes(currentUser.role || '') && <ErpExpenses />}
         {['sysadmin', 'accountant', 'ptown'].includes(currentUser.role || '') && <ErpSuppliers />}
+        
+        {/* ربط المحاسبة */}
+        {['sysadmin', 'accountant', 'ptown'].includes(currentUser.role || '') && (
+          <div className="bg-white/[0.04] border border-white/10 rounded-xl p-6 backdrop-blur-xl mt-4">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="text-lg font-black tracking-tight text-white">🔗 ربط المحاسبة</h3>
+                <p className="text-xs text-slate-400">QuickBooks / Sage integration</p>
+              </div>
+              <button onClick={() => setShowAccounting(true)} className="bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold px-4 py-2 rounded-lg">
+                ⚙️ إعداد الربط
+              </button>
+            </div>
+          </div>
+        )}
 
         {tab === 'payments' && (
           <div className="grid grid-cols-1 lg:grid-cols-[380px_1fr] gap-6">
@@ -311,6 +328,9 @@ export default function Finance() {
         </div>
         )}
       </div>
+
+      {/* نافذة ربط المحاسبة */}
+      {showAccounting && <AccountingIntegration onClose={() => setShowAccounting(false)} />}
     </div>
   );
 }

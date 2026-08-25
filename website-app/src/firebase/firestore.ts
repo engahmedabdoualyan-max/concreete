@@ -11,7 +11,7 @@ export const USER_DATA_COLLECTIONS = [
   'productionRuns', 'qcRecords', 'assets', 'workshopConfig', 'customers', 'plantProfile',
   'weighbridgeRecords', 'returnedConcrete', 'payments', 'purchaseOrders', 'rawStock',
   'plants', 'blockPlants', 'gpsConfig', 'gpsHistory', 'livePositions',
-  'orders', 'notifications',
+  'orders', 'notifications', 'accountingSettings', 'batchController', 'dashcamConfig',
 ];
 
 function userDocRef(userId: string) {
@@ -992,4 +992,28 @@ export async function loadAllInvoicesForCustomer(identifier: string): Promise<an
     }
   }
   return results;
+}
+
+// ====================== Accounting Settings ======================
+export async function saveAccountingSettings(userId: string, settings: any) {
+  await saveUserData(userId, 'accountingSettings', settings);
+}
+export async function loadAccountingSettings(userId: string) {
+  return await loadUserData(userId, 'accountingSettings');
+}
+
+// ====================== Batch Controller Config ======================
+export async function saveBatchControllerConfig(userId: string, config: any) {
+  await saveUserData(userId, 'batchController', config);
+}
+export async function loadBatchControllerConfig(userId: string) {
+  return await loadUserData(userId, 'batchController');
+}
+
+// ====================== Dashcam Config ======================
+export async function saveDashcamConfig(userId: string, config: any) {
+  await saveUserData(userId, 'dashcamConfig', config);
+}
+export async function loadDashcamConfig(userId: string) {
+  return await loadUserData(userId, 'dashcamConfig');
 }

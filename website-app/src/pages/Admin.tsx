@@ -10,6 +10,7 @@ import FactoryData from '../components/FactoryData';
 import PlantsManager from '../components/PlantsManager';
 import GpsPanel from '../components/GpsPanel';
 import GpsFleetMap from '../components/GpsFleetMap';
+import DashcamIntegration from '../components/DashcamIntegration';
 import ErpAdminOverview from '../components/ErpAdminOverview';
 
 type Tab = 'overview' | 'plant' | 'plants' | 'users' | 'sections' | 'gps' | 'erp';
@@ -82,6 +83,7 @@ export default function AdminPanel() {
   const [toast, setToast] = useState('');
   const [showAdd, setShowAdd] = useState(false);
   const [addError, setAddError] = useState('');
+  const [showDashcam, setShowDashcam] = useState(false);
 
   const [plantForm, setPlantForm] = useState(plant);
   const [newUser, setNewUser] = useState({ username: '', password: '', name: '', email: '', phone: '', plantName: '', role: 'operator' as UserRole });
@@ -671,9 +673,24 @@ export default function AdminPanel() {
         )}
 
         {tab === 'gps' && (
-          <GpsFleetMap onToast={showToast} />
+          <>
+            <GpsFleetMap onToast={showToast} />
+            <div className="bg-white/[0.04] border border-white/10 rounded-xl p-6 backdrop-blur-xl mt-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-lg font-black tracking-tight text-white">📹 داش كام الشاحنات</h3>
+                  <p className="text-xs text-slate-400">Fleet Dashcam — بث مباشر، تسجيل، وكشف الأحداث بالذكاء الاصطناعي</p>
+                </div>
+                <button onClick={() => setShowDashcam(true)} className="bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-red-500/30 text-xs font-bold px-4 py-2 rounded-lg">
+                  ▶️ عرض الكاميرات
+                </button>
+              </div>
+            </div>
+          </>
         )}
       </div>
+
+      {showDashcam && <DashcamIntegration onClose={() => setShowDashcam(false)} />}
     </div>
   );
 }

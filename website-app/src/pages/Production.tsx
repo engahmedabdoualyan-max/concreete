@@ -7,6 +7,7 @@ import QuickJump from '../components/QuickJump';
 import LangSelector from '../components/LangSelector';
 import BrandLogo from '../components/BrandLogo';
 import NotificationsBell from '../components/NotificationsBell';
+import BatchControllerIntegration from '../components/BatchControllerIntegration';
 
 interface Delivery { date: string; material: string; qty: number; invoice: string; }
 interface ProdRun { date: string; time: string; recipe: string; volume: number; cementUsed: number; sandUsed: number; gravelUsed: number; orderId?: string; }
@@ -74,6 +75,7 @@ export default function Production() {
   const [additions, setAdditions] = useState<Addition[]>([]);
   const [additionForm, setAdditionForm] = useState({ name: '', type: 'delay_set' as Addition['type'], dosagePerM3: '', currentStock: '', minStock: '', unit: 'كجم', supplier: '', costPerUnit: '' });
   const [editingAddition, setEditingAddition] = useState<number | null>(null);
+  const [showBatchCtrl, setShowBatchCtrl] = useState(false);
   const [blocks, setBlocks] = useState<BlockType[]>(() => {
     const saved = localStorage.getItem('plantBlocks');
     return saved ? JSON.parse(saved) : [
@@ -379,6 +381,7 @@ export default function Production() {
           <h1 className="text-sm font-black tracking-tight text-white">🏭 Concrete Production & Material Inventory</h1>
         </div>
         <div className="flex flex-wrap items-center gap-3">
+          <button onClick={() => setShowBatchCtrl(true)} className="bg-purple-500/20 text-purple-400 border border-purple-500/30 hover:bg-purple-500/30 text-xs font-bold px-3 py-1.5 rounded-lg">🏭 ربط متحكم المحطة</button>
           <NotificationsBell />
           <span className="bg-emerald-500/15 text-emerald-500 text-xs px-3 py-1.5 rounded-lg font-bold border border-emerald-500/30">🟢 {currentUser.plantName}</span>
           <p className="text-[10px] text-emerald-500/80">Design by Dr. Ahmad Abdo Alyan</p>
@@ -574,11 +577,14 @@ export default function Production() {
                       </div>
                     </td>
                   </tr>
-                ))}</tbody></table>
+                 ))}</tbody></table>
             </div>
           </div>
         </div>
       </main>
+
+      {/* نافذة ربط متحكم المحطة */}
+      {showBatchCtrl && <BatchControllerIntegration onClose={() => setShowBatchCtrl(false)} />}
     </div>
   );
 }
