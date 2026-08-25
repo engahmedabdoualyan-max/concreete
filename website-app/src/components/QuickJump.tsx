@@ -8,6 +8,7 @@ const ALL_PAGES = [
   { path: '/workshop', label: '🔧 Workshop / Maintenance' },
   { path: '/mixing', label: '🎛️ Mixing & Quality' },
   { path: '/production', label: '🏭 Production & Inventory' },
+  { path: '/materials', label: '🏗️ الخامات والمخزون والخلطات' },
   { path: '/evaluation', label: '📊 Plant OEE Evaluation' },
   { path: '/schedule', label: '📅 Pouring Schedule' },
   { path: '/orders', label: '📦 Orders' },
@@ -24,7 +25,7 @@ const ROLE_ACCESS: Record<string, string[]> = {
   ACCOUNTANT: ['/', '/orders', '/schedule', '/finance'],
   QUALITY_MGR: ['/', '/mixing', '/evaluation', '/governance', '/rnd'],
   LAB_TECH: ['/', '/mixing', '/evaluation', '/governance', '/rnd'],
-  PRODUCTION_OP: ['/', '/workshop', '/mixing', '/production'],
+  PRODUCTION_OP: ['/', '/workshop', '/mixing', '/production', '/materials'],
   DRIVER: ['/', '/operations'],
 };
 

@@ -10,6 +10,7 @@
 
 import { useEffect, useState } from 'react';
 import { api } from '../api/client';
+import ExportButtons from './ExportButtons';
 
 interface PendingOrder {
   id: string;
@@ -41,11 +42,39 @@ interface FinanceData {
   pipelineCounts: { status: string; count: number; totalVolume: string }[];
 }
 
+interface RiskClient {
+  id: string;
+  clientCode: string;
+  companyName: string;
+  creditLimitSar: number;
+  outstandingBalanceSar: number;
+  utilisationPct: number;
+  isBlacklisted: boolean;
+  riskScore: 'LOW' | 'MEDIUM' | 'HIGH';
+  riskNotes: string | null;
+  riskLastUpdatedAt: string | null;
+}
+
+interface RiskData {
+  clients: RiskClient[];
+  summary: Record<'LOW' | 'MEDIUM' | 'HIGH', number>;
+  total: number;
+}
+
+const RISK_STYLE: Record<string, { badge: string; border: string }> = {
+  HIGH: { badge: 'bg-red-500/20 text-red-300 border-red-500/50', border: 'border-red-500/40' },
+  MEDIUM: { badge: 'bg-yellow-500/20 text-yellow-300 border-yellow-500/50', border: 'border-yellow-500/40' },
+  LOW: { badge: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/50', border: 'border-emerald-500/40' },
+};
+
 export default function ErpFinance() {
   const [data, setData] = useState<FinanceData | null>(null);
   const [error, setError] = useState('');
   const [busyId, setBusyId] = useState('');
   const [reason, setReason] = useState<Record<string, string>>({});
+  const [riskData, setRiskData] = useState<RiskData | null>(null);
+  const [riskBusy, setRiskBusy] = useState(false);
+  const [riskError, setRiskError] = useState('');
 
   const load = () => {
     setError('');
@@ -54,7 +83,31 @@ export default function ErpFinance() {
       .catch((e: any) => setError(e?.message || 'تعذر تحميل بيانات المالية'));
   };
 
+  const loadRisk = () => {
+    setRiskError('');
+    api.get<RiskData>('/api/clients/risk')
+      .then(setRiskData)
+      .catch(() => setRiskData(null));
+  };
+
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- initial data fetch
   useEffect(load, []);
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- initial data fetch
+  useEffect(loadRisk, []);
+
+  const recalcRisk = async () => {
+    setRiskBusy(true);
+    setRiskError('');
+    try {
+      const res = await api.post<{ summary: Record<'LOW' | 'MEDIUM' | 'HIGH', number>; results: unknown[] }>('/api/clients/risk/recalculate', {});
+      setRiskData(prev => prev ? { ...prev, summary: res.summary } : prev);
+      loadRisk();
+    } catch (e: any) {
+      setRiskError(e?.message || 'فشل إعادة حساب المخاطر');
+    } finally {
+      setRiskBusy(false);
+    }
+  };
 
   const approve = async (orderId: string) => {
     setBusyId(orderId);
@@ -135,6 +188,88 @@ export default function ErpFinance() {
             <span className="bg-white/[0.03] border border-white/10 rounded px-2 py-1">
               محظور: <b className="text-red-400">{data.creditSummary?.blacklistedCount ?? 0}</b>
             </span>
+          </div>
+
+          {/* Automatic client risk assessment */}
+          <div className="mb-4">
+            <div className="flex items-center justify-between mb-2">
+              <h4 className="text-xs font-bold text-white flex items-center gap-1.5">
+                <span>🛡️</span> تقييم مخاطر العملاء التلقائي
+              </h4>
+              <div className="flex items-center gap-2">
+                <ExportButtons
+                  filename="تقييم_مخاطر_العملاء"
+                  title="تقرير تقييم مخاطر العملاء"
+                  subtitle={`إجمالي ${riskData?.total ?? 0} عميل`}
+                  columns={[
+                    { header: 'العميل', key: 'name' },
+                    { header: 'درجة المخاطرة', key: 'score' },
+                    { header: 'التصنيف', key: 'level' },
+                    { header: 'الاستفادة من الائتمان', key: 'util' },
+                    { header: 'ملاحظات', key: 'notes' },
+                  ]}
+                  rows={(riskData?.clients ?? []).map(c => ({
+                    name: c.companyName || c.clientCode,
+                    score: c.riskScore,
+                    level: c.riskScore === 'HIGH' ? 'عالية' : c.riskScore === 'MEDIUM' ? 'متوسطة' : 'منخفضة',
+                    util: `${c.utilisationPct ?? 0}%`,
+                    notes: c.riskNotes ?? '-',
+                  }))}
+                />
+                <span className="text-[10px] text-slate-400">آخر تحديث: {riskData?.clients?.[0]?.riskLastUpdatedAt ? new Date(riskData.clients[0].riskLastUpdatedAt).toLocaleDateString() : '-'}</span>
+                <button
+                  onClick={recalcRisk}
+                  disabled={riskBusy}
+                  className="text-[11px] bg-violet-500/20 text-violet-300 border border-violet-500/40 rounded px-2 py-1 hover:bg-violet-500/30 disabled:opacity-40"
+                >
+                  {riskBusy ? 'جاري الحساب...' : '🔄 أعد الحساب'}
+                </button>
+              </div>
+            </div>
+            {riskError && <div className="text-xs text-red-400 bg-red-500/10 border border-red-500/30 rounded p-2 mb-2">{riskError}</div>}
+            {!riskData && !riskError && <div className="text-xs text-slate-500">جاري تحميل تقييم المخاطر...</div>}
+            {riskData && riskData.total > 0 && (
+              <>
+                <div className="flex flex-wrap gap-2 mb-2 text-[11px]">
+                  <span className="bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 rounded px-2 py-0.5">🟢 منخفضة: <b>{riskData.summary.LOW}</b></span>
+                  <span className="bg-yellow-500/10 border border-yellow-500/30 text-yellow-300 rounded px-2 py-0.5">🟡 متوسطة: <b>{riskData.summary.MEDIUM}</b></span>
+                  <span className="bg-red-500/10 border border-red-500/30 text-red-300 rounded px-2 py-0.5">🔴 عالية: <b>{riskData.summary.HIGH}</b></span>
+                  <span className="bg-white/[0.03] border border-white/10 text-slate-400 rounded px-2 py-0.5">الإجمالي: <b className="text-white">{riskData.total}</b></span>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs text-slate-300">
+                    <thead className="bg-white/[0.04] text-slate-400 text-[10px]">
+                      <tr>
+                        <th className="p-2 text-right">العميل</th>
+                        <th className="p-2">المخاطر</th>
+                        <th className="p-2">الاستخدام</th>
+                        <th className="p-2">المستحق</th>
+                        <th className="p-2">العوامل</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {riskData.clients.map(c => (
+                        <tr key={c.id} className={`border-b border-white/10 ${RISK_STYLE[c.riskScore]?.border}`}>
+                          <td className="p-2 font-bold text-white">{c.companyName} <span className="text-slate-500 font-mono text-[9px]">({c.clientCode})</span></td>
+                          <td className="p-2">
+                            <span className={`px-2 py-0.5 rounded font-bold text-[10px] border ${RISK_STYLE[c.riskScore]?.badge}`}>
+                              {c.riskScore === 'HIGH' ? '🔴 عالية' : c.riskScore === 'MEDIUM' ? '🟡 متوسطة' : '🟢 منخفضة'}
+                            </span>
+                            {c.isBlacklisted && <span className="ml-1 px-1.5 py-0.5 rounded text-[9px] bg-red-600 text-white font-bold">⛔ BLACKLIST</span>}
+                          </td>
+                          <td className="p-2 font-mono">{c.utilisationPct}%</td>
+                          <td className="p-2 font-mono text-amber-300">{c.outstandingBalanceSar.toLocaleString()}</td>
+                          <td className="p-2 max-w-[260px] text-[10px] text-slate-400">
+                            {c.riskNotes ? c.riskNotes.split('\n').map((n, i) => <div key={i}>• {n}</div>) : '-'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
+            {riskData && riskData.total === 0 && <div className="text-xs text-slate-500">لا يوجد عملاء بعد.</div>}
           </div>
 
           {/* Pending queue */}

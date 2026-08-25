@@ -1,14 +1,15 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { useAuth } from './AuthContext';
+import { treeModsForRole } from '../lib/treeRoles';
 import {
   savePlantProfileToSupabase, loadPlantProfileFromSupabase,
   saveAdminUserToSupabase, deleteAdminUserFromSupabase, loadAdminUsersFromSupabase,
 } from '../supabase/supabase';
 
-export type UserRole = 'owner' | 'manager' | 'operator' | 'quality' | 'maintenance' | 'viewer';
+export type UserRole = 'owner' | 'manager' | 'operator' | 'quality' | 'maintenance' | 'viewer' | 'sysadmin' | 'ptown';
 export type ModuleKey = 'operations' | 'production' | 'workshop' | 'mixing' | 'schedule' | 'orders' | 'evaluation' | 'rnd';
 
-export const ROLE_KEYS: UserRole[] = ['owner', 'manager', 'operator', 'quality', 'maintenance', 'viewer'];
+export const ROLE_KEYS: UserRole[] = ['owner', 'manager', 'operator', 'quality', 'maintenance', 'viewer', 'sysadmin', 'ptown'];
 export const MODULE_KEYS: ModuleKey[] = ['operations', 'production', 'workshop', 'mixing', 'schedule', 'orders', 'evaluation', 'rnd'];
 
 export interface PlantProfile {
@@ -69,6 +70,8 @@ export function rolePermissions(role: UserRole): Record<ModuleKey, boolean> {
   switch (role) {
     case 'owner':
     case 'manager':
+    case 'sysadmin':
+    case 'ptown':
       return all();
     case 'operator':
       return { ...none(), operations: true, production: true, schedule: true, orders: true };
@@ -253,6 +256,13 @@ export function AdminProvider({ children }: { children: ReactNode }) {
     if (!currentUser) return false;
     if (currentUser.status === 'GUEST') return true;
     const norm = (module === 'operation' ? 'operations' : module) as ModuleKey;
+    if (currentUser.status === 'APP_ACCOUNT') {
+      const role = String((currentUser as any).role || '');
+      if (role === 'sysadmin' || role === 'ptown') return true;
+      const mods = (currentUser as any).mods as string[] | undefined;
+      const list = Array.isArray(mods) && mods.length ? mods : treeModsForRole(role);
+      return list.includes(norm);
+    }
     const u = users.find(x => x.username.toLowerCase() === currentUser.username.toLowerCase());
     if (!u) return true;
     if (!u.isActive) return false;
@@ -263,6 +273,10 @@ export function AdminProvider({ children }: { children: ReactNode }) {
   const canManageAdmin = (): boolean => {
     if (!currentUser) return false;
     if (currentUser.status === 'GUEST') return true;
+    if (currentUser.status === 'APP_ACCOUNT') {
+      const role = String((currentUser as any).role || '');
+      return role === 'sysadmin' || role === 'owner' || role === 'manager';
+    }
     const u = users.find(x => x.username.toLowerCase() === currentUser.username.toLowerCase());
     if (!u) return true;
     return u.isActive && (u.role === 'owner' || u.role === 'manager');

@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { loadOrders, saveOrders } from '../firebase/firestore';
+import { loadOrders, saveOrders, stampOrderTime } from '../firebase/firestore';
 import QuickJump from '../components/QuickJump';
 import LangSelector from '../components/LangSelector';
 import BrandLogo from '../components/BrandLogo';
@@ -40,6 +40,10 @@ interface Order {
   debtStatus: 'clear' | 'has_debt' | 'blocked';
   notes: string;
   status: 'pending' | 'approved' | 'scheduled' | 'in_progress' | 'completed' | 'cancelled';
+  /** Server-recorded audit timestamps (Firestore REQUEST_TIME — cannot be forged). */
+  serverCreatedAt?: string;
+  serverApprovedAt?: string;
+  serverUpdatedAt?: string;
   dailyEvaluation?: {
     plantScore: number;
     truckScore: number;
@@ -47,6 +51,16 @@ interface Order {
     totalScore: number;
     notes: string;
   };
+}
+
+function fmtServerTime(iso?: string): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '';
+  return d.toLocaleString('ar-EG', {
+    day: '2-digit', month: '2-digit', year: 'numeric',
+    hour: '2-digit', minute: '2-digit',
+  });
 }
 
 const ORDERS_KEY = 'concrete_plant_orders';
@@ -60,6 +74,15 @@ export default function Orders() {
   const [invoiceFor, setInvoiceFor] = useState<Order | null>(null);
   const [showCustomers, setShowCustomers] = useState(false);
   const [customers, setCustomers] = useState<Customer[]>([]);
+  const [trips, setTrips] = useState<any[]>([]);
+  useEffect(() => {
+    if (!currentUser) return;
+    import('../firebase/firestore').then(({ loadTrips }) => loadTrips(currentUser.username)).then(d => { if (Array.isArray(d)) setTrips(d); }).catch(() => {});
+  }, [currentUser?.username]);
+  const deliveredFor = (orderId?: string) =>
+    trips.filter(t => (t.orderId || t.orderNo) === orderId && String(t.status).toUpperCase() === 'COMPLETED')
+      .reduce((s, t) => s + (Number(t.qty) || 0), 0);
+  const isCustomerHeld = (o: any) => !!customers.find(c => (c.id === o.customerId || c.name === o.customerName) && c.creditHold);
   useEffect(() => {
     if (!currentUser) return;
     import('../firebase/firestore').then(({ loadCustomers }) => loadCustomers(currentUser.username)).then(d => {
@@ -96,6 +119,9 @@ export default function Orders() {
     notes: '',
   });
 
+  // Server-time audit stamps queued until the orders doc is saved
+  const pendingStamps = useRef<{ id: string; field: 'createdAt' | 'approvedAt' | 'updatedAt' }[]>([]);
+
   // Load orders from localStorage + Firestore
   useEffect(() => {
     if (!currentUser) return;
@@ -119,7 +145,16 @@ export default function Orders() {
     if (orders.length > 0 || localStorage.getItem(ORDERS_KEY)) {
       localStorage.setItem(ORDERS_KEY, JSON.stringify(orders));
     }
-    if (orders.length > 0) saveOrders(currentUser.username, orders).catch(() => {});
+    if (orders.length > 0) {
+      saveOrders(currentUser.username, orders)
+        .then(() => {
+          // Server-stamp queued audit times AFTER the doc exists (avoids races)
+          const pending = pendingStamps.current;
+          pendingStamps.current = [];
+          pending.forEach(s => stampOrderTime(currentUser!.username, s.id, s.field).catch(() => {}));
+        })
+        .catch(() => {});
+    }
   }, [orders, currentUser?.username]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
@@ -178,6 +213,8 @@ export default function Orders() {
       if (currentUser) addNotification(currentUser.username, { level: 'info', title: '✏️ تم تعديل الطلب ' + orderNo, body: `${form.customerName} · ${form.projectName}` }).catch(() => {});
     } else {
       setOrders(prev => [...prev, newOrder]);
+      // Server-stamp the creation time (anti-tamper audit trail)
+      pendingStamps.current.push({ id: newOrder.id, field: 'createdAt' });
       if (currentUser) addNotification(currentUser.username, { level: 'info', title: '📦 طلب جديد ' + orderNo, body: `${form.customerName} · ${form.quantity} ${form.orderType === 'concrete' ? 'م³' : 'بلوك'} · بانتظار مراجعة الحسابات` }).catch(() => {});
     }
 
@@ -256,18 +293,30 @@ export default function Orders() {
   const handleApproveAccount = (id: string, status: 'approved' | 'rejected') => {
     setOrders(prev => prev.map(o => {
       if (o.id !== id) return o;
-      if (currentUser) addNotification(currentUser.username, {
-        level: status === 'approved' ? 'success' : 'error',
-        title: `${status === 'approved' ? '✅ موافقة الحسابات' : '❌ رفض الحسابات'} ${o.orderNo || id}`,
-        body: `${o.customerName} · ${o.projectName}`,
-      }).catch(() => {});
-      return { ...o, accountStatus: status };
+      if (currentUser) {
+        addNotification(currentUser.username, {
+          level: status === 'approved' ? 'success' : 'error',
+          title: `${status === 'approved' ? '✅ موافقة الحسابات' : '❌ رفض الحسابات'} ${o.orderNo || id}`,
+          body: `${o.customerName} · ${o.projectName}`,
+        }).catch(() => {});
+        // Record WHO approved + server-stamp the decision time (anti-tamper)
+        if (status === 'approved') {
+          pendingStamps.current.push({ id, field: 'approvedAt' });
+        }
+      }
+      const accountantName = currentUser?.fullName || currentUser?.plantName || currentUser?.username || 'المحاسب';
+      return { ...o, accountStatus: status, accountant: status === 'approved' ? accountantName : o.accountant };
     }));
   };
 
   const handleMarkScheduled = (id: string) => {
     setOrders(prev => prev.map(o => {
       if (o.id !== id) return o;
+      const held = customers.find(c => c.id === o.customerId);
+      if (held?.creditHold) {
+        alert(`⛔ العميل ${o.customerName} مجمّد ائتمانياً (Hold) — لا يمكن جدولة الطلب حتى فك التجميد.`);
+        return o;
+      }
       if (currentUser) addNotification(currentUser.username, {
         level: 'info', title: '📅 تمت جدولة ' + (o.orderNo || id),
         body: `${o.customerName} · ${o.quantity} ${o.orderType === 'concrete' ? 'م³' : 'بلوك'} — جاهز للتشغيل`,
@@ -840,8 +889,12 @@ export default function Orders() {
                         <div className="text-xs text-slate-400">{order.customerCode || '—'}</div>
                       </td>
                       <td className="p-3">
-                        <div className="text-white text-sm">{order.customerName}</div>
+                        <div className="text-white text-sm">{order.customerName} {isCustomerHeld(order) && <span className="text-[9px] bg-red-500/20 text-red-400 px-1.5 py-0.5 rounded font-bold ml-1">⛔ HOLD</span>}</div>
                         <div className="text-xs text-slate-400">{order.customerPhone}</div>
+                        <div className="text-[10px] text-sky-400 mt-0.5">
+                          📋 المندوب: {order.salesRep || '—'}
+                          {order.serverCreatedAt ? ` · 🕓 ${fmtServerTime(order.serverCreatedAt)}` : ''}
+                        </div>
                       </td>
                       <td className="p-3 text-sm text-white">{order.projectName}</td>
                       <td className="p-3">
@@ -857,10 +910,29 @@ export default function Orders() {
                         )}
                       </td>
                       <td className="p-3 text-white text-sm">
-                        {order.quantity}
-                        <div className="text-xs text-slate-400">
-                          {order.orderType === 'concrete' ? 'م³' : 'بلوك'}
-                        </div>
+                        {(() => {
+                          const d = deliveredFor(order.id || order.orderNo);
+                          const total = Number(order.quantity) || 0;
+                          const pct = total > 0 ? Math.min(100, (d / total) * 100) : 0;
+                          return (
+                            <>
+                              <div className="flex items-center justify-between gap-2">
+                                <span>{order.quantity}</span>
+                                <span className="text-[10px] text-slate-400">{order.orderType === 'concrete' ? 'م³' : 'بلوك'}</span>
+                              </div>
+                              {order.orderType === 'concrete' && (
+                                <div className="mt-1">
+                                  <div className="h-1.5 rounded-full bg-white/10 overflow-hidden">
+                                    <div className="h-full bg-emerald-500 transition-all" style={{ width: `${pct}%` }} />
+                                  </div>
+                                  <p className={`text-[10px] font-bold mt-0.5 ${pct >= 100 ? 'text-emerald-400' : 'text-slate-400'}`}>
+                                    تم التسليم: {d.toFixed(1)} / {total} م³
+                                  </p>
+                                </div>
+                              )}
+                            </>
+                          );
+                        })()}
                       </td>
                       <td className="p-3">
                         <select
@@ -878,6 +950,12 @@ export default function Orders() {
                           <option value="approved">✅ موافق</option>
                           <option value="rejected">❌ مرفوض</option>
                         </select>
+                        {order.accountant || order.serverApprovedAt ? (
+                          <div className="text-[10px] text-emerald-400 mt-1">
+                            {order.accountant ? `👤 ${order.accountant}` : ''}
+                            {order.serverApprovedAt ? ` · 🕓 ${fmtServerTime(order.serverApprovedAt)}` : ''}
+                          </div>
+                        ) : null}
                       </td>
                       <td className="p-3">
                         <span className={`px-2 py-1 rounded text-xs font-bold ${
@@ -907,7 +985,9 @@ export default function Orders() {
                           {order.status === 'pending' && order.accountStatus === 'approved' && order.debtStatus !== 'blocked' && (
                             <button
                               onClick={() => handleMarkScheduled(order.id)}
-                              className="bg-sky-500 hover:bg-sky-400 text-white px-2 py-1 rounded text-xs"
+                              disabled={isCustomerHeld(order)}
+                              className={`${isCustomerHeld(order) ? 'bg-slate-600 cursor-not-allowed' : 'bg-sky-500 hover:bg-sky-400'} text-white px-2 py-1 rounded text-xs`}
+                              title={isCustomerHeld(order) ? 'العميل مجمّد ائتمانياً' : ''}
                             >
                               📅 جدولة
                             </button>
@@ -992,6 +1072,8 @@ export default function Orders() {
           orderType={invoiceFor.orderType}
           quantity={invoiceFor.quantity}
           concreteType={invoiceFor.concreteType}
+          mixDesign={invoiceFor.concreteType ? `${invoiceFor.concreteType} psi` : undefined}
+          elementType={invoiceFor.elementType}
           onClose={() => setInvoiceFor(null)}
         />
       )}

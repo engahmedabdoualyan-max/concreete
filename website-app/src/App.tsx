@@ -14,11 +14,14 @@ import Orders from './pages/Orders';
 import ResearchDevelopment from './pages/ResearchDevelopment';
 import Governance from './pages/Governance';
 import Finance from './pages/Finance';
+import ErpMaterials from './pages/ErpMaterials';
 import MultiPlant from './pages/MultiPlant';
 import LoginRegister from './components/LoginRegister';
 import FloatingActions from './components/FloatingActions';
 import FimtoFooter from './components/FimtoFooter';
 import Admin from './pages/Admin';
+import Console from './pages/Console';
+import CustomSection from './pages/CustomSection';
 
 export default function App() {
   return (
@@ -30,6 +33,8 @@ export default function App() {
         <Routes>
           <Route path="/login" element={<LoginRegister />} />
           <Route path="/admin" element={<Admin />} />
+          <Route path="/console" element={<Console />} />
+          <Route path="/s/:id" element={<CustomSection />} />
           <Route path="/" element={<Dashboard />} />
           <Route path="/operation" element={<Operations />} />
           <Route path="/operations" element={<Operations />} />
@@ -43,6 +48,7 @@ export default function App() {
           <Route path="/rnd" element={<ResearchDevelopment />} />
           <Route path="/governance" element={<Governance />} />
           <Route path="/finance" element={<Finance />} />
+          <Route path="/materials" element={<ErpMaterials />} />
           <Route path="/multiplant" element={<MultiPlant />} />
         </Routes>
         <FloatingActions />

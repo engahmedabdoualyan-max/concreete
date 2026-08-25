@@ -2,12 +2,13 @@ import { useState, useEffect, type FormEvent, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth, type UserSession } from '../context/AuthContext';
 import { useAdmin } from '../context/AdminContext';
-import { loadTrips } from '../firebase/firestore';
+import { useLang } from '../context/LangContext';
+import { loadTrips, loadEffectiveConfig } from '../firebase/firestore';
 import QuickJump from '../components/QuickJump';
 import LangSelector from '../components/LangSelector';
 import BrandLogo from '../components/BrandLogo';
 import QuotaBanner from '../components/QuotaBanner';
-import { API_BASE } from '../api/client';
+import mainPhoto from '../assets/logos/mainphoto.png';
 
 interface Trip {
   id: number; plant: string; date: string; code: string; driver: string;
@@ -23,6 +24,8 @@ interface ModuleDef {
   ar: string;
   desc: string;
   icon: ReactNode;
+  image?: string;
+  bgImage?: string;
 }
 
 const COUNTRIES = ["Egypt", "Saudi Arabia", "UAE", "Kuwait", "Qatar", "Bahrain", "Oman", "Jordan", "Lebanon", "Iraq", "Yemen", "Other"];
@@ -106,6 +109,46 @@ const DEFAULT_TRIPS: Trip[] = [
   { id: 3, plant: "PLANT-B", date: "2026-06-18", code: "m03", driver: "Saeed John", qty: 10, pump: "p02", estTime: 30, stationArr: "09:00", stationDep: "09:12", siteArr: "09:42", siteDep: "10:20", siteName: "Khobar Site", projectName: "Tower B", status: "COMPLETED" },
 ];
 
+function ModuleButton({ m, onGo, className = "", showDesc = false }: { m: ModuleDef; onGo: () => void; className?: string; showDesc?: boolean }) {
+  const media = m.bgImage || m.image;
+  return (
+    <button
+      onClick={onGo}
+      className={`group relative flex flex-row items-stretch overflow-hidden w-full min-h-[110px] lg:min-h-[130px] rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-xl text-left transition-all duration-300 hover:-translate-y-1 hover:border-sky-400/70 hover:bg-white/[0.05] hover:shadow-[0_0_30px_rgba(56,189,248,0.35)] cursor-pointer ${className}`}
+    >
+      {/* SIDE 1 — 40% illustrative media */}
+      <div className="relative w-[40%] shrink-0 h-full overflow-hidden rounded-l-xl">
+        {media ? (
+          <>
+            <img src={media} alt={m.en} loading="lazy" className="absolute inset-0 w-full h-full object-cover" />
+            <div className="absolute inset-0 bg-[#080C14]/25" />
+          </>
+        ) : (
+          <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-sky-500/25 via-[#0B111E]/80 to-cyan-500/10 border-r border-white/10">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" className="w-10 h-10 text-sky-300/90 drop-shadow-[0_0_12px_rgba(56,189,248,0.5)]">
+              {m.icon}
+            </svg>
+          </div>
+        )}
+      </div>
+
+      {/* SIDE 2 — 60% text container (fully centered) */}
+      <div className="relative flex-1 min-w-0 flex flex-col items-center justify-center text-center p-4 lg:p-5 gap-1.5">
+        {showDesc && (
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="absolute top-2.5 right-2.5 w-4 h-4 text-slate-500 shrink-0 transition-all duration-300 group-hover:text-sky-400 group-hover:translate-x-0.5">
+            <path d="M5 12h14" /><path d="M12 5l7 7-7 7" />
+          </svg>
+        )}
+        <h3 className="text-xl lg:text-2xl font-display font-black tracking-wide text-white leading-tight [text-shadow:0_2px_12px_rgba(0,0,0,0.85)] group-hover:text-sky-300 transition-colors duration-300">{m.en}</h3>
+        <p className="text-sm font-bold text-sky-400/90 leading-snug [text-shadow:0_1px_8px_rgba(0,0,0,0.8)]" dir="rtl">{m.ar}</p>
+        {showDesc && (
+          <p className="text-[11px] lg:text-xs font-medium text-slate-300/95 leading-relaxed tracking-wide [text-shadow:0_1px_6px_rgba(0,0,0,0.75)]">{m.desc}</p>
+        )}
+      </div>
+    </button>
+  );
+}
+
 function to12h(i: string): string {
   if (!i || i === "00:00" || i === "") return "--:--";
   const [e, t] = i.split(":").map(Number);
@@ -135,6 +178,7 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const { currentUser, login, register, verifyAndActivate, generatedCode, logout, loginAsGuest } = useAuth();
   const { canAccess, canManageAdmin } = useAdmin();
+  const { t } = useLang();
   const [showLogin, setShowLogin] = useState(!currentUser);
   const [tab, setTab] = useState<'login' | 'register' | 'verify'>('login');
   const [error, setError] = useState('');
@@ -142,13 +186,42 @@ export default function Dashboard() {
   const [sentState, setSentState] = useState<boolean | null>(null);
   const [trips, setTrips] = useState<Trip[]>(DEFAULT_TRIPS);
 
+  const [overrides, setOverrides] = useState<Record<string, { image?: string; bgImage?: string }>>(() => {
+    try {
+      const cfg = JSON.parse(localStorage.getItem('fimto_module_config') || '{}');
+      return cfg.overrides || {};
+    } catch { return {}; }
+  });
+  const [customMods, setCustomMods] = useState<ModuleDef[]>(() => {
+    try {
+      const cfg = JSON.parse(localStorage.getItem('fimto_module_config') || '{}');
+      return (cfg.custom || []).map((c: any) => ({
+        access: 'custom', path: c.id, en: c.en || 'Section', ar: c.ar || '',
+        desc: c.desc || '', icon: ICON.chart, image: c.image || undefined, bgImage: c.bgImage || undefined,
+      }));
+    } catch { return []; }
+  });
+
   const [reg, setReg] = useState({ username: "", password: "", country: "Egypt", city: "", plantName: "", phonePrefix: "+20", phone: "", email: "" });
   const [loginForm, setLoginForm] = useState({ username: "", password: "" });
   const [verifyCode, setVerifyCode] = useState("");
-  const [guestMode, setGuestMode] = useState(false);
-  const [guestPw, setGuestPw] = useState("");
 
   useEffect(() => { setShowLogin(!currentUser); }, [currentUser]);
+
+  useEffect(() => {
+    let mounted = true;
+    loadEffectiveConfig().then(cfg => {
+      if (!mounted) return;
+      if (Object.keys(cfg.overrides).length) setOverrides(cfg.overrides);
+      if (cfg.custom.length) {
+        setCustomMods(cfg.custom.map((c: any) => ({
+          access: 'custom', path: c.id, en: c.en || 'Section', ar: c.ar || '',
+          desc: c.desc || '', icon: ICON.chart, image: c.image || undefined, bgImage: c.bgImage || undefined,
+        })));
+      }
+    }).catch(() => {});
+    return () => { mounted = false; };
+  }, []);
 
   useEffect(() => {
     try {
@@ -177,7 +250,7 @@ export default function Dashboard() {
     setBusy(true);
     const { username, password, country, city, plantName, phonePrefix, phone, email } = reg;
     if (!username || !password || !country || !city || !plantName || !phone || !email) {
-      setError("Please fill all fields");
+      setError(t('fillAll'));
       setBusy(false);
       return;
     }
@@ -190,16 +263,16 @@ export default function Dashboard() {
       setSentState(res.emailSent);
       setTab('verify');
     } else {
-      setError("Username already taken! Please choose another.");
+      setError(t('usernameTaken'));
     }
     setBusy(false);
   };
 
   const handleVerify = async () => {
-    if (!verifyCode) { setError("Please enter verification code"); return; }
+    if (!verifyCode) { setError(t('enterVerificationCode')); return; }
     const ok = await verifyAndActivate(verifyCode);
     if (ok) setShowLogin(false);
-    else setError("Incorrect verification code!");
+    else setError(t('incorrectVerificationCode'));
   };
 
   const handleLogin = async (e: FormEvent) => {
@@ -207,10 +280,15 @@ export default function Dashboard() {
     setError('');
     const ok = await login(loginForm.username, loginForm.password);
     if (ok) setShowLogin(false);
-    else setError("Invalid Credentials!");
+    else setError(t('invalidCredentials'));
   };
 
   const go = (module: string) => navigate(`/${module}`);
+  const eff = (idx: number) => {
+    const base = MODULES[idx];
+    const ov = base ? overrides[base.path] : undefined;
+    return ov && (ov.image || ov.bgImage) ? { ...base, ...ov } : base;
+  };
 
   const recent = trips.slice(-6).reverse();
 
@@ -224,56 +302,56 @@ export default function Dashboard() {
       {/* ===== LOGIN MODAL ===== */}
       {showLogin && (
         <div className="fixed inset-0 z-[100] bg-[#080C14]/85 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-[#0B111E]/95 border border-white/10 rounded-2xl w-full max-w-xl p-8 shadow-[0_0_60px_rgba(56,189,248,0.12)] max-h-[95vh] overflow-y-auto">
+          <div className="bg-[#0B111E]/95 border border-white/10 rounded-2xl w-full max-w-xl p-5 sm:p-8 shadow-[0_0_60px_rgba(56,189,248,0.12)] max-h-[95vh] overflow-y-auto">
             <div className="text-center mb-6">
               <div className="flex justify-center mb-4">
                 <BrandLogo width={200} fill rounded="rounded-2xl" />
               </div>
               <h2 className="text-2xl font-black text-white mb-2">
-                {tab === "login" ? "Welcome Back" : tab === "register" ? "Create Account" : "Verify Email"}
+                {tab === "login" ? t('welcomeBack') : tab === "register" ? t('createAccount') : t('verifyEmail')}
               </h2>
-              <p className="text-sm text-slate-400">Technical Management Program for Concrete Plants</p>
-              <p className="text-xs text-sky-400 mt-1 font-semibold">Design by Dr. Ahmad Abdo Alyan</p>
+              <p className="text-sm text-slate-400">{t('techMgmtProgram')}</p>
+              <p className="text-xs text-sky-400 mt-1 font-semibold">{t('designBy')}</p>
             </div>
 
             {tab === "register" && (
               <form onSubmit={handleRegister} className="space-y-3">
                 <div className="bg-sky-500/10 border border-dashed border-sky-500/40 rounded-lg p-3 text-sky-300 text-xs text-center mb-3">
-                  🆓 Free Trial Registration — All features unlocked<br />
-                  💾 Each account gets a private 300 MB storage database (قاعدة بيانات خاصة 300 ميجا)<br />
-                  <span className="text-sky-400/70">إذا احتجت قاعدة أكبر تواصل مع المبرمج بعد التسجيل</span>
+                  🆓 {t('freeTrialRegistration')}<br />
+                  💾 {t('privateStorage300mb')}<br />
+                  <span className="text-sky-400/70">{t('biggerDbContact')}</span>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="flex flex-col">
-                    <label className="text-xs text-slate-400 font-semibold mb-1">Username *</label>
+                    <label className="text-xs text-slate-400 font-semibold mb-1">{t('username')} *</label>
                     <input value={reg.username} onChange={o => setReg({ ...reg, username: o.target.value })} className={inputCls} />
                   </div>
                   <div className="flex flex-col">
-                    <label className="text-xs text-slate-400 font-semibold mb-1">Password *</label>
+                    <label className="text-xs text-slate-400 font-semibold mb-1">{t('password')} *</label>
                     <input type="password" value={reg.password} onChange={o => setReg({ ...reg, password: o.target.value })} className={inputCls} />
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="flex flex-col">
-                    <label className="text-xs text-slate-400 font-semibold mb-1">Country *</label>
+                    <label className="text-xs text-slate-400 font-semibold mb-1">{t('country')} *</label>
                     <select value={reg.country} onChange={o => setReg({ ...reg, country: o.target.value, city: "" })} className={inputCls}>
                       {COUNTRIES.map(c => <option key={c} value={c}>{c}</option>)}
                     </select>
                   </div>
                   <div className="flex flex-col">
-                    <label className="text-xs text-slate-400 font-semibold mb-1">City *</label>
+                    <label className="text-xs text-slate-400 font-semibold mb-1">{t('city')} *</label>
                     <select value={reg.city} onChange={o => setReg({ ...reg, city: o.target.value })} className={inputCls}>
-                      <option value="">Select City</option>
+                      <option value="">{t('selectCity')}</option>
                       {(CITIES[reg.country] || []).map(c => <option key={c} value={c}>{c}</option>)}
                     </select>
                   </div>
                 </div>
                 <div className="flex flex-col">
-                  <label className="text-xs text-slate-400 font-semibold mb-1">Plant / Company Name *</label>
-                  <input value={reg.plantName} onChange={o => setReg({ ...reg, plantName: o.target.value })} placeholder="e.g. Al-Khaleej Concrete Plant" className={inputCls} />
+                  <label className="text-xs text-slate-400 font-semibold mb-1">{t('plantCompanyName')} *</label>
+                  <input value={reg.plantName} onChange={o => setReg({ ...reg, plantName: o.target.value })} placeholder={t('plantPlaceholder')} className={inputCls} />
                 </div>
                 <div className="flex flex-col">
-                  <label className="text-xs text-slate-400 font-semibold mb-1">Phone Number *</label>
+                  <label className="text-xs text-slate-400 font-semibold mb-1">{t('phoneNumber')} *</label>
                   <div className="flex gap-2">
                     <select value={reg.phonePrefix} onChange={o => setReg({ ...reg, phonePrefix: o.target.value })} className={`${inputCls} w-[35%]`}>
                       <option value="+20">+20 (EG)</option>
@@ -286,15 +364,15 @@ export default function Dashboard() {
                   </div>
                 </div>
                 <div className="flex flex-col">
-                  <label className="text-xs text-slate-400 font-semibold mb-1">Email *</label>
+                  <label className="text-xs text-slate-400 font-semibold mb-1">{t('email')} *</label>
                   <input type="email" value={reg.email} onChange={o => setReg({ ...reg, email: o.target.value })} placeholder="example@email.com" className={inputCls} />
                 </div>
                 {error && <p className="text-red-400 text-sm text-center">{error}</p>}
                 <button type="submit" disabled={busy} className="w-full bg-gradient-to-r from-sky-500 to-cyan-500 hover:from-sky-400 hover:to-cyan-400 disabled:opacity-50 disabled:cursor-wait text-white font-bold py-3 rounded-lg text-sm transition shadow-[0_0_20px_rgba(56,189,248,0.3)]">
-                  {busy ? "⏳ Sending Verification Code..." : "📧 Register & Send Verification Code"}
+                  {busy ? `⏳ ${t('sendingVerificationCode')}...` : `📧 ${t('registerSendVerificationCode')}`}
                 </button>
                 <p className="text-center text-sm text-slate-400 mt-3">
-                  Already have an account? <span className="text-sky-400 cursor-pointer underline font-bold" onClick={() => { setTab('login'); setError(''); }}>Login</span>
+                  {t('alreadyHaveAccount')} <span className="text-sky-400 cursor-pointer underline font-bold" onClick={() => { setTab('login'); setError(''); }}>{t('login')}</span>
                 </p>
               </form>
             )}
@@ -304,35 +382,35 @@ export default function Dashboard() {
                 {sentState === true ? (
                   <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-4 text-center">
                     <p className="text-emerald-400 text-2xl mb-2">📧</p>
-                    <p className="text-sm text-slate-200 font-semibold">Verification Code Sent!</p>
+                    <p className="text-sm text-slate-200 font-semibold">{t('verificationCodeSent')}</p>
                     <p className="text-xs text-slate-400 mt-1">
-                      A 6-digit verification code has been sent to<br />
+                      {t('verificationCodeSentTo')}<br />
                       <strong className="text-sky-300 text-sm">{reg.email}</strong>
                     </p>
-                    <p className="text-xs text-slate-500 mt-2">Please check your inbox and spam folder</p>
+                    <p className="text-xs text-slate-500 mt-2">{t('checkInboxSpam')}</p>
                   </div>
                 ) : sentState === false ? (
                   <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-4 text-center">
                     <p className="text-yellow-400 text-2xl mb-2">⚠️</p>
-                    <p className="text-sm text-slate-200 font-semibold">Email Service Not Configured</p>
-                    <p className="text-xs text-slate-400 mt-1">EmailJS keys not set. Use this code for verification:</p>
+                    <p className="text-sm text-slate-200 font-semibold">{t('emailServiceNotConfigured')}</p>
+                    <p className="text-xs text-slate-400 mt-1">{t('emailjsKeysNotSet')}</p>
                     <p className="text-lg font-mono tracking-[0.3em] text-yellow-300 font-bold mt-2">{generatedCode}</p>
                   </div>
                 ) : (
                   <div className="text-center py-4">
                     <div className="animate-spin w-8 h-8 border-2 border-sky-400 border-t-transparent rounded-full mx-auto mb-3" />
                     <p className="text-sm text-slate-400">
-                      Sending verification code to<br />
+                      {t('sendingVerificationCodeTo')}<br />
                       <strong className="text-sky-300">{reg.email}</strong>...
                     </p>
                   </div>
                 )}
                 <div className="flex flex-col">
-                  <label className="text-xs text-slate-400 font-semibold mb-1">Verification Code</label>
-                  <input value={verifyCode} onChange={o => setVerifyCode(o.target.value)} placeholder="Enter 6-digit code" className={`${inputCls} text-center text-lg tracking-widest`} />
+                  <label className="text-xs text-slate-400 font-semibold mb-1">{t('verificationCode')}</label>
+                  <input value={verifyCode} onChange={o => setVerifyCode(o.target.value)} placeholder={t('enterSixDigitCode')} className={`${inputCls} text-center text-lg tracking-widest`} />
                 </div>
                 {error && <p className="text-red-400 text-sm text-center">{error}</p>}
-                <button onClick={handleVerify} className="w-full bg-gradient-to-r from-sky-500 to-cyan-500 hover:from-sky-400 hover:to-cyan-400 text-white font-bold py-3 rounded-lg transition">✅ Activate Account</button>
+                <button onClick={handleVerify} className="w-full bg-gradient-to-r from-sky-500 to-cyan-500 hover:from-sky-400 hover:to-cyan-400 text-white font-bold py-3 rounded-lg transition">✅ {t('activateAccount')}</button>
                 <button
                   onClick={() => {
                     const u: UserSession = { ...reg, phone: reg.phonePrefix + reg.phone, status: "FREE_TRIAL" };
@@ -341,70 +419,33 @@ export default function Dashboard() {
                   disabled={busy}
                   className="w-full bg-sky-500/10 hover:bg-sky-500/20 disabled:opacity-50 text-sky-300 font-bold py-2 rounded-lg text-sm transition border border-sky-500/30"
                 >
-                  {busy ? "⏳ Resending..." : "📧 Resend Verification Code"}
+                  {busy ? `⏳ ${t('resending')}...` : `📧 ${t('resendVerificationCode')}`}
                 </button>
-                <button onClick={() => { setTab('register'); setError(''); setSentState(null); }} className="w-full text-slate-400 text-sm underline mt-2">← Back to Registration</button>
+                <button onClick={() => { setTab('register'); setError(''); setSentState(null); }} className="w-full text-slate-400 text-sm underline mt-2">← {t('backToRegistration')}</button>
               </div>
             )}
 
             {tab === "login" && (
               <form onSubmit={handleLogin} className="space-y-4">
                 <div className="flex flex-col">
-                  <label className="text-xs text-slate-400 font-semibold mb-1">Username</label>
+                  <label className="text-xs text-slate-400 font-semibold mb-1">{t('username')}</label>
                   <input value={loginForm.username} onChange={o => setLoginForm({ ...loginForm, username: o.target.value })} className={inputCls} />
                 </div>
                 <div className="flex flex-col">
-                  <label className="text-xs text-slate-400 font-semibold mb-1">Password</label>
+                  <label className="text-xs text-slate-400 font-semibold mb-1">{t('password')}</label>
                   <input type="password" value={loginForm.password} onChange={o => setLoginForm({ ...loginForm, password: o.target.value })} className={inputCls} />
                 </div>
                 {error && <p className="text-red-400 text-sm text-center">{error}</p>}
-                <button type="submit" className="w-full bg-gradient-to-r from-sky-500 to-cyan-500 hover:from-sky-400 hover:to-cyan-400 text-white font-bold py-3 rounded-lg transition shadow-[0_0_20px_rgba(56,189,248,0.3)]">🔓 Login</button>
+                <button type="submit" className="w-full bg-gradient-to-r from-sky-500 to-cyan-500 hover:from-sky-400 hover:to-cyan-400 text-white font-bold py-3 rounded-lg transition shadow-[0_0_20px_rgba(56,189,248,0.3)]">🔓 {t('login')}</button>
                 <button
                   type="button"
-                  onClick={() => { setGuestMode(true); setError(''); }}
+                  onClick={() => { loginAsGuest(); setShowLogin(false); }}
                   className="w-full bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 text-slate-300 font-bold py-3 rounded-lg transition text-sm mt-2"
                 >
-                  👤 Continue as Guest
+                  👤 {t('continueAsGuest')}
                 </button>
-                {guestMode && (
-                  <div className="border border-white/10 bg-white/[0.02] rounded-lg p-3 space-y-2">
-                    <label className="text-xs text-slate-400 font-semibold">Guest password (provided by the owner)</label>
-                    <input
-                      type="password"
-                      value={guestPw}
-                      onChange={o => setGuestPw(o.target.value)}
-                      className={inputCls}
-                      autoFocus
-                    />
-                    <div className="flex gap-2">
-                      <button
-                        type="button"
-                        disabled={!guestPw || busy}
-                        onClick={async () => {
-                          setBusy(true); setError('');
-                          try {
-                            await loginAsGuest(guestPw);
-                            setGuestMode(false); setGuestPw(''); setShowLogin(false);
-                          } catch {
-                            setError('Guest login failed — wrong password or account disabled.');
-                          } finally { setBusy(false); }
-                        }}
-                        className="flex-1 bg-sky-500/15 border border-sky-500/40 text-sky-300 font-bold py-2 rounded-lg transition text-sm disabled:opacity-50"
-                      >
-                        {busy ? '⏳ ...' : 'Enter Guest Mode'}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => { setGuestMode(false); setGuestPw(''); }}
-                        className="px-3 border border-white/10 text-slate-400 text-sm rounded-lg hover:text-white"
-                      >
-                        ✕
-                      </button>
-                    </div>
-                  </div>
-                )}
                 <p className="text-center text-sm text-slate-400 mt-3">
-                  Don't have an account? <span className="text-sky-400 cursor-pointer underline font-bold" onClick={() => { setTab('register'); setError(''); }}>Register Free</span>
+                  {t('dontHaveAccount')} <span className="text-sky-400 cursor-pointer underline font-bold" onClick={() => { setTab('register'); setError(''); }}>{t('registerFree')}</span>
                 </p>
               </form>
             )}
@@ -413,42 +454,42 @@ export default function Dashboard() {
       )}
 
       {/* ===== HEADER ===== */}
-      <header className="bg-[#0B111E]/80 backdrop-blur-xl border-b border-white/10 px-6 py-4 sticky top-0 z-10 flex flex-col md:flex-row md:items-center justify-between gap-3">
-        <div className="flex items-center gap-4">
-          <BrandLogo width={60} rounded="rounded-xl" />
-          <div>
-            <h1 className="text-lg font-black tracking-tight text-white">
+      <header className="bg-[#0B111E]/80 backdrop-blur-xl px-4 sm:px-6 py-3 sticky top-0 z-10 flex flex-col md:flex-row md:items-center justify-between gap-2 md:gap-3">
+        <div className="flex items-center gap-3 sm:gap-4 min-w-0">
+          <BrandLogo width={48} rounded="rounded-xl" />
+          <div className="min-w-0">
+            <h1 className="font-display text-base sm:text-lg font-black tracking-wide text-white truncate">
               CONCRETE <span className="text-sky-400 drop-shadow-[0_0_10px_rgba(56,189,248,0.7)]">ERP</span>
             </h1>
-            <p className="text-[11px] text-slate-400 font-medium">Fimto Soft — Technical Management Program · برنامج إدارة محطات الخرسانة</p>
+            <p className="hidden sm:block mt-2 text-xs text-gray-400 font-medium tracking-wide">{t('fimtoTagline')}</p>
           </div>
         </div>
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
           <QuickJump />
           <LangSelector />
           {currentUser ? (
             <div className="flex items-center gap-2">
               <span className="bg-sky-500/10 text-sky-300 text-xs px-3 py-1.5 rounded-lg font-bold border border-sky-500/30">
-                🟢 {currentUser.plantName} (Free Trial)
+                🟢 {currentUser.plantName} ({t('freeTrial')})
               </span>
               {canManageAdmin() && (
                 <button
                   onClick={() => navigate('/admin')}
                   className="bg-white/[0.05] text-slate-300 text-xs px-3 py-1.5 rounded-lg font-bold border border-white/10 hover:border-sky-400/60 hover:text-sky-300 transition-colors"
                 >
-                  Admin Panel
+                  {t('adminPanel')}
                 </button>
               )}
               <button
                 onClick={() => { logout(); navigate('/'); }}
                 className="bg-white/[0.05] text-slate-300 text-xs px-3 py-1.5 rounded-lg font-bold border border-white/10 hover:border-red-400/60 hover:text-red-300 transition-colors"
               >
-                Logout
+                {t('logout')}
               </button>
             </div>
           ) : (
             <span className="bg-white/[0.04] text-slate-400 text-xs px-3 py-1.5 rounded-lg font-bold border border-white/10">
-              Guest Session (🔒 Restricted)
+              {t('guestSessionRestricted')}
             </span>
           )}
         </div>
@@ -460,130 +501,108 @@ export default function Dashboard() {
       </div>
 
       {/* ===== MAIN ===== */}
-      <div className="max-w-[1200px] mx-auto px-6 py-8">
-        {/* Hero */}
-        <div className="rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-xl px-6 py-8 text-center mb-8 relative overflow-hidden">
-          <div className="pointer-events-none absolute inset-0" style={{ background: "radial-gradient(ellipse 50% 80% at 50% 0%, rgba(56,189,248,0.10), transparent)" }} />
-          <p className="text-[10px] tracking-[0.5em] text-slate-400 uppercase mb-3">Fimto Soft · Technical Management Program</p>
-          <h2 className="text-4xl md:text-5xl font-black tracking-tight uppercase bg-gradient-to-r from-sky-400 via-cyan-300 to-sky-400 bg-clip-text text-transparent">
-            Concrete
+      <div className="max-w-[1440px] mx-auto px-4 sm:px-6 pt-12 sm:pt-16 lg:pt-20 pb-6 lg:pb-10">
+
+        {/* Hero — brand statement */}
+        <div className="relative text-center mb-10 lg:mb-14">
+          <h2 className="relative text-3xl sm:text-4xl lg:text-5xl font-display font-black tracking-tight text-white leading-tight">
+            Fimto Soft <span className="text-sky-400">·</span> Technical Management Program
           </h2>
-          <p className="text-xs md:text-sm text-slate-300 mt-3">برنامج إدارة محطات الخرسانة الجاهزة — نظرة شاملة على كل الأقسام</p>
+          <p className="relative mt-6 font-display font-black tracking-[0.45em] uppercase bg-gradient-to-r from-sky-400 via-cyan-300 to-sky-400 bg-clip-text text-transparent drop-shadow-[0_0_20px_rgba(56,189,248,0.35)] text-base sm:text-lg">
+            CONCRETE
+          </p>
+          <p className="relative font-body text-base sm:text-lg mt-7 w-full px-2 text-center text-slate-400 leading-relaxed">
+            برنامج إدارة محطات الخرسانة الجاهزة — لوحة تحكم ذكية تجمع كل الأقسام في مشهد واحد متكامل
+          </p>
         </div>
 
-        {/* Modules grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {MODULES.filter(m => canAccess(m.access)).map(m => (
-            <button
-              key={m.path}
-              onClick={() => go(m.path)}
-              className="group relative flex flex-col items-start justify-between gap-3 min-h-[168px] rounded-2xl border border-white/10 bg-white/[0.04] backdrop-blur-xl p-5 text-left transition-all duration-300 hover:-translate-y-1.5 hover:border-sky-400/60 hover:shadow-[0_0_28px_rgba(56,189,248,0.28)] cursor-pointer"
-            >
-              <div className="w-10 h-10 rounded-xl bg-white/[0.05] border border-white/10 flex items-center justify-center transition-colors duration-300 group-hover:border-sky-400/50 group-hover:bg-sky-400/10 group-hover:shadow-[0_0_16px_rgba(56,189,248,0.35)]">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6 text-slate-400 transition-colors duration-300 group-hover:text-sky-400">
-                  {m.icon}
-                </svg>
-              </div>
-              <div className="w-full">
-                <div className="flex items-center justify-between gap-2">
-                  <h3 className="text-base font-black text-white tracking-tight group-hover:text-sky-300 transition-colors duration-300">{m.en}</h3>
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 text-slate-600 transition-all duration-300 group-hover:text-sky-400 group-hover:translate-x-0.5">
-                    <path d="M5 12h14" /><path d="M12 5l7 7-7 7" />
-                  </svg>
-                </div>
-                <p className="text-sm font-bold text-sky-400/90 mt-0.5" dir="rtl">{m.ar}</p>
-                <p className="text-[11px] text-slate-500 mt-1 leading-snug">{m.desc}</p>
-              </div>
-            </button>
-          ))}
+        {/* ===== Symmetric 3-3-1-1 Layout Architecture ===== */}
+        <div className="grid grid-cols-1 lg:grid-cols-[1.2fr_2fr_1.2fr] gap-6 items-stretch w-full max-w-[1280px] mx-auto">
+
+          {/* LEFT column — Operations & Logistics: Orders · Operations · Production */}
+          <div className="order-2 lg:order-1 flex flex-col gap-6 w-full">
+            {[eff(0), eff(1), eff(2)].filter(m => m && canAccess(m.access)).map(m => (
+              <ModuleButton key={m!.path} m={m!} onGo={() => go(m!.path)} showDesc className="flex-1 min-h-[130px] lg:min-h-[150px]" />
+            ))}
+          </div>
+
+          {/* CENTER column — Schedule · Preview · Evaluation */}
+          <div className="order-1 lg:order-2 flex flex-col gap-6 w-full">
+            {eff(5) && canAccess(eff(5)!.access) && (
+              <ModuleButton m={eff(5)!} onGo={() => go(eff(5)!.path)} className="min-h-[110px] lg:h-[118px] lg:min-h-0" />
+            )}
+            <div className="relative w-full flex-1 flex items-center justify-center">
+              <div className="pointer-events-none absolute inset-0 -z-10 blur-3xl" style={{ background: "radial-gradient(ellipse 60% 60% at 50% 50%, rgba(56,189,248,0.3), transparent 70%)" }} />
+              <img
+                src={mainPhoto}
+                alt={t('erpImgAlt')}
+                className="w-full h-auto object-contain rounded-2xl border border-white/10 shadow-[0_0_40px_rgba(56,189,248,0.25),0_0_120px_rgba(56,189,248,0.15)]"
+              />
+            </div>
+            {eff(6) && canAccess(eff(6)!.access) && (
+              <ModuleButton m={eff(6)!} onGo={() => go(eff(6)!.path)} className="min-h-[110px] lg:h-[118px] lg:min-h-0" />
+            )}
+          </div>
+
+          {/* RIGHT column — Maintenance & Quality: Workshop · Mixing & Quality · R&D */}
+          <div className="order-3 flex flex-col gap-6 w-full">
+            {[eff(3), eff(4), eff(7)].filter(m => m && canAccess(m.access)).map(m => (
+              <ModuleButton key={m!.path} m={m!} onGo={() => go(m!.path)} showDesc className="flex-1 min-h-[130px] lg:min-h-[150px]" />
+            ))}
+          </div>
         </div>
+
+        {/* ===== Custom sections (added from control panel) ===== */}
+        {customMods.length > 0 && (
+          <div className="mt-10 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 w-full max-w-[1280px] mx-auto">
+            {customMods.map(m => (
+              <ModuleButton key={m.path} m={m} onGo={() => go(`s/${m.path}`)} showDesc className="min-h-[130px] lg:min-h-[150px]" />
+            ))}
+          </div>
+        )}
       </div>
 
       {/* ===== RECENT TRIPS ===== */}
       <div className="max-w-[1200px] mx-auto px-6 pb-10">
         <div className="rounded-2xl border border-white/10 bg-[#0B111E]/60 backdrop-blur-xl p-6">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-base font-black text-white tracking-tight">🚛 Recent Concrete Trips</h2>
-            <span className="text-[10px] uppercase tracking-widest text-slate-500 border border-white/10 px-2 py-1 rounded">Live Overview</span>
+            <h2 className="text-base font-black text-white tracking-tight">🚛 {t('recentConcreteTrips')}</h2>
+            <span className="text-[10px] uppercase tracking-widest text-slate-500 border border-white/10 px-2 py-1 rounded">{t('liveOverview')}</span>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {recent.map(t => {
-              const p = plantMins(t.stationArr, t.stationDep);
-              const je = diffMin(t.stationDep, t.siteArr);
+            {recent.map(tr => {
+              const p = plantMins(tr.stationArr, tr.stationDep);
+              const je = diffMin(tr.stationDep, tr.siteArr);
               const Me = je > 120;
               return (
-                <div key={t.id} className={`rounded-xl border bg-white/[0.03] backdrop-blur-xl p-4 ${Me ? "border-red-500/50 animate-pulse" : "border-white/10"}`}>
+                <div key={tr.id} className={`rounded-xl border bg-white/[0.03] backdrop-blur-xl p-4 ${Me ? "border-red-500/50 animate-pulse" : "border-white/10"}`}>
                   <div className="flex justify-between items-center mb-2">
-                    <span className="text-[10px] font-bold uppercase tracking-wider bg-sky-500/10 text-sky-300 px-2 py-0.5 rounded border border-sky-500/20">{t.status}</span>
-                    <span className="text-[11px] text-slate-500">{t.date}</span>
+                    <span className="text-[10px] font-bold uppercase tracking-wider bg-sky-500/10 text-sky-300 px-2 py-0.5 rounded border border-sky-500/20">{tr.status}</span>
+                    <span className="text-[11px] text-slate-500">{tr.date}</span>
                   </div>
-                  <h3 className="text-lg font-black text-white">{t.code}</h3>
+                  <h3 className="text-lg font-black text-white">{tr.code}</h3>
                   <div className="text-xs text-slate-400 mt-2 space-y-1">
-                    <p><span className="text-slate-500">Plant:</span> <strong className="text-slate-300">{t.plant}</strong></p>
-                    <p><span className="text-slate-500">Driver:</span> {t.driver}</p>
-                    <p><span className="text-slate-500">Load:</span> {t.qty} m³ | Pump: {t.pump}</p>
-                    <p><span className="text-slate-500">Project:</span> {t.siteName} ({t.projectName})</p>
+                    <p><span className="text-slate-500">{t('plant')}:</span> <strong className="text-slate-300">{tr.plant}</strong></p>
+                    <p><span className="text-slate-500">{t('driver')}:</span> {tr.driver}</p>
+                    <p><span className="text-slate-500">{t('load')}:</span> {tr.qty} m³ | {t('pump')}: {tr.pump}</p>
+                    <p><span className="text-slate-500">{t('project')}:</span> {tr.siteName} ({tr.projectName})</p>
                     <p className={p > 12 ? "text-red-400 font-bold" : "text-emerald-400 font-bold"}>
-                      🏭 Plant: {p > 12 ? `Delay ${p - 12}m` : `On Time (${p}m)`}
+                      🏭 {t('plant')}: {p > 12 ? `${t('delay')} ${p - 12}m` : `${t('onTime')} (${p}m)`}
                     </p>
-                    <p className={Me ? "text-red-400 font-extrabold animate-pulse" : je > Number(t.estTime) ? "text-red-400 font-bold" : "text-emerald-400 font-bold"}>
-                      🚚 Transit: {Me ? `🚨 CRITICAL ${je}m (>2hrs)` : je > Number(t.estTime) ? `Delay ${je - Number(t.estTime)}m` : `On Time (${je}m)`}
+                    <p className={Me ? "text-red-400 font-extrabold animate-pulse" : je > Number(tr.estTime) ? "text-red-400 font-bold" : "text-emerald-400 font-bold"}>
+                      🚚 {t('transit')}: {Me ? `🚨 ${t('critical')} ${je}m ${t('over2hrs')}` : je > Number(tr.estTime) ? `${t('delay')} ${je - Number(tr.estTime)}m` : `${t('onTime')} (${je}m)`}
                     </p>
                   </div>
                   <div className="grid grid-cols-2 gap-2 mt-3 pt-3 border-t border-white/10 text-[10px] text-slate-500">
-                    <div>Arr Plant: <span className="text-slate-200">{to12h(t.stationArr)}</span></div>
-                    <div>Dep Plant: <span className="text-slate-200">{to12h(t.stationDep)}</span></div>
-                    <div>Arr Site: <span className="text-slate-200">{to12h(t.siteArr)}</span></div>
-                    <div>Dep Site: <span className="text-slate-200">{to12h(t.siteDep)}</span></div>
+                    <div>{t('arrPlant')}: <span className="text-slate-200">{to12h(tr.stationArr)}</span></div>
+                    <div>{t('depPlant')}: <span className="text-slate-200">{to12h(tr.stationDep)}</span></div>
+                    <div>{t('arrSite')}: <span className="text-slate-200">{to12h(tr.siteArr)}</span></div>
+                    <div>{t('depSite')}: <span className="text-slate-200">{to12h(tr.siteDep)}</span></div>
                   </div>
                 </div>
               );
             })}
           </div>
-</div>
-    </div>
-
-    {/* ===== DOWNLOAD APP ===== */}
-    <div className="max-w-[1200px] mx-auto px-6 pb-8">
-      <div className="rounded-2xl border border-sky-400/30 bg-gradient-to-r from-sky-500/10 via-cyan-500/5 to-sky-500/10 backdrop-blur-xl p-6 md:p-8 flex flex-col md:flex-row items-center justify-between gap-6 relative overflow-hidden">
-        <div className="absolute inset-0 pointer-events-none" style={{ background: "radial-gradient(ellipse 60% 100% at 50% 0%, rgba(56,189,248,0.12), transparent)" }} />
-        <div className="flex-1 min-w-[280px] relative z-10">
-          <p className="text-[10px] tracking-[0.3em] text-sky-400 uppercase mb-2">📱 تطبيق الموبايل</p>
-          <h3 className="text-2xl md:text-3xl font-black text-white mb-2">Fimto Concrete ERP</h3>
-          <p className="text-slate-300 text-base md:text-lg max-w-xl">
-            تطبيق السائق (7 بوابات + GPS مباشر) وتطبيق مندوب المبيعات — قاعدة بيانات موحدة مع الموقع
-          </p>
-        </div>
-        <div className="flex flex-col sm:flex-row gap-3 relative z-10">
-          {/* Android */}
-          <a
-            href={`${API_BASE}/downloads/fimto-android.apk`}
-            download
-            className="flex items-center gap-2 bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-400 hover:to-green-500 text-white font-bold px-6 py-3.5 rounded-xl shadow-[0_0_24px_rgba(16,185,129,0.35)] transition-all min-w-[160px] justify-center"
-          >
-            <span className="text-xl">🤖</span> تحميل APK
-          </a>
-          {/* iOS */}
-          <a
-            href="https://apps.apple.com/app/fimto-concrete-erp"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-2 bg-gradient-to-r from-sky-500 to-cyan-500 hover:from-sky-400 hover:to-cyan-400 text-white font-bold px-6 py-3.5 rounded-xl shadow-[0_0_24px_rgba(56,189,248,0.35)] transition-all min-w-[160px] justify-center"
-          >
-            <span className="text-xl">🍎</span> App Store
-          </a>
-        </div>
-      </div>
-    </div>
-
-    {/* ===== FOOTER ===== */}
-      <div className="max-w-[1200px] mx-auto px-6 text-center text-xs text-slate-500 border-t border-white/10 pt-6 pb-10 space-y-2">
-        <p className="text-sky-400 font-bold text-sm">🏗️ Technical Management Program — Enterprise ERP | Version 1.6</p>
-        <p className="text-slate-300 font-semibold text-sm">Designed & Developed by Dr. Ahmed Abdou Alyan</p>
-        <div className="flex gap-4 flex-wrap justify-center text-xs">
-          <span>📞 <b className="text-slate-400">EG:</b> <a href="tel:0201001006627" className="text-sky-400 font-semibold">0201001006627</a></span>
-          <span>📞 <b className="text-slate-400">KSA:</b> <a href="tel:+996500439617" className="text-sky-400 font-semibold">+996500439617</a></span>
-          <span>📧 <b className="text-slate-400">Email:</b> <a href="mailto:ahmed@concrete-erp.com" className="text-sky-400 font-semibold">ahmed@concrete-erp.com</a></span>
         </div>
       </div>
     </div>

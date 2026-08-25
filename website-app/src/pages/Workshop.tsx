@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useLang } from '../context/LangContext';
 import { loadAssets, saveAssets, loadWorkshopConfig, saveWorkshopConfig } from '../firebase/firestore';
+import { api } from '../api/client';
 import QuickJump from '../components/QuickJump';
 import LangSelector from '../components/LangSelector';
 import BrandLogo from '../components/BrandLogo';
@@ -64,6 +65,7 @@ export default function Workshop() {
     { id: 3, stationId: 1, date: '2026-07-10', taskType: 'Drum Cleaning', description: 'تنظيف حلة الخلط', technician: 'عامل نظافة', nextDue: '2026-07-11', status: 'Overdue', cost: 80, notes: '' },
   ]));
   const [loaded, setLoaded] = useState(false);
+  const [driverReports, setDriverReports] = useState<any[]>([]);
 
   // Forms
   const [assetForm, setAssetForm] = useState({ id: '', plate: '', chassis: '', type: 'Mixer', status: 'Ready', driver: '', initOdo: '', engHours: '', regExpiry: '', insExpiry: '', opcardExpiry: '', authExpiry: '', gpsId: '', tare: '', gross: '' });
@@ -98,6 +100,13 @@ export default function Workshop() {
 
   // Load Firebase
   useEffect(() => { if (!currentUser) return; Promise.all([loadAssets(currentUser.username), loadWorkshopConfig(currentUser.username)]).then(([a,c]) => { if (a?.length) setAssets(a); if (c) setConfig(c); setLoaded(true); }).catch(() => setLoaded(true)); }, [currentUser?.username]);
+
+  // Load ERP workshop data → driver-submitted breakdown reports (work orders)
+  useEffect(() => {
+    let cancelled = false;
+    api.get<any>('/api/workshop').then((d) => { if (!cancelled && d?.openWorkOrders) setDriverReports(d.openWorkOrders); }).catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
   useEffect(() => { if (!loaded||!currentUser) return; localStorage.setItem('fms_assets_'+currentUser.plantName,JSON.stringify(assets)); saveAssets(currentUser.username, assets).catch(()=>{}); }, [assets,loaded]);
   useEffect(() => { if (!loaded||!currentUser) return; localStorage.setItem('fms_cfg_'+currentUser.plantName,JSON.stringify(config)); saveWorkshopConfig(currentUser.username, config).catch(()=>{}); }, [config,loaded]);
   useEffect(() => { localStorage.setItem('ws_fuel', JSON.stringify(fuelLogs)); }, [fuelLogs]);
@@ -272,7 +281,16 @@ export default function Workshop() {
       <div className="max-w-6xl mx-auto px-4 pb-8">
         {/* HOME */}
         {tab==='home'&&(<div className="space-y-6">
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">{[{label:t('totalAssets'),value:assets.length,color:'border-sky-500'},{label:t('readyForOperation'),value:activeAssets,color:'border-emerald-500'},{label:t('inWorkshop'),value:workshopAssets,color:'border-yellow-500'},{label:t('openBreakdowns'),value:openBDs.length,color:'border-red-500'},{label:t('maintenanceCosts'),value:fmtMoney(totalRepairCost),color:'border-sky-500'}].map(k=>(<div key={k.label} className={`bg-white/[0.04] border-l-4 ${k.color} rounded-lg p-4`}><p className="text-[10px] text-slate-400">{k.label}</p><p className="text-xl font-bold text-white">{k.value}</p></div>))}</div>
+          {/* Driver Breakdown Reports (from the driver app → ERP work orders) */}
+          {driverReports.length>0&&(<div className="bg-red-950/40 border border-red-500/40 rounded-xl p-5">
+            <div className="flex justify-between items-center mb-4"><h3 className="text-lg font-bold text-red-300">🚨 بلاغات السائقين (أوامر صيانة واردة)</h3><span className="text-xs text-red-400 font-bold">{driverReports.length} Open</span></div>
+            <div className="overflow-x-auto"><table className="w-full text-sm text-slate-300"><thead className="bg-white/[0.04] text-slate-400 text-xs"><tr><th className="p-3">أمر الصيانة</th><th className="p-3">الخلاطة</th><th className="p-3">اللوحة</th><th className="p-3">الخطورة</th><th className="p-3">نوع المركبة</th><th className="p-3">الوصف</th><th className="p-3">مرفقات</th><th className="p-3">التاريخ</th></tr></thead><tbody>{driverReports.map(wo=>(<tr key={wo.workOrderNumber} className="border-b border-white/10"><td className="p-3 font-bold text-red-300">{wo.workOrderNumber}</td><td className="p-3 font-bold">{wo.vehicleCode}</td><td className="p-3">{wo.plateNumber||'-'}</td><td className="p-3"><span className={`px-2 py-0.5 rounded text-xs font-bold ${wo.severity==='CRITICAL'?'bg-red-500 text-white':wo.severity==='HIGH'?'bg-orange-500 text-white':wo.severity==='MEDIUM'?'bg-yellow-500 text-slate-900':'bg-emerald-500/70 text-white'}`}>{wo.severity}</span></td><td className="p-3">{wo.vehicleType||'-'}</td><td className="p-3 max-w-[280px] truncate" title={wo.faultDescription}>{wo.faultDescription}</td><td className="p-3">
+        {(wo.photoBase64||wo.photoUrl||wo.photo)?<a href={wo.photoBase64?`data:image/jpeg;base64,${wo.photoBase64}`:(wo.photoUrl||wo.photo)} target="_blank" rel="noreferrer" className="text-sky-400 font-bold text-xs underline mr-2">📷 صورة</a>:null}
+        {(wo.audioBase64||wo.audioUrl||wo.audio)?<a href={wo.audioBase64?`data:audio/m4a;base64,${wo.audioBase64}`:(wo.audioUrl||wo.audio)} target="_blank" rel="noreferrer" className="text-emerald-400 font-bold text-xs underline">🎙️ صوت</a>:null}
+        {!(wo.photoBase64||wo.photoUrl||wo.photo||wo.audioBase64||wo.audioUrl||wo.audio)?<span className="text-slate-600">—</span>:null}
+      </td><td className="p-3">{wo.createdAt?new Date(wo.createdAt).toLocaleString():'-'}</td></tr>))}</tbody></table></div>
+          </div>)}
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">{[{label:t('totalAssets'),value:assets.length,color:'border-sky-500'},{label:t('readyForOperation'),value:activeAssets,color:'border-emerald-500'},{label:t('inWorkshop'),value:workshopAssets,color:'border-yellow-500'},{label:t('openBreakdowns'),value:openBDs.length+driverReports.length,color:'border-red-500'},{label:t('maintenanceCosts'),value:fmtMoney(totalRepairCost),color:'border-sky-500'}].map(k=>(<div key={k.label} className={`bg-white/[0.04] border-l-4 ${k.color} rounded-lg p-4`}><p className="text-[10px] text-slate-400">{k.label}</p><p className="text-xl font-bold text-white">{k.value}</p></div>))}</div>
 
           {/* Workshop Duration */}
           {openBDs.length > 0 && (<div className={`rounded-xl p-5 border-2 mb-6 ${criticalOverdue.length>0?'bg-red-950/60 border-red-500 animate-pulse':overdueBreakdowns.length>0?'bg-yellow-950/40 border-yellow-500':'bg-white/[0.04] border-white/10'}`}>

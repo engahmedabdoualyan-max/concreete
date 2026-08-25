@@ -1,0 +1,6 @@
+# Vercel deploy exclusions (static site only)
+node_modules
+dist
+apps
+.env
+.env.local

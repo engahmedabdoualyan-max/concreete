@@ -9,6 +9,7 @@ import PlantLogo from '../components/PlantLogo';
 import DatePicker from '../components/DatePicker';
 import DriverLiveBroadcast from '../components/DriverLiveBroadcast';
 import NotificationsBell from '../components/NotificationsBell';
+import Challan from '../components/Challan';
 
 interface Trip {
   id: number; plant: string; date: string; code: string; driver: string;
@@ -26,6 +27,7 @@ interface Trip {
   // سبب التأخير (إن وجد)
   delayReason?: 'ready' | 'site_not_ready' | 'breakdown' | 'emergency' | 'other';
   delayDetails?: string; // تفاصيل السبب (نص حر)
+  challan?: any; // بيانات الشيكارة الملتقطة من تطبيق السائق
 }
 
 const DEFAULT_TRIPS: Trip[] = [
@@ -153,6 +155,10 @@ export default function Operations() {
   const [assets, setAssets] = useState<any[]>([]);
   const [inventory, setInventory] = useState<Record<string, number> | null>(null);
   const [dispatchOrder, setDispatchOrder] = useState('');
+  const [challanTrip, setChallanTrip] = useState<{ trip: any; order: any; challan: any } | null>(null);
+  const deliveredForOrder = (orderId?: string) =>
+    (trips || []).filter(t => t.orderId === orderId && String(t.status).toUpperCase() === 'COMPLETED')
+      .reduce((s, t) => s + (Number(t.qty) || 0), 0);
   useEffect(() => {
     if (!currentUser) return;
     loadOrders(currentUser.username).then(ords => {
@@ -193,6 +199,14 @@ export default function Operations() {
     }
     const capacity = Number(dispatch.capacity) || 10;
     const trucksNeeded = Math.max(1, Math.ceil((Number(order.quantity) || 0) / capacity));
+    const orderedQty = Number(order.quantity) || 0;
+    const alreadyDelivered = deliveredForOrder(order.id || order.orderNo);
+    const remaining = Math.max(0, orderedQty - alreadyDelivered);
+    const plannedQty = Math.min(orderedQty, trucksNeeded * capacity);
+    if (plannedQty > remaining + 0.001) {
+      alert(`⛔ لا يمكن التجاوز عن كمية الطلب: تم توريد ${alreadyDelivered} م³ من أصل ${orderedQty} م³ — المتبقي ${Math.round(remaining * 100) / 100} م³ فقط.`);
+      return;
+    }
     const now = new Date();
     const pad = (n: number) => String(n).padStart(2, '0');
     const nowTime = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
@@ -202,7 +216,7 @@ export default function Operations() {
       const m = mixers[i % mixers.length];
       return {
         id: Date.now() + i, plant: 'PLANT-A', date: today, code: m.id, driver: m.driver || '—',
-        qty: Math.min(capacity, (Number(order.quantity) || 0) - i * capacity), pump, estTime: Number(dispatch.estTime) || 40,
+        qty: Math.min(capacity, (Number(order.quantity) || 0) - i * capacity), pump, estTime: Number((dispatch as any).estTime) || 40,
         stationArr: nowTime, stationDep: nowTime, siteArr: '', siteDep: '',
         siteName: order.projectName || '—', projectName: order.projectName || '—', status: 'TRANSIT',
         siteGeo: order.locationCoords || undefined, orderId: order.orderNo || order.id,
@@ -501,6 +515,13 @@ export default function Operations() {
                 <div className="flex justify-between items-center mb-3">
                   <span className="text-xs font-semibold uppercase tracking-wider bg-sky-500/20 text-sky-400 px-2 py-0.5 rounded">{t.status}</span>
                   <div className="flex gap-1">
+                    {t.status === 'COMPLETED' && (
+                      <button onClick={() => setChallanTrip({
+                        trip: t,
+                        order: orders.find((o) => (o.orderNo || o.id) === t.orderId) || null,
+                        challan: t.challan || {},
+                      })} title="شيكارة التوريد" className="bg-sky-500 hover:bg-sky-600 text-white text-[11px] px-2 py-0.5 rounded font-bold">🧾</button>
+                    )}
                     <button onClick={() => openEdit(t)} className="bg-green-500 hover:bg-green-600 text-white text-[11px] px-2 py-0.5 rounded font-bold">✏️</button>
                     <button onClick={() => deleteTrip(t.id)} className="bg-red-500 hover:bg-red-600 text-white text-[11px] px-2 py-0.5 rounded font-bold">🗑️</button>
                   </div>
@@ -963,6 +984,14 @@ export default function Operations() {
             </div>
           </div>
         </div>
+      )}
+      {challanTrip && (
+        <Challan
+          trip={challanTrip.trip}
+          order={challanTrip.order}
+          challan={challanTrip.challan}
+          onClose={() => setChallanTrip(null)}
+        />
       )}
     </div>
   );

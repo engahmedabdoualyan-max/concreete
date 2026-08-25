@@ -10,8 +10,9 @@ import FactoryData from '../components/FactoryData';
 import PlantsManager from '../components/PlantsManager';
 import GpsPanel from '../components/GpsPanel';
 import GpsFleetMap from '../components/GpsFleetMap';
+import ErpAdminOverview from '../components/ErpAdminOverview';
 
-type Tab = 'overview' | 'plant' | 'plants' | 'users' | 'sections' | 'gps';
+type Tab = 'overview' | 'plant' | 'plants' | 'users' | 'sections' | 'gps' | 'erp';
 type FactorySub = 'profile' | 'fleet' | 'stock' | 'config' | 'trackers';
 
 const ROLE_EMOJIS: Record<UserRole, string> = {
@@ -230,6 +231,7 @@ export default function AdminPanel() {
     { key: 'plants', label: 'Plants & Block Lines', emoji: '🏗️' },
     { key: 'users', label: t('tabUsers'), emoji: '👥' },
     { key: 'sections', label: 'Sections Overview', emoji: '🧩' },
+    { key: 'erp', label: 'ERP Finance & Inventory', emoji: '💼' },
     { key: 'gps', label: 'GPS Map', emoji: '🗺️' },
   ];
 
@@ -658,6 +660,10 @@ export default function AdminPanel() {
               })
             )}
           </div>
+        )}
+
+        {tab === 'erp' && (
+          <ErpAdminOverview onToast={showToast} />
         )}
 
         {tab === 'plants' && (

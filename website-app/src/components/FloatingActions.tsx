@@ -5,6 +5,9 @@ import type { Translations } from '../context/translations';
 type ModalKind = 'features' | 'rate' | 'contact' | null;
 
 const FEATURES: { icon: string; key: keyof Translations }[] = [
+  { icon: '📱', key: 'ftAppAndroid' },
+  { icon: '🍎', key: 'ftAppIos' },
+  { icon: '🔗', key: 'ftAppNote' },
   { icon: '🚚', key: 'ftOperations' },
   { icon: '🏭', key: 'ftProduction' },
   { icon: '📅', key: 'ftSchedule' },
@@ -13,6 +16,16 @@ const FEATURES: { icon: string; key: keyof Translations }[] = [
   { icon: '📊', key: 'ftEvaluation' },
   { icon: '📦', key: 'ftOrders' },
   { icon: '⚙️', key: 'ftAdmin' },
+  { icon: '💼', key: 'ftFinance' },
+  { icon: '📒', key: 'ftLedger' },
+  { icon: '🗓️', key: 'ftCommitments' },
+  { icon: '💰', key: 'ftExpenses' },
+  { icon: '🏭', key: 'ftSuppliers' },
+  { icon: '🛢️', key: 'ftInventory' },
+  { icon: '🛡️', key: 'ftRisk' },
+  { icon: '🚨', key: 'ftBreakdown' },
+  { icon: '🧾', key: 'ftInvoice' },
+  { icon: '📤', key: 'ftExports' },
 ];
 
 const STAR_COLORS = ['text-slate-400', 'text-yellow-400'];

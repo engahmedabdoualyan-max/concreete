@@ -8,6 +8,10 @@ import LangSelector from '../components/LangSelector';
 import BrandLogo from '../components/BrandLogo';
 import DatePicker from '../components/DatePicker';
 import ErpFinance from '../components/ErpFinance';
+import ErpLedger from '../components/ErpLedger';
+import ErpCommitments from '../components/ErpCommitments';
+import ErpExpenses from '../components/ErpExpenses';
+import ErpSuppliers from '../components/ErpSuppliers';
 
 interface Payment { id: number; date: string; client: string; orderNo: string; amount: number; method: string; status: 'paid' | 'partial' | 'pending'; note: string; link?: string; qr?: string; ref?: string; }
 interface PO { id: number; date: string; material: string; qty: number; unit: string; supplier: string; unitPrice: number; total: number; status: 'open' | 'delivered'; reason: string; }
@@ -148,6 +152,10 @@ export default function Finance() {
         </div>
 
         {['SUPER_ADMIN', 'ACCOUNTANT', 'FINANCE'].includes(currentUser.role || '') && <ErpFinance />}
+        {['SUPER_ADMIN', 'ACCOUNTANT', 'FINANCE'].includes(currentUser.role || '') && <ErpLedger />}
+        {['SUPER_ADMIN', 'ACCOUNTANT', 'FINANCE'].includes(currentUser.role || '') && <ErpCommitments />}
+        {['SUPER_ADMIN', 'ACCOUNTANT', 'FINANCE'].includes(currentUser.role || '') && <ErpExpenses />}
+        {['SUPER_ADMIN', 'ACCOUNTANT', 'FINANCE'].includes(currentUser.role || '') && <ErpSuppliers />}
 
         {tab === 'payments' && (
           <div className="grid grid-cols-1 lg:grid-cols-[380px_1fr] gap-6">

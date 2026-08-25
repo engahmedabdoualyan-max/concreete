@@ -8,6 +8,7 @@ export interface Customer {
   name: string;
   phone: string;
   address: string;
+  creditHold?: boolean;
   createdAt: string;
 }
 
@@ -69,10 +70,15 @@ export default function CustomersManager({ onSelect }: { onSelect?: (c: Customer
           {customers.map(c => (
             <div key={c.id} className="flex items-center justify-between gap-2 bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2">
               <div className="min-w-0">
-                <p className="text-xs font-bold text-white truncate"><span className="text-sky-400">{c.code}</span> · {c.name}</p>
+                <p className="text-xs font-bold text-white truncate"><span className="text-sky-400">{c.code}</span> · {c.name} {c.creditHold && <span className="text-[9px] bg-red-500/20 text-red-400 px-1.5 py-0.5 rounded font-bold">⛔ HOLD</span>}</p>
                 <p className="text-[10px] text-slate-400 truncate">{c.phone}{c.address ? ' · ' + c.address : ''}</p>
               </div>
               <div className="flex items-center gap-1 shrink-0">
+                <button type="button" onClick={() => setCustomers(prev => prev.map(x => x.id === c.id ? { ...x, creditHold: !x.creditHold } : x))}
+                  className={`${c.creditHold ? 'bg-red-600 hover:bg-red-700' : 'bg-white/[0.06] hover:bg-white/[0.1]'} text-white text-[10px] px-2 py-1 rounded font-bold`}
+                  title={c.creditHold ? 'فك التجميد' : 'تجميد ائتماني'}>
+                  {c.creditHold ? '🔓 فك الحجز' : '⛔ Hold'}
+                </button>
                 {onSelect && <button type="button" onClick={() => onSelect(c)} className="bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] px-2 py-1 rounded font-bold">اختر</button>}
                 <button type="button" onClick={() => del(c.id)} className="bg-red-600 hover:bg-red-700 text-white text-[10px] px-2 py-1 rounded font-bold">🗑</button>
               </div>

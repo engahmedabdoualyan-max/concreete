@@ -12,6 +12,13 @@ interface InvoiceProps {
   orderType: 'concrete' | 'blocks';
   quantity: number;
   concreteType?: string;
+  /** Override the auto unit price when real pricing is known */
+  unitPrice?: number;
+  /** Delivery ticket / trip reference */
+  ticketNo?: string;
+  vehiclePlate?: string;
+  mixDesign?: string;
+  elementType?: string;
   onClose: () => void;
 }
 
@@ -40,7 +47,7 @@ export default function EInvoice(props: InvoiceProps) {
   const sellerName = 'Fimto Concrete Plant';
   const sellerVatNo = '3-123-456-7890';
 
-  const unitPrice = props.orderType === 'concrete' ? (UNIT_PRICES[props.concreteType || '3000'] || 2700) : 5;
+  const unitPrice = props.unitPrice ?? (props.orderType === 'concrete' ? (UNIT_PRICES[props.concreteType || '3000'] || 2700) : 5);
   const unitLabel = props.orderType === 'concrete' ? 'م³' : 'بلوك';
   const totalExVat = unitPrice * props.quantity;
   const vatAmount = totalExVat * (vatRate / 100);
@@ -88,7 +95,16 @@ export default function EInvoice(props: InvoiceProps) {
             <p><b>كود العميل:</b> {props.customerCode || '—'}</p>
             <p><b>الهاتف:</b> {props.customerPhone || '—'}</p>
             <p><b>المشروع:</b> {props.projectName || '—'}</p>
+            {props.elementType && <p><b>العنصر:</b> {props.elementType}</p>}
+            {props.mixDesign && <p><b>الخلطة:</b> {props.mixDesign}</p>}
           </div>
+
+          {(props.ticketNo || props.vehiclePlate) && (
+            <div className="flex flex-wrap justify-between gap-2 py-2 px-2 my-2 border border-gray-400 rounded text-[10px]">
+              <span><b>تذكرة التسليم:</b> {props.ticketNo || '—'}</span>
+              {props.vehiclePlate && <span><b>رقم الشاحنة:</b> <span dir="ltr">{props.vehiclePlate}</span></span>}
+            </div>
+          )}
 
           <table className="w-full text-xs my-3">
             <thead>

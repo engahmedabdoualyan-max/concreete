@@ -18,3 +18,7 @@ npm-debug.log*
 .env.local
 .vercel
 .env*
+
+# Generated mobile builds served from the site (rebuild from apps/mobile)
+public/downloads/*.apk
+public/downloads/*.ipa
