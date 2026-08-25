@@ -13,6 +13,7 @@ import ErpCommitments from '../components/ErpCommitments';
 import ErpExpenses from '../components/ErpExpenses';
 import ErpSuppliers from '../components/ErpSuppliers';
 import AccountingIntegration from '../components/AccountingIntegration';
+import DemandForecast from '../components/DemandForecast';
 
 interface Payment { id: number; date: string; client: string; orderNo: string; amount: number; method: string; status: 'paid' | 'partial' | 'pending'; note: string; link?: string; qr?: string; ref?: string; }
 interface PO { id: number; date: string; material: string; qty: number; unit: string; supplier: string; unitPrice: number; total: number; status: 'open' | 'delivered'; reason: string; }
@@ -256,6 +257,7 @@ export default function Finance() {
 
         {tab === 'reorder' && (
           <div className="space-y-6">
+            <DemandForecast />
             <div className="bg-white/[0.04] border border-white/10 rounded-xl p-6 backdrop-blur-xl">
               <h3 className="text-lg font-black tracking-tight text-white mb-1">📅 Next-Day Demand Coverage</h3>
               <p className="text-xs text-slate-400 mb-4">Consumes material based on tomorrow's scheduled (confirmed) orders and current stock + open POs. Alerts and PO drafts are generated automatically when the stock cannot cover tomorrow's commitments.</p>

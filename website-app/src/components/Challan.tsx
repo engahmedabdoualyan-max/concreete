@@ -136,6 +136,9 @@ export default function Challan({ trip, order, challan, onClose, onSignatureSave
   const [qr, setQr] = useState('');
   const [showSignaturePad, setShowSignaturePad] = useState(false);
   const [savedSignature, setSavedSignature] = useState(challan?.customerSignature || '');
+  const [waterLogs, setWaterLogs] = useState<Array<{ time: string; liters: number; reason: string }>>(challan?.waterAdditions || []);
+  const [waterForm, setWaterForm] = useState({ liters: '', reason: 'تعديل الهبوط' });
+  const [showWaterForm, setShowWaterForm] = useState(false);
   const code = String(trip?.code ?? trip?.id ?? '');
   const qty = Number(trip?.qty ?? 0);
   const orderNo = order?.orderNo || order?.id || trip?.orderId || '—';
@@ -206,6 +209,72 @@ export default function Challan({ trip, order, challan, onClose, onSignatureSave
               <p className="mt-1">
                 الهبوط: <b>{challan.slumpMm != null ? challan.slumpMm + ' مم' : '—'}</b> · درجة الحرارة: <b>{challan.temperatureC != null ? challan.temperatureC + ' °C' : '—'}</b>
               </p>
+            )}
+          </div>
+
+          {/* سجل إضافة المياه أثناء النقل */}
+          <div className="py-3 text-xs border-b border-gray-300">
+            <div className="flex justify-between items-center mb-1">
+              <p className="font-bold">سجل إضافة المياه 💧</p>
+              <button
+                onClick={() => setShowWaterForm(!showWaterForm)}
+                className="bg-sky-500 hover:bg-sky-600 text-white text-[10px] font-bold px-2.5 py-1 rounded print:hidden"
+              >
+                {showWaterForm ? 'إغلاق' : '+ إضافة'}
+              </button>
+            </div>
+            {waterLogs.length === 0 && !showWaterForm && (
+              <p className="text-[10px] text-gray-500">لم تُضف مياه أثناء النقل ✅</p>
+            )}
+            {waterLogs.length > 0 && (
+              <table className="w-full mt-1 border border-gray-200">
+                <thead className="bg-gray-100">
+                  <tr><th className="p-1 text-[10px] border-r border-gray-200">الوقت</th><th className="p-1 text-[10px] border-r border-gray-200">الكمية (لتر)</th><th className="p-1 text-[10px]">السبب</th></tr>
+                </thead>
+                <tbody>
+                  {waterLogs.map((w, i) => (
+                    <tr key={i} className="border-t border-gray-200">
+                      <td className="p-1 text-center border-r border-gray-200">{w.time}</td>
+                      <td className="p-1 text-center font-bold border-r border-gray-200">{w.liters}</td>
+                      <td className="p-1 text-center">{w.reason}</td>
+                    </tr>
+                  ))}
+                  <tr className="border-t-2 border-gray-400 bg-gray-50">
+                    <td className="p-1 text-center font-bold">الإجمالي</td>
+                    <td className="p-1 text-center font-bold">{waterLogs.reduce((s, w) => s + w.liters, 0)} لتر</td>
+                    <td className="p-1"></td>
+                  </tr>
+                </tbody>
+              </table>
+            )}
+            {showWaterForm && (
+              <div className="mt-2 p-2 bg-gray-50 rounded-lg border border-gray-200 grid grid-cols-3 gap-2 items-end print:hidden">
+                <div>
+                  <label className="text-[9px] text-gray-600 block">الكمية (لتر)</label>
+                  <input type="number" min="1" value={waterForm.liters} onChange={e => setWaterForm({ ...waterForm, liters: e.target.value })} placeholder="10" className="w-full border border-gray-300 rounded p-1 text-xs" />
+                </div>
+                <div>
+                  <label className="text-[9px] text-gray-600 block">السبب</label>
+                  <select value={waterForm.reason} onChange={e => setWaterForm({ ...waterForm, reason: e.target.value })} className="w-full border border-gray-300 rounded p-1 text-xs">
+                    <option value="تعديل الهبوط">تعديل الهبوط</option>
+                    <option value="طلب العميل">طلب العميل</option>
+                    <option value="ظروف الطريق">ظروف الطريق (حرارة)</option>
+                    <option value="أخرى">أخرى</option>
+                  </select>
+                </div>
+                <button
+                  onClick={() => {
+                    const l = parseInt(waterForm.liters);
+                    if (!l || l <= 0) return;
+                    setWaterLogs([...waterLogs, { time: new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }), liters: l, reason: waterForm.reason }]);
+                    setWaterForm({ liters: '', reason: 'تعديل الهبوط' });
+                    setShowWaterForm(false);
+                  }}
+                  className="bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold py-1.5 rounded"
+                >
+                  تسجيل
+                </button>
+              </div>
             )}
           </div>
 

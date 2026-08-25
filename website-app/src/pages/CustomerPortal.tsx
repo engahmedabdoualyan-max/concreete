@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { loadAllOrdersForCustomer, loadAllInvoicesForCustomer } from '../firebase/firestore';
+import { loadAllOrdersForCustomer, loadAllInvoicesForCustomer, loadPlantProfile } from '../firebase/firestore';
 import BrandLogo from '../components/BrandLogo';
+import LiveTracking from '../components/LiveTracking';
 import emailjs from '@emailjs/browser';
 
 /* ─── Types ─── */
@@ -64,6 +65,7 @@ export default function CustomerPortal() {
   const [activeTab, setActiveTab] = useState<'orders' | 'invoices'>('orders');
   const [expandedOrder, setExpandedOrder] = useState<string | null>(null);
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
+  const [plantBrand, setPlantBrand] = useState<{ name: string; logo: string }>({ name: '', logo: '' });
 
   /* ── Search ── */
   const [searchQuery, setSearchQuery] = useState('');
@@ -119,6 +121,14 @@ export default function CustomerPortal() {
       setOrders(foundOrders);
       setInvoices(foundInvoices);
       setPhase('dashboard');
+
+      // White-label: load the supplier plant's brand (name + logo)
+      const plantId = foundOrders[0]?._plant;
+      if (plantId) {
+        loadPlantProfile(plantId).then((p: any) => {
+          if (p && (p.name || p.logo)) setPlantBrand({ name: p.name || '', logo: p.logo || '' });
+        }).catch(() => {});
+      }
     } catch {
       setError('حدث خطأ أثناء تحميل البيانات');
     }
@@ -228,10 +238,14 @@ export default function CustomerPortal() {
       <header className="bg-[#0B111E]/80 backdrop-blur-xl px-4 sm:px-6 py-3 sticky top-0 z-10 border-b border-white/10">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <BrandLogo width={40} rounded="rounded-xl" />
+            {plantBrand.logo ? (
+              <img src={plantBrand.logo} alt={plantBrand.name} className="w-10 h-10 rounded-xl object-cover border border-white/10" />
+            ) : (
+              <BrandLogo width={40} rounded="rounded-xl" />
+            )}
             <div>
               <h1 className="text-sm font-black text-white">لوحة متابعة العميل</h1>
-              <p className="text-[10px] text-sky-400">{identifier}</p>
+              <p className="text-[10px] text-sky-400">{plantBrand.name ? `${plantBrand.name} · ` : ''}{identifier}</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -259,6 +273,16 @@ export default function CustomerPortal() {
             </div>
           ))}
         </div>
+
+        {/* Live truck tracking (only when an order is being executed) */}
+        {phase === 'dashboard' && orders.some(o => o.status === 'in_progress') && (
+          <LiveTracking
+            activeOrders={orders.filter(o => o.status === 'in_progress').map(o => ({
+              id: o.id, orderNo: o.orderNo, projectName: o.projectName,
+              projectLocation: o.projectLocation, quantity: o.quantity,
+            }))}
+          />
+        )}
 
         {/* Tabs + Search */}
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
