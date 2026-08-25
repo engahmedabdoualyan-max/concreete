@@ -936,7 +936,7 @@ export async function loadAllOrdersForCustomer(identifier: string): Promise<any[
   const results: any[] = [];
 
   for (const userDoc of usersSnap.docs) {
-    const ordersSnap = await getDoc(doc(db, 'users', userDoc.id, 'userData', 'orders'));
+    const ordersSnap = await getDoc(doc(db, 'userData', userDoc.id, 'orders', 'data'));
     if (!ordersSnap.exists()) continue;
     const data = ordersSnap.data();
     const list = Array.isArray(data?.data) ? data.data : [];
@@ -962,7 +962,7 @@ export async function loadAllInvoicesForCustomer(identifier: string): Promise<an
   const results: any[] = [];
 
   for (const userDoc of usersSnap.docs) {
-    const paymentsSnap = await getDoc(doc(db, 'users', userDoc.id, 'userData', 'payments'));
+    const paymentsSnap = await getDoc(doc(db, 'userData', userDoc.id, 'payments', 'data'));
     if (!paymentsSnap.exists()) continue;
     const data = paymentsSnap.data();
     const list = Array.isArray(data?.data) ? data.data : [];
