@@ -3,7 +3,8 @@
  * يُبنى كـ PDF عربي (غلاف + فهرس بأرقام صفحات حقيقية + أقسام موزعة آلياً).
  */
 import { jsPDF } from 'jspdf';
-import html2canvas from 'html2canvas';
+import { toCanvas } from 'html-to-image';
+import logoUrl from '../assets/logos/logo.png';
 
 const INK = '#0b111e';
 const SKY = '#0284c7';
@@ -209,6 +210,41 @@ function headerBar(sec: Section, cont: boolean) {
     </div>`;
 }
 
+/* رسومات توضيحية CSS — تُظهر بجانب أقسام مختارة */
+function diagramFor(no: string): string {
+  if (no === '3') {
+    const steps = [['📝','طلب'],['💰','اعتماد'],['📅','جدولة'],['🚚','تنفيذ'],['✅','تسليم']];
+    return `<div style="display:flex;gap:6px;margin:18px 0 0">
+      ${steps.map(([ic,t],i)=>`
+      <div style="flex:1;text-align:center">
+        <div style="background:${INK};border-radius:12px;color:#fff;padding:12px 4px">
+          <div style="font-size:20px">${ic}</div>
+          <div style="font-size:11px;font-weight:800;margin-top:4px">${t}</div>
+        </div>
+        ${i<steps.length-1?'<div style="color:#94a3b8;font-size:14px;line-height:1.2">←</div>':'<div style="height:17px"></div>'}
+      </div>`).join('')}
+    </div>`;
+  }
+  if (no === '13') {
+    const devs = [['🏭','متحكم'],['📹','كاميرات'],['🔗','محاسبة'],['📡','GPS'],['⚖️','كابريز']];
+    return `<div style="margin-top:18px;border:2px dashed #164e63;border-radius:14px;padding:14px;text-align:center">
+      <div style="font-size:12px;color:#7dd3fc;font-weight:800;margin-bottom:10px">مركز الأجهزة الطرفية — توصيل اختياري</div>
+      <div style="display:flex;gap:6px;justify-content:center">${devs.map(([ic,t])=>`
+        <div style="background:#fff;border:1px solid #cbd5e1;border-radius:10px;padding:8px 10px;min-width:70px">
+          <div style="font-size:18px">${ic}</div><div style="font-size:10.5px;font-weight:800;color:${INK}">${t}</div>
+          <div style="font-size:9px;color:#16a34a;font-weight:700">اختياري</div>
+        </div>`).join('')}</div>
+    </div>`;
+  }
+  if (no === '15') {
+    const roles = [['🚚','سائق'],['💼','مندوب'],['🧪','مختبر'],['🎛️','مشغل'],['🔧','ورشة'],['📊','مالك']];
+    return `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:18px">
+      ${roles.map(([ic,t])=>`<div style="background:${INK};color:#fff;border-radius:10px;padding:10px;text-align:center"><div style="font-size:18px">${ic}</div><div style="font-size:11px;font-weight:800;margin-top:3px">${t}</div></div>`).join('')}
+    </div>`;
+  }
+  return '';
+}
+
 function buildPages(root: HTMLElement) {
   const add = (node: HTMLElement) => root.appendChild(node);
 
@@ -220,8 +256,8 @@ function buildPages(root: HTMLElement) {
         <div style="font-size:12px;color:#64748b">v3.0 · ${new Date().toLocaleDateString('ar-EG')}</div>
       </div>
       <div style="flex:1;display:flex;flex-direction:column;justify-content:center;text-align:center">
-        <div style="font-size:64px;margin-bottom:18px">🏗️</div>
-        <h1 style="font-size:50px;margin:0;font-weight:900;line-height:1.25">دليل الاستخدام الكامل<br/><span style="background:linear-gradient(90deg,#38bdf8,#22d3ee);-webkit-background-clip:text;-webkit-text-fill-color:transparent">نظام فيمتو للخرسانة</span></h1>
+        <img src="${logoUrl}" alt="Fimto" style="width:150px;height:148px;object-fit:contain;margin-bottom:16px;border-radius:24px;background:#fff;padding:8px"/>
+        <h1 style="font-size:50px;margin:0;font-weight:900;line-height:1.25">دليل الاستخدام الكامل<br/><span style="color:#38bdf8">نظام فيمتو للخرسانة</span></h1>
         <p style="color:#94a3b8;font-size:17px;margin-top:18px;line-height:1.9">
           شرح تفصيلي لكل خاصية ووظيفة في النظام<br/>الويب · تطبيق الأندرويد · بورتال العملاء · الأجهزة الطرفية · الأمان
         </p>
@@ -267,6 +303,7 @@ function buildPages(root: HTMLElement) {
     add(el(`
       <div style="width:${PAGE_W}px;height:${PAGE_H}px;background:linear-gradient(180deg,#f8fafc 0%,#fff 30%);box-sizing:border-box;padding:48px;font-family:'Segoe UI',Tahoma,Arial,sans-serif;direction:rtl;">
         ${headerBar(ch.sec, ch.cont)}
+        ${!ch.cont ? diagramFor(ch.sec.no) : ''}
         <ul style="padding:0;margin:22px 0 0">${rows}</ul>
       </div>`));
   }
@@ -299,7 +336,13 @@ export async function generateManualPdf(onProgress?: (done: number, total: numbe
     const pdf = new jsPDF({ unit: 'px', format: [PAGE_W, PAGE_H], orientation: 'portrait', compress: true });
     for (let i = 0; i < pages.length; i++) {
       onProgress?.(i, pages.length);
-      const canvas = await html2canvas(pages[i], { scale: 1.6, backgroundColor: null, logging: false, useCORS: true });
+      let canvas: HTMLCanvasElement;
+      try {
+        // html-to-image uses SVG foreignObject → the BROWSER shapes Arabic text (perfect RTL)
+        canvas = await toCanvas(pages[i], { pixelRatio: 2, backgroundColor: '#ffffff', cacheBust: true });
+      } catch {
+        canvas = await html2canvas(pages[i], { scale: 1.6, backgroundColor: '#ffffff', logging: false, useCORS: true });
+      }
       const img = canvas.toDataURL('image/jpeg', 0.92);
       if (i > 0) pdf.addPage([PAGE_W, PAGE_H], 'portrait');
       pdf.addImage(img, 'JPEG', 0, 0, PAGE_W, PAGE_H);
