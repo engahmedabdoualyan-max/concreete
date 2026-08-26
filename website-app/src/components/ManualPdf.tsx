@@ -181,58 +181,89 @@ function el(html: string): HTMLDivElement {
 }
 
 const PAGE_W = 794, PAGE_H = 1123;
-const MAX_PER_PAGE = 5;
 
-/** يوزع الأقسام على صفحات (5 خصائص/صفحة) ويحسب رقم صفحة بداية كل قسم للفهرس. */
-function paginate(): { chunks: { sec: Section; feats: Feature[]; cont: boolean }[]; startPage: Record<string, number> } {
-  const chunks: { sec: Section; feats: Feature[]; cont: boolean }[] = [];
-  const startPage: Record<string, number> = {};
-  let pageNo = 3; // 1 غلاف، 2 فهرس
-  for (const sec of MANUAL_SECTIONS) {
-    startPage[sec.no] = pageNo;
-    for (let i = 0; i < sec.features.length; i += MAX_PER_PAGE) {
-      chunks.push({ sec, feats: sec.features.slice(i, i + MAX_PER_PAGE), cont: i > 0 });
-      pageNo++;
-    }
-  }
-  return { chunks, startPage };
-}
-
-function headerBar(sec: Section, cont: boolean) {
-  // <bdi> isolates Latin digits/tokens so bidi never scrambles Arabic around them
-  const label = cont ? `القسم <bdi>${sec.no}</bdi> ــ تابع` : `القسم <bdi>${sec.no}</bdi>`;
-  return `
-    <div lang="ar" style="display:flex;align-items:center;gap:14px;background:linear-gradient(90deg,#0b111e,#0e3a5c);color:#fff;padding:20px 28px;border-radius:16px;">
-      <div style="font-size:32px">${sec.icon}</div>
-      <div>
-        <div style="font-size:12px;color:#7dd3fc;font-weight:800">${label}</div>
-        <div style="font-size:24px;font-weight:900;line-height:1.5">${sec.title}</div>
-      </div>
-      <div style="margin-inline-start:auto;font-size:11px;color:#94a3b8;font-weight:700" dir="ltr"><bdi>FIMTO CONCRETE ERP</bdi></div>
-    </div>`;
-}
-
-/* رسومات توضيحية CSS — تُظهر بجانب أقسام مختارة */
-function diagramFor(no: string): string {
+/* ─────────── رسومات ورسوم بيانية SVG ─────────── */
+function visualFor(no: string): string {
+  const cap = (t: string) => `<div style="font-size:11px;color:#64748b;font-weight:800;margin-bottom:6px">${t}</div>`;
   if (no === '3') {
-    const steps = [['📝','طلب'],['💰','اعتماد'],['📅','جدولة'],['🚚','تنفيذ'],['✅','تسليم']];
-    return `<div style="display:flex;gap:6px;margin:18px 0 0">
-      ${steps.map(([ic,t],i)=>`
-      <div style="flex:1;text-align:center">
-        <div style="background:${INK};border-radius:12px;color:#fff;padding:12px 4px">
-          <div style="font-size:20px">${ic}</div>
-          <div style="font-size:11px;font-weight:800;margin-top:4px">${t}</div>
+    const steps = [['📝','طلب'],['💰','اعتماد'],['🕒','جدولة'],['🚚','تنفيذ'],['✅','تسليم']];
+    return `<div style="margin-top:18px">${cap('دورة حياة الطلب')}
+      <div style="display:flex;gap:4px">
+      ${steps.map(([ic,t],i)=>`<div style="flex:1;text-align:center">
+        <div style="background:${INK};border-radius:12px;color:#fff;padding:11px 4px"><div style="font-size:19px">${ic}</div><div style="font-size:11px;font-weight:800;margin-top:3px">${t}</div></div>
+        ${i<steps.length-1?'<div style="color:#94a3b8;font-size:15px;line-height:1.1">←</div>':'<div style="height:17px"></div>'}
+      </div>`).join('')}</div></div>`;
+  }
+  if (no === '5') {
+    const rows = [['أسمنت',85,'#38bdf8'],['رمل',62,'#fbbf24'],['زلط',74,'#94a3b8'],['إضافات',41,'#22d3ee']];
+    return `<div style="margin-top:18px">${cap('مثال حي: مستوى السيلوهات (%)')}
+      <div style="background:#fff;border:1px solid ${BORDER};border-radius:12px;padding:12px 14px">
+      ${rows.map(([n,v,c])=>`<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+        <span style="width:54px;font-size:11px;font-weight:800;color:${INK}">${n}</span>
+        <div style="flex:1;height:14px;background:${LIGHT};border-radius:999px;overflow:hidden"><div style="width:${v}%;height:100%;background:${c};border-radius:999px"></div></div>
+        <bdi><span style="width:36px;font-size:11px;font-weight:900;color:${INK}">${v}%</span></bdi>
+      </div>`).join('')}</div></div>`;
+  }
+  if (no === '7') {
+    const pts = '10,86 60,72 110,80 160,52 210,60 260,34 330,44';
+    const dots = pts.split(' ').map(pt=>{const[x,y]=pt.split(',');return `<circle cx="${x}" cy="${y}" r="3.5" fill="#fff" stroke="#0ea5e9" stroke-width="2"/>`}).join('');
+    return `<div style="margin-top:18px">${cap('مثال: تكاليف الصيانة الشهرية — اتجاه تنازلي بعد المتابعة')}
+      <svg viewBox="0 0 340 100" preserveAspectRatio="none" style="width:100%;height:106px;background:#fff;border:1px solid ${BORDER};border-radius:12px">
+        <defs><linearGradient id="g7" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#38bdf8" stop-opacity=".45"/><stop offset="1" stop-color="#38bdf8" stop-opacity="0"/></linearGradient></defs>
+        <polygon points="${pts} 330,100 10,100" fill="url(#g7)"/>
+        <polyline points="${pts}" fill="none" stroke="#0ea5e9" stroke-width="3" stroke-linecap="round"/>
+        ${dots}
+      </svg></div>`;
+  }
+  if (no === '8') {
+    // منحنى المقاومة: كسور فعلية حتى 7 أيام ثم تنبؤ AI بمنطقة ثقة
+    return `<div style="margin-top:18px">${cap('منحنى المقاومة: قياس فعلي + تنبؤ AI لـ 28 يوم')}
+      <svg viewBox="0 0 340 110" preserveAspectRatio="none" style="width:100%;height:112px;background:#fff;border:1px solid ${BORDER};border-radius:12px">
+        <rect x="150" y="18" width="180" height="52" rx="8" fill="#22c55e" opacity=".12"/>
+        <polyline points="20,92 85,74 150,58" fill="none" stroke="#0284c7" stroke-width="3.5" stroke-linecap="round"/>
+        <line x1="150" y1="58" x2="320" y2="30" stroke="#16a34a" stroke-width="3.5" stroke-dasharray="7 6" stroke-linecap="round"/>
+        <circle cx="20" cy="92" r="4" fill="#fff" stroke="#0284c7" stroke-width="2.5"/>
+        <circle cx="85" cy="74" r="4" fill="#fff" stroke="#0284c7" stroke-width="2.5"/>
+        <circle cx="150" cy="58" r="5" fill="#0284c7"/>
+        <circle cx="320" cy="30" r="5.5" fill="#16a34a"/>
+        <text x="24" y="106" font-size="10" fill="#64748b" font-weight="700">3 أيام</text>
+        <text x="88" y="66" font-size="10" fill="#64748b" font-weight="700">7 أيام</text>
+        <text x="196" y="16" font-size="11" fill="#15803d" font-weight="800">تنبؤ 28 يوم ≈ 42 MPa</text>
+      </svg></div>`;
+  }
+  if (no === '10') {
+    const bars = [[62,'سبت'],[78,'أحد'],[55,'اثنين'],[92,'ثلاثاء'],[70,'أربعاء'],[84,'خميس']];
+    const bw = 34, gap = 14, base = 92, x0 = 18;
+    return `<div style="margin-top:18px">${cap('توقع الطلب الأسبوعي (م³/يوم) — أعلى يوم: ثلاثاء')}
+      <svg viewBox="0 0 340 110" preserveAspectRatio="none" style="width:100%;height:112px;background:#fff;border:1px solid ${BORDER};border-radius:12px">
+        ${bars.map(([v,l],i)=>`<rect x="${x0+i*(bw+gap)}" y="${base-v*0.82}" width="${bw}" height="${v*0.82}" rx="6" fill="${v===92?'#16a34a':'#0ea5e9'}" opacity="${v===92?1:.85}"/>
+        <text x="${x0+i*(bw+gap)+bw/2}" y="${base-v*0.82-6}" font-size="10.5" font-weight="800" fill="${INK}" text-anchor="middle"><tspan>${Math.round(v*1.6)}</tspan></text>
+        <text x="${x0+i*(bw+gap)+bw/2}" y="${base+16}" font-size="10" fill="#64748b" font-weight="700" text-anchor="middle">${l}</text>`).join('')}
+        <line x1="10" y1="${base}" x2="330" y2="${base}" stroke="#cbd5e1" stroke-width="2"/>
+      </svg></div>`;
+  }
+  if (no === '12') {
+    // عداد OEE نصف دائري 78%
+    const R = 70, CX = 170, CY = 96, CIRC = Math.PI * R;
+    return `<div style="margin-top:18px">${cap('مثال: مؤشر OEE الكلي للمحطة')}
+      <div style="display:flex;gap:14px;align-items:center;background:#fff;border:1px solid ${BORDER};border-radius:12px;padding:12px 16px">
+        <svg viewBox="0 0 340 120" style="width:220px;height:78px">
+          <path d="M ${CX-R} ${CY} A ${R} ${R} 0 0 1 ${CX+R} ${CY}" fill="none" stroke="${LIGHT}" stroke-width="16" stroke-linecap="round"/>
+          <path d="M ${CX-R} ${CY} A ${R} ${R} 0 0 1 ${CX+R} ${CY}" fill="none" stroke="#22c55e" stroke-width="16" stroke-linecap="round" stroke-dasharray="${(CIRC*0.78).toFixed(1)} ${CIRC.toFixed(1)}"/>
+          <text x="${CX}" y="${CY-14}" font-size="26" font-weight="900" fill="${INK}" text-anchor="middle"><tspan>78%</tspan></text>
+        </svg>
+        <div style="font-size:11px;color:${SLATE};line-height:2;font-weight:600">
+          التوفر <bdi>92%</bdi> × الأداء <bdi>89%</bdi> × الجودة <bdi>95%</bdi><br/>
+          <span style="color:#16a34a;font-weight:800">ممتاز — فوق مستوى الهدف 75%</span>
         </div>
-        ${i<steps.length-1?'<div style="color:#94a3b8;font-size:14px;line-height:1.2">←</div>':'<div style="height:17px"></div>'}
-      </div>`).join('')}
-    </div>`;
+      </div></div>`;
   }
   if (no === '13') {
-    const devs = [['🏭','متحكم'],['📹','كاميرات'],['🔗','محاسبة'],['📡','GPS'],['⚖️','كابريز']];
-    return `<div style="margin-top:18px;border:2px dashed #164e63;border-radius:14px;padding:14px;text-align:center">
-      <div style="font-size:12px;color:#7dd3fc;font-weight:800;margin-bottom:10px">مركز الأجهزة الطرفية — توصيل اختياري</div>
+    const devs = [['🏭','متحكم'],['📹','كاميرات'],['🔗','محاسبة'],['📡','GPS'],['⚖️','بسكول']];
+    return `<div style="margin-top:18px;border:2px dashed #164e63;border-radius:14px;padding:13px;text-align:center">
+      <div style="font-size:11.5px;color:#7dd3fc;font-weight:800;margin-bottom:9px">مركز الأجهزة الطرفية — توصيل اختياري، والنظام يعمل بدونه</div>
       <div style="display:flex;gap:6px;justify-content:center">${devs.map(([ic,t])=>`
-        <div style="background:#fff;border:1px solid #cbd5e1;border-radius:10px;padding:8px 10px;min-width:70px">
+        <div style="background:#fff;border:1px solid #cbd5e1;border-radius:10px;padding:8px 10px;min-width:68px">
           <div style="font-size:18px">${ic}</div><div style="font-size:10.5px;font-weight:800;color:${INK}">${t}</div>
           <div style="font-size:9px;color:#16a34a;font-weight:700">اختياري</div>
         </div>`).join('')}</div>
@@ -247,100 +278,155 @@ function diagramFor(no: string): string {
   return '';
 }
 
-function buildPages(root: HTMLElement) {
-  const add = (node: HTMLElement) => root.appendChild(node);
+function headerBar(sec: Section, cont: boolean) {
+  const label = cont ? `القسم <bdi>${sec.no}</bdi> ــ تابع` : `القسم <bdi>${sec.no}</bdi>`;
+  return `
+    <div lang="ar" style="display:flex;align-items:center;gap:14px;background:linear-gradient(90deg,#0b111e,#0e3a5c);color:#fff;padding:20px 28px;border-radius:16px;">
+      <div style="font-size:32px">${sec.icon}</div>
+      <div>
+        <div style="font-size:12px;color:#7dd3fc;font-weight:800">${label}</div>
+        <div style="font-size:24px;font-weight:900;line-height:1.5">${sec.title}</div>
+      </div>
+      <div style="margin-inline-start:auto;font-size:11px;color:#94a3b8;font-weight:700" dir="ltr"><bdi>FIMTO CONCRETE ERP</bdi></div>
+    </div>`;
+}
 
-  /* ── الغلاف ── */
-  add(el(`
-    <div style="width:${PAGE_W}px;height:${PAGE_H}px;background:linear-gradient(160deg,#080c14 0%,#0b111e 55%,#0d2136 100%);color:#fff;box-sizing:border-box;padding:70px 60px;display:flex;flex-direction:column;font-family:'Segoe UI',Tahoma,Arial,sans-serif;direction:rtl;">
+function featureEl(f: Feature, idx: number): HTMLElement {
+  return el(`
+    <li style="list-style:none;background:#fff;border:1px solid ${BORDER};border-radius:12px;padding:13px 16px;margin-bottom:10px;box-shadow:0 1px 2px rgba(2,8,23,.04)">
+      <div style="display:flex;gap:10px;align-items:flex-start">
+        <span style="flex-shrink:0;width:26px;height:26px;border-radius:8px;background:linear-gradient(135deg,${SKY},${CYAN});color:#fff;display:inline-flex;align-items:center;justify-content:center;font-weight:900;font-size:12px">${idx}</span>
+        <strong style="color:${INK};font-size:15px;line-height:1.6">${f.n}</strong>
+      </div>
+      <p style="margin:7px 4px 0 36px;color:${SLATE};font-size:13.5px;line-height:1.95">${f.d}</p>
+    </li>`);
+}
+
+/** صفحة محتوى جديدة؛ ترجع عناصر الصفحة ومنطقة المحتوى للقياس الحي. */
+function newContentPage(sec: Section, cont: boolean) {
+  const page = el(`
+    <div lang="ar" style="width:${PAGE_W}px;height:${PAGE_H}px;background:linear-gradient(180deg,#f8fafc 0%,#fff 30%);box-sizing:border-box;padding:48px;font-family:'Segoe UI',Tahoma,Arial,sans-serif;direction:rtl;overflow:hidden;">
+      ${headerBar(sec, cont)}
+    </div>`);
+  const cnt = el(`<div style="margin-top:20px"></div>`);
+  page.appendChild(cnt);
+  return { page, cnt };
+}
+
+function buildCover(): HTMLElement {
+  return el(`
+    <div lang="ar" style="width:${PAGE_W}px;height:${PAGE_H}px;background:linear-gradient(160deg,#080c14 0%,#0b111e 55%,#0d2136 100%);color:#fff;box-sizing:border-box;padding:70px 60px;display:flex;flex-direction:column;font-family:'Segoe UI',Tahoma,Arial,sans-serif;direction:rtl;">
       <div style="display:flex;justify-content:space-between;align-items:center">
         <div style="font-size:13px;color:#38bdf8;font-weight:800;border:1px solid #155e75;border-radius:999px;padding:6px 14px">FIMTO SOFT</div>
-        <div style="font-size:12px;color:#64748b">v3.0 · ${new Date().toLocaleDateString('ar-EG')}</div>
+        <div style="font-size:12px;color:#64748b"><bdi>v3.0 · ${new Date().toLocaleDateString('en-GB')}</bdi></div>
       </div>
       <div style="flex:1;display:flex;flex-direction:column;justify-content:center;text-align:center">
         <img src="${logoUrl}" alt="Fimto" style="width:150px;height:148px;object-fit:contain;margin-bottom:22px;border-radius:24px;background:#fff;padding:8px"/>
         <h1 style="font-size:48px;margin:0;font-weight:900;line-height:1.6">دليل الاستخدام الكامل<br/><span style="color:#38bdf8;text-shadow:0 0 26px rgba(56,189,248,.45)">نظام فيمتو للخرسانة</span></h1>
-        <p style="color:#94a3b8;font-size:17px;margin-top:18px;line-height:1.9">
-          شرح تفصيلي لكل خاصية ووظيفة في النظام<br/>الويب · تطبيق الأندرويد · بورتال العملاء · الأجهزة الطرفية · الأمان
-        </p>
-        <div style="margin-top:30px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+        <p style="color:#94a3b8;font-size:17px;margin-top:18px;line-height:1.9">شرح تفصيلي لكل خاصية ووظيفة في النظام<br/>الويب · تطبيق الأندرويد · بورتال العملاء · الأجهزة الطرفية · الأمان</p>
+        <div style="margin-top:28px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
           ${['📦 طلبات','🚚 تشغيل','🏭 إنتاج','🔧 ورشة','🎛️ جودة','💼 مالية','👥 عملاء','📱 موبايل'].map(x =>
             `<span style="background:rgba(56,189,248,.08);border:1px solid #164e63;color:#7dd3fc;font-size:13px;font-weight:700;padding:8px 14px;border-radius:10px">${x}</span>`).join('')}
         </div>
       </div>
-      <div style="text-align:center;color:#475569;font-size:12px">concrete.fimtosoft.com — Designed by Dr. Ahmad Abdo Alyan</div>
-    </div>`));
-
-  const { chunks, startPage } = paginate();
-
-  /* ── الفهرس ── */
-  const tocRows = MANUAL_SECTIONS.map(s => `
-    <tr>
-      <td style="padding:8px 6px;border-bottom:1px solid ${BORDER};width:52px"><span style="display:inline-flex;width:28px;height:28px;border-radius:8px;background:${INK};color:#fff;align-items:center;justify-content:center;font-weight:800;font-size:12px">${s.no}</span></td>
-      <td style="padding:8px 6px;border-bottom:1px solid ${BORDER};font-weight:800;color:${INK};font-size:14px">${s.icon} ${s.title}</td>
-      <td style="padding:8px 6px;border-bottom:1px solid ${BORDER};color:${SKY};font-size:12.5px;font-weight:700;white-space:nowrap">ص <bdi>${startPage[s.no]}</bdi></td>
-    </tr>`).join('');
-  add(el(`
-    <div style="width:${PAGE_W}px;height:${PAGE_H}px;background:#fff;box-sizing:border-box;padding:55px;font-family:'Segoe UI',Tahoma,Arial,sans-serif;direction:rtl;">
-      <div style="border-radius:16px;background:${LIGHT};border:1px solid ${BORDER};padding:24px 28px;margin-bottom:22px">
-        <div style="font-size:13px;color:${SKY};font-weight:800">CONTENTS</div>
-        <div style="font-size:30px;font-weight:900;color:${INK}">📖 فهرس المحتويات</div>
-      </div>
-      <table style="width:100%;border-collapse:collapse">${tocRows}</table>
-      <div style="margin-top:24px;background:#f0f9ff;border:1px solid #bae6fd;border-radius:12px;padding:14px 18px;color:#0369a1;font-size:12.5px;line-height:1.9">
-        💡 ${MANUAL_SECTIONS.length} قسماً تغطي أكثر من ${MANUAL_SECTIONS.reduce((a, s) => a + s.features.length, 0)} خاصية ووظيفة — كل خاصية مشروحة باسمها وطريقة استخدامها.
-      </div>
-    </div>`));
-
-  /* ── صفحات الأقسام ── */
-  for (const ch of chunks) {
-    const rows = ch.feats.map((f, i) => `
-      <li style="list-style:none;background:#fff;border:1px solid ${BORDER};border-radius:12px;padding:14px 16px;margin-bottom:10px;box-shadow:0 1px 2px rgba(2,8,23,.04)">
-        <div style="display:flex;gap:10px;align-items:flex-start">
-          <span style="flex-shrink:0;width:26px;height:26px;border-radius:8px;background:linear-gradient(135deg,${SKY},${CYAN});color:#fff;display:inline-flex;align-items:center;justify-content:center;font-weight:900;font-size:12px">${i + 1}</span>
-          <strong style="color:${INK};font-size:15px;line-height:1.6">${f.n}</strong>
-        </div>
-        <p style="margin:8px 4px 0 36px;color:${SLATE};font-size:13.5px;line-height:1.95">${f.d}</p>
-      </li>`).join('');
-    add(el(`
-      <div style="width:${PAGE_W}px;height:${PAGE_H}px;background:linear-gradient(180deg,#f8fafc 0%,#fff 30%);box-sizing:border-box;padding:48px;font-family:'Segoe UI',Tahoma,Arial,sans-serif;direction:rtl;">
-        ${headerBar(ch.sec, ch.cont)}
-        ${!ch.cont ? diagramFor(ch.sec.no) : ''}
-        <ul style="padding:0;margin:22px 0 0">${rows}</ul>
-      </div>`));
-  }
-
-  /* ── الغلاف الخلفي ── */
-  add(el(`
-    <div style="width:${PAGE_W}px;height:${PAGE_H}px;background:linear-gradient(200deg,#080c14,#0d2136);color:#fff;box-sizing:border-box;padding:80px 60px;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;font-family:'Segoe UI',Tahoma,Arial,sans-serif;direction:rtl;">
-      <div style="font-size:54px;margin-bottom:20px">💪</div>
-      <h2 style="font-size:34px;font-weight:900;margin:0">جاهز تبدأ؟</h2>
-      <p style="color:#94a3b8;font-size:16px;line-height:2;margin-top:14px">
-        افتح النظام الآن ودعّ هذه الصفحة جانباً.<br/>كل زر في النظام بيشرح نفسه، وده الدليل لما تحتاج تفاصيل.
-      </p>
-      <div style="margin-top:34px;background:rgba(56,189,248,.08);border:1px solid #164e63;border-radius:14px;padding:20px 30px;font-size:14px;color:#7dd3fc;line-height:2.2" dir="ltr">
-        🌐 concrete.fimtosoft.com<br/>
-        📱 downloads/fimto-android.apk<br/>
-        👥 concrete.fimtosoft.com/#/portal
-      </div>
-      <div style="margin-top:40px;color:#475569;font-size:12px">© Fimto Soft — جميع الحقوق محفوظة</div>
-    </div>`));
+      <div style="text-align:center;color:#475569;font-size:12px"><bdi>concrete.fimtosoft.com</bdi> — Designed by Dr. Ahmad Abdo Alyan</div>
+    </div>`);
 }
 
-/** يولّد الـPDF ويحمّله — يرجع عدد الصفحات أو يرمي خطأ. */
+function buildBack(): HTMLElement {
+  return el(`
+    <div lang="ar" style="width:${PAGE_W}px;height:${PAGE_H}px;background:linear-gradient(200deg,#080c14,#0d2136);color:#fff;box-sizing:border-box;padding:80px 60px;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;font-family:'Segoe UI',Tahoma,Arial,sans-serif;direction:rtl;">
+      <div style="font-size:54px;margin-bottom:20px">💪</div>
+      <h2 style="font-size:34px;font-weight:900;margin:0">جاهز تبدأ؟</h2>
+      <p style="color:#94a3b8;font-size:16px;line-height:2;margin-top:14px">افتح النظام الآن ودعّ هذه الصفحة جانباً.<br/>كل زر في النظام بيشرح نفسه، وده الدليل لما تحتاج تفاصيل.</p>
+      <div style="margin-top:34px;background:rgba(56,189,248,.08);border:1px solid #164e63;border-radius:14px;padding:20px 30px;font-size:14px;color:#7dd3fc;line-height:2.2" dir="ltr">
+        concrete.fimtosoft.com<br/>downloads/fimto-android.apk<br/>concrete.fimtosoft.com/#/portal
+      </div>
+      <div style="margin-top:40px;color:#475569;font-size:12px">© Fimto Soft — جميع الحقوق محفوظة</div>
+    </div>`);
+}
+
+/**
+ * التوليد الكامل:
+ * 1) يبني صفحات الأقسام بحشو ذكي بالقياس الفعلي (لا "تابع" إلا عند امتلاء الصفحة حقاً)
+ * 2) يحسب رقم صفحة بداية كل قسم → يبني الفهرس
+ * 3) يجمع: غلاف + فهرس + أقسام + غلاف خلفي، ويرندرها PDF
+ */
 export async function generateManualPdf(onProgress?: (done: number, total: number) => void): Promise<number> {
   const holder = document.createElement('div');
   holder.style.cssText = 'position:fixed;left:-10000px;top:0;z-index:-1;';
   document.body.appendChild(holder);
+
   try {
-    buildPages(holder);
+    /* ── 1) صفحات الأقسام بالقياس الحي ── */
+    const contentPages: HTMLElement[] = [];
+    const startPage: Record<string, number> = {};
+    let pageNo = 3; // 1 غلاف، 2 فهرس
+
+    for (const sec of MANUAL_SECTIONS) {
+      startPage[sec.no] = pageNo;
+      let first = true;
+      let idx = 0;
+      let { page, cnt } = newContentPage(sec, false);
+      const headerH = () => (page.firstElementChild as HTMLElement).offsetHeight;
+      const avail = () => PAGE_H - 48 * 2 - headerH() - 20 - (cnt.children.length === 0 && visualFor(sec.no) ? 0 : 0);
+
+      // الرسمة التوضيحية/البيانية في أول صفحة القسم فقط
+      const vis = visualFor(sec.no);
+      if (vis) cnt.appendChild(el(vis));
+
+      const flushTo = (arr: HTMLElement[]) => arr.push(page);
+
+      for (const f of sec.features) {
+        idx++;
+        const li = featureEl(f, idx);
+        cnt.appendChild(li);
+        if (cnt.scrollHeight > avail()) {
+          cnt.removeChild(li);
+          flushTo(contentPages);
+          pageNo++;
+          ({ page, cnt } = newContentPage(sec, true));
+          cnt.appendChild(li);
+        }
+      }
+      flushTo(contentPages);
+      pageNo++;
+      void avail; void first;
+    }
+
+    /* ── 2) الفهرس بأرقام حقيقية ── */
+    const totalAll = contentPages.length + 3;
+    const tocRows = MANUAL_SECTIONS.map(s => `
+      <tr>
+        <td style="padding:8px 6px;border-bottom:1px solid ${BORDER};width:52px"><span style="display:inline-flex;width:28px;height:28px;border-radius:8px;background:${INK};color:#fff;align-items:center;justify-content:center;font-weight:800;font-size:12px"><bdi>${s.no}</bdi></span></td>
+        <td style="padding:8px 6px;border-bottom:1px solid ${BORDER};font-weight:800;color:${INK};font-size:14px">${s.icon} ${s.title}</td>
+        <td style="padding:8px 6px;border-bottom:1px solid ${BORDER};color:${SKY};font-size:12.5px;font-weight:700;white-space:nowrap">ص <bdi>${startPage[s.no]}</bdi></td>
+      </tr>`).join('');
+    const toc = el(`
+      <div lang="ar" style="width:${PAGE_W}px;height:${PAGE_H}px;background:#fff;box-sizing:border-box;padding:55px;font-family:'Segoe UI',Tahoma,Arial,sans-serif;direction:rtl;">
+        <div style="border-radius:16px;background:${LIGHT};border:1px solid ${BORDER};padding:24px 28px;margin-bottom:22px">
+          <div style="font-size:13px;color:${SKY};font-weight:800"><bdi>CONTENTS</bdi></div>
+          <div style="font-size:30px;font-weight:900;color:${INK}">📖 فهرس المحتويات</div>
+        </div>
+        <table style="width:100%;border-collapse:collapse">${tocRows}</table>
+        <div style="margin-top:24px;background:#f0f9ff;border:1px solid #bae6fd;border-radius:12px;padding:14px 18px;color:#0369a1;font-size:12.5px;line-height:1.9">
+          💡 ${MANUAL_SECTIONS.length} قسماً تغطي أكثر من ${MANUAL_SECTIONS.reduce((a, s) => a + s.features.length, 0)} خاصية ووظيفة — كل خاصية مشروحة باسمها وطريقة استخدامها، مع رسوم توضيحية داخل الأقسام.
+        </div>
+      </div>`);
+
+    /* ── 3) التجميع ── */
+    holder.appendChild(buildCover());
+    holder.appendChild(toc);
+    contentPages.forEach(p => holder.appendChild(p));
+    holder.appendChild(buildBack());
+
+    /* ── 4) الرندر ── */
     const pages = Array.from(holder.children) as HTMLElement[];
     const pdf = new jsPDF({ unit: 'px', format: [PAGE_W, PAGE_H], orientation: 'portrait', compress: true });
     for (let i = 0; i < pages.length; i++) {
       onProgress?.(i, pages.length);
       let canvas: HTMLCanvasElement;
       try {
-        // html-to-image uses SVG foreignObject → the BROWSER shapes Arabic text (perfect RTL)
         canvas = await toCanvas(pages[i], { pixelRatio: 2, backgroundColor: '#ffffff', cacheBust: true });
       } catch {
         canvas = await html2canvas(pages[i], { scale: 1.6, backgroundColor: '#ffffff', logging: false, useCORS: true });
