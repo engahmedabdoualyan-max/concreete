@@ -1,0 +1,48 @@
+rules_version = '2';
+
+// ═══════════════════════════════════════════════════════════════
+//  SECURE RULESET — paste this ONLY after:
+//   1. Anonymous sign-in is enabled: Firebase Console → Authentication → Sign-in method → Anonymous → Enable
+//   2. Updated web build is live on concrete.fimtosoft.com
+//   3. Updated Android APK is published on the downloads link
+//  Clients identify themselves via anonymous Firebase auth; rules then
+//  require a valid auth token on every read/write.
+// ═══════════════════════════════════════════════════════════════
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // App users (login profiles). Read requires auth; writes too.
+    // NOTE: password fields inside these docs are legacy — migration to hashes pending.
+    match /users/{username} {
+      allow read, write: if request.auth != null;
+    }
+
+    // Per-user ERP data: userData/{userId}/{collectionName}/data
+    match /userData/{userId} {
+      allow read, write: if request.auth != null;
+
+      match /{collectionName}/data {
+        allow read, write: if request.auth != null;
+      }
+    }
+
+    // Company app-tree (app login accounts per company)
+    match /companyTrees/{companyUsername} {
+      allow read, write: if request.auth != null;
+    }
+
+    // Console site-level config + OTP hash records (public READ needed for logos/images)
+    match /siteConfig/{docId} {
+      allow read, write: if request.auth != null;
+    }
+
+    // Uploaded console images metadata (base64 payloads) — public read for display
+    match /media/{mediaId} {
+      allow read: if true;          // images shown to customers/portal
+      allow write: if false;        // writes go through server/admin only (future)
+    }
+
+    // Everything else: denied by default.
+  }
+}

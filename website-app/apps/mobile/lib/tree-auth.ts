@@ -11,6 +11,7 @@
  */
 
 import type { AuthUser, UserRole } from "@/types";
+import { authHeaders } from "./fb-auth";
 
 const FIREBASE_PROJECT = "concrete-erb";
 const FIREBASE_API_KEY = "AIzaSyBbK2e2saN8Olu7O6vjHP23MkTsUgyN2iE";
@@ -116,7 +117,7 @@ export async function findTreeAccount(
   if (!p || !pw) return null;
 
   try {
-    const res = await fetch(FIRESTORE_LIST);
+    const res = await fetch(FIRESTORE_LIST, { headers: await authHeaders() });
     if (!res.ok) return null;
     const json = await res.json().catch(() => null);
     const docs: any[] = json?.documents ?? [];

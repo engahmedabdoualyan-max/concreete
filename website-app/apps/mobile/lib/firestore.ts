@@ -8,6 +8,7 @@
  */
 
 import type { AuthUser } from "@/types";
+import { authHeaders } from "./fb-auth";
 
 const FIREBASE_PROJECT = "concrete-erb";
 const FIREBASE_API_KEY = "AIzaSyBbK2e2saN8Olu7O6vjHP23MkTsUgyN2iE";
@@ -66,7 +67,8 @@ function decode(v: any): any {
 }
 
 async function fsGet(path: string): Promise<any> {
-  const res = await fetch(`${BASE}/${path}?key=${FIREBASE_API_KEY}`);
+  const headers = await authHeaders();
+  const res = await fetch(`${BASE}/${path}?key=${FIREBASE_API_KEY}`, { headers });
   if (res.status === 404) return null;
   if (!res.ok) throw new Error(`Firestore GET ${path} → ${res.status}`);
   const json = await res.json();
@@ -81,7 +83,7 @@ async function fsSet(path: string, body: any): Promise<void> {
     `${BASE}/${path}?updateMask.fieldPaths=data&updateMask.fieldPaths=updatedAt&key=${FIREBASE_API_KEY}`,
     {
       method: "PATCH",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...(await authHeaders()) },
       body: JSON.stringify(body),
     }
   );
@@ -99,7 +101,7 @@ async function fsCommit(
 ): Promise<void> {
   const res = await fetch(`${BASE}:commit?key=${FIREBASE_API_KEY}`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...(await authHeaders()) },
     body: JSON.stringify({ writes }),
   });
   if (!res.ok) {
