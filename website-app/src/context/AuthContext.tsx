@@ -50,13 +50,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch {}
   }, []);
 
+  // Never persist credentials inside the browser session blob
+  const stripSecrets = (u: UserSession): UserSession => {
+    const { password, ...rest } = u as any;
+    return rest as UserSession;
+  };
+
   const login = async (username: string, password: string): Promise<boolean> => {
     // Try Firebase first
     try {
       const user = await getUser(username);
       if (user && user.password === password) {
         setCurrentUser(user as UserSession);
-        localStorage.setItem('currentUserSession', JSON.stringify(user));
+        localStorage.setItem('currentUserSession', JSON.stringify(stripSecrets(user as UserSession)));
         return true;
       }
     } catch (e) {
@@ -72,7 +78,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       );
       if (user) {
         setCurrentUser(user);
-        localStorage.setItem('currentUserSession', JSON.stringify(user));
+        localStorage.setItem('currentUserSession', JSON.stringify(stripSecrets(user)));
         return true;
       }
     } catch {}
@@ -128,7 +134,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch {}
 
     setCurrentUser(newUser);
-    localStorage.setItem('currentUserSession', JSON.stringify(newUser));
+    localStorage.setItem('currentUserSession', JSON.stringify(stripSecrets(newUser)));
     setTempUser(null);
     setGeneratedCode('');
     return true;
@@ -165,7 +171,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       status: 'GUEST',
     };
     setCurrentUser(guest);
-    localStorage.setItem('currentUserSession', JSON.stringify(guest));
+    localStorage.setItem('currentUserSession', JSON.stringify(stripSecrets(guest)));
   };
 
   return (

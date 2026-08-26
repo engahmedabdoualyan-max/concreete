@@ -42,9 +42,17 @@ const INV_STATUS: Record<string, { ar: string; color: string }> = {
   paid:    { ar: 'مدفوعة بالكامل', color: 'text-emerald-400 bg-emerald-500/10' },
 };
 
+const inputCls = "w-full bg-white/[0.04] border border-white/10 rounded-xl p-3.5 text-slate-100 text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_16px_rgba(56,189,248,0.2)] transition placeholder:text-slate-500";
+
 function generateOTP(): string { return String(Math.floor(100000 + Math.random() * 900000)); }
 
-const inputCls = "w-full bg-white/[0.04] border border-white/10 rounded-xl p-3.5 text-slate-100 text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_16px_rgba(56,189,248,0.2)] transition placeholder:text-slate-500";
+/* ─── Server OTP helper ─── */
+async function apiPost<T = any>(url: string, body: any): Promise<T> {
+  const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok || json?.success === false) throw new Error(json?.message || 'حدث خطأ — حاول مرة أخرى');
+  return json?.data ?? json;
+}
 
 /* ─── Main Component ─── */
 export default function CustomerPortal() {
@@ -54,8 +62,10 @@ export default function CustomerPortal() {
   const [phase, setPhase] = useState<'login' | 'otp' | 'dashboard'>('login');
   const [identifier, setIdentifier] = useState('');
   const [otp, setOtp] = useState('');
-  const [generatedOtp, setGeneratedOtp] = useState('');
   const [otpSentTo, setOtpSentTo] = useState('');
+  // true = OTP verified on the server (secure path) · false = legacy client-side fallback
+  const [serverOtp, setServerOtp] = useState(true);
+  const [generatedOtp, setGeneratedOtp] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -70,21 +80,46 @@ export default function CustomerPortal() {
   /* ── Search ── */
   const [searchQuery, setSearchQuery] = useState('');
 
-  /* ─── Login Handler ─── */
+  /* ─── Load customer data after verification ─── */
+  const loadCustomerData = async (id: string) => {
+    const [foundOrders, foundInvoices] = await Promise.all([
+      loadAllOrdersForCustomer(id),
+      loadAllInvoicesForCustomer(id),
+    ]);
+    setOrders(foundOrders);
+    setInvoices(foundInvoices);
+    setPhase('dashboard');
+    // White-label: load the supplier plant's brand (name + logo)
+    const plantId = foundOrders[0]?._plant;
+    if (plantId) {
+      loadPlantProfile(plantId).then((p: any) => {
+        if (p && (p.name || p.logo)) setPlantBrand({ name: p.name || '', logo: p.logo || '' });
+      }).catch(() => {});
+    }
+  };
+
+  /* ─── Login Handler: server OTP first, legacy browser EmailJS as fallback ─── */
   const handleLogin = async (e: FormEvent) => {
     e.preventDefault();
     setError('');
     if (!identifier.trim()) { setError('أدخل رقم الموبايل أو رقم الفاتورة'); return; }
     setBusy(true);
-
-    // Generate OTP and send via EmailJS
+    try {
+      await apiPost('/api/otp/request', { identifier: identifier.trim() });
+      setServerOtp(true);
+      setOtpSentTo(identifier.trim());
+      setOtp('');
+      setPhase('otp');
+      setBusy(false);
+      return;
+    } catch {
+      // Server path unavailable → fall back to browser-side EmailJS so the portal keeps working
+    }
     const code = generateOTP();
     setGeneratedOtp(code);
-    setOtpSentTo(identifier);
+    setServerOtp(false);
+    setOtpSentTo(identifier.trim());
     setPhase('otp');
-    setBusy(false);
-
-    // Send OTP via EmailJS (configured in .env)
     try {
       await emailjs.send(
         import.meta.env.VITE_EMAILJS_SERVICE_ID || 'service_mdtxmv8',
@@ -97,40 +132,29 @@ export default function CustomerPortal() {
         },
         { publicKey: import.meta.env.VITE_EMAILJS_PUBLIC_KEY || 'UPIUNYeckrEK-z_xz' }
       );
-      console.log('[OTP] Sent via EmailJS to', identifier);
-    } catch (err) {
-      console.warn('[OTP] EmailJS failed, showing in console:', err);
-      // Fallback: show in console if email fails
+    } catch {
       alert(`⚠️ فشل إرسال الإيميل. رمز التحقق: ${code}`);
     }
+    setBusy(false);
   };
 
   /* ─── OTP Handler ─── */
   const handleVerifyOtp = async (e: FormEvent) => {
     e.preventDefault();
     setError('');
-    if (otp !== generatedOtp) { setError('الرمز غير صحيح'); return; }
+    if (!/^\d{6}$/.test(otp)) { setError('أدخل رمزاً مكوّناً من 6 أرقام'); return; }
     setBusy(true);
-
     try {
-      // Search orders by phone or invoice number
-      const [foundOrders, foundInvoices] = await Promise.all([
-        loadAllOrdersForCustomer(identifier.trim()),
-        loadAllInvoicesForCustomer(identifier.trim()),
-      ]);
-      setOrders(foundOrders);
-      setInvoices(foundInvoices);
-      setPhase('dashboard');
-
-      // White-label: load the supplier plant's brand (name + logo)
-      const plantId = foundOrders[0]?._plant;
-      if (plantId) {
-        loadPlantProfile(plantId).then((p: any) => {
-          if (p && (p.name || p.logo)) setPlantBrand({ name: p.name || '', logo: p.logo || '' });
-        }).catch(() => {});
+      if (serverOtp) {
+        await apiPost('/api/otp/verify', { identifier: otpSentTo || identifier.trim(), code: otp });
+      } else if (otp !== generatedOtp) {
+        setError('الرمز غير صحيح');
+        setBusy(false);
+        return;
       }
-    } catch {
-      setError('حدث خطأ أثناء تحميل البيانات');
+      await loadCustomerData(identifier.trim());
+    } catch (err: any) {
+      setError(err?.message || 'حدث خطأ أثناء التحقق — حاول مرة أخرى');
     }
     setBusy(false);
   };
@@ -181,7 +205,7 @@ export default function CustomerPortal() {
               <input
                 value={identifier}
                 onChange={e => setIdentifier(e.target.value)}
-                placeholder="01001006627 أو INV-001"
+                placeholder="رقم الموبايل أو رقم الفاتورة"
                 className={inputCls}
                 dir="ltr"
               />

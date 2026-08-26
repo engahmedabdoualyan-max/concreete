@@ -1,17 +1,9 @@
 import { useState, useEffect, type FormEvent, type ReactNode, Component } from 'react';
-import emailjs from '@emailjs/browser';
 import { useNavigate } from 'react-router-dom';
 import { saveUser, getAllUsers, saveCompanyTree, saveCompanySubscription, deleteCompany, uploadConsoleImage, saveSiteConfig, loadSiteConfig, getStorageStatus, loadPlantProfile, savePlantProfile, savePlantLogo, type CompanyTree, type SiteConfig } from '../firebase/firestore';
 import BrandLogo from '../components/BrandLogo';
 import type { UserSession } from '../context/AuthContext';
 import { TREE_ROLES, treeModsForRole } from '../lib/treeRoles';
-
-const EMAILJS_PUBLIC_KEY = import.meta.env.VITE_EMAILJS_PUBLIC_KEY || 'UPIUNYeckrEK-z_xz';
-const EMAILJS_SERVICE_ID = import.meta.env.VITE_EMAILJS_SERVICE_ID || 'service_mdtxmv8';
-const EMAILJS_TEMPLATE_ID = import.meta.env.VITE_EMAILJS_TEMPLATE_ID || 'template_ablqhm3';
-
-const CONSOLE_EMAIL = import.meta.env.VITE_CONSOLE_EMAIL || 'eng.ahmedabdoualyan@gmail.com';
-const CONSOLE_PASSWORD = import.meta.env.VITE_CONSOLE_PASSWORD || 'Fimto@ata';
 
 const STORAGE_KEY = 'fimto_module_config';
 const SESSION_KEY = 'fimto_console_session';
@@ -140,8 +132,7 @@ function ConsoleInner() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [otp, setOtp] = useState('');
-  const [otpCode, setOtpCode] = useState('');
-  const [otpShown, setOtpShown] = useState(false);
+  const [otpSentTo, setOtpSentTo] = useState('');
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
   const [tab, setTab] = useState<'sections' | 'companies'>('sections');
@@ -172,8 +163,6 @@ function ConsoleInner() {
   const [protectTarget, setProtectTarget] = useState<{ uname: string; name: string; toLock: boolean } | null>(null);
   const [protectPass, setProtectPass] = useState('');
   const [protectSaving, setProtectSaving] = useState(false);
-
-const PROTECTION_PASSWORD = import.meta.env.VITE_CONSOLE_PROTECTION_PASSWORD || '01001006627';
 
   const saveConfigBtn = async () => {
     setError('💾 جاري حفظ الاعدادات على القاعدة...');
@@ -290,35 +279,62 @@ const PROTECTION_PASSWORD = import.meta.env.VITE_CONSOLE_PROTECTION_PASSWORD || 
     e.preventDefault();
     setError('');
     if (!email || !password) { setError('اكتب الإيميل والباسورد'); return; }
-    if (email.toLowerCase() !== CONSOLE_EMAIL.toLowerCase() || password !== CONSOLE_PASSWORD) {
-      setError('بيانات الدخول غير صحيحة');
-      return;
-    }
     setSending(true);
-    const code = String(Math.floor(100000 + Math.random() * 900000));
-    setOtpCode(code);
-    let sent = false;
     try {
-      const res = await emailjs.send(
-        EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID,
-        { to_email: CONSOLE_EMAIL, to_name: 'Administrator', code, plant_name: 'Fimto Control Panel' },
-        { publicKey: EMAILJS_PUBLIC_KEY }
-      );
-      if (res.status === 200) sent = true;
+      const res = await fetch('/api/console/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim().toLowerCase(), password }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || json?.success === false) {
+        // Credentials were verified server-side; only the OTP email failed → allow direct entry
+        if (json?.errorCode === 'EMAIL_FAILED') {
+          localStorage.setItem(SESSION_KEY, '1');
+          setAuthed(true);
+          setStep('panel');
+          setError('⚠️ تم الدخول بدون كود تحقق (خدمة البريد غير مفعّلة للخادم مؤقتاً)');
+          setSending(false);
+          return;
+        }
+        setError(json?.message || 'بيانات الدخول غير صحيحة');
+        setSending(false);
+        return;
+      }
+      setOtpSentTo(email.trim().toLowerCase());
+      setStep('otp');
+      setError('📩 تم إرسال كود التحقق على الإيميل');
     } catch (err: any) {
-      console.error('EmailJS Error:', err?.text || err?.message || err);
+      console.error('console login error:', err);
+      setError('تعذر الاتصال بالخادم — حاول مرة أخرى');
     }
     setSending(false);
-    setOtpShown(sent);
-    setStep('otp');
   };
 
-  const handleOtp = (e: FormEvent) => {
+  const handleOtp = async (e: FormEvent) => {
     e.preventDefault();
-    if (otp !== otpCode) { setError('كود التاكيد غير صحيح'); return; }
-    localStorage.setItem(SESSION_KEY, '1');
-    setAuthed(true);
-    setStep('panel');
+    setError('');
+    if (!/^\d{6}$/.test(otp)) { setError('أدخل كوداً مكوّناً من 6 أرقام'); return; }
+    setSending(true);
+    try {
+      const res = await fetch('/api/otp/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ identifier: otpSentTo || email.trim().toLowerCase(), code: otp }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || json?.success === false) {
+        setError(json?.message || 'كود التأكيد غير صحيح');
+        setSending(false);
+        return;
+      }
+      localStorage.setItem(SESSION_KEY, '1');
+      setAuthed(true);
+      setStep('panel');
+    } catch (err: any) {
+      setError('تعذر الاتصال بالخادم — حاول مرة أخرى');
+    }
+    setSending(false);
   };
 
   const updateOverride = (path: string, key: 'image' | 'bgImage', value: string) => {
@@ -907,15 +923,22 @@ const PROTECTION_PASSWORD = import.meta.env.VITE_CONSOLE_PROTECTION_PASSWORD || 
 
   const doProtect = async () => {
     if (!protectTarget) return;
-    if (protectPass !== PROTECTION_PASSWORD) {
-      setError('❌ باسورد الحماية غير صحيح');
-      setProtectPass('');
-      return;
-    }
     const { uname, name, toLock } = protectTarget;
     setProtectSaving(true);
     setError('');
     try {
+      // Verify protection password server-side
+      const vres = await fetch('/api/console/protect', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: protectPass }),
+      });
+      const vjson = await vres.json().catch(() => ({}));
+      if (!vres.ok || vjson?.success === false) {
+        setError('❌ ' + (vjson?.message || 'باسورد الحماية غير صحيح'));
+        setProtectPass('');
+        setProtectSaving(false);
+        return;
+      }
       const cur = companies.find(c => (c.username || '').toLowerCase() === uname) || {} as UserSession;
       await saveUser({ ...cur, username: uname, protected: toLock });
       setCompanies(prev => prev.map(c => ((c.username || '').toLowerCase() === uname ? { ...c, protected: toLock } : c)));
@@ -945,13 +968,22 @@ const PROTECTION_PASSWORD = import.meta.env.VITE_CONSOLE_PROTECTION_PASSWORD || 
       setError('اكتب "مسح" في الحقلين لتأكيد الحذف');
       return;
     }
-    if (isProtected && delPass !== PROTECTION_PASSWORD) {
-      setError('❌ باسورد الحماية غير صحيح — لا يمكن حذف شركة محمية بدونه');
-      return;
-    }
     setDeleting(true);
     setError('');
     try {
+      if (isProtected) {
+        // Verify protection password server-side before deleting a protected company
+        const vres = await fetch('/api/console/protect', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ password: delPass }),
+        });
+        const vjson = await vres.json().catch(() => ({}));
+        if (!vres.ok || vjson?.success === false) {
+          setDeleting(false);
+          setError('❌ ' + (vjson?.message || 'باسورد الحماية غير صحيح — لا يمكن حذف شركة محمية بدونه'));
+          return;
+        }
+      }
       await deleteCompany(uname);
       // Also purge from the browser's localStorage fallback list so it never comes back
       try {
@@ -995,10 +1027,7 @@ const PROTECTION_PASSWORD = import.meta.env.VITE_CONSOLE_PROTECTION_PASSWORD || 
           <div className="text-center mb-6">
             <div className="flex justify-center mb-4"><BrandLogo width={150} fill rounded="rounded-2xl" /></div>
             <h2 className="text-xl font-black text-white mb-2">🔐 كود التاكيد</h2>
-            <p className="text-sm text-slate-400">{otpShown ? `تم ارسال الكود الى ${CONSOLE_EMAIL}` : 'فشل ارسال الميل — الكود معروض ادناه'}</p>
-            {!otpShown && (
-              <p className="text-2xl font-mono tracking-[0.3em] text-yellow-300 font-bold mt-3">{otpCode}</p>
-            )}
+            <p className="text-sm text-slate-400">تم ارسال الكود الى {otpSentTo}</p>
           </div>
           <form onSubmit={handleOtp} className="space-y-4">
             <input value={otp} onChange={o => setOtp(o.target.value)} placeholder="كود من 6 ارقام" className={`${inputCls} text-center text-lg tracking-widest`} />
@@ -1650,7 +1679,7 @@ const PROTECTION_PASSWORD = import.meta.env.VITE_CONSOLE_PROTECTION_PASSWORD || 
                     value={delPass}
                     onChange={o => setDelPass(o.target.value)}
                     placeholder="باسورد الحماية"
-                    className={`${inputCls} text-center text-base font-black ${delPass === PROTECTION_PASSWORD ? 'border-emerald-400/60' : ''}`}
+                    className={`${inputCls} text-center text-base font-black ${delPass.length > 0 ? 'border-emerald-400/60' : ''}`}
                     dir="ltr"
                   />
                 </div>
@@ -1658,7 +1687,7 @@ const PROTECTION_PASSWORD = import.meta.env.VITE_CONSOLE_PROTECTION_PASSWORD || 
               <div className="flex gap-2">
                 <button
                   onClick={doDeleteCompany}
-                  disabled={deleting || delType1.trim() !== 'مسح' || delType2.trim() !== 'مسح' || (deleteTarget.isProtected && delPass !== PROTECTION_PASSWORD)}
+                  disabled={deleting || delType1.trim() !== 'مسح' || delType2.trim() !== 'مسح' || (deleteTarget.isProtected && delPass.length < 3)}
                   className="flex-1 bg-gradient-to-r from-red-600 to-red-500 disabled:opacity-30 disabled:cursor-not-allowed hover:from-red-500 hover:to-red-400 text-white font-bold py-2.5 rounded-lg transition"
                 >
                   {deleting ? '⏳ جاري الحذف...' : '🗑️ نعم، احذف نهائياً'}
