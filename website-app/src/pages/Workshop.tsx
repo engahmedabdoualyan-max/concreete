@@ -8,9 +8,10 @@ import QuickJump from '../components/QuickJump';
 import LangSelector from '../components/LangSelector';
 import BrandLogo from '../components/BrandLogo';
 import DatePicker from '../components/DatePicker';
+import WorkshopGpsMap from '../components/WorkshopGpsMap';
 
 // ======================= TYPES =======================
-interface Asset { id: string; plate: string; chassis: string; type: string; status: string; driver: string; initOdo: number; engHours: number; regExpiry: string; insExpiry: string; opcardExpiry: string; authExpiry: string; gpsId: string; tare: string; gross: string; gpsLat?: number; gpsLng?: number; productionRate?: number; capacity?: number; model?: string; year?: string; manufacturer?: string; }
+export interface Asset { id: string; plate: string; chassis: string; type: string; status: string; driver: string; initOdo: number; engHours: number; regExpiry: string; insExpiry: string; opcardExpiry: string; authExpiry: string; gpsId: string; tare: string; gross: string; gpsLat?: number; gpsLng?: number; productionRate?: number; capacity?: number; model?: string; year?: string; manufacturer?: string; }
 interface FuelLog { id: number; date: string; assetId: string; odoReading: number; liters: number; costPerLiter: number; totalCost: number; fuelType: string; station: string; invoice: string; notes: string; }
 interface OilLog { id: number; date: string; assetId: string; oilType: string; brand: string; quantity: number; unit: string; cost: number; odoReading: number; nextChangeOdo: number; notes: string; }
 interface SparePartLog { id: number; date: string; assetId: string; partName: string; partNumber: string; quantity: number; unitCost: number; totalCost: number; supplier: string; invoice: string; warranty: string; notes: string; }
@@ -317,6 +318,9 @@ export default function Workshop() {
       </td><td className="p-3">{wo.createdAt?new Date(wo.createdAt).toLocaleString():'-'}</td></tr>))}</tbody></table></div>
           </div>)}
           <div className="grid grid-cols-2 md:grid-cols-5 gap-3">{[{label:t('totalAssets'),value:assets.length,color:'border-sky-500'},{label:t('readyForOperation'),value:activeAssets,color:'border-emerald-500'},{label:t('inWorkshop'),value:workshopAssets,color:'border-yellow-500'},{label:t('openBreakdowns'),value:openBDs.length+driverReports.length,color:'border-red-500'},{label:t('maintenanceCosts'),value:fmtMoney(totalRepairCost),color:'border-sky-500'}].map(k=>(<div key={k.label} className={`bg-white/[0.04] border-l-4 ${k.color} rounded-lg p-4`}><p className="text-[10px] text-slate-400">{k.label}</p><p className="text-xl font-bold text-white">{k.value}</p></div>))}</div>
+
+          {/* خريطة مواقع الأسطول (اختيارية — تعمل عند توصيل متتبعات GPS) */}
+          <WorkshopGpsMap assets={assets} />
 
           {/* Workshop Duration */}
           {openBDs.length > 0 && (<div className={`rounded-xl p-5 border-2 mb-6 ${criticalOverdue.length>0?'bg-red-950/60 border-red-500 animate-pulse':overdueBreakdowns.length>0?'bg-yellow-950/40 border-yellow-500':'bg-white/[0.04] border-white/10'}`}>

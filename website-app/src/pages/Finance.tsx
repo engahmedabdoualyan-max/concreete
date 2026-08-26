@@ -14,6 +14,7 @@ import ErpExpenses from '../components/ErpExpenses';
 import ErpSuppliers from '../components/ErpSuppliers';
 import AccountingIntegration from '../components/AccountingIntegration';
 import DemandForecast from '../components/DemandForecast';
+import { DeviceStatusBadge } from '../components/DeviceHub';
 
 interface Payment { id: number; date: string; client: string; orderNo: string; amount: number; method: string; status: 'paid' | 'partial' | 'pending'; note: string; link?: string; qr?: string; ref?: string; }
 interface PO { id: number; date: string; material: string; qty: number; unit: string; supplier: string; unitPrice: number; total: number; status: 'open' | 'delivered'; reason: string; }
@@ -165,7 +166,7 @@ export default function Finance() {
           <div className="bg-white/[0.04] border border-white/10 rounded-xl p-6 backdrop-blur-xl mt-4">
             <div className="flex items-center justify-between mb-4">
               <div>
-                <h3 className="text-lg font-black tracking-tight text-white">🔗 ربط المحاسبة</h3>
+                <h3 className="text-lg font-black tracking-tight text-white">🔗 ربط المحاسبة <DeviceStatusBadge id="accounting" /></h3>
                 <p className="text-xs text-slate-400">QuickBooks / Sage integration</p>
               </div>
               <button onClick={() => setShowAccounting(true)} className="bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold px-4 py-2 rounded-lg">

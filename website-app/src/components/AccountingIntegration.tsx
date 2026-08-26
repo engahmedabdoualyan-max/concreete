@@ -9,7 +9,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { loadAccountingSettings, saveAccountingSettings } from '../firebase/firestore';
+import { loadAccountingSettings, saveAccountingSettings, loadDevicesRegistry, saveDevicesRegistry } from '../firebase/firestore';
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -180,6 +180,20 @@ function toQBO(invoices: ReturnType<typeof generateSampleInvoices>): string {
 /*  Component                                                          */
 /* ------------------------------------------------------------------ */
 
+async function reportAccountingDevice(connected: boolean, platformName?: string) {
+  try {
+    const raw = localStorage.getItem('currentUserSession');
+    const username = raw ? (JSON.parse(raw)?.username || '') : '';
+    if (!username) return;
+    const list = (await loadDevicesRegistry(username)) || [];
+    const next = list.map((d: any) => d.id === 'accounting'
+      ? { ...d, connected, model: platformName || d.model, lastCheckedAt: new Date().toISOString() }
+      : d);
+    if (!next.find((d: any) => d.id === 'accounting')) next.push({ id: 'accounting', name: 'البرنامج المحاسبي', connected });
+    await saveDevicesRegistry(username, next);
+  } catch { /* best-effort */ }
+}
+
 export default function AccountingIntegration({ onClose }: AccountingIntegrationProps) {
   const { currentUser } = useAuth();
 
@@ -246,11 +260,14 @@ export default function AccountingIntegration({ onClose }: AccountingIntegration
         ...prev,
         [platform]: { connected: true, lastSync: null },
       }));
+      const name = PLATFORMS.find(x => x.id === platform)?.nameAr || platform;
+      reportAccountingDevice(true, name);
     }, 1500);
   }, []);
 
   /* ---- disconnect ---- */
   const disconnectPlatform = useCallback((platform: Platform) => {
+    reportAccountingDevice(false);
     setSyncStatus(p => ({ ...p, [platform]: 'disconnected' }));
     setSettings(prev => ({
       ...prev,

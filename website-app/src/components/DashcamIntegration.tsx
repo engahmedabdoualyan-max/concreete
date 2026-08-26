@@ -1,6 +1,20 @@
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { saveDashcamConfig, loadDashcamConfig, loadAssets } from '../firebase/firestore';
+import { saveDashcamConfig, loadDashcamConfig, loadAssets, loadDevicesRegistry, saveDevicesRegistry } from '../firebase/firestore';
+
+async function reportDashcamDevice(connected: boolean) {
+  try {
+    const raw = localStorage.getItem('currentUserSession');
+    const username = raw ? (JSON.parse(raw)?.username || '') : '';
+    if (!username) return;
+    const list = (await loadDevicesRegistry(username)) || [];
+    const next = list.map((d: any) => d.id === 'dashcam'
+      ? { ...d, connected, lastCheckedAt: new Date().toISOString() }
+      : d);
+    if (!next.find((d: any) => d.id === 'dashcam')) next.push({ id: 'dashcam', name: 'داش كام الأسطول', connected });
+    await saveDevicesRegistry(username, next);
+  } catch { /* best-effort */ }
+}
 
 interface DashcamIntegrationProps {
   onClose: () => void;
@@ -44,6 +58,7 @@ export default function DashcamIntegration({ onClose }: DashcamIntegrationProps)
   const [loopRecording, setLoopRecording] = useState(true);
   const [eventDetection, setEventDetection] = useState(true);
   const [liveMode, setLiveMode] = useState(false);
+  const [camOnline, setCamOnline] = useState(false);
   const timerRef = useRef<number | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -169,7 +184,12 @@ export default function DashcamIntegration({ onClose }: DashcamIntegrationProps)
               <input type="checkbox" checked={eventDetection} onChange={e => setEventDetection(e.target.checked)} className="accent-red-500" />
               <span className="text-xs font-bold text-slate-300">🚨 كشف الأحداث AI</span>
             </label>
-            <span className="text-[10px] text-slate-500 mr-auto">📹 {trucks.length} كاميرا · 🟢 {trucks.filter(t => t.status !== 'offline').length} متصلة</span>
+            <button
+              onClick={() => { const v = !camOnline; setCamOnline(v); reportDashcamDevice(v); }}
+              className={`mr-auto text-xs font-bold px-3 py-1.5 rounded-lg border ${camOnline ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40' : 'bg-white/[0.05] text-slate-300 border-white/10'}`}>
+              {camOnline ? '✅ نظام الكاميرات متصل' : '🔌 توصيل نظام الكاميرات'}
+            </button>
+            <span className="text-[10px] text-slate-500">📹 {trucks.length} كاميرا · 🟢 {trucks.filter(t => t.status !== 'offline').length} متصلة</span>
           </div>
 
           {/* Fleet grid */}

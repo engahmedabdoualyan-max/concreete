@@ -74,6 +74,39 @@ export default function Orders() {
   const [editingOrder, setEditingOrder] = useState<Order | null>(null);
   const [filter, setFilter] = useState<'all' | 'pending' | 'scheduled' | 'completed'>('all');
   const [invoiceFor, setInvoiceFor] = useState<Order | null>(null);
+  const [evalFor, setEvalFor] = useState<Order | null>(null);
+  const [evalForm, setEvalForm] = useState({ plantScore: 0, truckScore: 0, laborScore: 0, notes: '' });
+  const [evalSaving, setEvalSaving] = useState(false);
+
+  const openEvaluation = (o: Order) => {
+    setEvalFor(o);
+    setEvalForm({
+      plantScore: o.dailyEvaluation?.plantScore || 0,
+      truckScore: o.dailyEvaluation?.truckScore || 0,
+      laborScore: o.dailyEvaluation?.laborScore || 0,
+      notes: o.dailyEvaluation?.notes || '',
+    });
+  };
+
+  const saveEvaluation = async () => {
+    if (!evalFor) return;
+    const { plantScore, truckScore, laborScore, notes } = evalForm;
+    if (!plantScore || !truckScore || !laborScore) { alert('⚠️ قيّم العناصر الثلاثة كلها (المحطة، السيارة، العمالة)'); return; }
+    setEvalSaving(true);
+    const totalScore = plantScore + truckScore + laborScore;
+    const updated = orders.map(o => o.id === evalFor.id
+      ? { ...o, dailyEvaluation: { plantScore, truckScore, laborScore, totalScore, notes } }
+      : o);
+    setOrders(updated);
+    try {
+      await saveOrders(currentUser!.username, updated);
+      alert(`⭐ تم حفظ التقييم — الإجمالي ${totalScore}/15`);
+      setEvalFor(null);
+    } catch {
+      alert('❌ فشل حفظ التقييم');
+    }
+    setEvalSaving(false);
+  };
   const [showCustomers, setShowCustomers] = useState(false);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [trips, setTrips] = useState<any[]>([]);
@@ -1080,12 +1113,21 @@ export default function Orders() {
                             </button>
                           )}
                           {order.status === 'completed' && (
-                            <button
-                              onClick={() => setInvoiceFor(order)}
-                              className="bg-teal-600 hover:bg-teal-700 text-white px-2 py-1 rounded text-xs"
-                            >
-                              🧾 فاتورة
-                            </button>
+                            <>
+                              <button
+                                onClick={() => setInvoiceFor(order)}
+                                className="bg-teal-600 hover:bg-teal-700 text-white px-2 py-1 rounded text-xs"
+                              >
+                                🧾 فاتورة
+                              </button>
+                              <button
+                                onClick={() => openEvaluation(order)}
+                                className={`px-2 py-1 rounded text-xs font-bold ${order.dailyEvaluation ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30'}`}
+                                title="التقييم اليومي"
+                              >
+                                ⭐ {order.dailyEvaluation ? `${order.dailyEvaluation.totalScore}/15` : 'تقييم'}
+                              </button>
+                            </>
                           )}
                           <button
                             onClick={() => handleEdit(order)}
@@ -1155,6 +1197,63 @@ export default function Orders() {
           elementType={invoiceFor.elementType}
           onClose={() => setInvoiceFor(null)}
         />
+      )}
+
+      {/* نافذة التقييم اليومي */}
+      {evalFor && (
+        <div className="fixed inset-0 z-[100] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setEvalFor(null)}>
+          <div className="bg-[#0B111E] border border-white/10 rounded-2xl w-full max-w-md p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="text-center mb-5">
+              <h3 className="text-lg font-black text-white">⭐ التقييم اليومي</h3>
+              <p className="text-xs text-slate-400 mt-1">{evalFor.orderNo || evalFor.id} · {evalFor.customerName} · {evalFor.projectName}</p>
+            </div>
+
+            {([
+              { key: 'plantScore', label: '🏭 جودة المحطة والخلطة' },
+              { key: 'truckScore', label: '🚚 الالتزام والسيارة' },
+              { key: 'laborScore', label: '👷 فريق العمالة بالموقع' },
+            ] as const).map(item => (
+              <div key={item.key} className="mb-4">
+                <p className="text-xs font-bold text-slate-300 mb-1.5">{item.label}</p>
+                <div className="flex gap-1" dir="ltr">
+                  {[1, 2, 3, 4, 5].map(star => (
+                    <button
+                      key={star}
+                      onClick={() => setEvalForm(prev => ({ ...prev, [item.key]: star }))}
+                      className={`text-2xl transition-transform hover:scale-110 ${(evalForm[item.key] || 0) >= star ? 'text-yellow-400' : 'text-slate-600'}`}
+                    >
+                      ★
+                    </button>
+                  ))}
+                  {(evalForm[item.key] || 0) > 0 && (
+                    <span className="text-xs text-slate-400 ml-2 self-center">{evalForm[item.key]}/5</span>
+                  )}
+                </div>
+              </div>
+            ))}
+
+            <textarea
+              value={evalForm.notes}
+              onChange={e => setEvalForm({ ...evalForm, notes: e.target.value })}
+              placeholder="ملاحظات (اختياري) — أي ملاحظات عن الصبة أو الفريق..."
+              rows={3}
+              className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm resize-none mb-4"
+            />
+
+            <div className="flex gap-2">
+              <button
+                onClick={saveEvaluation}
+                disabled={evalSaving}
+                className={`flex-1 font-bold py-2.5 rounded-lg text-white ${evalSaving ? 'bg-slate-500 cursor-wait' : 'bg-emerald-500 hover:bg-emerald-600'}`}
+              >
+                {evalSaving ? '⏳ جاري الحفظ...' : '💾 حفظ التقييم'}
+              </button>
+              <button onClick={() => setEvalFor(null)} className="flex-1 bg-white/[0.06] hover:bg-white/[0.1] text-slate-300 font-bold py-2.5 rounded-lg">
+                إلغاء
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

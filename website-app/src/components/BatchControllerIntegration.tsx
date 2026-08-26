@@ -1,6 +1,20 @@
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { saveBatchControllerConfig, loadBatchControllerConfig } from '../firebase/firestore';
+import { saveBatchControllerConfig, loadBatchControllerConfig, loadDevicesRegistry, saveDevicesRegistry } from '../firebase/firestore';
+
+async function reportDevice(connected: boolean, model?: string) {
+  try {
+    const uname = localStorage.getItem('currentUserSession');
+    const username = uname ? (JSON.parse(uname)?.username || '') : '';
+    if (!username) return;
+    const list = (await loadDevicesRegistry(username)) || [];
+    const next = list.map(d => d.id === 'batchController'
+      ? { ...d, connected, model: model || d.model, lastCheckedAt: new Date().toISOString() }
+      : d);
+    if (!next.find(d => d.id === 'batchController')) next.push({ id: 'batchController', name: 'متحكم المحطة', connected });
+    await saveDevicesRegistry(username, next);
+  } catch { /* best-effort */ }
+}
 
 interface BatchControllerIntegrationProps {
   onClose: () => void;
@@ -119,6 +133,7 @@ export default function BatchControllerIntegration({ onClose }: BatchControllerI
       const ok = cfg.host.length > 3;
       setStatus(ok ? 'connected' : 'error');
       if (ok) {
+        reportDevice(true, CONTROLLERS.find(c => c.id === cfg.controller)?.model);
         setLastSync(new Date().toLocaleTimeString('en-GB'));
         setDataPoints(Math.floor(Math.random() * 200) + 80);
         alert('✅ تم الاتصال بنجاح مع ' + (CONTROLLERS.find(c => c.id === cfg.controller)?.name || 'المتحكم'));
@@ -130,6 +145,7 @@ export default function BatchControllerIntegration({ onClose }: BatchControllerI
 
   const disconnect = () => {
     setStatus('disconnected');
+    reportDevice(false);
     setLiveBatches([]);
     setDataPoints(0);
   };

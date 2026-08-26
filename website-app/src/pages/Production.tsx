@@ -8,6 +8,7 @@ import LangSelector from '../components/LangSelector';
 import BrandLogo from '../components/BrandLogo';
 import NotificationsBell from '../components/NotificationsBell';
 import BatchControllerIntegration from '../components/BatchControllerIntegration';
+import { DeviceStatusBadge } from '../components/DeviceHub';
 
 interface Delivery { date: string; material: string; qty: number; invoice: string; }
 interface ProdRun { date: string; time: string; recipe: string; volume: number; cementUsed: number; sandUsed: number; gravelUsed: number; orderId?: string; }
@@ -382,6 +383,7 @@ export default function Production() {
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <button onClick={() => setShowBatchCtrl(true)} className="bg-purple-500/20 text-purple-400 border border-purple-500/30 hover:bg-purple-500/30 text-xs font-bold px-3 py-1.5 rounded-lg">🏭 ربط متحكم المحطة</button>
+          <DeviceStatusBadge id="batchController" />
           <NotificationsBell />
           <span className="bg-emerald-500/15 text-emerald-500 text-xs px-3 py-1.5 rounded-lg font-bold border border-emerald-500/30">🟢 {currentUser.plantName}</span>
           <p className="text-[10px] text-emerald-500/80">Design by Dr. Ahmad Abdo Alyan</p>

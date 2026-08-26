@@ -11,7 +11,7 @@ export const USER_DATA_COLLECTIONS = [
   'productionRuns', 'qcRecords', 'assets', 'workshopConfig', 'customers', 'plantProfile',
   'weighbridgeRecords', 'returnedConcrete', 'payments', 'purchaseOrders', 'rawStock',
   'plants', 'blockPlants', 'gpsConfig', 'gpsHistory', 'livePositions',
-  'orders', 'notifications', 'accountingSettings', 'batchController', 'dashcamConfig',
+  'orders', 'notifications', 'accountingSettings', 'batchController', 'dashcamConfig', 'devicesRegistry',
 ];
 
 function userDocRef(userId: string) {
@@ -1016,4 +1016,20 @@ export async function saveDashcamConfig(userId: string, config: any) {
 }
 export async function loadDashcamConfig(userId: string) {
   return await loadUserData(userId, 'dashcamConfig');
+}
+
+// ====================== Peripheral Devices Registry ======================
+export interface DeviceEntry {
+  id: string;                 // 'batchController' | 'dashcam' | 'accounting' | 'gpsTrackers' | 'weighbridge'
+  name: string;
+  connected: boolean;
+  model?: string;
+  lastCheckedAt?: string;
+  meta?: Record<string, any>;
+}
+export async function saveDevicesRegistry(userId: string, devices: DeviceEntry[]) {
+  await saveUserData(userId, 'devicesRegistry', devices);
+}
+export async function loadDevicesRegistry(userId: string): Promise<DeviceEntry[] | null> {
+  return await loadUserData(userId, 'devicesRegistry');
 }

@@ -11,9 +11,11 @@ import PlantsManager from '../components/PlantsManager';
 import GpsPanel from '../components/GpsPanel';
 import GpsFleetMap from '../components/GpsFleetMap';
 import DashcamIntegration from '../components/DashcamIntegration';
+import DeviceHub from '../components/DeviceHub';
+import { DeviceStatusBadge } from '../components/DeviceHub';
 import ErpAdminOverview from '../components/ErpAdminOverview';
 
-type Tab = 'overview' | 'plant' | 'plants' | 'users' | 'sections' | 'gps' | 'erp';
+type Tab = 'overview' | 'plant' | 'plants' | 'users' | 'sections' | 'gps' | 'erp' | 'devices';
 type FactorySub = 'profile' | 'fleet' | 'stock' | 'config' | 'trackers';
 
 const ROLE_EMOJIS: Record<UserRole, string> = {
@@ -235,6 +237,7 @@ export default function AdminPanel() {
     { key: 'sections', label: 'Sections Overview', emoji: '🧩' },
     { key: 'erp', label: 'ERP Finance & Inventory', emoji: '💼' },
     { key: 'gps', label: 'GPS Map', emoji: '🗺️' },
+    { key: 'devices', label: 'الأجهزة الطرفية', emoji: '🔌' },
   ];
 
   return (
@@ -668,6 +671,10 @@ export default function AdminPanel() {
           <ErpAdminOverview onToast={showToast} />
         )}
 
+        {tab === 'devices' && (
+          <DeviceHub onToast={showToast} />
+        )}
+
         {tab === 'plants' && (
           <PlantsManager onToast={showToast} />
         )}
@@ -678,7 +685,7 @@ export default function AdminPanel() {
             <div className="bg-white/[0.04] border border-white/10 rounded-xl p-6 backdrop-blur-xl mt-4">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <h3 className="text-lg font-black tracking-tight text-white">📹 داش كام الشاحنات</h3>
+                  <h3 className="text-lg font-black tracking-tight text-white">📹 داش كام الشاحنات <DeviceStatusBadge id="dashcam" /></h3>
                   <p className="text-xs text-slate-400">Fleet Dashcam — بث مباشر، تسجيل، وكشف الأحداث بالذكاء الاصطناعي</p>
                 </div>
                 <button onClick={() => setShowDashcam(true)} className="bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-red-500/30 text-xs font-bold px-4 py-2 rounded-lg">
