@@ -1,6 +1,7 @@
 import { useState, type FormEvent, type ReactNode } from 'react';
 import { useLang } from '../context/LangContext';
 import { generateManualPdf } from './ManualPdf';
+import { generateManualPdfEn } from './ManualPdfEn';
 import type { Translations } from '../context/translations';
 
 type ModalKind = 'features' | 'rate' | 'contact' | null;
@@ -54,7 +55,7 @@ function Modal({ title, onClose, children }: { title: string; onClose: () => voi
 }
 
 export default function FloatingActions() {
-  const { t } = useLang();
+  const { t, lang } = useLang();
   const [open, setOpen] = useState(false);
   const [modal, setModal] = useState<ModalKind>(null);
   const [rating, setRating] = useState(0);
@@ -70,11 +71,16 @@ export default function FloatingActions() {
     setOpen(false);
     setPdfBusy({ on: true, done: 0, total: 0 });
     try {
-      const pages = await generateManualPdf((done, total) => setPdfBusy({ on: true, done, total }));
-      alert(`✅ تم تحميل الدليل (${pages} صفحات) — افتح مجلد التنزيلات`);
+      const gen = lang === 'en' ? generateManualPdfEn : generateManualPdf;
+      const pages = await gen((done, total) => setPdfBusy({ on: true, done, total }));
+      alert(lang === 'en'
+        ? `✅ Guide downloaded (${pages} pages) — check your Downloads folder`
+        : `✅ تم تحميل الدليل (${pages} صفحات) — افتح مجلد التنزيلات`);
     } catch (e) {
       console.error('manual pdf failed', e);
-      alert('❌ تعذر توليد الـPDF — جرّب متصفح Chrome');
+      alert(lang === 'en'
+        ? '❌ Could not build the PDF — try Chrome'
+        : '❌ تعذر توليد الـPDF — جرّب متصفح Chrome');
     }
     setPdfBusy({ on: false, done: 0, total: 0 });
   };
@@ -200,7 +206,7 @@ export default function FloatingActions() {
       <div className="fixed bottom-6 right-6 z-[120] flex flex-col items-end gap-3">
         {open && (
           <div className="flex flex-col items-end gap-2">
-            {actionButton(pdfBusy.on ? '⏳' : '📕', pdfBusy.on ? `${pdfBusy.done}/${pdfBusy.total}…` : PDF_LABEL, handleManualPdf, 'bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400')}
+            {actionButton(pdfBusy.on ? '⏳' : '📕', pdfBusy.on ? `${pdfBusy.done}/${pdfBusy.total}…` : (lang === 'en' ? 'PDF Guide' : PDF_LABEL), handleManualPdf, 'bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400')}
             {actionButton('⭐', t('floatingFeatures'), () => openModal('features'), 'bg-gradient-to-r from-sky-500 to-cyan-500 hover:from-sky-400 hover:to-cyan-400')}
             {actionButton('🌟', t('floatingRateUs'), () => openModal('rate'), 'bg-gradient-to-r from-amber-500 to-yellow-400 hover:from-amber-400 hover:to-yellow-300')}
             {actionButton('📞', t('floatingContactUs'), () => openModal('contact'), 'bg-gradient-to-r from-sky-500 to-cyan-500 hover:from-sky-400 hover:to-cyan-400')}
