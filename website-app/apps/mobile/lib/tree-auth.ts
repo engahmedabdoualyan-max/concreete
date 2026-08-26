@@ -12,6 +12,7 @@
 
 import type { AuthUser, UserRole } from "@/types";
 import { authHeaders } from "./fb-auth";
+import { hashPassword } from "./pw";
 
 const FIREBASE_PROJECT = "concrete-erb";
 const FIREBASE_API_KEY = "AIzaSyBbK2e2saN8Olu7O6vjHP23MkTsUgyN2iE";
@@ -128,14 +129,23 @@ export async function findTreeAccount(
       for (const entry of accounts) {
         const account = mapAccount(entry?.mapValue?.fields ?? {});
         const id = (account.email || "").toLowerCase();
-        if ((id === p || (account.phone || "").toLowerCase() === p) && account.password === pw) {
-          return {
-            companyUsername,
-            account,
-            subscriptionStart: str(fields.subscriptionStart),
-            subscriptionEnd: str(fields.subscriptionEnd),
-            subscriptionStatus: str(fields.subscriptionStatus),
-          };
+        const phoneMatch = (account.phone || "").toLowerCase() === p;
+        if (id === p || phoneMatch) {
+          // Progressive: hashed accounts first, legacy plaintext second
+          const identifier = account.email || account.phone || "";
+          const hashMatch =
+            !!(account as any).passwordHash &&
+            (account as any).passwordHash === hashPassword(identifier, pw);
+          const legacyMatch = account.password === pw;
+          if (hashMatch || legacyMatch) {
+            return {
+              companyUsername,
+              account,
+              subscriptionStart: str(fields.subscriptionStart),
+              subscriptionEnd: str(fields.subscriptionEnd),
+              subscriptionStatus: str(fields.subscriptionStatus),
+            };
+          }
         }
       }
     }

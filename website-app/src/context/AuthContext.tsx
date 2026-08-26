@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
 import emailjs from '@emailjs/browser';
 import { saveUser, getUser } from '../firebase/firestore';
+import { hashPassword } from '../lib/passwords';
 
 const EMAILJS_PUBLIC_KEY = 'UPIUNYeckrEK-z_xz';
 const EMAILJS_SERVICE_ID = 'service_mdtxmv8';
@@ -59,11 +60,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = async (username: string, password: string): Promise<boolean> => {
     // Try Firebase first
     try {
-      const user = await getUser(username);
-      if (user && user.password === password) {
-        setCurrentUser(user as UserSession);
-        localStorage.setItem('currentUserSession', JSON.stringify(stripSecrets(user as UserSession)));
-        return true;
+      const user = await getUser(username) as any;
+      if (user) {
+        const hash = await hashPassword(user.username || username, password);
+        if (user.passwordHash && user.passwordHash === hash) {
+          setCurrentUser(user as UserSession);
+          localStorage.setItem('currentUserSession', JSON.stringify(stripSecrets(user as UserSession)));
+          return true;
+        }
+        // Legacy plaintext account → verify then upgrade to hashed
+        if (user.password && user.password === password) {
+          try { await saveUser({ ...user, passwordHash: hash, password: '' }); } catch {}
+          setCurrentUser(user as UserSession);
+          localStorage.setItem('currentUserSession', JSON.stringify(stripSecrets(user as UserSession)));
+          return true;
+        }
       }
     } catch (e) {
       console.warn('Firebase fetch failed, trying localStorage backup', e);
@@ -71,11 +82,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Fallback to localStorage (match by username or email)
     try {
       const saved = localStorage.getItem('registeredUsers');
-      const users: UserSession[] = saved ? JSON.parse(saved) : [];
-      const user = users.find(u =>
-        (u.username.toLowerCase() === username.toLowerCase() || u.email.toLowerCase() === username.toLowerCase()) &&
-        u.password === password
-      );
+      const users: any[] = saved ? JSON.parse(saved) : [];
+      let user: any = null;
+      for (const u of users) {
+        const nameMatch = u.username?.toLowerCase() === username.toLowerCase() || u.email?.toLowerCase() === username.toLowerCase();
+        if (!nameMatch) continue;
+        const hash = await hashPassword(u.username, password);
+        if ((u.passwordHash || '') === hash || u.password === password) { user = u; break; }
+      }
       if (user) {
         setCurrentUser(user);
         localStorage.setItem('currentUserSession', JSON.stringify(stripSecrets(user)));
@@ -116,7 +130,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const verifyAndActivate = async (code: string): Promise<boolean> => {
     if (code !== generatedCode || !tempUser) return false;
-    const newUser = { ...tempUser, username: tempUser.username.toLowerCase() };
+    const base = { ...tempUser, username: tempUser.username.toLowerCase() };
+    // Store ONLY the hash — never a plaintext password.
+    const newUser: UserSession = {
+      ...base,
+      password: '',
+      // passwordHash is written as an extra field; saveUser persists the full object
+    } as UserSession;
+    try {
+      const hash = await hashPassword(newUser.username, tempUser.password);
+      (newUser as any).passwordHash = hash;
+    } catch {}
 
     // Save to Firebase
     try {

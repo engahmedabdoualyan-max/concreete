@@ -4,6 +4,7 @@ import { saveUser, getAllUsers, saveCompanyTree, saveCompanySubscription, delete
 import BrandLogo from '../components/BrandLogo';
 import type { UserSession } from '../context/AuthContext';
 import { TREE_ROLES, treeModsForRole } from '../lib/treeRoles';
+import { hashPassword } from '../lib/passwords';
 
 const STORAGE_KEY = 'fimto_module_config';
 const SESSION_KEY = 'fimto_console_session';
@@ -275,6 +276,16 @@ function ConsoleInner() {
 
   const input2 = (v: string) => v === undefined ? '' : v;
 
+  // Hash account passwords at persistence time — plaintext is shown once in the draft/print only.
+  const hashTreeRows = async (rows: TreeAccount[]): Promise<TreeAccount[]> => {
+    const out: TreeAccount[] = [];
+    for (const a of rows) {
+      const passwordHash = await hashPassword(a.email || a.phone || '', a.password || '');
+      out.push({ ...a, passwordHash, password: '' });
+    }
+    return out;
+  };
+
   const handleLogin = async (e: FormEvent) => {
     e.preventDefault();
     setError('');
@@ -436,7 +447,8 @@ function ConsoleInner() {
     const company = companies.find(c => c.username?.toLowerCase() === username) || {} as UserSession;
     try {
       const fs = await import('../firebase/firestore');
-      const problems = await fs.checkTreeAccountConflicts(rows, username);
+      const hashed = await hashTreeRows(rows);
+      const problems = await fs.checkTreeAccountConflicts(hashed, username);
       if (problems.length > 0) {
         setError('❌ تعارض في الحسابات — تم ايقاف الحفظ:\n' + problems.slice(0, 8).join('\n'));
         setTreeSaving(false);
@@ -445,17 +457,18 @@ function ConsoleInner() {
       const sub = subs[username.toLowerCase()] || {};
       const tree: CompanyTree = {
         companyUsername: username,
-        accounts: rows,
+        accounts: hashed,
         subscriptionStart: sub.subscriptionStart,
         subscriptionEnd: sub.subscriptionEnd,
         subscriptionStatus: sub.subscriptionStatus,
       };
       await fs.saveCompanyTree(tree);
-      for (const a of rows) {
+      for (const a of hashed) {
         try {
           await fs.saveAppAccount({
             username: a.email,
             password: a.password,
+            passwordHash: a.passwordHash,
             plantName: company.plantName || username,
             country: company.country, city: company.city,
             phone: a.phone, email: a.email,             status: 'APP_ACCOUNT',
@@ -641,20 +654,22 @@ function ConsoleInner() {
         setTreeSaving(false);
         return;
       }
+      const hashed = await hashTreeRows(rows);
       const sub = subs[treeOpen.toLowerCase()] || {};
       const tree: CompanyTree = {
         companyUsername: treeOpen,
-        accounts: rows,
+        accounts: hashed,
         subscriptionStart: sub.subscriptionStart,
         subscriptionEnd: sub.subscriptionEnd,
         subscriptionStatus: sub.subscriptionStatus,
       };
       await fs.saveCompanyTree(tree);
-      for (const a of treeDraft) {
+      for (const a of hashed) {
         try {
           await fs.saveAppAccount({
             username: a.email,
             password: a.password,
+            passwordHash: a.passwordHash,
             plantName: company.plantName || treeOpen,
             country: company.country,
             city: company.city,
@@ -737,7 +752,8 @@ function ConsoleInner() {
       const fs = await import('../firebase/firestore');
       const problems = await fs.checkLoginUniqueness(uname, password);
       if (problems.length > 0) { setError('❌ ' + problems.join(' — ')); setCreating(false); return; }
-      const user: UserSession = { username: uname, password, country, city, plantName, phone, email, status: 'FREE_TRIAL' };
+      const user: UserSession = { username: uname, password: '', country, city, plantName, phone, email, status: 'FREE_TRIAL' };
+      (user as any).passwordHash = await hashPassword(uname, password);
       await fs.saveUser(user);
       setCompanies(prev => [user, ...prev.filter(c => (c.username || '').toLowerCase() !== uname)]);
       setComp({ username: '', password: '', plantName: '', country: 'Egypt', city: '', phone: '', email: '' });

@@ -1,8 +1,14 @@
 // uses shared zero-dep jwt from _lib
+const crypto = require('crypto');
 const {
   ok, fail, findUser, findUserByUid, buildAuthUser, signTokens,
-  requireAuth, fsDelete, enc, JWT_SECRET,
+  requireAuth, fsDelete, fsPatch, enc, JWT_SECRET,
 } = require('../_lib');
+
+// Same password spec as website (src/lib/passwords.ts) and mobile (lib/pw.ts)
+const PW_SALT = 'fimto-pw-salt-v1';
+const hashPassword = (username, password) =>
+  crypto.createHash('sha256').update(`${String(username || '').trim().toLowerCase()}::${String(password || '')}::${PW_SALT}`).digest('hex');
 
 // api/auth/[action].js → /api/auth/login|refresh|logout|delete-account
 module.exports = async function handler(req, res) {
@@ -16,7 +22,22 @@ module.exports = async function handler(req, res) {
       const password = body.password;
       if (!identifier || !password) return fail(res, 400, 'بيانات الدخول ناقصة', 'MISSING_CREDENTIALS');
       const user = await findUser(identifier);
-      if (!user || user.password !== password) return fail(res, 401, 'بيانات الدخول غير صحيحة', 'INVALID_CREDENTIALS');
+      if (!user || !user.username) return fail(res, 401, 'بيانات الدخول غير صحيحة', 'INVALID_CREDENTIALS');
+
+      // Progressive verification: hashed first, legacy plaintext second (then upgrade)
+      let valid = false;
+      let needsUpgrade = false;
+      const hash = hashPassword(user.username, password);
+      if (user.passwordHash && user.passwordHash === hash) valid = true;
+      else if (user.password && user.password === password) { valid = true; needsUpgrade = !user.passwordHash; }
+
+      if (!valid) return fail(res, 401, 'بيانات الدخول غير صحيحة', 'INVALID_CREDENTIALS');
+      if (needsUpgrade) {
+        fsPatch(`users/${enc(user.username)}`, {
+          passwordHash: { stringValue: hash },
+          password: { stringValue: '' },
+        }).catch(() => {});
+      }
       const tokens = signTokens(user);
       return ok(res, {
         accessToken: tokens.accessToken,
