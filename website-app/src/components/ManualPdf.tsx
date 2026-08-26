@@ -99,7 +99,7 @@ export const MANUAL_SECTIONS: Section[] = [
     ['مصمم الخلطة الذكي', 'أدخل الهدف والهبوط وظروف الجو (حرارة/رطوبة) فيحسب النسب وماء الخلط المعوَّض — ثم «حفظ كوصفة» بضغطة.'],
     ['سجل فحوصات QC', 'لكل عينة: هبوط، كسر 7 و28 يوم، رقم البلطة، وربط تلقائي بطلب العميل وكود عينة فريد.'],
     ['فلترة النتائج', 'فلترة بتاريخ ومن/إلى وبالشاحنة لمتابعة أداء أي خلاطة.'],
-    ['🤖 متنبئ المقاومة AI', 'من نتائج 7 أيام يتنبأ بمقاومة 28 يوم مع درجة ثقة وهامش خطأ — يساعدك تعديل الخلطة قبل فوات الأوان.'],
+    ['🤖 متنبئ المقاومة AI', 'من نتائج 7 أيام يتنبأ بمقاومة 28 يوم مع درجة ثقة وهاغير خطأ — يساعدك تعديل الخلطة قبل فوات الأوان.'],
   ]),
   S('9', '🛡️', 'الحاكمية', [
     ['قبّان الوزن (ميزان البسكول) بسلسلة Hash', 'كل كشف وزن يُبصم ببصمة <bdi>SHA-256</bdi> مرتبطة بسابقه — أي تعديل لاحق يكسر السلسلة ويكشف نفسه (Blockchain-style).'],
@@ -310,9 +310,9 @@ function visualFor(no: string): string {
         </div>
       </div>
       <div style="flex:1;font-size:12.5px;color:${SLATE};line-height:1.95">
-        هكذا يشاهد عميلك طلبه على موبايله:<br/>
+        هكذا يتابع عميلك طلبه على هاتفه:<br/>
         شريط تقدم حي + موقع الشاحنة + وقت الوصول المتوقع —<br/>
-        <strong style="color:${INK}">قبل ما يرفع التليفون ويسأل «فين العربية؟»</strong>
+        <strong style="color:${INK}">قبل أن يرفع الهاتف ليسأل: «أين الشاحنة؟»</strong>
       </div>
     </div>`;
   }
@@ -379,8 +379,8 @@ function buildBack(): HTMLElement {
   return el(`
     <div lang="ar" style="width:${PAGE_W}px;height:${PAGE_H}px;background:linear-gradient(200deg,#080c14,#0d2136);color:#fff;box-sizing:border-box;padding:80px 60px;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;font-family:'Segoe UI',Tahoma,Arial,sans-serif;direction:rtl;">
       <div style="font-size:54px;margin-bottom:20px">💪</div>
-      <h2 style="font-size:34px;font-weight:900;margin:0">جاهز تبدأ؟</h2>
-      <p style="color:#94a3b8;font-size:16px;line-height:2;margin-top:14px">افتح النظام الآن ودعّ هذه الصفحة جانباً.<br/>كل زر في النظام بيشرح نفسه، وده الدليل لما تحتاج تفاصيل.</p>
+      <h2 style="font-size:34px;font-weight:900;margin:0">حان وقت القرار</h2>
+      <p style="color:#94a3b8;font-size:16px;line-height:2;margin-top:14px">افتح النظام الآن، واحتفظ بهذا الدليل قريباً منك.<br/>كل زرٍّ في النظام يشرح نفسه، وهذا الدليل مرجعك عند الحاجة إلى التفاصيل.</p>
       <div style="margin-top:34px;background:rgba(56,189,248,.08);border:1px solid #164e63;border-radius:14px;padding:20px 30px;font-size:14px;color:#7dd3fc;line-height:2.2" dir="ltr">
         concrete.fimtosoft.com<br/>downloads/fimto-android.apk<br/>concrete.fimtosoft.com/#/portal
       </div>
@@ -393,22 +393,22 @@ const LETTER_FONT = "'Segoe UI',Tahoma,Arial,sans-serif";
 
 function buildOwnerLetter1(): HTMLElement {
   const pains = [
-    ['🧱', 'أسمنت ورمل بيختفوا', 'مفيش حساب دقيق: الخام بيدخل والمُنتج أقل منه… الفرق راح فين؟'],
-    ['🚚', 'دورات مش بتتحسب', 'العربية عملت 8 رحلات ولا 6؟ الفارق صافي خسارة يومياً.'],
-    ['⛽', 'وقود خارج الدفتر', 'اللترات المسجلة لا تطابق الكيلومترات — ومحدش يسأل.'],
-    ['⏰', 'تأخير صبات', 'عميل مستنى ومعاير غاضبة = غرامات وسمعة بتتراجع.'],
+    ['🧱', 'تبدُّد المواد الخام', 'لا يوجد حساب دقيق: الخام يدخل والمُنتَج أقل منه… فأين ذهب الفارق؟'],
+    ['🚚', 'دورات لا تُحتسب', 'هل أنجزت الشاحنة ثماني دورات أم ستّاً؟ الفارق خسارة صافية كل يوم.'],
+    ['⛽', 'وقود خارج السجل', 'اللترات المسجلة لا تطابق المسافات المقطوعة — ولا أحد يطرح السؤال.'],
+    ['⏰', 'تأخير الصبات', 'عميل منتظر ومقاولون غاضبون — غرامات وسمعة تتراجع.'],
   ];
   return el(`
     <div lang="ar" style="width:${PAGE_W}px;height:${PAGE_H}px;background:linear-gradient(165deg,#080c14,#0b111e 60%,#132a44);color:#fff;box-sizing:border-box;padding:56px 58px;font-family:${LETTER_FONT};direction:rtl;display:flex;flex-direction:column;">
       <div style="display:flex;align-items:center;gap:12px">
-        <div style="font-size:13px;color:#38bdf8;font-weight:800;border:1px solid #155e75;border-radius:999px;padding:5px 13px">رسالة خاصة</div>
+        <div style="font-size:13px;color:#38bdf8;font-weight:800;border:1px solid #155e75;border-radius:999px;padding:5px 13px">لماذا فيمتو</div>
         <div style="font-size:11px;color:#64748b;margin-inline-start:auto" dir="ltr"><bdi>FIMTO CONCRETE ERP</bdi></div>
       </div>
 
-      <h1 style="font-size:34px;font-weight:900;margin:26px 0 0;line-height:1.5">📩 يا صاحب المصنع…<br/><span style="color:#38bdf8">إنت مش محتاج «برنامج مراقبة»</span></h1>
+      <h1 style="font-size:34px;font-weight:900;margin:26px 0 0;line-height:1.5">📩 لماذا فيمتو؟<br/><span style="color:#38bdf8">الفجوة التي لا تظهر في الدفاتر</span></h1>
       <p style="color:#cbd5e1;font-size:16px;line-height:2;margin-top:14px">
-        إنت محتاج <strong style="color:#fff">عين تشوف</strong> و<strong style="color:#fff">دم يحسم</strong>.
-        البرامج التانية بتقول لك «إيه اللي حصل» امبارح… <strong style="color:#38bdf8">نحن بنقول لك إيه اللي بيضيع دلوقتي، وليه، وإزاي تقفله</strong>.
+        معظم خسائر مصانع الخرسانة ليست في المعدات… بل في <strong style="color:#fff">ما لا تراه الإدارة</strong>.
+        الأنظمة التقليدية تخبرك بما حدث أمس؛ <strong style="color:#38bdf8">أما فيمتو فيكشف الهدر لحظة حدوثه، ويبيّن سببه، ويقدّم الحل لغلقه</strong>.
       </p>
 
       <div style="font-size:13px;font-weight:900;color:#fca5a5;margin:22px 0 10px">🔥 أربع نزيفات بتحدد مصير أرباحك كل شهر:</div>
@@ -421,20 +421,20 @@ function buildOwnerLetter1(): HTMLElement {
       </div>
 
       <div style="margin-top:auto;background:linear-gradient(90deg,rgba(56,189,248,.12),rgba(34,211,238,.05));border:1px solid #164e63;border-radius:16px;padding:18px 22px">
-        <div style="font-size:15px;font-weight:900;color:#7dd3fc">👁️ تخيل إنك تشوف ده كله من موبايلك الآن:</div>
+        <div style="font-size:15px;font-weight:900;color:#7dd3fc">👁️ تخيَّل أن ترى كل ذلك الآن من هاتفك:</div>
         <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
-          ${['📦 السيلوهات لحظة بلحظة','🚚 كل عربية فين وبتعمل إيه','💰 كل جنيه دخل وخرج','⭐ رضا كل عميل بعد كل صبة','🔧 العطل قبل ما يوقف الإنتاج'].map(x=>`<span style="background:rgba(56,189,248,.08);border:1px solid #164e63;color:#bae6fd;font-size:12px;font-weight:700;padding:7px 12px;border-radius:9px">${x}</span>`).join('')}
+          ${['📦 السيلوهات لحظة بلحظة','🚚 كل شاحنة: موقعها ومهمتها الآن','💰 كل جنيه دخل وخرج','⭐ رضا كل عميل بعد كل صبة','🔧 العطل قبل ما يوقف الإنتاج'].map(x=>`<span style="background:rgba(56,189,248,.08);border:1px solid #164e63;color:#bae6fd;font-size:12px;font-weight:700;padding:7px 12px;border-radius:9px">${x}</span>`).join('')}
         </div>
-        <div style="color:#94a3b8;font-size:12px;margin-top:11px">مش مجرد متابعة — <strong style="color:#fff">ده كشف مباشر على مصنعك بالأرقام، والحل جاهز قدام كل مشكلة.</strong></div>
+        <div style="color:#94a3b8;font-size:12px;margin-top:11px">ليست مجرد متابعة — <strong style="color:#fff">بل رؤية مباشرة لمصنعك بالأرقام، والحل جاهز أمام كل مشكلة.</strong></div>
       </div>
     </div>`);
 }
 
 function buildOwnerLetter2(): HTMLElement {
   const rows = [
-    ['برامج التسجيل التقليدية', 'تخزّن اللي حصل… بعد ما الخسارة خلت', 'يكشف الانحراف وهو بياخذ مكانه ويقفل سببه'],
-    ['برامج المحاسبة', 'أوراق منظمة نهاية الشهر', 'قرارات لحظية مبنية على أرقام حية: سيلو، رحلة، تحصيل'],
-    ['أنظمة التتبع العالمية', 'GPS غالي يعرفك «فين» بس', 'GPS + جودة + صيانة + مالية + عملاء… في شاشة واحدة عربية'],
+    ['الأنظمة التقليدية', 'تؤرشف ما حدث… بعد أن رحلت الخسارة', 'يكشف الانحراف لحظة وقوعه، ويسد سببه'],
+    ['برامج المحاسبة', 'أوراق منظمة نهاية الشهر', 'قرارات فورية مبنية على أرقام حيّة: سيلو، ودورة، وتحصيل'],
+    ['أنظمة التتبع العالمية', 'تتبع مكلف يخبرك بالموقع فقط', 'GPS + جودة + صيانة + مالية + عملاء… في شاشة واحدة عربية'],
   ];
   const save = [['🧱','هدر الخام','-5↔10%'],['⛽','وقود خارج السجل','-15%'],['🕒','تأخيرات وصبات فاسدة','≈ صفر'],['🔧','عطل مفاجئ','صيانة مجدولة']];
   return el(`
@@ -449,7 +449,7 @@ function buildOwnerLetter2(): HTMLElement {
         </div>`).join('')}
       </div>
 
-      <h2 style="font-size:26px;font-weight:900;margin:26px 0 4px">💰 وهتوفر فين؟ أرقام تقديرية من الميدان</h2>
+      <h2 style="font-size:26px;font-weight:900;margin:26px 0 4px">💰 أين ستوفّر؟ أرقام تقديرية من الميدان</h2>
       <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:9px;margin-top:12px">
         ${save.map(([ic,t,v])=>`
         <div style="background:#fff;border-radius:14px;padding:13px 10px;text-align:center">
@@ -461,8 +461,8 @@ function buildOwnerLetter2(): HTMLElement {
       <p style="color:#94a3b8;font-size:12.5px;line-height:1.9;margin-top:10px">* نسب استرجاع نمطية عند الالتزام بالنظام أول ٣ شهور — أكبر توفير حقيقي: <strong style="color:#e2e8f0">قرارات صح في وقتها</strong>.</p>
 
       <div style="margin-top:auto;text-align:center;background:linear-gradient(135deg,#0369a1,#0e7490);border-radius:18px;padding:20px 24px">
-        <div style="font-size:17px;font-weight:900">🎯 القرار بسيط: كمّل بإدارة «التصديقات»… أو سيب الأرقام تتكلم</div>
-        <div style="font-size:13px;color:#cffafe;margin-top:8px">افتح النظام الآن — أول طلب هتعمله هيوضحلك الفرق بنفسك</div>
+        <div style="font-size:17px;font-weight:900">🎯 القرار بسيط: استمر بالإدارة التقليدية… أو دَع الأرقام تتحدث</div>
+        <div style="font-size:13px;color:#cffafe;margin-top:8px">افتح النظام الآن — أول طلب تنشئه سيُريك الفرق بنفسك</div>
         <div dir="ltr" style="font-size:13px;color:#fff;font-weight:800;margin-top:9px"><bdi>concrete.fimtosoft.com</bdi></div>
       </div>
     </div>`);
