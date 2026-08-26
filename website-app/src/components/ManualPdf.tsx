@@ -275,6 +275,48 @@ function visualFor(no: string): string {
       ${roles.map(([ic,t])=>`<div style="background:${INK};color:#fff;border-radius:10px;padding:10px;text-align:center"><div style="font-size:18px">${ic}</div><div style="font-size:11px;font-weight:800;margin-top:3px">${t}</div></div>`).join('')}
     </div>`;
   }
+  if (no === '4') {
+    const stages = [['🏭','انطلاق'],['📍','وصول'],['🚧','صب'],['↩️','عودة'],['⏱️','الدورة']];
+    return `<div style="margin-top:18px">${cap('خط زمني للرحلة — كل مرحلة موثقة بوقتها')}
+      <div style="background:#fff;border:1px solid ${BORDER};border-radius:12px;padding:14px 10px;display:flex;align-items:center;justify-content:space-between;position:relative">
+        <div style="position:absolute;top:50%;right:24px;left:24px;height:3px;background:${BORDER}"></div>
+        ${stages.map(([ic,t])=>`<div style="text-align:center;position:relative;z-index:1">
+          <div style="width:38px;height:38px;border-radius:999px;background:${INK};color:#fff;display:flex;align-items:center;justify-content:center;font-size:16px;margin:0 auto;border:3px solid #fff;box-shadow:0 0 0 2px ${BORDER}">${ic}</div>
+          <div style="font-size:10.5px;font-weight:800;color:${INK};margin-top:5px">${t}</div>
+        </div>`).join('')}
+      </div></div>`;
+  }
+  if (no === '9') {
+    const blocks = [['#', 'a91f…c4'],['#1','7be2…09f'],['#2','d04a…77e'],['#3','e9c3…b12']];
+    return `<div style="margin-top:18px">${cap('سلسلة البصمات: أي تعديل يكسر السلسلة ويكشف نفسه')}
+      <div style="display:flex;gap:6px;align-items:center">
+        ${blocks.map(([n,h],i)=>`${i>0?'<div style="font-size:15px;color:#64748b">🔗</div>':''}
+        <div style="flex:1;background:#fff;border:1.5px solid ${i===3?'#22c55e':BORDER};border-radius:11px;padding:9px 8px;text-align:center">
+          <div style="font-size:15px;font-weight:900;color:${INK}" dir="ltr"><bdi>${n}</bdi></div>
+          <div dir="ltr" style="font-size:9.5px;color:#64748b;margin-top:2px"><bdi>${h}</bdi></div>
+        </div>`).join('')}
+        <div style="font-size:15px;color:#16a34a;font-weight:900">✓</div>
+      </div></div>`;
+  }
+  if (no === '14') {
+    return `<div style="margin-top:18px;display:flex;gap:12px;align-items:center">
+      <div style="width:150px;background:${INK};border-radius:20px;padding:10px 8px;box-shadow:0 8px 20px rgba(2,8,23,.25)">
+        <div style="background:#fff;border-radius:13px;padding:10px 9px">
+          <div style="display:flex;gap:4px"><span style="flex:1;height:7px;background:${LIGHT};border-radius:99px"></span><span style="width:26px;height:7px;background:#38bdf8;border-radius:99px"></span></div>
+          <div style="height:8px;background:${LIGHT};border-radius:99px;margin-top:8px"></div>
+          <div style="margin-top:10px;font-size:9px;color:#0369a1;font-weight:800">طلب ORD-1024</div>
+          <div style="margin-top:5px;display:flex;gap:3px">${[1,2,3,4].map(i=>`<span style="flex:1;height:6px;border-radius:99px;background:${i<=3?'#38bdf8':'#e2e8f0'}"></span>`).join('')}</div>
+          <div style="margin-top:9px;background:#dcfce7;color:#15803d;font-weight:800;font-size:9px;border-radius:8px;padding:5px;text-align:center" dir="ltr"><bdi>ETA 18 min</bdi></div>
+        </div>
+      </div>
+      <div style="flex:1;font-size:12.5px;color:${SLATE};line-height:1.95">
+        هكذا يشاهد عميلك طلبه على موبايله:<br/>
+        شريط تقدم حي + موقع الشاحنة + وقت الوصول المتوقع —<br/>
+        <strong style="color:${INK}">قبل ما يرفع التليفون ويسأل «فين العربية؟»</strong>
+      </div>
+    </div>`;
+  }
+
   return '';
 }
 
@@ -346,6 +388,86 @@ function buildBack(): HTMLElement {
     </div>`);
 }
 
+/* ═══ صفحات الرسالة البيعية لصاحب المصنع ═══ */
+const LETTER_FONT = "'Segoe UI',Tahoma,Arial,sans-serif";
+
+function buildOwnerLetter1(): HTMLElement {
+  const pains = [
+    ['🧱', 'أسمنت ورمل بيختفوا', 'مفيش حساب دقيق: الخام بيدخل والمُنتج أقل منه… الفرق راح فين؟'],
+    ['🚚', 'دورات مش بتتحسب', 'العربية عملت 8 رحلات ولا 6؟ الفارق صافي خسارة يومياً.'],
+    ['⛽', 'وقود خارج الدفتر', 'اللترات المسجلة لا تطابق الكيلومترات — ومحدش يسأل.'],
+    ['⏰', 'تأخير صبات', 'عميل مستنى ومعاير غاضبة = غرامات وسمعة بتتراجع.'],
+  ];
+  return el(`
+    <div lang="ar" style="width:${PAGE_W}px;height:${PAGE_H}px;background:linear-gradient(165deg,#080c14,#0b111e 60%,#132a44);color:#fff;box-sizing:border-box;padding:56px 58px;font-family:${LETTER_FONT};direction:rtl;display:flex;flex-direction:column;">
+      <div style="display:flex;align-items:center;gap:12px">
+        <div style="font-size:13px;color:#38bdf8;font-weight:800;border:1px solid #155e75;border-radius:999px;padding:5px 13px">رسالة خاصة</div>
+        <div style="font-size:11px;color:#64748b;margin-inline-start:auto" dir="ltr"><bdi>FIMTO CONCRETE ERP</bdi></div>
+      </div>
+
+      <h1 style="font-size:34px;font-weight:900;margin:26px 0 0;line-height:1.5">📩 يا صاحب المصنع…<br/><span style="color:#38bdf8">إنت مش محتاج «برنامج مراقبة»</span></h1>
+      <p style="color:#cbd5e1;font-size:16px;line-height:2;margin-top:14px">
+        إنت محتاج <strong style="color:#fff">عين تشوف</strong> و<strong style="color:#fff">دم يحسم</strong>.
+        البرامج التانية بتقول لك «إيه اللي حصل» امبارح… <strong style="color:#38bdf8">نحن بنقول لك إيه اللي بيضيع دلوقتي، وليه، وإزاي تقفله</strong>.
+      </p>
+
+      <div style="font-size:13px;font-weight:900;color:#fca5a5;margin:22px 0 10px">🔥 أربع نزيفات بتحدد مصير أرباحك كل شهر:</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        ${pains.map(([ic,t,d])=>`
+        <div style="background:#fff;border-radius:14px;padding:14px 16px;border-inline-start:4px solid #ef4444">
+          <div style="display:flex;align-items:center;gap:8px"><span style="font-size:19px">${ic}</span><strong style="color:${INK};font-size:14.5px">${t}</strong></div>
+          <p style="margin:7px 0 0;color:${SLATE};font-size:12.5px;line-height:1.85">${d}</p>
+        </div>`).join('')}
+      </div>
+
+      <div style="margin-top:auto;background:linear-gradient(90deg,rgba(56,189,248,.12),rgba(34,211,238,.05));border:1px solid #164e63;border-radius:16px;padding:18px 22px">
+        <div style="font-size:15px;font-weight:900;color:#7dd3fc">👁️ تخيل إنك تشوف ده كله من موبايلك الآن:</div>
+        <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
+          ${['📦 السيلوهات لحظة بلحظة','🚚 كل عربية فين وبتعمل إيه','💰 كل جنيه دخل وخرج','⭐ رضا كل عميل بعد كل صبة','🔧 العطل قبل ما يوقف الإنتاج'].map(x=>`<span style="background:rgba(56,189,248,.08);border:1px solid #164e63;color:#bae6fd;font-size:12px;font-weight:700;padding:7px 12px;border-radius:9px">${x}</span>`).join('')}
+        </div>
+        <div style="color:#94a3b8;font-size:12px;margin-top:11px">مش مجرد متابعة — <strong style="color:#fff">ده كشف مباشر على مصنعك بالأرقام، والحل جاهز قدام كل مشكلة.</strong></div>
+      </div>
+    </div>`);
+}
+
+function buildOwnerLetter2(): HTMLElement {
+  const rows = [
+    ['برامج التسجيل التقليدية', 'تخزّن اللي حصل… بعد ما الخسارة خلت', 'يكشف الانحراف وهو بياخذ مكانه ويقفل سببه'],
+    ['برامج المحاسبة', 'أوراق منظمة نهاية الشهر', 'قرارات لحظية مبنية على أرقام حية: سيلو، رحلة، تحصيل'],
+    ['أنظمة التتبع العالمية', 'GPS غالي يعرفك «فين» بس', 'GPS + جودة + صيانة + مالية + عملاء… في شاشة واحدة عربية'],
+  ];
+  const save = [['🧱','هدر الخام','-5↔10%'],['⛽','وقود خارج السجل','-15%'],['🕒','تأخيرات وصبات فاسدة','≈ صفر'],['🔧','عطل مفاجئ','صيانة مجدولة']];
+  return el(`
+    <div lang="ar" style="width:${PAGE_W}px;height:${PAGE_H}px;background:linear-gradient(200deg,#0d2136,#080c14);color:#fff;box-sizing:border-box;padding:56px 58px;font-family:${LETTER_FONT};direction:rtl;display:flex;flex-direction:column;">
+      <h2 style="font-size:30px;font-weight:900;margin:0">⚖️ الفرق بيننا وبين أي برنامج تاني</h2>
+      <div style="margin-top:20px;display:flex;flex-direction:column;gap:10px">
+        ${rows.map(([a,b,c])=>`
+        <div style="display:grid;grid-template-columns:170px 1fr 1.15fr;gap:0;border-radius:14px;overflow:hidden;border:1px solid #1e3a5f">
+          <div style="background:#132a44;padding:13px 14px;font-weight:800;font-size:12.5px;color:#93c5fd">${a}</div>
+          <div style="background:rgba(255,255,255,.04);padding:13px 14px;font-size:12.5px;color:#f1a8a8;line-height:1.8">${b}</div>
+          <div style="background:rgba(34,197,94,.09);padding:13px 14px;font-size:12.5px;color:#bbf7d0;line-height:1.8"><strong style="color:#4ade80">فيمتو:</strong> ${c}</div>
+        </div>`).join('')}
+      </div>
+
+      <h2 style="font-size:26px;font-weight:900;margin:26px 0 4px">💰 وهتوفر فين؟ أرقام تقديرية من الميدان</h2>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:9px;margin-top:12px">
+        ${save.map(([ic,t,v])=>`
+        <div style="background:#fff;border-radius:14px;padding:13px 10px;text-align:center">
+          <div style="font-size:21px">${ic}</div>
+          <div style="color:${INK};font-weight:800;font-size:12px;margin-top:5px">${t}</div>
+          <div dir="ltr" style="color:#16a34a;font-weight:900;font-size:17px;margin-top:3px"><bdi>${v}</bdi></div>
+        </div>`).join('')}
+      </div>
+      <p style="color:#94a3b8;font-size:12.5px;line-height:1.9;margin-top:10px">* نسب استرجاع نمطية عند الالتزام بالنظام أول ٣ شهور — أكبر توفير حقيقي: <strong style="color:#e2e8f0">قرارات صح في وقتها</strong>.</p>
+
+      <div style="margin-top:auto;text-align:center;background:linear-gradient(135deg,#0369a1,#0e7490);border-radius:18px;padding:20px 24px">
+        <div style="font-size:17px;font-weight:900">🎯 القرار بسيط: كمّل بإدارة «التصديقات»… أو سيب الأرقام تتكلم</div>
+        <div style="font-size:13px;color:#cffafe;margin-top:8px">افتح النظام الآن — أول طلب هتعمله هيوضحلك الفرق بنفسك</div>
+        <div dir="ltr" style="font-size:13px;color:#fff;font-weight:800;margin-top:9px"><bdi>concrete.fimtosoft.com</bdi></div>
+      </div>
+    </div>`);
+}
+
 /**
  * التوليد الكامل:
  * 1) يبني صفحات الأقسام بحشو ذكي بالقياس الفعلي (لا "تابع" إلا عند امتلاء الصفحة حقاً)
@@ -361,7 +483,7 @@ export async function generateManualPdf(onProgress?: (done: number, total: numbe
     /* ── 1) صفحات الأقسام بالقياس الحي ── */
     const contentPages: HTMLElement[] = [];
     const startPage: Record<string, number> = {};
-    let pageNo = 3; // 1 غلاف، 2 فهرس
+    let pageNo = 5; // 1 غلاف، 2-3 رسالة صاحب المصنع، 4 فهرس
 
     for (const sec of MANUAL_SECTIONS) {
       startPage[sec.no] = pageNo;
@@ -395,7 +517,7 @@ export async function generateManualPdf(onProgress?: (done: number, total: numbe
     }
 
     /* ── 2) الفهرس بأرقام حقيقية ── */
-    const totalAll = contentPages.length + 3;
+    const totalAll = contentPages.length + 5;
     const tocRows = MANUAL_SECTIONS.map(s => `
       <tr>
         <td style="padding:8px 6px;border-bottom:1px solid ${BORDER};width:52px"><span style="display:inline-flex;width:28px;height:28px;border-radius:8px;background:${INK};color:#fff;align-items:center;justify-content:center;font-weight:800;font-size:12px"><bdi>${s.no}</bdi></span></td>
@@ -416,6 +538,8 @@ export async function generateManualPdf(onProgress?: (done: number, total: numbe
 
     /* ── 3) التجميع ── */
     holder.appendChild(buildCover());
+    holder.appendChild(buildOwnerLetter1());
+    holder.appendChild(buildOwnerLetter2());
     holder.appendChild(toc);
     contentPages.forEach(p => holder.appendChild(p));
     holder.appendChild(buildBack());
