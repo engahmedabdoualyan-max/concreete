@@ -321,7 +321,7 @@ function buildCover(): HTMLElement {
         <div style="font-size:12px;color:#64748b"><bdi>v3.0 · ${new Date().toLocaleDateString('en-GB')}</bdi></div>
       </div>
       <div style="flex:1;display:flex;flex-direction:column;justify-content:center;text-align:center">
-        <img src="${logoUrl}" alt="Fimto" style="width:150px;height:148px;object-fit:contain;margin-bottom:22px;border-radius:24px;background:#fff;padding:8px"/>
+        <img src="${logoUrl}" alt="Fimto" style="width:150px;height:148px;object-fit:contain;margin:0 auto 22px;display:block;border-radius:24px;background:#fff;padding:8px;align-self:center"/>
         <h1 style="font-size:48px;margin:0;font-weight:900;line-height:1.6">دليل الاستخدام الكامل<br/><span style="color:#38bdf8;text-shadow:0 0 26px rgba(56,189,248,.45)">نظام فيمتو للخرسانة</span></h1>
         <p style="color:#94a3b8;font-size:17px;margin-top:18px;line-height:1.9">شرح تفصيلي لكل خاصية ووظيفة في النظام<br/>الويب · تطبيق الأندرويد · بورتال العملاء · الأجهزة الطرفية · الأمان</p>
         <div style="margin-top:28px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
