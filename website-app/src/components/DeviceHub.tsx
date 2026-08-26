@@ -13,7 +13,7 @@ export const DEVICE_DEFS = [
   { id: 'dashcam', name: 'داش كام الأسطول', en: 'Fleet Dashcam', icon: '📹', desc: 'كاميرات الشاحنات + كشف الأحداث', optional: true },
   { id: 'accounting', name: 'البرنامج المحاسبي', en: 'Accounting Sync', icon: '🔗', desc: 'QuickBooks / Sage مزامنة الفواتير والمدفوعات', optional: true },
   { id: 'gpsTrackers', name: 'متتبعات GPS', en: 'GPS Trackers', icon: '📡', desc: 'أجهزة التتبع في الشاحنات والمعدات', optional: true },
-  { id: 'weighbridge', name: 'كابريز الوزن', en: 'Weighbridge', icon: '⚖️', desc: 'ربط ميزان السيارات (اختياري — اليدوي شغال)', optional: true },
+  { id: 'weighbridge', name: 'قبّان الوزن (بسكول)', en: 'Weighbridge', icon: '⚖️', desc: 'ربط ميزان السيارات (اختياري — اليدوي شغال)', optional: true },
 ];
 
 export function useDevices() {
