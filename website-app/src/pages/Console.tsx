@@ -1546,7 +1546,7 @@ function ConsoleInner() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             <div className="rounded-2xl border border-white/10 bg-[#0B111E]/60 backdrop-blur-xl p-5">
               <h3 className="text-base font-black text-white mb-1">الاقسام الحالية — رفع الصور من الجهاز</h3>
-              <p className="text-[11px] text-slate-500 mb-3">اضغط "رفع صورة" واختار ملف من جهازك — تظهر فوراً. بعد الانتهاء اضغط "حفظ على القاعدة" عشان الصور تبقى محفوظة ومتاحة للوقت الفعلي.</p>
+              <p className="text-[11px] text-slate-500 mb-3">اضغط "رفع صورة" واختار ملف من جهازك — تظهر فوراً. بعد الانتهاء اضغط "حفظ على القاعدة" حتى تُحفظ الصور وتتاح مباشرة.</p>
               <button onClick={saveConfigBtn} className="mb-3 w-full bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 text-white text-xs font-bold py-2.5 rounded-lg shadow-[0_0_16px_rgba(56,189,248,0.25)] transition">💾 حفظ الصور والأقسام المخصصة على القاعدة</button>
               <div className="space-y-4">
                 {CONSOLE_MODULES.map(mod => {

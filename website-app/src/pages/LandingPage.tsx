@@ -111,7 +111,7 @@ export default function LandingPage() {
       <section className="max-w-4xl mx-auto px-4 py-16 text-center">
         <div className="bg-gradient-to-r from-sky-500/10 to-cyan-500/10 border border-sky-400/30 rounded-2xl p-8 sm:p-12">
           <h2 className="text-2xl sm:text-3xl font-display font-black text-white">جاهز تبدأ؟</h2>
-          <p className="text-slate-400 mt-3 text-sm">سجّل دلوقتي وجرّب مجاناً لمدة 30 يوم — بدون بطاقة ائتمان</p>
+          <p className="text-slate-400 mt-3 text-sm">سجّل الآن وجرّب مجاناً لمدة 30 يوم — بدون بطاقة ائتمان</p>
           <button onClick={() => navigate('/')} className="mt-6 bg-gradient-to-r from-sky-500 to-cyan-500 text-white font-bold py-3.5 px-10 rounded-xl text-sm hover:from-sky-400 hover:to-cyan-400 transition-all shadow-[0_0_25px_rgba(56,189,248,0.35)]">
             🚀 ابدأ الآن مجاناً
           </button>
