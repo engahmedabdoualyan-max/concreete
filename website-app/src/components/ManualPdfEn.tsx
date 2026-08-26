@@ -440,7 +440,7 @@ export async function generateManualPdfEn(onProgress?: (done: number, total: num
         const li = featureEl(f, idx);
         cnt.appendChild(li);
         const headerH = (page.firstElementChild as HTMLElement).offsetHeight;
-        if (cnt.scrollHeight > PAGE_H - 48 * 2 - headerH() - 20) {
+        if (cnt.scrollHeight > PAGE_H - 48 * 2 - headerH - 20) {
           cnt.removeChild(li);
           contentPages.push(page);
           pageNo++;
