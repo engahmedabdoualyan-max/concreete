@@ -376,6 +376,7 @@ function newPage(sec: VSec, cont: boolean) {
   </div>`);
   const cnt = el(`<div style="margin-top:18px"></div>`);
   page.appendChild(cnt);
+  page.setAttribute('data-sec', sec.no);
   return { page, cnt };
 }
 
@@ -498,13 +499,10 @@ export async function generateVisualManualPdf(onProgress?: (done: number, total:
     ));
 
     const contentPages: HTMLElement[] = [];
-    const secFirstIdx: Record<string, number> = {};
 
     holder.appendChild(buildCoverVisual());
 
     for (const sec of VSECTIONS) {
-      secFirstIdx[sec.no] = holder.children.length;
-
       /* صفحة المخطط والنقاط القصيرة (قياس حي للنصوص فقط) */
       let { page, cnt } = newPage(sec, false);
       holder.appendChild(page);
@@ -541,28 +539,33 @@ export async function generateVisualManualPdf(onProgress?: (done: number, total:
       }
     }
 
-    const tocRows = VSECTIONS.map(s => `
-      <tr>
-        <td style="padding:7px 6px;border-bottom:1px solid ${BORDER};width:46px"><span style="display:inline-flex;width:26px;height:26px;border-radius:8px;background:${INK};color:#fff;align-items:center;justify-content:center;font-weight:800;font-size:12px"><bdi>${s.no}</bdi></span></td>
-        <td style="padding:7px 6px;border-bottom:1px solid ${BORDER};font-weight:800;color:${INK};font-size:13.5px">${s.icon} ${s.title}</td>
-        <td style="padding:7px 6px;border-bottom:1px solid ${BORDER};color:${SKY};font-size:12px;font-weight:700;white-space:nowrap">ص <bdi>${secFirstIdx[s.no] + 2}</bdi></td>
-      </tr>`).join('');
-    const toc = el(`
+    const tocHtml = `
       <div lang="ar" style="width:${PAGE_W}px;height:${PAGE_H}px;background:#fff;box-sizing:border-box;padding:55px;font-family:'Segoe UI',Tahoma,Arial,sans-serif;direction:rtl;">
         <div style="border-radius:16px;background:${LIGHT};border:1px solid ${BORDER};padding:22px 26px;margin-bottom:20px">
           <div style="font-size:13px;color:${SKY};font-weight:800"><bdi>VISUAL CONTENTS</bdi></div>
           <div style="font-size:30px;font-weight:900;color:${INK}">📖 فهرس الدليل المصوّر</div>
         </div>
-        <table style="width:100%;border-collapse:collapse">${tocRows}</table>
+        <table style="width:100%;border-collapse:collapse"><tbody></tbody></table>
         <div style="margin-top:22px;background:#f0f9ff;border:1px solid #bae6fd;border-radius:12px;padding:13px 17px;color:#0369a1;font-size:12.5px;line-height:1.9">
           💡 ${VSECTIONS.length} أقسام تغطي 35 شاشة حقيقية + خرائط ذهنية وخرائط تشغيل وخوارزميات — كل قسم يبدأ بمخطط ثم يعرض الشاشات وتعليقاتها.
         </div>
-      </div>`);
-
-    holder.insertBefore(toc, holder.children[1]);
+      </div>`;
+    const toc = el(tocHtml);
+    holder.appendChild(toc);
     holder.appendChild(buildBackVisual());
+    // الفهرس هو الصفحة الثانية دائماً: الصفحة 1 = الغلاف، الصفحة 2 = الفهرس
+    holder.insertBefore(toc, holder.children[1]);
 
     const pages = Array.from(holder.children) as HTMLElement[];
+    const tocRows = VSECTIONS.map(s => `
+      <tr>
+        <td style="padding:7px 6px;border-bottom:1px solid ${BORDER};width:46px"><span style="display:inline-flex;width:26px;height:26px;border-radius:8px;background:${INK};color:#fff;align-items:center;justify-content:center;font-weight:800;font-size:12px"><bdi>${s.no}</bdi></span></td>
+        <td style="padding:7px 6px;border-bottom:1px solid ${BORDER};font-weight:800;color:${INK};font-size:13.5px">${s.icon} ${s.title}</td>
+        <td style="padding:7px 6px;border-bottom:1px solid ${BORDER};color:${SKY};font-size:12px;font-weight:700;white-space:nowrap">ص <bdi>${pages.findIndex(p => p.getAttribute('data-sec') === s.no) + 1}</bdi></td>
+      </tr>`).join('');
+    const tocTbody = toc.querySelector('table tbody');
+    if (tocTbody) tocTbody.innerHTML = tocRows;
+
     const pdf = new jsPDF({ unit: 'px', format: [PAGE_W, PAGE_H], orientation: 'portrait', compress: true });
     for (let i = 0; i < pages.length; i++) {
       onProgress?.(i, pages.length);
