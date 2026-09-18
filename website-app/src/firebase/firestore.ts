@@ -912,6 +912,10 @@ export async function addNotification(userId: string, n: Omit<Notification, 'id'
     read: false,
   };
   await saveUserData(userId, 'notifications', [entry, ...list].slice(0, 80));
+  try {
+    const { notifyBrowser } = await import('../lib/notify');
+    notifyBrowser(n.title, n.body);
+  } catch {}
 }
 export async function markNotificationsRead(userId: string): Promise<void> {
   const list = await loadNotifications(userId).catch(() => []);

@@ -91,6 +91,29 @@ async function fsSet(path: string, body: any): Promise<void> {
 }
 
 /**
+ * Online presence — writes `lastSeenAt` (ms epoch) to `users/{username}` so the
+ * website Console / Admin "المتواجدون الآن" panel shows mobile users as online.
+ * Uses the same doc id the website uses (tree accounts → their login email).
+ * Purposely fire-and-forget: never blocks the UI on a failed heartbeat.
+ */
+export async function reportPresence(username?: string | null): Promise<void> {
+  const uname = String((username || "").trim().toLowerCase());
+  if (!uname) return;
+  try {
+    await fetch(
+      `${BASE}/users/${encodeURIComponent(uname)}?updateMask.fieldPaths=lastSeenAt&key=${FIREBASE_API_KEY}`,
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", ...(await authHeaders()) },
+        body: JSON.stringify({ fields: { lastSeenAt: { integerValue: String(Date.now()) } } }),
+      }
+    );
+  } catch (err) {
+    console.warn("[presence] report failed", err);
+  }
+}
+
+/**
  * Server-stamped writes via the Firestore Commit API.
  * Field transforms (`setToServerValue: "REQUEST_TIME"`) make Firestore itself
  * record the timestamp — clients can NOT forge it (anti-tamper audit trail).

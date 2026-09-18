@@ -9,6 +9,7 @@ import { ActivityIndicator, View, Text } from "react-native";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useAuthStore, isDriver, isSalesRep, isOperationsMgr, isProductionMgr, isStationTech, isAccountant, isScheduleMgr, isLabTech, isWorkshopManager, isRepsManager } from "@/store/auth-store";
 import { isSubscriptionExpired } from "@/lib/tree-auth";
+import { reportPresence } from "@/lib/firestore";
 import "../global.css";
 
 const queryClient = new QueryClient({
@@ -27,6 +28,17 @@ export default function RootLayout() {
   useEffect(() => {
     initialize();
   }, []);
+
+  // Online presence heartbeat — mirrors the website PresenceTracker so mobile
+  // users appear under the Console/Admin "المتواجدون الآن" panel (5-min window).
+  useEffect(() => {
+    if (!isAuthenticated || !user) return;
+    const presenceId = (user.email || user.zone || "").trim().toLowerCase();
+    if (!presenceId) return;
+    void reportPresence(presenceId);
+    const timer = setInterval(() => void reportPresence(presenceId), 30_000);
+    return () => clearInterval(timer);
+  }, [isAuthenticated, user]);
 
   // The Stack (navigator) must stay mounted on the first render and on every
   // render after, otherwise expo-router throws
