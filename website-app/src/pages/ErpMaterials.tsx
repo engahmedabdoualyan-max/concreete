@@ -8,8 +8,11 @@
  */
 
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
 import ExportButtons from '../components/ExportButtons';
+import BrandLogo from '../components/BrandLogo';
+import { useAuth } from '../context/AuthContext';
 
 interface Silo {
   id: string;
@@ -103,6 +106,8 @@ const STATUS_LABEL: Record<string, string> = {
 const fmtKg = (n: string | number) => Number(n).toLocaleString('en-US', { maximumFractionDigits: 1 });
 
 export default function ErpMaterials() {
+  const { currentUser, logout } = useAuth();
+  const navigate = useNavigate();
   const [tab, setTab] = useState<'inv' | 'pr' | 'mix'>('inv');
   const [inv, setInv] = useState<InventoryData | null>(null);
   const [prData, setPrData] = useState<PRData | null>(null);
@@ -174,6 +179,20 @@ export default function ErpMaterials() {
   };
 
   return (
+    <div className="min-h-screen bg-[#0B111E]">
+      <div className="bg-[#0B111E]/80 backdrop-blur-xl border-b border-white/10 px-6 py-2.5 flex flex-wrap justify-between items-center gap-x-3 gap-y-1.5 sticky top-0 z-50 shadow-lg">
+        <div className="flex flex-wrap items-center gap-3">
+          <BrandLogo width={56} />
+          <button onClick={() => navigate('/')} className="text-slate-400 text-xs border border-white/10 px-2.5 py-1 rounded hover:text-white transition">← Dashboard</button>
+          <h1 className="text-sm font-black tracking-tight text-white">🏗️ الخامات والمخزون</h1>
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
+          {currentUser && (
+            <span className="bg-emerald-500/15 text-emerald-500 text-xs px-3 py-1.5 rounded-lg font-bold border border-emerald-500/30">🟢 {currentUser.plantName}</span>
+          )}
+          <button onClick={() => { logout(); navigate('/'); }} className="bg-white/[0.05] text-slate-300 text-xs px-3 py-1.5 rounded-lg font-bold border border-white/10 hover:border-red-400/60 hover:text-red-300 transition-colors">🚪 خروج</button>
+        </div>
+      </div>
     <div className="max-w-6xl mx-auto p-4 sm:p-6">
       <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
         <h2 className="text-lg font-black text-white tracking-tight">🏗️ الخامات والمخزون وخلطات الإنتاج</h2>
@@ -467,6 +486,7 @@ export default function ErpMaterials() {
           </div>
         </div>
       )}
+    </div>
     </div>
   );
 }

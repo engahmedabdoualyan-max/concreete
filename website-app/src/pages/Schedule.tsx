@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { loadOrders, saveOrders } from '../firebase/firestore';
 import QuickJump from '../components/QuickJump';
@@ -36,7 +36,8 @@ interface Route {
 }
 
 export default function Schedule() {
-  const { currentUser } = useAuth();
+  const { currentUser, logout } = useAuth();
+  const navigate = useNavigate();
   const mapRef = useRef<L.Map | null>(null);
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const markersRef = useRef<L.Marker[]>([]);
@@ -558,6 +559,7 @@ export default function Schedule() {
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <span className="bg-emerald-500/15 text-emerald-500 text-xs px-3 py-1.5 rounded-lg font-bold border border-emerald-500/30">🟢 {currentUser.plantName}</span>
+          <button onClick={() => { logout(); navigate('/'); }} className="bg-white/[0.05] text-slate-300 text-xs px-3 py-1.5 rounded-lg font-bold border border-white/10 hover:border-red-400/60 hover:text-red-300 transition-colors">🚪 خروج</button>
           <p className="text-[10px] text-emerald-500/80">Dr. Ahmad Abdo Alyan</p>
         </div>
       </div>

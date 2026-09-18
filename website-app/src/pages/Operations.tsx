@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { loadTrips, saveTrips, loadOrders, saveOrders, loadPlantGPS, loadAssets, loadInventory, addNotification } from '../firebase/firestore';
 import QuickJump from '../components/QuickJump';
@@ -101,7 +101,8 @@ const BATCH_RECIPES: BatchRecipe[] = [
 const BATCH_STEPS = ['Weighing Cement', 'Weighing Sand', 'Weighing Gravel', 'Adding Water', 'Adding Admixture', 'Mixing Cycle', 'Discharging to Truck'];
 
 export default function Operations() {
-  const { currentUser } = useAuth();
+  const { currentUser, logout } = useAuth();
+  const navigate = useNavigate();
   const [trips, setTrips] = useState<Trip[]>(DEFAULT_TRIPS);
   const [tripsLoaded, setTripsLoaded] = useState(false);
 
@@ -481,6 +482,7 @@ export default function Operations() {
           <NotificationsBell />
           <PlantLogo username={currentUser.username} height={32} />
           <span className="bg-emerald-500/15 text-emerald-500 text-xs px-3 py-1.5 rounded-lg font-bold border border-emerald-500/30">🟢 {currentUser.plantName}</span>
+          <button onClick={() => { logout(); navigate('/'); }} className="bg-white/[0.05] text-slate-300 text-xs px-3 py-1.5 rounded-lg font-bold border border-white/10 hover:border-red-400/60 hover:text-red-300 transition-colors">🚪 خروج</button>
           <p className="text-[10px] text-emerald-500/80">Design by Dr. Ahmad Abdo Alyan</p>
         </div>
       </div>
@@ -488,13 +490,13 @@ export default function Operations() {
       <header className="bg-[#0B111E]/80 backdrop-blur-xl border-b border-white/10 px-6 py-4 flex flex-col md:flex-row md:items-center justify-between gap-3">
         <div><h1 className="text-lg font-bold text-white">Concrete Operations & Transit Tracker</h1><p className="text-xs text-emerald-500">Multi-Plant Operations & Fleet Efficiency Analyzer</p></div>
         <div className="flex gap-3 flex-wrap items-center">
-          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search truck code..." className="bg-white/[0.04] text-white text-sm px-3 py-2 rounded-lg border border-white/10 outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)] w-44" />
-          <button onClick={() => { const t = new Date().toISOString().split('T')[0]; setReportFrom(t); setReportTo(t); setShowReport(true); }} className="bg-sky-500 hover:bg-sky-400 text-white text-sm px-4 py-2 rounded-lg font-medium shadow-[0_0_20px_rgba(56,189,248,0.3)]">📂 Fleet Report</button>
-          <button onClick={() => setShowBatching(true)} className="bg-cyan-600 hover:bg-cyan-700 text-white text-sm px-4 py-2 rounded-lg font-medium">🏭 Batching Panel</button>
-          <button onClick={() => setShowMap(true)} className="bg-sky-600 hover:bg-sky-700 text-white text-sm px-4 py-2 rounded-lg font-medium">📍 Fleet Map</button>
-          <button onClick={() => setShowDispatch(true)} className="bg-sky-500 hover:bg-sky-400 text-white text-sm px-4 py-2 rounded-lg font-medium">🧠 Smart Dispatch</button>
-          <button onClick={() => setShowLive(s => !s)} className={`text-white text-sm px-4 py-2 rounded-lg font-medium ${showLive ? 'bg-emerald-600' : 'bg-teal-600 hover:bg-teal-700'}`}>📱 Driver Live</button>
-          <button onClick={openAdd} className="bg-emerald-500 hover:bg-emerald-600 text-white text-sm px-4 py-2 rounded-lg font-medium shadow-[0_0_20px_rgba(56,189,248,0.3)]">➕ New Trip</button>
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search truck code..." className="w-56 bg-white/[0.04] text-white text-sm px-4 py-2.5 rounded-lg border border-white/10 outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)] placeholder:text-slate-500" />
+          <button onClick={() => { const t = new Date().toISOString().split('T')[0]; setReportFrom(t); setReportTo(t); setShowReport(true); }} className="text-sm px-4 py-2.5 rounded-lg font-bold transition-all duration-300 bg-gradient-to-r from-sky-500 to-cyan-500 hover:from-sky-400 hover:to-cyan-400 text-white shadow-[0_0_20px_rgba(56,189,248,0.3)]">📂 Fleet Report</button>
+          <button onClick={() => setShowBatching(true)} className="text-sm px-4 py-2.5 rounded-lg font-bold transition-all duration-300 bg-white/[0.06] hover:bg-white/[0.1] text-white border border-white/10">🏭 Batching Panel</button>
+          <button onClick={() => setShowMap(true)} className="text-sm px-4 py-2.5 rounded-lg font-bold transition-all duration-300 bg-white/[0.06] hover:bg-white/[0.1] text-white border border-white/10">📍 Fleet Map</button>
+          <button onClick={() => setShowDispatch(true)} className="text-sm px-4 py-2.5 rounded-lg font-bold transition-all duration-300 bg-white/[0.06] hover:bg-white/[0.1] text-white border border-white/10">🧠 Smart Dispatch</button>
+          <button onClick={() => setShowLive(s => !s)} className={`text-sm px-4 py-2.5 rounded-lg font-bold transition-all duration-300 border ${showLive ? 'bg-emerald-600 text-white border-emerald-500/40' : 'bg-white/[0.06] hover:bg-white/[0.1] text-white border-white/10'}`}>📱 Driver Live</button>
+          <button onClick={openAdd} className="text-sm px-4 py-2.5 rounded-lg font-bold transition-all duration-300 bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 text-white shadow-[0_0_20px_rgba(56,189,248,0.3)]">➕ New Trip</button>
         </div>
       </header>
 

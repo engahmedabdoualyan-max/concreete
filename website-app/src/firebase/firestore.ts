@@ -164,6 +164,7 @@ export async function deleteAppAccount(username: string): Promise<void> {
 export interface AppAccountUser {
   username: string;
   password: string;
+  passwordHash?: string;
   plantName: string;
   country?: string;
   city?: string;
@@ -182,7 +183,8 @@ export async function saveAppAccount(user: AppAccountUser): Promise<void> {
   const docId = user.username.toLowerCase();
   await setDoc(doc(db, 'users', docId), {
     username: docId,
-    password: user.password,
+    password: user.password || '',
+    passwordHash: user.passwordHash || '',
     plantName: user.plantName,
     country: user.country || '',
     city: user.city || '',
@@ -201,6 +203,31 @@ export async function saveAppAccount(user: AppAccountUser): Promise<void> {
     overQuota: false,
     updatedAt: serverTimestamp(),
   }, { merge: true });
+}
+
+// ====================== Presence (online status) ======================
+// Every open tab pings `users/<username>/lastSeenAt` every heartbeat. An
+// account is considered "online" if lastSeenAt is within the ONLINE_WINDOW_MS.
+export const ONLINE_WINDOW_MS = 5 * 60 * 1000; // 5 minutes
+
+export async function reportPresence(username: string): Promise<void> {
+  const uname = String(username || '').trim().toLowerCase();
+  if (!uname) return;
+  try {
+    await setDoc(doc(db, 'users', uname), { lastSeenAt: Date.now() }, { merge: true });
+  } catch {}
+}
+
+export async function clearPresence(username: string): Promise<void> {
+  const uname = String(username || '').trim().toLowerCase();
+  if (!uname) return;
+  try {
+    await setDoc(doc(db, 'users', uname), { lastSeenAt: 0 }, { merge: true });
+  } catch {}
+}
+
+export function isOnline(lastSeenAt?: number | null, now: number = Date.now()): boolean {
+  return typeof lastSeenAt === 'number' && lastSeenAt > 0 && now - lastSeenAt <= ONLINE_WINDOW_MS;
 }
 
 // ====================== Image Upload ======================

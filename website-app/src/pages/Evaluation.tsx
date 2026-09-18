@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { loadOrders, loadTrips } from '../firebase/firestore';
 import DatePicker from '../components/DatePicker';
@@ -88,7 +88,8 @@ const filterByDate = <T extends { date?: string; orderDate?: string }>(items: T[
 };
 
 export default function Evaluation() {
-  const { currentUser } = useAuth();
+  const { currentUser, logout } = useAuth();
+  const navigate = useNavigate();
   const [fromDate, setFromDate] = useState(() => {
     const today = new Date();
     const monthAgo = new Date(today);
@@ -477,6 +478,7 @@ export default function Evaluation() {
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <span className="bg-emerald-500/15 text-emerald-500 text-xs px-3 py-1.5 rounded-lg font-bold border border-emerald-500/30">🟢 {currentUser.plantName}</span>
+          <button onClick={() => { logout(); navigate('/'); }} className="bg-white/[0.05] text-slate-300 text-xs px-3 py-1.5 rounded-lg font-bold border border-white/10 hover:border-red-400/60 hover:text-red-300 transition-colors">🚪 خروج</button>
           <p className="text-[10px] text-emerald-500/80">د. أحمد عبده عليان</p>
         </div>
       </div>

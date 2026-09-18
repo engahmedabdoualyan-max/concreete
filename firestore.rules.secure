@@ -37,10 +37,11 @@ service cloud.firestore {
       allow read, write: if request.auth != null;
     }
 
-    // Uploaded console images metadata (base64 payloads) — public read for display
+    // Uploaded console images metadata (base64 payloads) — public read for display.
+    // Console writes them directly (SDK), so allow authenticated writes.
     match /media/{mediaId} {
-      allow read: if true;          // images shown to customers/portal
-      allow write: if false;        // writes go through server/admin only (future)
+      allow read: if true;
+      allow write: if request.auth != null;
     }
 
     // Everything else: denied by default.

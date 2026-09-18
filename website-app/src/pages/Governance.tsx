@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { loadWeighbridgeRecords, saveWeighbridgeRecords, loadReturns, saveReturns } from '../firebase/firestore';
 import QuickJump from '../components/QuickJump';
@@ -53,7 +53,8 @@ async function verifyChain(records: WeighRecord[]): Promise<{ intact: boolean; t
 }
 
 export default function Governance() {
-  const { currentUser } = useAuth();
+  const { currentUser, logout } = useAuth();
+  const navigate = useNavigate();
   const [tab, setTab] = useState<'weigh' | 'returns'>('weigh');
   const [weigh, setWeigh] = useState<WeighRecord[]>([]);
   const [returns, setReturns] = useState<ReturnRecord[]>([]);
@@ -141,6 +142,7 @@ export default function Governance() {
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <span className="bg-emerald-500/15 text-emerald-500 text-xs px-3 py-1.5 rounded-lg font-bold border border-emerald-500/30">🟢 {currentUser.plantName}</span>
+          <button onClick={() => { logout(); navigate('/'); }} className="bg-white/[0.05] text-slate-300 text-xs px-3 py-1.5 rounded-lg font-bold border border-white/10 hover:border-red-400/60 hover:text-red-300 transition-colors">🚪 خروج</button>
         </div>
       </div>
 

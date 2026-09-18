@@ -5,7 +5,7 @@ import { useLang } from '../context/LangContext';
 import type { Translations } from '../context/translations';
 import { useNavigate } from 'react-router-dom';
 import LangSelector from '../components/LangSelector';
-import { loadPlantGPS, savePlantGPS, getAllPlantsSummary, loadPlantLogo, savePlantLogo, loadPlants, loadBlockPlants, type PlantSummary } from '../firebase/firestore';
+import { loadPlantGPS, savePlantGPS, getAllPlantsSummary, loadPlantLogo, savePlantLogo, loadPlants, loadBlockPlants, getAllUsers, getAllCompanyTrees, isOnline, type PlantSummary, type CompanyTree } from '../firebase/firestore';
 import FactoryData from '../components/FactoryData';
 import PlantsManager from '../components/PlantsManager';
 import GpsPanel from '../components/GpsPanel';
@@ -15,7 +15,7 @@ import DeviceHub from '../components/DeviceHub';
 import { DeviceStatusBadge } from '../components/DeviceHub';
 import ErpAdminOverview from '../components/ErpAdminOverview';
 
-type Tab = 'overview' | 'plant' | 'plants' | 'users' | 'sections' | 'gps' | 'erp' | 'devices';
+type Tab = 'overview' | 'plant' | 'plants' | 'users' | 'sections' | 'gps' | 'erp' | 'devices' | 'online';
 type FactorySub = 'profile' | 'fleet' | 'stock' | 'config' | 'trackers';
 
 const ROLE_EMOJIS: Record<UserRole, string> = {
@@ -74,8 +74,118 @@ function Field({ label, value, onChange, type = 'text', rows }: {
   );
 }
 
+function OnlinePanel({ users, trees, loading, onRefresh }: {
+  users: any[]; trees: Record<string, CompanyTree>; loading: boolean; onRefresh: () => void;
+}) {
+  const [tick, setTick] = useState(0);
+  useEffect(() => { const i = setInterval(() => setTick(x => x + 1), 30_000); return () => clearInterval(i); }, []);
+  void tick;
+
+  const byUname = new Map<string, any>();
+  (users || []).forEach(u => { byUname.set(String(u?.username || '').toLowerCase(), u); });
+
+  const rel = (ts?: number | null) => {
+    if (!ts || typeof ts !== 'number' || ts <= 0) return 'غير معروف';
+    const diff = Date.now() - ts;
+    const m = Math.floor(diff / 60000);
+    if (m < 1) return 'الآن';
+    if (m < 60) return `منذ ${m} دقيقة`;
+    const h = Math.floor(m / 60);
+    return `منذ ${h} ساعة${m % 60 ? ` و${m % 60} دقيقة` : ''}`;
+  };
+
+  const badge = (u: any) => {
+    const on = isOnline(typeof u?.lastSeenAt === 'number' ? u.lastSeenAt : null);
+    return (
+      <span className={`text-xs px-2.5 py-1 rounded font-bold ${on ? 'bg-emerald-500/20 text-emerald-400' : 'bg-slate-600/30 text-slate-400'}`}>
+        {on ? '🟢 أونلاين' : '🔴 أوفلاين'}
+      </span>
+    );
+  };
+
+  const row = (u: any) => (
+    <div key={String(u?.username)} className="flex items-center justify-between gap-3 bg-white/[0.02] rounded-lg px-4 py-3 border border-white/10">
+      <div className="min-w-0">
+        <p className="font-bold text-white truncate">{u?.roleAr || u?.plantName || u?.name || u?.username || '—'}</p>
+        <p className="text-xs text-slate-400 truncate" dir="ltr">@{u?.username}{u?.roleAr ? ` · ${u?.roleAr}` : ''}</p>
+      </div>
+      <div className="text-right shrink-0 flex items-center gap-2">
+        <span className="text-[10px] text-slate-500">آخر نشاط: {rel(u?.lastSeenAt)}</span>
+        {badge(u)}
+      </div>
+    </div>
+  );
+
+  const onlineCount = (users || []).filter(u => isOnline(typeof u?.lastSeenAt === 'number' ? u.lastSeenAt : null)).length;
+  const knownTreeUnames = new Set<string>();
+  Object.values(trees).forEach(tr => {
+    knownTreeUnames.add(String(tr.companyUsername || '').toLowerCase());
+    (tr.accounts || []).forEach(a => {
+      const em = String(a?.email || '').trim().toLowerCase();
+      if (em) knownTreeUnames.add(em);
+    });
+  });
+  const others = (users || []).filter(u => {
+    const un = String(u?.username || '').toLowerCase();
+    return un !== 'guest' && !knownTreeUnames.has(un);
+  });
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div>
+          <h2 className="text-xl font-black tracking-tight text-white">🟢 المتواجدون الآن</h2>
+          <p className="text-sm text-slate-400 mt-1">الحساب يعتبر أونلاين إذا فتح التطبيق/الموقع خلال آخر 5 دقائق (يُحدَّث كل 30 ثانية تلقائياً).</p>
+        </div>
+        <button
+          onClick={() => { onRefresh(); }}
+          disabled={loading}
+          className="bg-gradient-to-r from-sky-500 to-cyan-500 hover:from-sky-400 hover:to-cyan-400 disabled:opacity-50 text-white px-5 py-2 rounded-lg font-bold text-sm transition-all duration-300 shadow-[0_0_20px_rgba(56,189,248,0.3)]"
+        >
+          {loading ? '⏳ جاري التحديث...' : '🔄 تحديث'}
+        </button>
+      </div>
+
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+        <div className="bg-white/[0.04] rounded-2xl border border-emerald-500/30 p-6"><p className="text-xs text-slate-400">🟢 أونلاين الآن</p><p className="text-3xl font-black text-emerald-400">{onlineCount}</p></div>
+        <div className="bg-white/[0.04] rounded-2xl border border-white/10 p-6"><p className="text-xs text-slate-400">👥 إجمالي الحسابات</p><p className="text-3xl font-black text-white">{(users || []).length}</p></div>
+        <div className="bg-white/[0.04] rounded-2xl border border-white/10 p-6"><p className="text-xs text-slate-400">🏢 الشركات والأشجار</p><p className="text-3xl font-black text-white">{Object.keys(trees).length}</p></div>
+      </div>
+
+      {loading && <div className="bg-white/[0.04] rounded-2xl border border-white/10 p-10 text-center text-slate-400">⏳ تحميل حالة الوجود...</div>}
+
+      {Object.entries(trees).map(([uname, tr]) => {
+        const owner = byUname.get(uname);
+        return (
+          <div key={uname} className="bg-white/[0.04] rounded-2xl border border-white/10 p-6 backdrop-blur-xl">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-bold text-white text-lg">🏭 {tr.companyUsername} <span className="text-xs text-slate-500">شجرة الحسابات</span></h3>
+              <span className="text-xs px-2.5 py-1 rounded font-bold bg-sky-500/15 text-sky-300">{tr.accounts?.length || 0} حساب</span>
+            </div>
+            <div className="space-y-2">
+              {owner && <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-3 py-1.5 mb-1"><p className="text-[11px] font-bold text-emerald-400 mb-1">👑 صاحب الشركة</p>{row(owner)}</div>}
+              {(tr.accounts || []).map(a => {
+                const em = String(a?.email || '').trim().toLowerCase();
+                const u = byUname.get(em) || { username: em, roleAr: a?.roleAr, plantName: '' };
+                return <div key={em}>{row(u)}</div>;
+              })}
+            </div>
+          </div>
+        );
+      })}
+
+      {others.length > 0 && (
+        <div className="bg-white/[0.04] rounded-2xl border border-white/10 p-6 backdrop-blur-xl">
+          <h3 className="font-bold text-white text-lg mb-3">👥 حسابات الشركات الأخرى</h3>
+          <div className="space-y-2">{others.map(u => row(u))}</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function AdminPanel() {
-  const { currentUser } = useAuth();
+  const { currentUser, logout } = useAuth();
   const { plant, savePlant, users, addUser, updateUser, deleteUser, canManageAdmin } = useAdmin();
   const { t } = useLang();
   const navigate = useNavigate();
@@ -98,6 +208,30 @@ export default function AdminPanel() {
   const [logo, setLogo] = useState('');
   const [plantCount, setPlantCount] = useState(0);
   const [blockCount, setBlockCount] = useState(0);
+  const [presenceUsers, setPresenceUsers] = useState<any[]>([]);
+  const [treesMap, setTreesMap] = useState<Record<string, CompanyTree>>({});
+  const [presenceLoading, setPresenceLoading] = useState(false);
+  const [presenceReload, setPresenceReload] = useState(0);
+
+  useEffect(() => {
+    if (tab !== 'online') return;
+    let mounted = true;
+    const load = async () => {
+      setPresenceLoading(true);
+      try {
+        const [us, trs] = await Promise.all([getAllUsers(), getAllCompanyTrees()]);
+        if (!mounted) return;
+        setPresenceUsers(us || []);
+        const map: Record<string, CompanyTree> = {};
+        (trs || []).forEach(t => { map[String(t.companyUsername).toLowerCase()] = t; });
+        setTreesMap(map);
+      } catch {}
+      if (mounted) setPresenceLoading(false);
+    };
+    load();
+    const timer = setInterval(load, 30_000);
+    return () => { mounted = false; clearInterval(timer); };
+  }, [tab, presenceReload]);
 
   useEffect(() => {
     if (!currentUser) return;
@@ -237,6 +371,7 @@ export default function AdminPanel() {
     { key: 'sections', label: 'Sections Overview', emoji: '🧩' },
     { key: 'erp', label: 'ERP Finance & Inventory', emoji: '💼' },
     { key: 'gps', label: 'GPS Map', emoji: '🗺️' },
+    { key: 'online', label: 'المتواجدون الآن', emoji: '🟢' },
     { key: 'devices', label: 'الأجهزة الطرفية', emoji: '🔌' },
   ];
 
@@ -255,6 +390,12 @@ export default function AdminPanel() {
               className="bg-white/[0.06] hover:bg-white/[0.1] text-white px-5 py-2.5 rounded-lg font-bold transition-all duration-300"
             >
               ← {t('backToDashboard')}
+            </button>
+            <button
+              onClick={() => { logout(); navigate('/'); }}
+              className="bg-white/[0.06] hover:bg-red-500/20 text-white px-5 py-2.5 rounded-lg font-bold transition-all duration-300 border border-white/10 hover:border-red-400/60"
+            >
+              🚪 خروج
             </button>
           </div>
         </div>
@@ -665,6 +806,10 @@ export default function AdminPanel() {
               })
             )}
           </div>
+        )}
+
+        {tab === 'online' && (
+          <OnlinePanel users={presenceUsers} trees={treesMap} loading={presenceLoading} onRefresh={() => setPresenceReload(x => x + 1)} />
         )}
 
         {tab === 'erp' && (

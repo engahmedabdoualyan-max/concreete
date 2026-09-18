@@ -24,12 +24,14 @@ import Console from './pages/Console';
 import CustomSection from './pages/CustomSection';
 import CustomerPortal from './pages/CustomerPortal';
 import LandingPage from './pages/LandingPage';
+import PresenceTracker from './components/PresenceTracker';
 
 export default function App() {
   return (
     <DateProvider>
     <LangProvider>
     <AuthProvider>
+      <PresenceTracker />
     <AdminProvider>
       <HashRouter>
         <Routes>

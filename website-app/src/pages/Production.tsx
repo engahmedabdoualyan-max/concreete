@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { loadInventory, saveInventory, loadDeliveries, saveDeliveries, loadProductionRuns, saveProductionRuns, loadOrders, saveOrders, loadAdditives, saveAdditives, addNotification } from '../firebase/firestore';
 import DatePicker from '../components/DatePicker';
@@ -66,7 +66,8 @@ interface BlockProduction {
 const MAX: Record<string, number> = { cement: 100, sand: 200, gravel: 300, admixture: 2000 };
 
 export default function Production() {
-  const { currentUser } = useAuth();
+  const { currentUser, logout } = useAuth();
+  const navigate = useNavigate();
   const DEF_INV = { cement: 85, sand: 156, gravel: 270, admixture: 1700 };
   const DEF_DELIV = [{ date: '2026-06-17', material: 'cement', qty: 25, invoice: 'INV-4012' }, { date: '2026-06-18', material: 'admixture', qty: 500, invoice: 'INV-4099' }];
   const [inventory, setInventory] = useState<Record<string, number>>(DEF_INV);
@@ -386,6 +387,7 @@ export default function Production() {
           <DeviceStatusBadge id="batchController" />
           <NotificationsBell />
           <span className="bg-emerald-500/15 text-emerald-500 text-xs px-3 py-1.5 rounded-lg font-bold border border-emerald-500/30">🟢 {currentUser.plantName}</span>
+          <button onClick={() => { logout(); navigate('/'); }} className="bg-white/[0.05] text-slate-300 text-xs px-3 py-1.5 rounded-lg font-bold border border-white/10 hover:border-red-400/60 hover:text-red-300 transition-colors">🚪 خروج</button>
           <p className="text-[10px] text-emerald-500/80">Design by Dr. Ahmad Abdo Alyan</p>
         </div>
       </div>

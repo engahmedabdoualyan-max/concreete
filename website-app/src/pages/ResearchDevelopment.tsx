@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { loadRnDData, saveRnDData } from '../firebase/firestore';
 import QuickJump from '../components/QuickJump';
@@ -40,7 +40,8 @@ interface Training {
 }
 
 export default function ResearchDevelopment() {
-  const { currentUser } = useAuth();
+  const { currentUser, logout } = useAuth();
+  const navigate = useNavigate();
   const [tab, setTab] = useState<'research' | 'innovation' | 'training'>('research');
   const [loaded, setLoaded] = useState(false);
   const loadedRef = useRef(false);
@@ -112,6 +113,7 @@ export default function ResearchDevelopment() {
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <span className="bg-emerald-500/15 text-emerald-500 text-xs px-3 py-1.5 rounded-lg font-bold border border-emerald-500/30">🟢 {currentUser.plantName}</span>
+          <button onClick={() => { logout(); navigate('/'); }} className="bg-white/[0.05] text-slate-300 text-xs px-3 py-1.5 rounded-lg font-bold border border-white/10 hover:border-red-400/60 hover:text-red-300 transition-colors">🚪 خروج</button>
         </div>
       </div>
 

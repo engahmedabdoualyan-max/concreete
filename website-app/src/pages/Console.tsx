@@ -1,6 +1,6 @@
 import { useState, useEffect, type FormEvent, type ReactNode, Component } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { saveUser, getAllUsers, saveCompanyTree, saveCompanySubscription, deleteCompany, uploadConsoleImage, saveSiteConfig, loadSiteConfig, getStorageStatus, loadPlantProfile, savePlantProfile, savePlantLogo, type CompanyTree, type SiteConfig } from '../firebase/firestore';
+import { saveUser, getAllUsers, saveCompanyTree, saveCompanySubscription, deleteCompany, uploadConsoleImage, saveSiteConfig, loadSiteConfig, getStorageStatus, loadPlantProfile, savePlantProfile, savePlantLogo, isOnline, type CompanyTree, type SiteConfig } from '../firebase/firestore';
 import BrandLogo from '../components/BrandLogo';
 import type { UserSession } from '../context/AuthContext';
 import { TREE_ROLES, treeModsForRole } from '../lib/treeRoles';
@@ -18,6 +18,10 @@ const CONSOLE_MODULES = [
   { path: 'schedule', en: 'Schedule', ar: 'الجدول' },
   { path: 'evaluation', en: 'Evaluation', ar: 'التقييم' },
   { path: 'rnd', en: 'R & D', ar: 'البحث والتطوير' },
+  { path: 'materials', en: 'Materials (ERP)', ar: 'الموارد والمواد' },
+  { path: 'governance', en: 'Governance', ar: 'الحوكمة' },
+  { path: 'finance', en: 'Finance', ar: 'المالية' },
+  { path: 'multiplant', en: 'Multi-Plant', ar: 'المحطات' },
 ];
 
 const ROLES = TREE_ROLES;
@@ -191,6 +195,7 @@ function ConsoleInner() {
   };
   const [treeOpen, setTreeOpen] = useState<string | null>(null);
   const [trees, setTrees] = useState<Record<string, TreeAccount[]>>({});
+  const [presence, setPresence] = useState<Record<string, any>>({});
   const [treeRole, setTreeRole] = useState('driver');
   const [treeCount, setTreeCount] = useState(1);
   const [treeDraft, setTreeDraft] = useState<TreeAccount[]>([]);
@@ -230,6 +235,9 @@ function ConsoleInner() {
           return saved ? JSON.parse(saved) : [];
         } catch { return []; }
       })());
+      const pm: Record<string, any> = {};
+      (list || []).forEach((u: any) => { if (u?.username) pm[String(u.username).toLowerCase()] = u; });
+      setPresence(pm);
       // Load subscription dates for each company (from companyTrees doc)
       (async () => {
         try {
@@ -280,10 +288,68 @@ function ConsoleInner() {
   const hashTreeRows = async (rows: TreeAccount[]): Promise<TreeAccount[]> => {
     const out: TreeAccount[] = [];
     for (const a of rows) {
-      const passwordHash = await hashPassword(a.email || a.phone || '', a.password || '');
-      out.push({ ...a, passwordHash, password: '' });
+      const loginId = String(a.email || a.phone || '').trim().toLowerCase();
+      const passwordHash = await hashPassword(loginId, a.password || '');
+      out.push({ ...a, email: loginId, passwordHash, password: '' });
     }
     return out;
+  };
+
+  // Register each hashed tree account in the shared `users` collection so web/mobile
+  // login works. Failures are collected (never swallowed) so the UI can report honestly.
+  const registerTreeAccounts = async (
+    hashed: TreeAccount[],
+    company: UserSession,
+    username: string,
+  ): Promise<{ ok: number; failed: { email: string; error: string }[] }> => {
+    const fs = await import('../firebase/firestore');
+    const failed: { email: string; error: string }[] = [];
+    let ok = 0;
+    for (const a of hashed) {
+      try {
+        await fs.saveAppAccount({
+          username: a.email,
+          password: a.password,
+          passwordHash: a.passwordHash,
+          plantName: company.plantName || username,
+          country: company.country,
+          city: company.city,
+          phone: a.phone,
+          email: a.email,
+          status: 'APP_ACCOUNT',
+          role: a.role,
+          roleAr: a.roleAr,
+          permissions: a.permissions,
+          mods: a.mods || treeModsForRole(a.role),
+          truck: a.truck,
+          gps: a.gps,
+        });
+        ok++;
+      } catch (e: any) {
+        failed.push({ email: a.email || a.phone || '?', error: String(e?.message || e) });
+      }
+    }
+    return { ok, failed };
+  };
+
+  const treeSaveReport = (ok: number, failed: { email: string; error: string }[]) => {
+    if (failed.length === 0) return `✅ تم حفظ الشجرة — ${ok} حساب مسجل في الداتابيز ✓`;
+    const names = failed.map(f => f.email).slice(0, 4).join('، ');
+    const more = failed.length > 4 ? ` (والى آخرها ${failed.length - 4})` : '';
+    return `⚠️ تم حفظ الشجرة، لكن نجح ${ok} / ${ok + failed.length} حساب فقط — فشل تسجيل: ${names}${more}. تحقق من الإتصال ثم أعد الحفظ`;
+  };
+
+  const onlineBadge = (id: string) => {
+    const u = presence[String(id || '').toLowerCase()];
+    const on = !!u && isOnline(typeof u.lastSeenAt === 'number' ? u.lastSeenAt : null);
+    return (
+      <span
+        title={`آخر نشاط: ${u?.lastSeenAt && typeof u.lastSeenAt === 'number' ? new Date(u.lastSeenAt).toLocaleString() : 'غير معروف'}`}
+        className={`text-[10px] font-bold px-2 py-1 rounded border shrink-0 ${on ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' : 'bg-white/[0.04] text-slate-500 border-white/10'}`}
+      >
+        {on ? '🟢 أونلاين' : '🔴 أوفلاين'}
+      </span>
+    );
   };
 
   const handleLogin = async (e: FormEvent) => {
@@ -463,20 +529,8 @@ function ConsoleInner() {
         subscriptionStatus: sub.subscriptionStatus,
       };
       await fs.saveCompanyTree(tree);
-      for (const a of hashed) {
-        try {
-          await fs.saveAppAccount({
-            username: a.email,
-            password: a.password,
-            passwordHash: a.passwordHash,
-            plantName: company.plantName || username,
-            country: company.country, city: company.city,
-            phone: a.phone, email: a.email,             status: 'APP_ACCOUNT',
-            role: a.role, roleAr: a.roleAr, permissions: a.permissions, mods: a.mods || treeModsForRole(a.role), truck: a.truck, gps: a.gps,
-          });
-        } catch (e) { console.error('acct save', e); }
-      }
-      setError(`✅ تم حفظ وتسجيل ${rows.length} حساب في الداتابيز + الشجرة`);
+      const { ok, failed } = await registerTreeAccounts(hashed, company, username);
+      setError(treeSaveReport(ok, failed));
     } catch (err) {
       console.error('Tree save failed', err);
       setError('فشل حفظ الشجرة ❌');
@@ -664,30 +718,10 @@ function ConsoleInner() {
         subscriptionStatus: sub.subscriptionStatus,
       };
       await fs.saveCompanyTree(tree);
-      for (const a of hashed) {
-        try {
-          await fs.saveAppAccount({
-            username: a.email,
-            password: a.password,
-            passwordHash: a.passwordHash,
-            plantName: company.plantName || treeOpen,
-            country: company.country,
-            city: company.city,
-            phone: a.phone,
-            email: a.email,
-            status: 'APP_ACCOUNT',
-            role: a.role,
-            roleAr: a.roleAr,
-            permissions: a.permissions,
-            mods: a.mods || treeModsForRole(a.role),
-            truck: a.truck,
-            gps: a.gps,
-          });
-        } catch (e) { console.error('acct save', e); }
-      }
+      const { ok, failed } = await registerTreeAccounts(hashed, company, treeOpen);
       setTrees(prev => ({ ...prev, [treeOpen]: rows }));
       setTreeDraft([]);
-      setError(`تم حفظ الشجرة — ${rows.length} حساب مسجل في الداتابيز ✓`);
+      setError(treeSaveReport(ok, failed));
     } catch (err) {
       console.error('Tree save failed', err);
       setError('فشل حفظ الشجرة ❌');
@@ -1106,7 +1140,7 @@ function ConsoleInner() {
       </div>
 
       <div className="rounded-2xl border border-white/10 bg-[#0B111E]/60 backdrop-blur-xl p-5">
-        <h3 className="text-base font-black text-white mb-3">الشركات المسجلة ({companies.length})</h3>
+        <h3 className="text-base font-black text-white mb-3">الشركات المسجلة ({companies.length}) {companies.filter(u => isOnline(typeof presence[(u.username || '').toLowerCase()]?.lastSeenAt === 'number' ? presence[(u.username || '').toLowerCase()]?.lastSeenAt : null)).length > 0 && <span className="text-emerald-400">· 🟢 {companies.filter(u => isOnline(typeof presence[(u.username || '').toLowerCase()]?.lastSeenAt === 'number' ? presence[(u.username || '').toLowerCase()]?.lastSeenAt : null)).length} متواجد الآن</span>}</h3>
         {companies.length === 0 ? (
           <p className="text-xs text-slate-500 text-center py-8">لا توجد شركات بعد — انشئ شركة ثم افتح شجرتها</p>
         ) : (
@@ -1127,6 +1161,7 @@ function ConsoleInner() {
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
                       <span className={`text-[10px] font-bold px-2 py-1 rounded ${u.status === 'ACTIVE' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30' : 'bg-sky-500/10 text-sky-300 border border-sky-500/30'}`}>{u.status || 'FREE_TRIAL'}</span>
+                      {onlineBadge(uname)}
                       {isProtected && (
                         <span className="text-[10px] font-bold px-2 py-1 rounded bg-yellow-500/10 text-yellow-300 border border-yellow-500/30" title="شركة محمية — الحذف يتطلب باسورد الحماية">🔒 محمية</span>
                       )}
@@ -1464,7 +1499,10 @@ function ConsoleInner() {
                             <div key={i} className="rounded-lg bg-white/[0.03] border border-white/10 p-2.5 space-y-1.5">
                               <div className="flex items-center justify-between gap-2">
                                 <p className="text-xs font-bold text-sky-300 truncate" dir="ltr">{a.email}</p>
-                                <p className="text-[10px] text-slate-400">{a.roleAr} · {a.permissions.join('، ')}</p>
+                                <div className="flex items-center gap-2 shrink-0">
+                                  {onlineBadge(a.email)}
+                                  <p className="text-[10px] text-slate-400">{a.roleAr} · {a.permissions.join('، ')}</p>
+                                </div>
                               </div>
                               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                                 <input value={a.truck || ''} onChange={o => updateSavedRow(uname, i, 'truck', o.target.value)} className={`${inputCls} text-xs`} placeholder="🚚 السيارة / لوحة التسجيل" />

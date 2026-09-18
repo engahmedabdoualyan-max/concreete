@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import QRCode from 'qrcode';
 import { useAuth } from '../context/AuthContext';
 import { loadPayments, savePayments, loadPurchaseOrders, savePurchaseOrders, loadInventory, loadOrders } from '../firebase/firestore';
@@ -29,7 +29,8 @@ const MATERIALS = [
 ];
 
 export default function Finance() {
-  const { currentUser } = useAuth();
+  const { currentUser, logout } = useAuth();
+  const navigate = useNavigate();
   const [tab, setTab] = useState<'payments' | 'reorder'>('payments');
   const [payments, setPayments] = useState<Payment[]>([]);
   const [pos, setPos] = useState<PO[]>([]);
@@ -146,7 +147,10 @@ export default function Finance() {
           <QuickJump /> <LangSelector />
           <h1 className="text-sm font-bold text-white">💰 Finance: Payments & Auto Reorder</h1>
         </div>
-        <span className="bg-emerald-500/15 text-emerald-500 text-xs px-3 py-1.5 rounded-lg font-bold border border-emerald-500/30">🟢 {currentUser.plantName}</span>
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="bg-emerald-500/15 text-emerald-500 text-xs px-3 py-1.5 rounded-lg font-bold border border-emerald-500/30">🟢 {currentUser.plantName}</span>
+          <button onClick={() => { logout(); navigate('/'); }} className="bg-white/[0.05] text-slate-300 text-xs px-3 py-1.5 rounded-lg font-bold border border-white/10 hover:border-red-400/60 hover:text-red-300 transition-colors">🚪 خروج</button>
+        </div>
       </div>
 
       <div className="max-w-6xl mx-auto p-6">

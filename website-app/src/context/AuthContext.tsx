@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
 import emailjs from '@emailjs/browser';
-import { saveUser, getUser } from '../firebase/firestore';
+import { saveUser, getUser, reportPresence, clearPresence } from '../firebase/firestore';
 import { hashPassword } from '../lib/passwords';
 
 const EMAILJS_PUBLIC_KEY = 'UPIUNYeckrEK-z_xz';
@@ -165,8 +165,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = () => {
+    const uname = currentUser?.username;
     setCurrentUser(null);
     localStorage.removeItem('currentUserSession');
+    if (uname) { try { clearPresence(uname); } catch {} }
   };
 
   const loginAsGuest = async (guestPassword?: string): Promise<void> => {

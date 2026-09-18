@@ -1,0 +1,13 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Admin console uploads (module & section images)
+    match /console/{allPaths=**} {
+      allow read, write: if true;
+    }
+    // Existing public user-data files remain accessible
+    match /userData/{userId}/{allPaths=**} {
+      allow read, write: if true;
+    }
+  }
+}

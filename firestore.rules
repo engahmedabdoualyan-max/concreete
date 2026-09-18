@@ -1,35 +1,47 @@
 rules_version = '2';
 
+// ═══════════════════════════════════════════════════════════════
+//  SECURE RULESET (current live target)
+//  Clients authenticate via anonymous Firebase auth; every read/write
+//  requires a valid auth token. `media` writes are allowed for
+//  authenticated clients because the Console admin uploads section
+//  images directly through the SDK (dbimg://id payloads).
+// ═══════════════════════════════════════════════════════════════
+
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Users collection: app-level auth (login stored in DB, not Firebase Auth)
+
+    // App users (login profiles). Read/write requires auth.
     match /users/{username} {
-      allow read, write: if true;
+      allow read, write: if request.auth != null;
     }
 
-    // Per-user data documents: userData/{userId}/{collectionName}/data
-    match /userData/{userId}/{collectionName}/data {
-      allow read, write: if true;
-    }
-
-    // Top-level per-user document (storage quota / usage tracking)
+    // Per-user ERP data: userData/{userId}/{collectionName}/data
     match /userData/{userId} {
-      allow read, write: if true;
+      allow read, write: if request.auth != null;
+
+      match /{collectionName}/data {
+        allow read, write: if request.auth != null;
+      }
     }
 
     // Company app-tree (app login accounts per company)
     match /companyTrees/{companyUsername} {
-      allow read, write: if true;
+      allow read, write: if request.auth != null;
     }
 
-    // Console admin site-level config (custom sections + uploaded images metadata)
+    // Console site-level config + OTP hash records (public READ needed for logos/images)
     match /siteConfig/{docId} {
-      allow read, write: if true;
+      allow read, write: if request.auth != null;
     }
 
-    // Uploaded console images (compressed base64, one doc per image)
+    // Uploaded console images metadata (base64 payloads) — public read for display.
+    // Console writes them directly (SDK), so allow authenticated writes.
     match /media/{mediaId} {
-      allow read, write: if true;
+      allow read: if true;
+      allow write: if request.auth != null;
     }
+
+    // Everything else: denied by default.
   }
 }

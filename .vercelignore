@@ -1,0 +1,13 @@
+node_modules
+website-app/node_modules
+website-app/apps/mobile/node_modules
+.next
+out
+website-app/dist
+website-app/apps/mobile/dist
+website-app/apps/mobile/android
+website-app/apps/mobile/ios
+website-app/apps/mobile/.expo
+backups
+.git
+*.tsbuildinfo

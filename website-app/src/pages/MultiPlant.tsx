@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useAdmin } from '../context/AdminContext';
 import { getAllPlantsSummary } from '../firebase/firestore';
@@ -10,7 +10,8 @@ import BrandLogo from '../components/BrandLogo';
 interface Row { username: string; plantName: string; country: string; city: string; trips: number; totalVolume: number; inventory: Record<string, number>; qcCount: number; orders: any[]; payments: any[]; pos: any[]; }
 
 export default function MultiPlant() {
-  const { currentUser } = useAuth();
+  const { currentUser, logout } = useAuth();
+  const navigate = useNavigate();
   const { canManageAdmin } = useAdmin();
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
@@ -52,7 +53,10 @@ export default function MultiPlant() {
           <QuickJump /> <LangSelector />
           <h1 className="text-sm font-bold text-white">🏭 Multi-Plant Command Center</h1>
         </div>
-        <span className="bg-emerald-500/15 text-emerald-500 text-xs px-3 py-1.5 rounded-lg font-bold border border-emerald-500/30">👑 {currentUser.username}</span>
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="bg-emerald-500/15 text-emerald-500 text-xs px-3 py-1.5 rounded-lg font-bold border border-emerald-500/30">👑 {currentUser.username}</span>
+          <button onClick={() => { logout(); navigate('/'); }} className="bg-white/[0.05] text-slate-300 text-xs px-3 py-1.5 rounded-lg font-bold border border-white/10 hover:border-red-400/60 hover:text-red-300 transition-colors">🚪 خروج</button>
+        </div>
       </div>
 
       <div className="max-w-7xl mx-auto p-6">
