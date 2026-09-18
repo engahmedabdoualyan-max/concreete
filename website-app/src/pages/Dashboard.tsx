@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth, type UserSession } from '../context/AuthContext';
 import { useAdmin } from '../context/AdminContext';
 import { useLang } from '../context/LangContext';
-import { loadTrips, loadEffectiveConfig } from '../firebase/firestore';
+import { loadTrips, loadEffectiveConfig, resolveDbImage, isDbImageRef } from '../firebase/firestore';
 import QuickJump from '../components/QuickJump';
 import LangSelector from '../components/LangSelector';
 import BrandLogo from '../components/BrandLogo';
@@ -141,16 +141,18 @@ const DEFAULT_TRIPS: Trip[] = [
   { id: 3, plant: "PLANT-B", date: "2026-06-18", code: "m03", driver: "Saeed John", qty: 10, pump: "p02", estTime: 30, stationArr: "09:00", stationDep: "09:12", siteArr: "09:42", siteDep: "10:20", siteName: "Khobar Site", projectName: "Tower B", status: "COMPLETED" },
 ];
 
-function ModuleButton({ m, onGo, className = "", showDesc = false }: { m: ModuleDef; onGo: () => void; className?: string; showDesc?: boolean }) {
+function ModuleButton({ m, onGo, className = "", showDesc = false, mediaClass = "" }: { m: ModuleDef; onGo: () => void; className?: string; showDesc?: boolean; mediaClass?: string }) {
   const media = m.bgImage || m.image;
+  const stillRef = typeof media === 'string' && media.startsWith('dbimg://');
+  const showMedia = !stillRef && media;
   return (
     <button
       onClick={onGo}
       className={`group relative flex flex-row items-stretch overflow-hidden w-full min-h-[110px] lg:min-h-[130px] rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-xl text-left transition-all duration-300 hover:-translate-y-1 hover:border-sky-400/70 hover:bg-white/[0.05] hover:shadow-[0_0_30px_rgba(56,189,248,0.35)] cursor-pointer ${className}`}
     >
       {/* SIDE 1 — 40% illustrative media */}
-      <div className="relative w-[40%] shrink-0 h-full overflow-hidden rounded-l-xl">
-        {media ? (
+      <div className={`relative w-[40%] shrink-0 h-full overflow-hidden rounded-l-xl ${mediaClass}`}>
+        {showMedia ? (
           <>
             <img src={media} alt={m.en} loading="lazy" className="absolute inset-0 w-full h-full object-cover" />
             <div className="absolute inset-0 bg-[#080C14]/25" />
@@ -241,19 +243,36 @@ export default function Dashboard() {
   useEffect(() => { setShowLogin(!currentUser); }, [currentUser]);
 
   useEffect(() => {
+    if (!currentUser) return;
     let mounted = true;
-    loadEffectiveConfig().then(cfg => {
-      if (!mounted) return;
-      if (Object.keys(cfg.overrides).length) setOverrides(cfg.overrides);
-      if (cfg.custom.length) {
-        setCustomMods(cfg.custom.map((c: any) => ({
-          access: 'custom', path: c.id, en: c.en || 'Section', ar: c.ar || '',
-          desc: c.desc || '', icon: ICON.chart, image: c.image || undefined, bgImage: c.bgImage || undefined,
-        })));
-      }
-    }).catch(() => {});
+    const load = () => {
+      loadEffectiveConfig().then(cfg => {
+        if (!mounted) return;
+        const apply = () => {
+          if (Object.keys(cfg.overrides).length) setOverrides(cfg.overrides);
+          if (cfg.custom.length) {
+            setCustomMods(cfg.custom.map((c: any) => ({
+              access: 'custom', path: c.id, en: c.en || 'Section', ar: c.ar || '',
+              desc: c.desc || '', icon: ICON.chart, image: c.image || undefined, bgImage: c.bgImage || undefined,
+            })));
+          }
+        };
+        apply();
+        const pending: Array<{ o: { image?: string; bgImage?: string }; k: 'image' | 'bgImage' }> = [];
+        for (const o of Object.values(cfg.overrides)) {
+          if (o?.image && isDbImageRef(o.image)) pending.push({ o, k: 'image' });
+          if (o?.bgImage && isDbImageRef(o.bgImage)) pending.push({ o, k: 'bgImage' });
+        }
+        if (pending.length) {
+          Promise.all(pending.map(({ o, k }) =>
+            resolveDbImage(o[k] as string).then(url => { if (url && mounted) (o as any)[k] = url; }).catch(() => {})
+          )).then(() => { if (mounted) apply(); });
+        }
+      }).catch(() => {});
+    };
+    load();
     return () => { mounted = false; };
-  }, []);
+  }, [currentUser]);
 
   useEffect(() => {
     try {
@@ -610,7 +629,7 @@ export default function Dashboard() {
         {/* ===== Multi Plant — Full Width (for multi-plant owners) ===== */}
         {eff(11) && canAccess(eff(11)!.access) && (
           <div className="mt-6 w-full max-w-[1280px] mx-auto">
-            <ModuleButton m={eff(11)!} onGo={() => go(eff(11)!.path)} showDesc className="min-h-[110px] lg:min-h-[130px]" />
+            <ModuleButton m={eff(11)!} onGo={() => go(eff(11)!.path)} showDesc mediaClass="h-32 lg:h-40" className="min-h-[110px] lg:min-h-[130px]" />
           </div>
         )}
 

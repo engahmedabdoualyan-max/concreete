@@ -2,7 +2,7 @@
  * فني صيانة محطات — Station Maintenance Technician Screen
  * =========================================================
  * Dedicated mobile screen for the station maintenance tech.
- *  • الاتشك اليومي: daily check on station equipment (belts, sensors,
+ *  • بيان الفحص اليومي: daily check on station equipment (belts, sensors,
  *    scales, PLC, electrical, operating software).
  *  • جدول متابعة: follow-up maintenance schedule per station.
  *  • طلبات تغيير: change / replacement requests for station items.
@@ -194,7 +194,7 @@ type Tab = "home" | "daily" | "schedule" | "requests";
 
 const TABS: { id: Tab; label: string; emoji: string }[] = [
   { id: "home", label: "الرئيسية", emoji: "🏠" },
-  { id: "daily", label: "الاتشك اليومي", emoji: "✅" },
+  { id: "daily", label: "بيان الفحص اليومي", emoji: "✅" },
   { id: "schedule", label: "جدول المتابعة", emoji: "📅" },
   { id: "requests", label: "طلبات التغيير", emoji: "🔄" },
 ];
@@ -385,20 +385,20 @@ export default function StationTechScreen() {
         ) : tab === "home" ? (
           <View>
             <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 14 }}>
-              <Kpi label="اتشكات اليوم" value={`${todayChecks.length}`} color={ACCENT} />
+              <Kpi label="فحوصات اليوم" value={`${todayChecks.length}`} color={ACCENT} />
               <Kpi label="مشاكل اليوم" value={`${issuesToday}`} color={issuesToday > 0 ? "#F87171" : ACCENT} />
               <Kpi label="مهام مفتوحة" value={`${openSchedule}`} color="#FBBF24" />
               <Kpi label="طلبات معلقة" value={`${pendingReqs}`} color="#38BDF8" />
               <Kpi label="عدد المحطات" value={`${stations.length}`} color="#A78BFA" />
             </View>
 
-            <Row title="✅ ابدأ الاتشك اليومي" sub="فحص سيور النقل، الحساسات، الموازين، PLC، الكهرباء وبرامج التشغيل" onPress={() => openDaily()} right={<Text style={{ color: ACCENT, fontSize: 20 }}>+</Text>} border="rgba(45,212,191,0.4)" />
+            <Row title="✅ ابدأ بيان الفحص اليومي" sub="فحص سيور النقل، الحساسات، الموازين، PLC، الكهرباء وبرامج التشغيل" onPress={() => openDaily()} right={<Text style={{ color: ACCENT, fontSize: 20 }}>+</Text>} border="rgba(45,212,191,0.4)" />
             <Row title="📅 أضف مهمة متابعة" sub="جدول صيانة / فحص دوري لمحطة" onPress={() => setShowSch(true)} right={<Text style={{ color: ACCENT, fontSize: 20 }}>+</Text>} />
             <Row title="🔄 طلب تغيير" sub="طلب استبدال قطعة أو جهاز في محطة" onPress={() => setShowReq(true)} right={<Text style={{ color: ACCENT, fontSize: 20 }}>+</Text>} />
 
             {todayChecks.length > 0 ? (
               <View style={{ marginTop: 14 }}>
-                <Text style={{ color: "#fff", fontSize: 15, fontWeight: "900", marginBottom: 10 }}>اتشك اليوم ({todayStr})</Text>
+                <Text style={{ color: "#fff", fontSize: 15, fontWeight: "900", marginBottom: 10 }}>فحص اليوم ({todayStr})</Text>
                 {todayChecks.map((c) => (
                   <Row key={c.id} title={c.stationName} sub={`بواسطة ${c.checkedBy}`} right={<Pill s={c.overall === "ok" ? "سليم" : "به مشاكل"} c={statusPill(c.overall === "ok" ? "ok" : "issue")} />} />
                 ))}
@@ -408,10 +408,10 @@ export default function StationTechScreen() {
         ) : tab === "daily" ? (
           <View>
             <TouchableOpacity onPress={() => openDaily()} style={{ backgroundColor: "rgba(45,212,191,0.15)", borderColor: "rgba(45,212,191,0.5)", borderWidth: 1, borderRadius: 12, paddingVertical: 12, alignItems: "center", marginBottom: 14 }}>
-              <Text style={{ color: ACCENT, fontWeight: "900", fontSize: 14 }}>+ تسجيل اتشك يومي جديد</Text>
+              <Text style={{ color: ACCENT, fontWeight: "900", fontSize: 14 }}>+ تسجيل فحص يومي جديد</Text>
             </TouchableOpacity>
             {checks.length === 0 ? (
-              <Text style={{ color: "#64748B", textAlign: "center", marginTop: 30 }}>لا توجد اتشكات مسجلة بعد</Text>
+              <Text style={{ color: "#64748B", textAlign: "center", marginTop: 30 }}>لا توجد فحوصات مسجلة بعد</Text>
             ) : (
               [...checks].sort((a, b) => b.date.localeCompare(a.date)).map((c) => (
                 <Row key={c.id} title={`${c.stationName} · ${c.date}`} sub={`${c.items.filter((i) => i.status === "issue").length} مشكلة · ${c.notes || ""}`} right={<Pill s={c.overall === "ok" ? "سليم" : "به مشاكل"} c={statusPill(c.overall === "ok" ? "ok" : "issue")} />} />
@@ -462,7 +462,7 @@ export default function StationTechScreen() {
 
       {/* ── Daily check form ── */}
       {showDaily ? (
-        <FormSheet title={`✅ الاتشك اليومي — ${todayStr}`} onClose={() => setShowDaily(false)} onSubmit={submitDaily} pending={saveMutation.isPending}>
+        <FormSheet title={`✅ بيان الفحص اليومي — ${todayStr}`} onClose={() => setShowDaily(false)} onSubmit={submitDaily} pending={saveMutation.isPending}>
           <Text style={{ color: "#94A3B8", fontSize: 11, fontWeight: "700", marginBottom: 5 }}>المحطة *</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, marginBottom: 14 }}>
             {stations.map((s) => (

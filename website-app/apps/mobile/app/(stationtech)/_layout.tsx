@@ -1,6 +1,6 @@
 /**
  * Station Maintenance Technician Layout
- * Dedicated home for فني صيانة محطات: daily checks (اتشك يومي),
+ * Dedicated home for فني صيانة محطات: daily checks (بيان الفحص اليومي),
  * follow-up schedule (جدول متابعة) and change requests (طلبات تغيير).
  */
 

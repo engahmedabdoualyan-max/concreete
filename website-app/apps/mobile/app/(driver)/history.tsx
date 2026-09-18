@@ -85,7 +85,7 @@ export default function DriverHistoryScreen() {
           <Text
             className={`font-bold text-sm ${item.hasChallan ? "text-emerald-700" : "text-white"}`}
           >
-            {item.hasChallan ? "✅ الشيكارة محفوظة — تعديل" : "🧾 إصدار شيكارة"}
+            {item.hasChallan ? "✅ المستند محفوظ — تعديل" : "🧾 إصدار مستند التوريد"}
           </Text>
         </TouchableOpacity>
       ) : null}

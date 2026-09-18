@@ -276,6 +276,7 @@ async function compressImage(file: File, maxDim: number, quality: number): Promi
 }
 
 const MEDIA_CACHE_KEY = 'fimto_media_cache';
+const memMediaCache = new Map<string, string>();
 
 export async function uploadConsoleImage(file: File, folder?: string): Promise<string> {
   const MAX = 20 * 1024 * 1024;
@@ -298,6 +299,7 @@ export function isDbImageRef(v: string): boolean {
 // Resolve a `dbimg://id` reference to its data URL (cached in localStorage).
 export async function resolveDbImage(ref: string): Promise<string> {
   const id = ref.slice(DBIMG_PREFIX.length);
+  if (memMediaCache.has(id)) return memMediaCache.get(id) as string;
   try {
     const cache = JSON.parse(localStorage.getItem(MEDIA_CACHE_KEY) || '{}');
     if (cache[id]) return cache[id];
@@ -306,6 +308,7 @@ export async function resolveDbImage(ref: string): Promise<string> {
   if (!snap.exists()) return '';
   const dataUrl = snap.data()?.dataUrl || '';
   if (dataUrl) {
+    memMediaCache.set(id, dataUrl);
     try {
       const cache = JSON.parse(localStorage.getItem(MEDIA_CACHE_KEY) || '{}');
       cache[id] = dataUrl;

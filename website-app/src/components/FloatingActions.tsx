@@ -2,6 +2,7 @@ import { useState, type FormEvent, type ReactNode } from 'react';
 import { useLang } from '../context/LangContext';
 import { generateManualPdf } from './ManualPdf';
 import { generateManualPdfEn } from './ManualPdfEn';
+import { generateVisualManualPdf } from './VisualManualPdf';
 import type { Translations } from '../context/translations';
 
 type ModalKind = 'features' | 'rate' | 'contact' | null;
@@ -81,6 +82,24 @@ export default function FloatingActions() {
       alert(lang === 'en'
         ? '❌ Could not build the PDF — try Chrome'
         : '❌ تعذر توليد الـPDF — جرّب متصفح Chrome');
+    }
+    setPdfBusy({ on: false, done: 0, total: 0 });
+  };
+
+  const handleVisualPdf = async () => {
+    if (pdfBusy.on) return;
+    setOpen(false);
+    setPdfBusy({ on: true, done: 0, total: 0 });
+    try {
+      const pages = await generateVisualManualPdf((done, total) => setPdfBusy({ on: true, done, total }));
+      alert(lang === 'en'
+        ? `✅ Visual guide downloaded (${pages} pages) — check your Downloads folder`
+        : `✅ تم تحميل الدليل المصوّر (${pages} صفحات) — افتح مجلد التنزيلات`);
+    } catch (e) {
+      console.error('visual manual pdf failed', e);
+      alert(lang === 'en'
+        ? '❌ Could not build the visual PDF — try Chrome'
+        : '❌ تعذر توليد الدليل المصوّر — جرّب متصفح Chrome');
     }
     setPdfBusy({ on: false, done: 0, total: 0 });
   };
@@ -207,6 +226,7 @@ export default function FloatingActions() {
         {open && (
           <div className="flex flex-col items-end gap-2">
             {actionButton(pdfBusy.on ? '⏳' : '📕', pdfBusy.on ? `${pdfBusy.done}/${pdfBusy.total}…` : (lang === 'en' ? 'PDF Guide' : PDF_LABEL), handleManualPdf, 'bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400')}
+            {actionButton(pdfBusy.on ? '⏳' : '📘', pdfBusy.on ? `${pdfBusy.done}/${pdfBusy.total}…` : (lang === 'en' ? 'Visual Guide' : 'دليل مصوّر'), handleVisualPdf, 'bg-gradient-to-r from-rose-500 to-pink-500 hover:from-rose-400 hover:to-pink-400')}
             {actionButton('⭐', t('floatingFeatures'), () => openModal('features'), 'bg-gradient-to-r from-sky-500 to-cyan-500 hover:from-sky-400 hover:to-cyan-400')}
             {actionButton('🌟', t('floatingRateUs'), () => openModal('rate'), 'bg-gradient-to-r from-amber-500 to-yellow-400 hover:from-amber-400 hover:to-yellow-300')}
             {actionButton('📞', t('floatingContactUs'), () => openModal('contact'), 'bg-gradient-to-r from-sky-500 to-cyan-500 hover:from-sky-400 hover:to-cyan-400')}

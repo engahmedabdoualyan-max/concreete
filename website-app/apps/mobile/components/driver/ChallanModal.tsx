@@ -84,7 +84,7 @@ export default function ChallanModal({ tripId, visible, onClose, onSaved }: Prop
       >
         <View className="bg-white rounded-t-3xl p-5 max-h-[92%]">
           <View className="flex-row justify-between items-center mb-4">
-            <Text className="text-xl font-bold text-slate-800">🧾 شيكارة التوريد</Text>
+            <Text className="text-xl font-bold text-slate-800">🧾 مستند التوريد الرقمي</Text>
             <TouchableOpacity onPress={onClose}>
               <Text className="text-slate-400 text-lg">✕</Text>
             </TouchableOpacity>
@@ -142,7 +142,7 @@ export default function ChallanModal({ tripId, visible, onClose, onSaved }: Prop
                   {saving ? (
                     <ActivityIndicator color="white" />
                   ) : (
-                    <Text className="text-white font-bold text-lg">حفظ الشيكارة</Text>
+                    <Text className="text-white font-bold text-lg">حفظ المستند</Text>
                   )}
                 </TouchableOpacity>
               </>

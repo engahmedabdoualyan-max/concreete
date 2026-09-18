@@ -20,7 +20,7 @@ export const TREE_ROLES: TreeRole[] = [
   { key: 'storekeeper', ar: 'أمين مخزن', perms: ['المخزون', 'المواد الخام', 'الموزعين'], mods: ['production', 'orders', 'materials'] },
   { key: 'workshopMgr', ar: 'مدير ورشة', perms: ['الورشة', 'الأصول', 'الأعطال'], mods: ['workshop', 'production'] },
   { key: 'mechanic', ar: 'ميكانيكي', perms: ['أوامر الشغل', 'الصيانة'], mods: ['workshop'] },
-  { key: 'stationTech', ar: 'فني صيانة محطات', perms: ['الاتشك اليومي', 'جدول المتابعة', 'طلبات التغيير', 'الصيانة'], mods: ['workshop', 'mixing', 'multiplant'] },
+  { key: 'stationTech', ar: 'فني صيانة محطات', perms: ['بيان الفحص اليومي', 'جدول المتابعة', 'طلبات التغيير', 'الصيانة'], mods: ['workshop', 'mixing', 'multiplant'] },
   { key: 'batchOp', ar: 'مشغل محطة', perms: ['الإنتاج', 'الخلاطة', 'الوزن'], mods: ['production', 'mixing', 'multiplant'] },
   { key: 'labMgr', ar: 'مدير مختبر', perms: ['المختبر', 'الجودة', 'المواصفات'], mods: ['mixing', 'evaluation', 'rnd', 'materials'] },
   { key: 'labTech', ar: 'فني مختبر', perms: ['الفحوصات', 'المعايرة', 'العينات'], mods: ['mixing', 'evaluation', 'rnd', 'materials'] },

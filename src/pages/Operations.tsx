@@ -28,7 +28,7 @@ interface Trip {
   // سبب التأخير (إن وجد)
   delayReason?: 'ready' | 'site_not_ready' | 'breakdown' | 'emergency' | 'other';
   delayDetails?: string; // تفاصيل السبب (نص حر)
-  challan?: any; // بيانات الشيكارة الملتقطة من تطبيق السائق
+  challan?: any; // بيانات مستند التوريد الرقمي الملتقط من تطبيق السائق
 }
 
 const DEFAULT_TRIPS: Trip[] = [
@@ -523,7 +523,7 @@ export default function Operations() {
                         trip: tr,
                         order: orders.find((o) => (o.orderNo || o.id) === tr.orderId) || null,
                         challan: tr.challan || {},
-                      })} title="شيكارة التوريد" className="bg-sky-500 hover:bg-sky-600 text-white text-[11px] px-2 py-0.5 rounded font-bold">🧾</button>
+                      })} title="مستند التوريد الرقمي" className="bg-sky-500 hover:bg-sky-600 text-white text-[11px] px-2 py-0.5 rounded font-bold">🧾</button>
                     )}
                     <button onClick={() => openEdit(tr)} className="bg-green-500 hover:bg-green-600 text-white text-[11px] px-2 py-0.5 rounded font-bold">✏️</button>
                     <button onClick={() => deleteTrip(tr.id)} className="bg-red-500 hover:bg-red-600 text-white text-[11px] px-2 py-0.5 rounded font-bold">🗑️</button>

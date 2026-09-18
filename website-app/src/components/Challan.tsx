@@ -180,8 +180,8 @@ export default function Challan({ trip, order, challan, onClose, onSignatureSave
               <p className="text-[10px] text-gray-600 mt-1">المملكة العربية السعودية<br/>هاتف: +966 5X XXX XXXX</p>
             </div>
             <div className="text-right">
-              <p className="text-2xl font-black">شيكارة توريد</p>
-              <p className="text-[10px] text-gray-600">Delivery Challan</p>
+              <p className="text-2xl font-black">مستند التوريد الرقمي</p>
+              <p className="text-[10px] text-gray-600">Digital Delivery Document</p>
               <p className="text-xs font-bold mt-1"># {challanNo}</p>
               <p className="text-[10px]">{trip?.date || '—'}</p>
             </div>
@@ -297,7 +297,7 @@ export default function Challan({ trip, order, challan, onClose, onSignatureSave
                 {qr
                   ? <img src={qr} alt="QR" className="w-28 h-28 border border-gray-300 rounded" />
                   : <div className="w-28 h-28 bg-gray-200 rounded flex items-center justify-center text-[10px] text-gray-500">QR...</div>}
-                <p className="text-[9px] text-gray-500 mt-1">للاستعلام عن الشيكارة</p>
+                <p className="text-[9px] text-gray-500 mt-1">للاستعلام عن المستند</p>
               </div>
             </div>
             {showSignaturePad && (

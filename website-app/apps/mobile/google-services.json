@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "964088736698",
+    "project_id": "concrete-erb",
+    "storage_bucket": "concrete-erb.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:964088736698:android:45f5b52277ffee3f01cb83",
+        "android_client_info": {
+          "package_name": "com.fimtosoft.concrete"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "964088736698-q1us5bqj5o8vbnn5ednnhv627sabkft0.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDZzdRgF3Aay5Z4Kn9Xd5dXhMyhNIwL-Vk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "964088736698-q1us5bqj5o8vbnn5ednnhv627sabkft0.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
