@@ -145,7 +145,7 @@ function ConsoleInner() {
   const [overrides, setOverrides] = useState<Overrides>(() => loadCfg().overrides);
   const [custom, setCustom] = useState<any[]>(() => loadCfg().custom);
 
-  const [companies, setCompanies] = useState<any[]>([]);
+const [companies, setCompanies] = useState<any[]>([]);
   const [comp, setComp] = useState({ username: '', password: '', plantName: '', country: 'Egypt', city: '', phone: '', email: '' });
   const [dbLoaded, setDbLoaded] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -221,65 +221,80 @@ function ConsoleInner() {
 
   useEffect(() => {
     if (step !== 'panel') return;
-    getAllUsers().then(list => {
-      const clean = (list || []).map((u: any) => ({
-        username: u.username || u.id || '',
-        plantName: u.plantName || u.plant_name || u.name || u.username || '—',
-        email: u.email || '',
-        status: u.status || 'FREE_TRIAL',
-        protected: u.protected === true,
-      }));
-      setCompanies(clean.length > 0 ? clean : (() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const { getAllCompanyTrees } = await import('../firebase/firestore');
+        const [list, trs] = await Promise.all([getAllUsers(), getAllCompanyTrees()]);
+        if (!mounted) return;
+
+        const pm: Record<string, any> = {};
+        (list || []).forEach((u: any) => { if (u?.username) pm[String(u.username).toLowerCase()] = u; });
+        setPresence(pm);
+
+        const clean = (list || []).map((u: any) => ({
+          username: u.username || u.id || '',
+          plantName: u.plantName || u.plant_name || u.name || u.username || '—',
+          email: u.email || '',
+          status: u.status || 'FREE_TRIAL',
+          protected: u.protected === true,
+        }));
+
+        // الشركات الحقيقية = كل شجرة مسجلة في companyTrees (منع عدّ حسابات الموظفين كشركات)
+        const tm: Record<string, CompanyTree> = {};
+        (trs || []).forEach((t: CompanyTree) => {
+          if (t?.companyUsername) tm[String(t.companyUsername).toLowerCase()] = t;
+        });
+        const treeNames = Object.keys(tm);
+        const companies = treeNames.length > 0
+          ? treeNames.map(uname => {
+            const u: any = pm[uname] || {};
+            return {
+              username: uname,
+              plantName: u.plantName || u.plant_name || u.name || uname,
+              email: u.email || '',
+              status: u.status || 'FREE_TRIAL',
+              protected: u.protected === true,
+            };
+          })
+          : clean;
+        setCompanies(companies);
+
+        // Load subscription dates for each company (from companyTrees doc)
+        const smap: Record<string, { subscriptionStart: string; subscriptionEnd: string; subscriptionStatus: string }> = {};
+        for (const c of companies) {
+          const uname = (c.username || '').toLowerCase();
+          if (!uname) continue;
+          try {
+            const t = tm[uname];
+            smap[uname] = {
+              subscriptionStart: t?.subscriptionStart || '',
+              subscriptionEnd: t?.subscriptionEnd || '',
+              subscriptionStatus: t?.subscriptionStatus || '',
+            };
+          } catch {}
+        }
+        setSubs(smap);
+        // Load storage usage per company
+        const stmap: Record<string, { usedMB: number; quotaMB: number; pct: number }> = {};
+        for (const c of companies) {
+          const uname = (c.username || '').toLowerCase();
+          if (!uname) continue;
+          try {
+            const st = await getStorageStatus(uname);
+            stmap[uname] = { usedMB: st.usedMB, quotaMB: st.quotaMB, pct: st.pct };
+          } catch {}
+        }
+        setStorage(stmap);
+      } catch {
         try {
           const saved = localStorage.getItem('registeredUsers');
-          return saved ? JSON.parse(saved) : [];
-        } catch { return []; }
-      })());
-      const pm: Record<string, any> = {};
-      (list || []).forEach((u: any) => { if (u?.username) pm[String(u.username).toLowerCase()] = u; });
-      setPresence(pm);
-      // Load subscription dates for each company (from companyTrees doc)
-      (async () => {
-        try {
-          const { loadCompanyTree } = await import('../firebase/firestore');
-          const map: Record<string, { subscriptionStart: string; subscriptionEnd: string; subscriptionStatus: string }> = {};
-          for (const c of clean) {
-            const uname = (c.username || '').toLowerCase();
-            if (!uname) continue;
-            try {
-              const t = await loadCompanyTree(uname);
-              map[uname] = {
-                subscriptionStart: t?.subscriptionStart || '',
-                subscriptionEnd: t?.subscriptionEnd || '',
-                subscriptionStatus: t?.subscriptionStatus || '',
-              };
-            } catch {}
-          }
-          setSubs(map);
+          if (saved && mounted) setCompanies(JSON.parse(saved));
         } catch {}
-      })();
-      // Load storage usage per company
-      (async () => {
-        try {
-          const map: Record<string, { usedMB: number; quotaMB: number; pct: number }> = {};
-          for (const c of clean) {
-            const uname = (c.username || '').toLowerCase();
-            if (!uname) continue;
-            try {
-              const st = await getStorageStatus(uname);
-              map[uname] = { usedMB: st.usedMB, quotaMB: st.quotaMB, pct: st.pct };
-            } catch {}
-          }
-          setStorage(map);
-        } catch {}
-      })();
-    }).catch(() => {
-      try {
-        const saved = localStorage.getItem('registeredUsers');
-        if (saved) setCompanies(JSON.parse(saved));
-      } catch {}
-    });
+      }
+    })();
     if (!dbLoaded) { setDbLoaded(true); loadCfgFromDb(); }
+    return () => { mounted = false; };
   }, [step]);
 
   const input2 = (v: string) => v === undefined ? '' : v;

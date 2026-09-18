@@ -3,10 +3,10 @@ import { useLang } from '../context/LangContext';
 import { generateManualPdf } from './ManualPdf';
 import { generateManualPdfEn } from './ManualPdfEn';
 import { generateVisualManualPdf } from './VisualManualPdf';
+import { generateVisualManualPdfEn } from './VisualManualPdfEn';
 import type { Translations } from '../context/translations';
 
 type ModalKind = 'features' | 'rate' | 'contact' | null;
-const PDF_LABEL = 'دليل PDF';
 
 const FEATURES: { icon: string; key: keyof Translations }[] = [
   { icon: '📱', key: 'ftAppAndroid' },
@@ -32,8 +32,6 @@ const FEATURES: { icon: string; key: keyof Translations }[] = [
   { icon: '📤', key: 'ftExports' },
 ];
 
-const STAR_COLORS = ['text-slate-400', 'text-yellow-400'];
-
 function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
   return (
     <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[130] flex items-center justify-center p-4" onClick={onClose}>
@@ -57,6 +55,11 @@ function Modal({ title, onClose, children }: { title: string; onClose: () => voi
 
 export default function FloatingActions() {
   const { t, lang } = useLang();
+  const fmt = (key: keyof Translations, vals: Record<string, string | number>) => {
+    let s = t(key);
+    for (const [k, v] of Object.entries(vals)) s = s.split(`{${k}}`).join(String(v));
+    return s;
+  };
   const [open, setOpen] = useState(false);
   const [modal, setModal] = useState<ModalKind>(null);
   const [rating, setRating] = useState(0);
@@ -74,14 +77,10 @@ export default function FloatingActions() {
     try {
       const gen = lang === 'en' ? generateManualPdfEn : generateManualPdf;
       const pages = await gen((done, total) => setPdfBusy({ on: true, done, total }));
-      alert(lang === 'en'
-        ? `✅ Guide downloaded (${pages} pages) — check your Downloads folder`
-        : `✅ تم تحميل الدليل (${pages} صفحات) — افتح مجلد التنزيلات`);
+      alert(fmt('guideDownloaded', { label: t('pdfGuide'), pages }));
     } catch (e) {
       console.error('manual pdf failed', e);
-      alert(lang === 'en'
-        ? '❌ Could not build the PDF — try Chrome'
-        : '❌ تعذر توليد الـPDF — جرّب متصفح Chrome');
+      alert(fmt('guidePdfFailed', { label: t('pdfGuide') }));
     }
     setPdfBusy({ on: false, done: 0, total: 0 });
   };
@@ -91,15 +90,12 @@ export default function FloatingActions() {
     setOpen(false);
     setPdfBusy({ on: true, done: 0, total: 0 });
     try {
-      const pages = await generateVisualManualPdf((done, total) => setPdfBusy({ on: true, done, total }));
-      alert(lang === 'en'
-        ? `✅ Visual guide downloaded (${pages} pages) — check your Downloads folder`
-        : `✅ تم تحميل الدليل المصوّر (${pages} صفحات) — افتح مجلد التنزيلات`);
+      const genVisual = lang === 'en' ? generateVisualManualPdfEn : generateVisualManualPdf;
+      const pages = await genVisual((done, total) => setPdfBusy({ on: true, done, total }));
+      alert(fmt('guideDownloaded', { label: t('visualGuide'), pages }));
     } catch (e) {
       console.error('visual manual pdf failed', e);
-      alert(lang === 'en'
-        ? '❌ Could not build the visual PDF — try Chrome'
-        : '❌ تعذر توليد الدليل المصوّر — جرّب متصفح Chrome');
+      alert(fmt('guidePdfFailed', { label: t('visualGuide') }));
     }
     setPdfBusy({ on: false, done: 0, total: 0 });
   };
@@ -225,8 +221,8 @@ export default function FloatingActions() {
       <div className="fixed bottom-6 right-6 z-[120] flex flex-col items-end gap-3">
         {open && (
           <div className="flex flex-col items-end gap-2">
-            {actionButton(pdfBusy.on ? '⏳' : '📕', pdfBusy.on ? `${pdfBusy.done}/${pdfBusy.total}…` : (lang === 'en' ? 'PDF Guide' : PDF_LABEL), handleManualPdf, 'bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400')}
-            {actionButton(pdfBusy.on ? '⏳' : '📘', pdfBusy.on ? `${pdfBusy.done}/${pdfBusy.total}…` : (lang === 'en' ? 'Visual Guide' : 'دليل مصوّر'), handleVisualPdf, 'bg-gradient-to-r from-rose-500 to-pink-500 hover:from-rose-400 hover:to-pink-400')}
+            {actionButton(pdfBusy.on ? '⏳' : '📕', pdfBusy.on ? `${pdfBusy.done}/${pdfBusy.total}…` : t('pdfGuide'), handleManualPdf, 'bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400')}
+            {actionButton(pdfBusy.on ? '⏳' : '📘', pdfBusy.on ? `${pdfBusy.done}/${pdfBusy.total}…` : t('visualGuide'), handleVisualPdf, 'bg-gradient-to-r from-rose-500 to-pink-500 hover:from-rose-400 hover:to-pink-400')}
             {actionButton('⭐', t('floatingFeatures'), () => openModal('features'), 'bg-gradient-to-r from-sky-500 to-cyan-500 hover:from-sky-400 hover:to-cyan-400')}
             {actionButton('🌟', t('floatingRateUs'), () => openModal('rate'), 'bg-gradient-to-r from-amber-500 to-yellow-400 hover:from-amber-400 hover:to-yellow-300')}
             {actionButton('📞', t('floatingContactUs'), () => openModal('contact'), 'bg-gradient-to-r from-sky-500 to-cyan-500 hover:from-sky-400 hover:to-cyan-400')}
