@@ -6,12 +6,14 @@ import { getAllPlantsSummary } from '../firebase/firestore';
 import QuickJump from '../components/QuickJump';
 import LangSelector from '../components/LangSelector';
 import BrandLogo from '../components/BrandLogo';
+import { useMultiPlantDict } from '../i18n/multiPlantDict';
 
 interface Row { username: string; plantName: string; country: string; city: string; trips: number; totalVolume: number; inventory: Record<string, number>; qcCount: number; orders: any[]; payments: any[]; pos: any[]; }
 
 export default function MultiPlant() {
   const { currentUser, logout } = useAuth();
   const navigate = useNavigate();
+  const t = useMultiPlantDict();
   const { canManageAdmin } = useAdmin();
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
@@ -55,7 +57,7 @@ export default function MultiPlant() {
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <span className="bg-emerald-500/15 text-emerald-500 text-xs px-3 py-1.5 rounded-lg font-bold border border-emerald-500/30">👑 {currentUser.username}</span>
-          <button onClick={() => { logout(); navigate('/'); }} className="bg-white/[0.05] text-slate-300 text-xs px-3 py-1.5 rounded-lg font-bold border border-white/10 hover:border-red-400/60 hover:text-red-300 transition-colors">🚪 خروج</button>
+          <button onClick={() => { logout(); navigate('/'); }} className="bg-white/[0.05] text-slate-300 text-xs px-3 py-1.5 rounded-lg font-bold border border-white/10 hover:border-red-400/60 hover:text-red-300 transition-colors">{t('logout')}</button>
         </div>
       </div>
 

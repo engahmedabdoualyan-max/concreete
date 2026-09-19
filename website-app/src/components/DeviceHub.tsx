@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useDeviceHubDict, type DeviceHubDictKey } from '../i18n/deviceHubDict';
 import { loadDevicesRegistry, saveDevicesRegistry, type DeviceEntry } from '../firebase/firestore';
 
 /**
@@ -9,11 +10,11 @@ import { loadDevicesRegistry, saveDevicesRegistry, type DeviceEntry } from '../f
  */
 
 export const DEVICE_DEFS = [
-  { id: 'batchController', name: 'متحكم المحطة', en: 'Batch Controller', icon: '🏭', desc: 'Command Alkon / Liebherr / Sicom — بث مباشر للدفعات', optional: true },
-  { id: 'dashcam', name: 'داش كام الأسطول', en: 'Fleet Dashcam', icon: '📹', desc: 'كاميرات الشاحنات + كشف الأحداث', optional: true },
-  { id: 'accounting', name: 'البرنامج المحاسبي', en: 'Accounting Sync', icon: '🔗', desc: 'QuickBooks / Sage مزامنة الفواتير والمدفوعات', optional: true },
-  { id: 'gpsTrackers', name: 'متتبعات GPS', en: 'GPS Trackers', icon: '📡', desc: 'أجهزة التتبع في الشاحنات والمعدات', optional: true },
-  { id: 'weighbridge', name: 'قبّان الوزن (بسكول)', en: 'Weighbridge', icon: '⚖️', desc: 'ربط ميزان السيارات (اختياري — اليدوي شغال)', optional: true },
+  { id: 'batchController', name: 'متحكم المحطة', en: 'Batch Controller', icon: '🏭', nameKey: 'devBatch' as const, descKey: 'descBatch' as const, desc: 'Command Alkon / Liebherr / Sicom — بث مباشر للدفعات', optional: true },
+  { id: 'dashcam', name: 'داش كام الأسطول', en: 'Fleet Dashcam', icon: '📹', nameKey: 'devDashcam' as const, descKey: 'descDashcam' as const, desc: 'كاميرات الشاحنات + كشف الأحداث', optional: true },
+  { id: 'accounting', name: 'البرنامج المحاسبي', en: 'Accounting Sync', icon: '🔗', nameKey: 'devAccounting' as const, descKey: 'descAccounting' as const, desc: 'QuickBooks / Sage مزامنة الفواتير والمدفوعات', optional: true },
+  { id: 'gpsTrackers', name: 'متتبعات GPS', en: 'GPS Trackers', icon: '📡', nameKey: 'devGps' as const, descKey: 'descGps' as const, desc: 'أجهزة التتبع في الشاحنات والمعدات', optional: true },
+  { id: 'weighbridge', name: 'قبّان الوزن (بسكول)', en: 'Weighbridge', icon: '⚖️', nameKey: 'devWeighbridge' as const, descKey: 'descWeighbridge' as const, desc: 'ربط ميزان السيارات (اختياري — اليدوي شغال)', optional: true },
 ];
 
 export function useDevices() {
@@ -49,12 +50,13 @@ export function useDevices() {
 /** Small badge shown inside feature screens reflecting hub state. */
 export function DeviceStatusBadge({ id }: { id: string }) {
   const { devices, loaded } = useDevices();
+  const t = useDeviceHubDict();
   const dev = devices.find(d => d.id === id);
   if (!loaded) return null;
   return dev?.connected ? (
-    <span className="inline-flex items-center gap-1 bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 text-[10px] font-bold px-2 py-0.5 rounded">🔌 متصل بالجهاز</span>
+    <span className="inline-flex items-center gap-1 bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 text-[10px] font-bold px-2 py-0.5 rounded">{t('badgeConnected')}</span>
   ) : (
-    <span className="inline-flex items-center gap-1 bg-sky-500/10 text-sky-300 border border-white/10 text-[10px] font-bold px-2 py-0.5 rounded">📴 يعمل بدون جهاز</span>
+    <span className="inline-flex items-center gap-1 bg-sky-500/10 text-sky-300 border border-white/10 text-[10px] font-bold px-2 py-0.5 rounded">{t('badgeNoDevice')}</span>
   );
 }
 
@@ -63,12 +65,15 @@ interface Props { onToast?: (m: string) => void; }
 export default function DeviceHub({ onToast }: Props) {
   const { currentUser } = useAuth();
   const { devices, update, loaded } = useDevices();
+  const t = useDeviceHubDict();
 
-  const toggle = (id: string, name: string) => {
+  const toggle = (id: string, nameKey: DeviceHubDictKey) => {
     const cur = devices.find(d => d.id === id);
     const next = !cur?.connected;
     update(id, { connected: next });
-    onToast?.(next ? `✅ تم توصيل ${name} — الخصائص المرتبطة اشتغلت` : `📴 تم فصل ${name} — النظام يشتغل عادي بدونها`);
+    onToast?.(next
+      ? t('toastConnected').replace('{name}', t(nameKey))
+      : t('toastDisconnected').replace('{name}', t(nameKey)));
   };
 
   if (!currentUser) return null;
@@ -76,15 +81,14 @@ export default function DeviceHub({ onToast }: Props) {
   return (
     <div className="space-y-4">
       <div className="bg-gradient-to-br from-indigo-500/10 to-transparent border border-indigo-500/30 rounded-2xl p-5">
-        <h3 className="text-lg font-black tracking-tight text-white">🔌 الأجهزة الطرفية · Peripheral Devices</h3>
+        <h3 className="text-lg font-black tracking-tight text-white">{t('dhTitle')}</h3>
         <p className="text-xs text-slate-400 mt-1 leading-relaxed">
-          كل الأجهزة دي <strong className="text-emerald-400">اختيارية</strong> — النظام كامل يعمل بدونها.
-          وصّل الجهاز لما يكون موجود في المحطة وخصائصه هتتفعل تلقائياً.
+          {t('intro1')}<strong className="text-emerald-400">{t('optionalWord')}</strong>{t('intro2')}
         </p>
       </div>
 
       {!loaded ? (
-        <div className="text-center py-8 text-slate-500 text-sm">⏳ جاري تحميل حالة الأجهزة...</div>
+        <div className="text-center py-8 text-slate-500 text-sm">{t('loadingDevices')}</div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {DEVICE_DEFS.map(def => {
@@ -96,20 +100,20 @@ export default function DeviceHub({ onToast }: Props) {
                   <div className="flex items-start gap-3 min-w-0">
                     <span className="text-2xl">{def.icon}</span>
                     <div className="min-w-0">
-                      <p className="font-black text-white text-sm">{def.name} <span className="text-[10px] text-slate-500 font-normal">{def.en}</span></p>
-                      <p className="text-[11px] text-slate-400 mt-0.5">{def.desc}</p>
+                      <p className="font-black text-white text-sm">{t(def.nameKey)} <span className="text-[10px] text-slate-500 font-normal">{def.en}</span></p>
+                      <p className="text-[11px] text-slate-400 mt-0.5">{t(def.descKey)}</p>
                       {dev?.lastCheckedAt && (
-                        <p className="text-[9px] text-slate-600 mt-1" dir="ltr">آخر تحقق: {new Date(dev.lastCheckedAt).toLocaleString('en-GB')}</p>
+                        <p className="text-[9px] text-slate-600 mt-1" dir="ltr">{t('lastCheck').replace('{time}', new Date(dev.lastCheckedAt).toLocaleString('en-GB'))}</p>
                       )}
                     </div>
                   </div>
                   <button
-                    onClick={() => toggle(def.id, def.name)}
+                    onClick={() => toggle(def.id, def.nameKey)}
                     className={`shrink-0 text-xs font-bold px-3 py-2 rounded-lg border transition ${on
                       ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40 hover:bg-emerald-500/30'
                       : 'bg-white/[0.05] text-slate-300 border-white/10 hover:bg-white/[0.1]'}`}
                   >
-                    {on ? '✅ متصل' : '🔌 توصيل'}
+                    {on ? t('connectedOn') : t('connectBtn')}
                   </button>
                 </div>
                 {on && dev?.meta?.model && (

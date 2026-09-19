@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useQuickJumpDict } from '../i18n/quickJumpDict';
 import { useDate, formatDate } from '../context/DateContext';
 
 const ALL_PAGES = [
@@ -8,7 +9,7 @@ const ALL_PAGES = [
   { path: '/workshop', label: '🔧 Workshop / Maintenance' },
   { path: '/mixing', label: '🎛️ Mixing & Quality' },
   { path: '/production', label: '🏭 Production & Inventory' },
-  { path: '/materials', label: '🏗️ الخامات والمخزون والخلطات' },
+  { path: '/materials', label: '🏗️ الخامات والمخزون والخلطات', labelKey: 'materials' as const },
   { path: '/evaluation', label: '📊 Plant OEE Evaluation' },
   { path: '/schedule', label: '📅 Pouring Schedule' },
   { path: '/orders', label: '📦 Orders' },
@@ -31,6 +32,7 @@ const ROLE_ACCESS: Record<string, string[]> = {
 
 export default function QuickJump() {
   const navigate = useNavigate();
+  const t = useQuickJumpDict();
   const { calendarType, toggleCalendar } = useDate();
   const today = formatDate(new Date(), calendarType);
   const { currentUser } = useAuth();
@@ -48,15 +50,15 @@ export default function QuickJump() {
       >
         <option value="">🚀 Quick Jump...</option>
         {pages.map(p => (
-          <option key={p.path} value={p.path}>{p.label}</option>
+          <option key={p.path} value={p.path}>{p.labelKey ? t(p.labelKey) : p.label}</option>
         ))}
       </select>
       <button
         onClick={toggleCalendar}
         className="bg-gradient-to-r from-sky-500 to-cyan-500 text-white text-xs px-3 py-1.5 rounded font-bold hover:from-sky-400 hover:to-cyan-400 transition"
-        title="تبديل التقويم"
+        title={t('toggleCalendar')}
       >
-        {calendarType === 'gregorian' ? '📅 ميلادي' : '🌙 هجري'}
+        {calendarType === 'gregorian' ? t('gregorian') : t('hijri')}
       </button>
       <span className="text-[10px] text-slate-400 font-mono bg-white/[0.04] px-2 py-1 rounded border border-white/10">
         {today}

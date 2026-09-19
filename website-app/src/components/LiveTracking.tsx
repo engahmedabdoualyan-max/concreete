@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { getAllLivePositions, loadPlantProfile, type LivePosEntry } from '../firebase/firestore';
+import { useLiveTrackingDict } from '../i18n/liveTrackingDict';
+import { getAllLivePositions, type LivePosEntry } from '../firebase/firestore';
 
 interface LiveTrackingProps {
   activeOrders: { id: string; orderNo?: string; projectName: string; projectLocation?: string; quantity: number }[];
@@ -34,6 +35,7 @@ export default function LiveTracking({ activeOrders }: LiveTrackingProps) {
 }
 
 function LiveTrackingInner({ activeOrders }: LiveTrackingProps) {
+  const t = useLiveTrackingDict();
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstance = useRef<L.Map | null>(null);
   const markersRef = useRef<L.LayerGroup | null>(null);
@@ -99,19 +101,19 @@ function LiveTrackingInner({ activeOrders }: LiveTrackingProps) {
     // Plant marker (origin)
     L.marker(plantPos, {
       icon: L.divIcon({ html: '<div style="font-size:22px">🏭</div>', className: '', iconSize: [24, 24] }),
-    }).bindTooltip('المصنع').addTo(group);
+    }).bindTooltip(t('plant')).addTo(group);
 
     // Truck markers
-    trucks.forEach((t, i) => {
-      const color = t.ageMin > 15 ? '#f59e0b' : '#38bdf8';
-      L.marker([t.lat, t.lng], {
+    trucks.forEach((trk) => {
+      const color = trk.ageMin > 15 ? '#f59e0b' : '#38bdf8';
+      L.marker([trk.lat, trk.lng], {
         icon: L.divIcon({
-          html: `<div style="background:${color};color:#fff;font-weight:900;font-size:11px;padding:3px 8px;border-radius:9999px;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,.4)">🚚 ${t.etaMin} د</div>`,
+          html: `<div style="background:${color};color:#fff;font-weight:900;font-size:11px;padding:3px 8px;border-radius:9999px;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,.4)">🚚 ${trk.etaMin} ${t('minShort')}</div>`,
           className: '', iconSize: [70, 22], iconAnchor: [35, 11],
         }),
       }).addTo(group);
       // Line from plant to truck (route approximation)
-      L.polyline([plantPos, [t.lat, t.lng]], { color, weight: 2, dashArray: '6 8', opacity: 0.5 }).addTo(group);
+      L.polyline([plantPos, [trk.lat, trk.lng]], { color, weight: 2, dashArray: '6 8', opacity: 0.5 }).addTo(group);
     });
 
     // Fit bounds
@@ -131,20 +133,20 @@ function LiveTrackingInner({ activeOrders }: LiveTrackingProps) {
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
               <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
             </span>
-            تتبع مباشر للشاحنات
+            {t('liveTitle')}
           </h2>
           <p className="text-[10px] text-slate-400 mt-0.5">
-            طلبك قيد التنفيذ — الشاحنة في الطريق إليك · Live Truck Tracking
+            {t('liveSub')}
           </p>
         </div>
         <div className="text-left">
           {nearest && !stale ? (
             <>
-              <p className="text-xl font-black text-emerald-400 leading-none">{nearest.etaMin} دقيقة</p>
+              <p className="text-xl font-black text-emerald-400 leading-none">{nearest.etaMin} {t('etaMinute')}</p>
               <p className="text-[9px] text-slate-500 mt-1" dir="ltr">⟳ {lastUpdate}</p>
             </>
           ) : (
-            <p className="text-xs text-yellow-400 font-bold">{stale ? '📡 في انتظار إشارة GPS...' : '—'}</p>
+            <p className="text-xs text-yellow-400 font-bold">{stale ? t('waitingSignal') : '—'}</p>
           )}
         </div>
       </div>
@@ -155,15 +157,15 @@ function LiveTrackingInner({ activeOrders }: LiveTrackingProps) {
       {/* Trucks list */}
       {trucks.length > 0 && (
         <div className="px-4 py-3 space-y-1.5 border-t border-white/10">
-          {trucks.slice(0, 3).map((t, i) => (
-            <div key={`${t.username}-${t.assetId}`} className="flex items-center justify-between text-[11px] bg-white/[0.03] rounded-lg px-3 py-2">
+          {trucks.slice(0, 3).map((trk, i) => (
+            <div key={`${trk.username}-${trk.assetId}`} className="flex items-center justify-between text-[11px] bg-white/[0.03] rounded-lg px-3 py-2">
               <span className="font-bold text-slate-200">
-                🚚 شاحنة {i + 1} <span className={`ml-1 ${t.ageMin > 15 ? 'text-yellow-400' : 'text-emerald-400'}`}>{t.ageMin > 15 ? '(إشارة قديمة)' : '(مباشر)'}</span>
+                {t('truckN').replace('{n}', String(i + 1))} <span className={`ml-1 ${trk.ageMin > 15 ? 'text-yellow-400' : 'text-emerald-400'}`}>{trk.ageMin > 15 ? t('signalOld') : t('signalLive')}</span>
               </span>
-              <span className="text-slate-400">{t.distanceKm.toFixed(1)} كم ← <strong className="text-emerald-400">{t.etaMin} دقيقة</strong></span>
+              <span className="text-slate-400">{trk.distanceKm.toFixed(1)} {t('kmUnit')} ← <strong className="text-emerald-400">{trk.etaMin} {t('etaMinute')}</strong></span>
             </div>
           ))}
-          <p className="text-[9px] text-slate-600 pt-1">للطلب: {activeOrders.map(o => o.orderNo || o.id).join('، ')}</p>
+          <p className="text-[9px] text-slate-600 pt-1">{t('forOrder').replace('{orders}', activeOrders.map(o => o.orderNo || o.id).join('، '))}</p>
         </div>
       )}
     </div>

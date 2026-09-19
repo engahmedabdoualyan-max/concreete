@@ -10,6 +10,7 @@ import DatePicker from '../components/DatePicker';
 import DriverLiveBroadcast from '../components/DriverLiveBroadcast';
 import NotificationsBell from '../components/NotificationsBell';
 import Challan from '../components/Challan';
+import { useOperationsDict } from '../i18n/operationsDict';
 
 interface Trip {
   id: number; plant: string; date: string; code: string; driver: string;
@@ -103,6 +104,7 @@ const BATCH_STEPS = ['Weighing Cement', 'Weighing Sand', 'Weighing Gravel', 'Add
 export default function Operations() {
   const { currentUser, logout } = useAuth();
   const navigate = useNavigate();
+  const L = useOperationsDict();
   const [trips, setTrips] = useState<Trip[]>(DEFAULT_TRIPS);
   const [tripsLoaded, setTripsLoaded] = useState(false);
 
@@ -191,11 +193,11 @@ export default function Operations() {
   const dispatchOrderToFleet = async (order: any) => {
     const mixers = (Array.isArray(assets) ? assets : []).filter(a => a.type === 'Mixer' && a.status === 'Ready');
     const pumps = (Array.isArray(assets) ? assets : []).filter(a => a.type === 'Mobile Pump' && a.status === 'Ready');
-    if (order.requiresPump && pumps.length === 0) { alert('🚫 لا توجد مضخة جاهزة (Mobile Pump) متاحة للطلب — عايد الصيانة أو أضف معدات في Admin.'); return; }
-    if (mixers.length === 0) { alert('🚫 لا توجد خلاطات جاهزة (Mixer) متاحة للطلب — عايد الصيانة أو أضف معدات في Admin.'); return; }
+    if (order.requiresPump && pumps.length === 0) { alert(L('noPumpReady')); return; }
+    if (mixers.length === 0) { alert(L('noMixerReady')); return; }
     const cementNeeded = (Number(order.quantity) || 0) * 0.35;
     if (inventory && typeof inventory.cement === 'number' && inventory.cement < cementNeeded) {
-      alert(`⛔ مخزون الأسمنت غير كافٍ: المطلوب ${cementNeeded.toFixed(1)} طن والمتاح ${inventory.cement.toFixed(1)} طن — أضف مخزون في قسم الإنتاج.`);
+      alert(L('cementLowPrefix') + cementNeeded.toFixed(1) + L('tonnes') + L('cementLowMid') + inventory.cement.toFixed(1) + L('tonnes') + L('cementLowSuffix'));
       return;
     }
     const capacity = Number(dispatch.capacity) || 10;
@@ -205,7 +207,7 @@ export default function Operations() {
     const remaining = Math.max(0, orderedQty - alreadyDelivered);
     const plannedQty = Math.min(orderedQty, trucksNeeded * capacity);
     if (plannedQty > remaining + 0.001) {
-      alert(`⛔ لا يمكن التجاوز عن كمية الطلب: تم توريد ${alreadyDelivered} م³ من أصل ${orderedQty} م³ — المتبقي ${Math.round(remaining * 100) / 100} م³ فقط.`);
+      alert(L('overQtyPrefix') + alreadyDelivered + ' ' + L('m3') + L('ofTotal') + orderedQty + ' ' + L('m3') + L('remainingPrefix') + Math.round(remaining * 100) / 100 + ' ' + L('m3') + L('only'));
       return;
     }
     const now = new Date();
@@ -228,10 +230,10 @@ export default function Operations() {
     setConfirmedOrders(prev => prev.filter(o => o.id !== order.id));
     setDispatchOrder('');
     if (currentUser) addNotification(currentUser.username, {
-      level: 'success', title: '🚀 تم تشغيل الطلب ' + (order.orderNo || order.id),
-      body: `${trucksNeeded} رحلة إلى ${order.projectName || '—'} (${order.quantity} م³) بأسطول ${mixers.length} خلاطة جاهزة — الأسمنت المتاح ${inventory && typeof inventory.cement === 'number' ? inventory.cement.toFixed(0) : '—'} طن`,
+      level: 'success', title: L('orderStarted') + (order.orderNo || order.id),
+      body: trucksNeeded + L('tripsTo') + (order.projectName || '—') + ' (' + order.quantity + ' ' + L('m3') + ')' + L('withFleetOf') + mixers.length + L('readyMixer') + L('cementAvail') + (inventory && typeof inventory.cement === 'number' ? inventory.cement.toFixed(0) : '—') + L('tonnes'),
     }).catch(() => {});
-    alert(`✅ تم تجهيز ${trucksNeeded} رحلة للطلب ${order.orderNo || order.id} على الشاحنات: ${newTrips.map(t => t.code).join(', ')} — الحركة بدأت والرحلات مربوطة بالطلب.`);
+    alert(L('dispatchSuccessPrefix') + trucksNeeded + L('tripsFor') + (order.orderNo || order.id) + L('onTrucks') + newTrips.map(tr => tr.code).join(', ') + L('movementStarted'));
   };
   const dispatchResult = (() => {
     const dist = Number(dispatch.distance), spd = Number(dispatch.speed) || 1;
@@ -380,7 +382,6 @@ export default function Operations() {
         if (nextStep >= BATCH_STEPS.length * 3 + 1) {
           if (batchTimer.current) window.clearInterval(batchTimer.current);
           // auto-create the trip
-          const recipe = BATCH_RECIPES.find(r => r.code === prev.recipe) || BATCH_RECIPES[1];
           const now = new Date();
           const pad = (n: number) => String(n).padStart(2, '0');
           const nowTime = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
@@ -482,7 +483,7 @@ export default function Operations() {
           <NotificationsBell />
           <PlantLogo username={currentUser.username} height={32} />
           <span className="bg-emerald-500/15 text-emerald-500 text-xs px-3 py-1.5 rounded-lg font-bold border border-emerald-500/30">🟢 {currentUser.plantName}</span>
-          <button onClick={() => { logout(); navigate('/'); }} className="bg-white/[0.05] text-slate-300 text-xs px-3 py-1.5 rounded-lg font-bold border border-white/10 hover:border-red-400/60 hover:text-red-300 transition-colors">🚪 خروج</button>
+          <button onClick={() => { logout(); navigate('/'); }} className="bg-white/[0.05] text-slate-300 text-xs px-3 py-1.5 rounded-lg font-bold border border-white/10 hover:border-red-400/60 hover:text-red-300 transition-colors">{L('logout')}</button>
           <p className="text-[10px] text-emerald-500/80">Design by Dr. Ahmad Abdo Alyan</p>
         </div>
       </div>
@@ -522,14 +523,14 @@ export default function Operations() {
                         trip: t,
                         order: orders.find((o) => (o.orderNo || o.id) === t.orderId) || null,
                         challan: t.challan || {},
-                      })} title="مستند التوريد الرقمي" className="bg-sky-500 hover:bg-sky-600 text-white text-[11px] px-2 py-0.5 rounded font-bold">🧾</button>
+                      })} title={L('deliveryDoc')} className="bg-sky-500 hover:bg-sky-600 text-white text-[11px] px-2 py-0.5 rounded font-bold">🧾</button>
                     )}
                     <button onClick={() => openEdit(t)} className="bg-green-500 hover:bg-green-600 text-white text-[11px] px-2 py-0.5 rounded font-bold">✏️</button>
                     <button onClick={() => deleteTrip(t.id)} className="bg-red-500 hover:bg-red-600 text-white text-[11px] px-2 py-0.5 rounded font-bold">🗑️</button>
                   </div>
                 </div>
                 <h3 className="text-xl font-bold text-white">{t.code}</h3>
-                {t.orderId && <p className="text-[10px] font-bold text-sky-400 mt-0.5">🆔 طلب: {t.orderId}</p>}
+                {t.orderId && <p className="text-[10px] font-bold text-sky-400 mt-0.5">🆔 {L('orderLabel')} {t.orderId}</p>}
                 <div className="border-t border-white/10 pt-3 mt-3 space-y-1 text-sm text-slate-300">
                   <p><span className="text-slate-500">Plant:</span> <strong>{t.plant}</strong></p>
                   <p><span className="text-slate-500">Date:</span> {t.date}</p>
@@ -790,15 +791,15 @@ export default function Operations() {
                 <span className="text-[10px] text-slate-400">{confirmedOrders.length} scheduled</span>
               </div>
               <div className="px-4 py-2.5 bg-[#0B111E] border-b border-white/10 flex flex-wrap items-center gap-2">
-                <label className="text-[10px] text-slate-400 font-bold">🚛 تشغيل طلب (فحص مخزون + أسطول):</label>
+                <label className="text-[10px] text-slate-400 font-bold">🚛 {L('dispatchRunLabel')}</label>
                 <select value={dispatchOrder} onChange={e => setDispatchOrder(e.target.value)} className="flex-1 min-w-[200px] bg-white/[0.04] border border-white/10 rounded-lg p-1.5 text-white text-xs">
-                  <option value="">— اختر طلباً مجدولاً —</option>
-                  {confirmedOrders.map(o => <option key={o.id} value={o.id}>{o.orderNo || o.id} · {o.customerName} · {o.quantity} م³</option>)}
+                  <option value="">{L('selectScheduledOrder')}</option>
+                  {confirmedOrders.map(o => <option key={o.id} value={o.id}>{o.orderNo || o.id} · {o.customerName} · {o.quantity} {L('m3')}</option>)}
                 </select>
                 <button
                   onClick={() => {
                     const order = confirmedOrders.find(o => o.id === dispatchOrder);
-                    if (!order) { alert('اختر طلباً أولاً.'); return; }
+                    if (!order) { alert(L('selectOrderFirst')); return; }
                     dispatchOrderToFleet(order);
                   }}
                   className="bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 text-white text-xs px-4 py-2 rounded-lg font-bold shadow-[0_0_20px_rgba(56,189,248,0.3)]"
@@ -827,7 +828,7 @@ export default function Operations() {
                           <td className="p-2 font-bold text-sky-300">{dispatchResult.gap.toFixed(0)} min</td>
                           <td className="p-2">{trucks}</td>
                           <td className="p-2">{fmt(sTot)} → {fmt(eTot)} ({dur.toFixed(0)} min)</td>
-                          <td className="p-2"><button onClick={() => dispatchOrderToFleet(o)} className="bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] px-2 py-1 rounded font-bold">🚀 تشغيل</button></td>
+                          <td className="p-2"><button onClick={() => dispatchOrderToFleet(o)} className="bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] px-2 py-1 rounded font-bold">🚀 {L('run')}</button></td>
                         </tr>
                       );
                     })}

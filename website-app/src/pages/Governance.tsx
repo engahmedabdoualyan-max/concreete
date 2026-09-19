@@ -6,6 +6,7 @@ import QuickJump from '../components/QuickJump';
 import LangSelector from '../components/LangSelector';
 import BrandLogo from '../components/BrandLogo';
 import DatePicker from '../components/DatePicker';
+import { useGovernanceDict } from '../i18n/governanceDict';
 
 interface WeighRecord {
   id: number; date: string; time: string; plate: string; supplier: string;
@@ -55,6 +56,7 @@ async function verifyChain(records: WeighRecord[]): Promise<{ intact: boolean; t
 export default function Governance() {
   const { currentUser, logout } = useAuth();
   const navigate = useNavigate();
+  const t = useGovernanceDict();
   const [tab, setTab] = useState<'weigh' | 'returns'>('weigh');
   const [weigh, setWeigh] = useState<WeighRecord[]>([]);
   const [returns, setReturns] = useState<ReturnRecord[]>([]);
@@ -142,7 +144,7 @@ export default function Governance() {
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <span className="bg-emerald-500/15 text-emerald-500 text-xs px-3 py-1.5 rounded-lg font-bold border border-emerald-500/30">🟢 {currentUser.plantName}</span>
-          <button onClick={() => { logout(); navigate('/'); }} className="bg-white/[0.05] text-slate-300 text-xs px-3 py-1.5 rounded-lg font-bold border border-white/10 hover:border-red-400/60 hover:text-red-300 transition-colors">🚪 خروج</button>
+          <button onClick={() => { logout(); navigate('/'); }} className="bg-white/[0.05] text-slate-300 text-xs px-3 py-1.5 rounded-lg font-bold border border-white/10 hover:border-red-400/60 hover:text-red-300 transition-colors">{t('logout')}</button>
         </div>
       </div>
 

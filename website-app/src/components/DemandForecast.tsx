@@ -1,12 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
+import { useDemandForecastDict } from '../i18n/demandForecastDict';
 import { loadOrders } from '../firebase/firestore';
-
-interface ForecastRow {
-  label: string;
-  m3: number;
-  trend: 'up' | 'down' | 'flat';
-  changePct: number;
-}
 
 /**
  * Demand Forecasting AI
@@ -15,6 +9,7 @@ interface ForecastRow {
  * - Predicts next 7 days total demand and material requirements
  */
 export default function DemandForecast() {
+  const t = useDemandForecastDict();
   const [orders, setOrders] = useState<any[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [horizon, setHorizon] = useState<7 | 30>(7);
@@ -91,7 +86,7 @@ export default function DemandForecast() {
       predTotal: Math.round(predTotal),
       predDaily: Math.round(predTotal / horizon),
       peakDay: byWeek.indexOf(Math.max(...byWeek)),
-      confidence: activeDays >= 30 ? 'عالية' : activeDays >= 10 ? 'متوسطة' : 'منخفضة',
+      confidence: activeDays >= 30 ? 'confHigh' : activeDays >= 10 ? 'confMedium' : 'confLow',
       samples: activeDays,
       trend,
       changePct,
@@ -109,14 +104,14 @@ export default function DemandForecast() {
     <div className="bg-gradient-to-br from-purple-500/10 to-transparent border border-purple-500/30 rounded-2xl p-5">
       <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
         <div>
-          <h3 className="text-sm font-black text-white">🤖 توقع الطلب بالذكاء الاصطناعي</h3>
-          <p className="text-[10px] text-slate-400">تحليل آخر 90 يوم — متوسط مرجح + موسمية أيام الأسبوع + اتجاه خطي</p>
+          <h3 className="text-sm font-black text-white">{t('title')}</h3>
+          <p className="text-[10px] text-slate-400">{t('subtitle')}</p>
         </div>
         <div className="flex bg-white/[0.04] border border-white/10 rounded-lg p-1">
           {([7, 30] as const).map(h => (
             <button key={h} onClick={() => setHorizon(h)}
               className={`px-3 py-1 rounded-md text-[11px] font-bold ${horizon === h ? 'bg-purple-500/30 text-purple-300' : 'text-slate-400'}`}>
-              {h} يوم
+              {t('daysShort').replace('{h}', String(h))}
             </button>
           ))}
         </div>
@@ -125,43 +120,43 @@ export default function DemandForecast() {
       {/* Main prediction */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
         <div className="bg-white/[0.03] border-l-4 border-purple-500 rounded-xl p-3">
-          <p className="text-[10px] text-slate-400">الطلب المتوقع ({horizon} يوم)</p>
-          <p className="text-2xl font-black text-white">{forecast.predTotal.toLocaleString()} م³</p>
+          <p className="text-[10px] text-slate-400">{t('predictedDemand').replace('{horizon}', String(horizon))}</p>
+          <p className="text-2xl font-black text-white">{forecast.predTotal.toLocaleString()} {t('m3Unit')}</p>
           <p className={`text-[10px] font-bold mt-1 ${forecast.trend === 'up' ? 'text-emerald-400' : forecast.trend === 'down' ? 'text-red-400' : 'text-slate-400'}`}>
-            {forecast.trend === 'up' ? '📈 صاعد' : forecast.trend === 'down' ? '📉 هابط' : '➡️ مستقر'} {forecast.changePct !== 0 && `(${forecast.changePct > 0 ? '+' : ''}${forecast.changePct}%)`}
+            {forecast.trend === 'up' ? t('trendUp') : forecast.trend === 'down' ? t('trendDown') : t('trendFlat')} {forecast.changePct !== 0 && `(${forecast.changePct > 0 ? '+' : ''}${forecast.changePct}%)`}
           </p>
         </div>
         <div className="bg-white/[0.03] border-l-4 border-sky-500 rounded-xl p-3">
-          <p className="text-[10px] text-slate-400">المتوسط اليومي المتوقع</p>
+          <p className="text-[10px] text-slate-400">{t('avgDaily')}</p>
           <p className="text-2xl font-black text-white">{forecast.predDaily}</p>
-          <p className="text-[10px] text-slate-500 mt-1">م³/يوم · الحالي {forecast.avgDaily.toFixed(1)}</p>
+          <p className="text-[10px] text-slate-500 mt-1">{t('perDayCurrent').replace('{avg}', forecast.avgDaily.toFixed(1))}</p>
         </div>
         <div className="bg-white/[0.03] border-l-4 border-yellow-500 rounded-xl p-3">
-          <p className="text-[10px] text-slate-400">أعلى يوم طلب</p>
-          <p className="text-lg font-black text-white">{['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'][forecast.peakDay % 7]}</p>
-          <p className="text-[10px] text-slate-500 mt-1">جهّز مخزون إضافي</p>
+          <p className="text-[10px] text-slate-400">{t('peakDay')}</p>
+          <p className="text-lg font-black text-white">{t((['daySun', 'dayMon', 'dayTue', 'dayWed', 'dayThu', 'dayFri', 'daySat'] as const)[forecast.peakDay % 7])}</p>
+          <p className="text-[10px] text-slate-500 mt-1">{t('peakPrep')}</p>
         </div>
         <div className="bg-white/[0.03] border-l-4 border-emerald-500 rounded-xl p-3">
-          <p className="text-[10px] text-slate-400">دقة التوقع</p>
-          <p className="text-lg font-black text-emerald-400">{forecast.confidence}</p>
-          <p className="text-[10px] text-slate-500 mt-1">{forecast.samples} يوم بيانات فعلية</p>
+          <p className="text-[10px] text-slate-400">{t('accuracyTitle')}</p>
+          <p className="text-lg font-black text-emerald-400">{t(forecast.confidence)}</p>
+          <p className="text-[10px] text-slate-500 mt-1">{t('samplesDays').replace('{n}', String(forecast.samples))}</p>
         </div>
       </div>
 
       {/* Material requirements */}
       <div>
-        <p className="text-[10px] text-slate-400 uppercase font-bold mb-2">الخامات المطلوبة لتغطية الطلب المتوقع</p>
+        <p className="text-[10px] text-slate-400 uppercase font-bold mb-2">{t('materialsNeeded')}</p>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
           {[
-            { name: 'أسمنت', val: forecast.cement, unit: 'طن', icon: '🏗️', color: 'from-slate-400 to-slate-200' },
-            { name: 'رمل', val: forecast.sand, unit: 'طن', icon: '🟡', color: 'from-yellow-500 to-yellow-200' },
-            { name: 'زلط', val: forecast.gravel, unit: 'طن', icon: '🪨', color: 'from-gray-600 to-gray-400' },
-            { name: 'إضافات', val: forecast.admix, unit: 'لتر', icon: '🧪', color: 'from-cyan-500 to-cyan-300' },
+            { nameKey: 'matCement' as const, val: forecast.cement, unit: t('tonUnit'), icon: '🏗️', color: 'from-slate-400 to-slate-200' },
+            { nameKey: 'matSand' as const, val: forecast.sand, unit: t('tonUnit'), icon: '🟡', color: 'from-yellow-500 to-yellow-200' },
+            { nameKey: 'matGravel' as const, val: forecast.gravel, unit: t('tonUnit'), icon: '🪨', color: 'from-gray-600 to-gray-400' },
+            { nameKey: 'matAdmix' as const, val: forecast.admix, unit: t('literUnit'), icon: '🧪', color: 'from-cyan-500 to-cyan-300' },
           ].map(m => (
-            <div key={m.name} className="bg-white/[0.03] border border-white/10 rounded-lg p-2.5 flex items-center gap-2">
+            <div key={m.nameKey} className="bg-white/[0.03] border border-white/10 rounded-lg p-2.5 flex items-center gap-2">
               <span className="text-lg">{m.icon}</span>
               <div className="flex-1">
-                <p className="text-[10px] text-slate-400">{m.name}</p>
+                <p className="text-[10px] text-slate-400">{t(m.nameKey)}</p>
                 <p className="text-sm font-black text-white">{m.val.toLocaleString()} <span className="text-[9px] text-slate-500">{m.unit}</span></p>
               </div>
             </div>
@@ -170,7 +165,7 @@ export default function DemandForecast() {
       </div>
 
       <p className="text-[9px] text-slate-600 mt-3">
-        💡 يُنصح بإصدار أوامر توريد لتغطية النقص قبل موسم الذروة · إجمالي 90 يوم فعل: {forecast.total90.toLocaleString()} م³
+        {t('tip').replace('{total}', forecast.total90.toLocaleString())}
       </p>
     </div>
   );

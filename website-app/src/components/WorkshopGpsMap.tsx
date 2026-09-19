@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import { useWorkshopGpsMapDict } from '../i18n/workshopGpsMapDict';
 import type { Asset } from '../pages/Workshop';
 
 /**
@@ -9,6 +10,7 @@ import type { Asset } from '../pages/Workshop';
  * shows a calm hint instead of an empty map (system works fine without).
  */
 export default function WorkshopGpsMap({ assets }: { assets: Asset[] }) {
+  const t = useWorkshopGpsMapDict();
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstance = useRef<L.Map | null>(null);
   const layerRef = useRef<L.LayerGroup | null>(null);
@@ -44,20 +46,20 @@ export default function WorkshopGpsMap({ assets }: { assets: Asset[] }) {
   return (
     <div className="bg-white/[0.04] border border-white/10 rounded-xl p-5">
       <div className="flex flex-wrap justify-between items-center mb-3 gap-2">
-        <h3 className="text-lg font-bold text-white">📍 مواقع الأسطول المباشرة</h3>
+        <h3 className="text-lg font-bold text-white">{t('fleetTitle')}</h3>
         <span className={`text-[10px] font-bold px-2 py-1 rounded border ${geoAssets.length > 0
           ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
           : 'bg-sky-500/10 text-sky-300 border-white/10'}`}>
           {geoAssets.length > 0
-            ? `🔌 ${geoAssets.length} مركبة ببث GPS`
-            : '📴 بدون متتبعات — الخريطة تتفعل تلقائياً عند التوصيل'}
+            ? t('gpsCount').replace('{n}', String(geoAssets.length))
+            : t('noTrackers')}
         </span>
       </div>
       {geoAssets.length > 0 ? (
         <div ref={mapRef} className="w-full h-[240px] rounded-lg overflow-hidden border border-white/10" style={{ background: '#0d1420' }} />
       ) : (
         <div className="border border-dashed border-white/10 rounded-lg p-6 text-center text-sm text-slate-400">
-          📡 لسه مربوطتش متتبعات GPS للأصول — من لوحة الإدارة → <strong className="text-indigo-300">الأجهزة الطرفية</strong> وصّل «متتبعات GPS» وحدد الإحداثيات لكل أصل، والخريطة هتشتغل لوحدها.
+          {t('hintPre')}<strong className="text-indigo-300">{t('peripheralDevices')}</strong>{t('hintPost')}
         </div>
       )}
     </div>

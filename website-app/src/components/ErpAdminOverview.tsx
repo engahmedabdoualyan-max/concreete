@@ -8,6 +8,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
+import { useErpDict } from '../i18n/erpDict';
 
 const fmtSar = (n: number) => (Number(n) / 100).toLocaleString('en-US', { maximumFractionDigits: 2 });
 
@@ -42,6 +43,7 @@ function Stat({ emoji, label, value, sub, tone = 'text-white' }: { emoji: string
 }
 
 export default function ErpAdminOverview({ onToast }: { onToast: (msg: string) => void }) {
+  const t = useErpDict();
   const navigate = useNavigate();
   const [d, setD] = useState<ErpOverview | null>(null);
   const [busy, setBusy] = useState(false);
@@ -51,7 +53,7 @@ export default function ErpAdminOverview({ onToast }: { onToast: (msg: string) =
     setBusy(true);
     setErr('');
     const safe = <T,>(p: Promise<T>): Promise<T | null> => p.catch((e: any) => {
-      if (/401|Unauthorized|not signed in|توكن/i.test(String(e?.message))) setErr('⚠️ يلزم تسجيل الدخول إلى النظام المالي (ERP) لعرض البيانات — سجّل الدخول من صفحة /login');
+      if (/401|Unauthorized|not signed in|توكن/i.test(String(e?.message))) setErr(t('adminLoginRequired'));
       return null;
     });
 
@@ -91,7 +93,7 @@ export default function ErpAdminOverview({ onToast }: { onToast: (msg: string) =
       riskClients: risk?.total ?? 0,
     });
     setBusy(false);
-    onToast('✅ تم تحديث نظرة ERP');
+    onToast(t('adminToast'));
   };
 
   // eslint-disable-next-line react-hooks/exhaustive-deps, react-hooks/set-state-in-effect -- initial data fetch
@@ -102,32 +104,32 @@ export default function ErpAdminOverview({ onToast }: { onToast: (msg: string) =
       <div className="bg-white/[0.04] rounded-2xl border border-white/10 p-6 backdrop-blur-xl">
         <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
           <div>
-            <h3 className="text-lg font-black tracking-tight text-white">💼 ERP — المميزات الجديدة (مالية / مخزون / موردون)</h3>
-            <p className="text-xs text-slate-400 mt-1">بيانات مباشرة من السيرفر (الباك-اند) — دفتر الأستاذ، الالتزامات، المصاريف، أوامر الشراء، المخزون، وتقييم مخاطر العملاء.</p>
+            <h3 className="text-lg font-black tracking-tight text-white">{t('adminHeader')}</h3>
+            <p className="text-xs text-slate-400 mt-1">{t('adminSub')}</p>
           </div>
           <button
             onClick={load}
             disabled={busy}
             className="bg-gradient-to-r from-sky-500 to-cyan-500 hover:from-sky-400 hover:to-cyan-400 disabled:opacity-50 text-white px-5 py-2 rounded-lg font-bold text-sm transition-all duration-300"
           >
-            {busy ? '⏳ جارٍ التحميل...' : '🔄 تحديث'}
+            {busy ? t('refreshAdminBusy') : t('refreshAdmin')}
           </button>
         </div>
 
         {err && <div className="mb-4 text-xs text-yellow-400 bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-3">{err}</div>}
-        {!d && !err && <div className="text-sm text-slate-400 py-6 text-center">⏳ جارٍ تحميل بيانات ERP...</div>}
+        {!d && !err && <div className="text-sm text-slate-400 py-6 text-center">{t('loadingAdminData')}</div>}
 
         {d && (
           <>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-              <Stat emoji="🏦" label="الحسابات البنكية" value={String(d.accounts)} sub={`رصيد إجمالي ${fmtSar(d.balanceSar)} ر.س`} />
-              <Stat emoji="📒" label="دفتر الأستاذ" value={`${fmtSar(d.debitsSar)} / ${fmtSar(d.creditsSar)} ر.س`} sub="مدين / دائن" tone="text-emerald-400" />
-              <Stat emoji="🗓️" label="الالتزامات" value={String(d.commitments)} sub={d.overdueCommitments > 0 ? `⚠️ ${d.overdueCommitments} متأخرة` : `شهرياً ${fmtSar(d.monthlyCommitmentsSar)} ر.س`} tone={d.overdueCommitments > 0 ? 'text-red-400' : 'text-white'} />
-              <Stat emoji="💸" label="مصاريف" value={String(d.expenses)} sub={`${fmtSar(d.expensesTotalSar)} ر.س`} />
-              <Stat emoji="👥" label="رواتب" value={fmtSar(d.salariesTotalSar)} sub="ر.س الشهر الحالي" />
-              <Stat emoji="📦" label="أوامر شراء" value={String(d.pos)} sub={`${d.openPos} مفتوحة · ${fmtSar(d.poTotalSar)} ر.س`} />
-              <Stat emoji="🛢️" label="صوامع منخفضة" value={String(d.lowSilos)} sub={`${d.criticalSilos} حرجة`} tone={d.criticalSilos > 0 ? 'text-red-400' : d.lowSilos > 0 ? 'text-yellow-400' : 'text-white'} />
-              <Stat emoji="🛡️" label="مخاطر عملاء عالية" value={String(d.riskHigh)} sub={`من أصل ${d.riskClients} عميل`} tone={d.riskHigh > 0 ? 'text-red-400' : 'text-emerald-400'} />
+              <Stat emoji="🏦" label={t('statAccounts')} value={String(d.accounts)} sub={`${t('totalBalancePrefix')} ${fmtSar(d.balanceSar)} ${t('sar')}`} />
+              <Stat emoji="📒" label={t('statLedger')} value={`${fmtSar(d.debitsSar)} / ${fmtSar(d.creditsSar)} ${t('sar')}`} sub={t('debitCredit')} tone="text-emerald-400" />
+              <Stat emoji="🗓️" label={t('statCommitments')} value={String(d.commitments)} sub={d.overdueCommitments > 0 ? `⚠️ ${d.overdueCommitments} ${t('overdueSuffix')}` : `${t('monthlyPrefix')} ${fmtSar(d.monthlyCommitmentsSar)} ${t('sar')}`} tone={d.overdueCommitments > 0 ? 'text-red-400' : 'text-white'} />
+              <Stat emoji="💸" label={t('statExpenses')} value={String(d.expenses)} sub={`${fmtSar(d.expensesTotalSar)} ${t('sar')}`} />
+              <Stat emoji="👥" label={t('statSalaries')} value={fmtSar(d.salariesTotalSar)} sub={`${t('sar')} ${t('currentMonth')}`} />
+              <Stat emoji="📦" label={t('statPOs')} value={String(d.pos)} sub={`${d.openPos} ${t('openSuffix')} · ${fmtSar(d.poTotalSar)} ${t('sar')}`} />
+              <Stat emoji="🛢️" label={t('statLowSilos')} value={String(d.lowSilos)} sub={`${d.criticalSilos} ${t('criticalSuffix')}`} tone={d.criticalSilos > 0 ? 'text-red-400' : d.lowSilos > 0 ? 'text-yellow-400' : 'text-white'} />
+              <Stat emoji="🛡️" label={t('statRisk')} value={String(d.riskHigh)} sub={`${t('ofTotalPrefix')} ${d.riskClients} ${t('clientUnit')}`} tone={d.riskHigh > 0 ? 'text-red-400' : 'text-emerald-400'} />
             </div>
 
             <div className="flex flex-wrap gap-2">
@@ -135,13 +137,13 @@ export default function ErpAdminOverview({ onToast }: { onToast: (msg: string) =
                 onClick={() => navigate('/finance')}
                 className="bg-sky-500/15 text-sky-300 border border-sky-500/40 hover:bg-sky-500/25 px-5 py-2.5 rounded-lg font-bold text-sm transition-colors"
               >
-                💼 فتح وحدة المالية كاملة
+                {t('openFinance')}
               </button>
               <button
                 onClick={() => navigate('/materials')}
                 className="bg-emerald-500/15 text-emerald-300 border border-emerald-500/40 hover:bg-emerald-500/25 px-5 py-2.5 rounded-lg font-bold text-sm transition-colors"
               >
-                🛢️ فتح الخامات والمخزون
+                {t('openMaterials')}
               </button>
             </div>
           </>

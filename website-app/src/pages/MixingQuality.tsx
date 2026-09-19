@@ -7,6 +7,7 @@ import QuickJump from '../components/QuickJump';
 import LangSelector from '../components/LangSelector';
 import BrandLogo from '../components/BrandLogo';
 import NotificationsBell from '../components/NotificationsBell';
+import { useMixingQualityDict } from '../i18n/mixingQualityDict';
 
 // ============ Interfaces ============
 interface Recipe { code: string; cement: number; sand: number; gravel: number; water: number; admixture: number; }
@@ -29,6 +30,7 @@ const DEF_RECIPES: Recipe[] = [
 export default function MixingQuality() {
   const { currentUser, logout } = useAuth();
   const navigate = useNavigate();
+  const L = useMixingQualityDict();
   const [tab, setTab] = useState<Tab>('recipes');
   
   // Data states
@@ -195,8 +197,8 @@ export default function MixingQuality() {
     setQcRecords(prev => [...prev, { id: Date.now(), date: new Date().toISOString().split('T')[0], truck: qcForm.truck, design: qcForm.design, slump: +qcForm.slump, break7d: +qcForm.break7d, break28d: +qcForm.break28d, blade: qcForm.blade, bonNo: qcForm.bonNo || sampleId, customer: order?.customerName || qcForm.customer, site: order?.projectName || qcForm.site, mixDesignCode: qcForm.mixDesignCode, orderId, sampleId: sampleId || undefined }]);
     setQcForm({ truck: 'm01', design: 'C30', slump: '', break7d: '', break28d: '', blade: 'Optimal', bonNo: '', customer: '', site: '', mixDesignCode: '', orderId: '' });
     if (order && currentUser) addNotification(currentUser.username, {
-      level: 'info', title: '🔬 عينة معمل ' + (sampleId || order.orderNo),
-      body: `طلب ${order.orderNo} · شاحنة ${qcForm.truck} · ${qcForm.design} — العينة أُخذت من كود العميل (${order.customerCode || 'NA'}) + الطلب`,
+      level: 'info', title: L('labSample') + (sampleId || order.orderNo),
+      body: L('order') + order.orderNo + ' · ' + L('truck') + qcForm.truck + ' · ' + qcForm.design + L('sampleBodySuffix') + (order.customerCode || 'NA') + L('andOrder'),
     }).catch(() => {});
     alert('🔬 QC data saved!' + (sampleId ? ` — Sample ID: ${sampleId}` : ''));
   };
@@ -284,7 +286,6 @@ export default function MixingQuality() {
     const samples = qcRecords.filter(r => r.break28d > 0 && r.break7d > 0 && r.slump > 0);
     if (samples.length < 3) return null;
     const ys = samples.map(r => r.break28d);
-    const designs = samples.map(r => parseInt(r.design.replace('C', '')));
     const featBuilders: Array<[string, (r: any) => number][]> = [
       [['design', r => parseInt(r.design.replace('C', ''))], ['slump', r => r.slump], ['7d', r => r.break7d]],
       [['slump', r => r.slump], ['7d', r => r.break7d]],
@@ -370,7 +371,7 @@ export default function MixingQuality() {
         <div className="flex flex-wrap items-center gap-3">
           <NotificationsBell />
           <span className="bg-emerald-500/15 text-emerald-500 text-xs px-3 py-1.5 rounded-lg font-bold border border-emerald-500/30">🟢 {currentUser.plantName}</span>
-          <button onClick={() => { logout(); navigate('/'); }} className="bg-white/[0.05] text-slate-300 text-xs px-3 py-1.5 rounded-lg font-bold border border-white/10 hover:border-red-400/60 hover:text-red-300 transition-colors">🚪 خروج</button>
+          <button onClick={() => { logout(); navigate('/'); }} className="bg-white/[0.05] text-slate-300 text-xs px-3 py-1.5 rounded-lg font-bold border border-white/10 hover:border-red-400/60 hover:text-red-300 transition-colors">{L('logout')}</button>
         </div>
       </div>
 
@@ -548,14 +549,14 @@ export default function MixingQuality() {
                 <div><label className="text-xs text-slate-400 font-semibold">Site / Project</label><input value={qcForm.site} onChange={e => setQcForm({ ...qcForm, site: e.target.value })} placeholder="Project site" className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]" /></div>
                 <div><label className="text-xs text-slate-400 font-semibold">Truck</label><select value={qcForm.truck} onChange={e => setQcForm({ ...qcForm, truck: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]">{trucks.map(t => <option key={t} value={t}>{t}</option>)}</select></div>
                 <div>
-                  <label className="text-xs text-slate-400 font-semibold">ربط العينة بالطلب (اختياري)</label>
+                  <label className="text-xs text-slate-400 font-semibold">{L('linkSampleToOrder')}</label>
                   <select value={qcForm.orderId} onChange={e => {
                     const id = e.target.value;
                     setQcForm(prev => ({ ...prev, orderId: id }));
                     const o = orders.find(x => x.id === id);
                     if (o) setQcForm(prev => ({ ...prev, customer: o.customerName, site: o.projectName }));
                   }} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]">
-                    <option value="">— بدون ربط —</option>
+                    <option value="">{L('noLinking')}</option>
                     {orders.filter((o: any) => o.accountStatus === 'approved').map((o: any) => <option key={o.id} value={o.id}>{o.orderNo || o.id} · {o.customerName}</option>)}
                   </select>
                 </div>
@@ -588,7 +589,7 @@ export default function MixingQuality() {
                       return (
                         <tr key={r.id} className="border-b border-white/10">
                           <td className="p-2">{r.date}</td>
-                          <td className="p-2 font-bold text-cyan-400">{r.sampleId || r.bonNo || '—'}{r.orderId && <div className="text-[9px] text-slate-500 font-normal">طلب: {r.orderId}</div>}</td>
+                          <td className="p-2 font-bold text-cyan-400">{r.sampleId || r.bonNo || '—'}{r.orderId && <div className="text-[9px] text-slate-500 font-normal">{L('orderLabel')} {r.orderId}</div>}</td>
                           <td className="p-2">{r.customer || '—'}</td><td className="p-2 font-bold">{r.truck}</td><td className="p-2 text-sky-400">{r.design}</td>
                           <td className="p-2">{r.slump}</td><td className="p-2">{r.break7d}</td><td className="p-2">{r.break28d}</td>
                           <td className="p-2"><span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${pass ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'}`}>{pass ? '✓' : '✗'}</span></td>

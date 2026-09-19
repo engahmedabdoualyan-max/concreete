@@ -6,6 +6,7 @@ import QuickJump from '../components/QuickJump';
 import LangSelector from '../components/LangSelector';
 import BrandLogo from '../components/BrandLogo';
 import PlantLogo from '../components/PlantLogo';
+import { useScheduleDict } from '../i18n/scheduleDict';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
@@ -38,6 +39,7 @@ interface Route {
 export default function Schedule() {
   const { currentUser, logout } = useAuth();
   const navigate = useNavigate();
+  const t = useScheduleDict();
   const mapRef = useRef<L.Map | null>(null);
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const markersRef = useRef<L.Marker[]>([]);
@@ -435,7 +437,7 @@ export default function Schedule() {
     }
 
     if (!orders.length) {
-      toast('لا توجد طلبات في النظام', 'error');
+      toast(t('noOrdersInSystem'), 'error');
       return;
     }
 
@@ -450,7 +452,7 @@ export default function Schedule() {
     }
 
     if (ordersToImport.length === 0) {
-      toast('لا توجد طلبات موافق عليها ومتاحة للاستيراد', 'error');
+      toast(t('noApprovedToImport'), 'error');
       return;
     }
 
@@ -479,7 +481,7 @@ export default function Schedule() {
     const uniqueNewCustomers = newCustomers.filter(c => !existingCodes.has(c.code));
 
     if (uniqueNewCustomers.length === 0) {
-      toast('جميع الطلبات موجودة بالفعل في الجدول', 'error');
+      toast(t('allOrdersInSchedule'), 'error');
       return;
     }
 
@@ -496,7 +498,7 @@ export default function Schedule() {
     localStorage.setItem(ordersKey, JSON.stringify(updatedOrders));
     if (currentUser) saveOrders(currentUser.username, updatedOrders).catch(() => {});
 
-    toast(`تم استيراد ${uniqueNewCustomers.length} طلب(ات) بنجاح`, 'success');
+    toast(t('importSuccessPrefix') + uniqueNewCustomers.length + t('importSuccessSuffix'), 'success');
     setShowImportModal(false);
   };
 
@@ -553,13 +555,13 @@ export default function Schedule() {
             to="/orders"
             className="bg-sky-500 hover:bg-sky-400 text-white px-3 py-1 rounded text-xs font-bold"
           >
-            📦 الطلبات
+            📦 {t('orders')}
           </Link>
           <h1 className="text-sm font-black tracking-tight text-white">📅 Smart Pouring Schedule</h1>
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <span className="bg-emerald-500/15 text-emerald-500 text-xs px-3 py-1.5 rounded-lg font-bold border border-emerald-500/30">🟢 {currentUser.plantName}</span>
-          <button onClick={() => { logout(); navigate('/'); }} className="bg-white/[0.05] text-slate-300 text-xs px-3 py-1.5 rounded-lg font-bold border border-white/10 hover:border-red-400/60 hover:text-red-300 transition-colors">🚪 خروج</button>
+          <button onClick={() => { logout(); navigate('/'); }} className="bg-white/[0.05] text-slate-300 text-xs px-3 py-1.5 rounded-lg font-bold border border-white/10 hover:border-red-400/60 hover:text-red-300 transition-colors">{t('logout')}</button>
           <p className="text-[10px] text-emerald-500/80">Dr. Ahmad Abdo Alyan</p>
         </div>
       </div>
@@ -899,7 +901,7 @@ export default function Schedule() {
               onClick={() => setShowImportModal(true)}
               className="w-full bg-sky-500 hover:bg-sky-400 text-white py-3 rounded-lg text-sm font-bold"
             >
-              📦 Import من الطلبات
+              📦 {t('fromOrders')}
             </button>
           </div>
         </div>
@@ -928,34 +930,34 @@ export default function Schedule() {
       {showImportModal && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-[#0B111E]/95 border border-white/10 rounded-xl p-6 max-w-md w-full">
-            <h2 className="text-lg font-black tracking-tight text-white mb-4">📦 استيراد من الطلبات</h2>
+            <h2 className="text-lg font-black tracking-tight text-white mb-4">{t('importModalTitle')}</h2>
             <p className="text-sm text-slate-300 mb-4">
-              اختر نوع الاستيراد:
+              {t('chooseImportType')}
             </p>
             <div className="space-y-2 mb-4">
               <button
                 onClick={() => handleImportFromOrders('all')}
                 className="w-full bg-emerald-500 hover:bg-emerald-600 text-white py-3 rounded-lg text-sm font-bold shadow-[0_0_20px_rgba(56,189,248,0.3)]"
               >
-                ✅ استيراد جميع الطلبات الموافق عليها
+                {t('importAllApproved')}
               </button>
               <button
                 onClick={() => handleImportFromOrders('pending')}
                 className="w-full bg-sky-500 hover:bg-sky-400 text-white py-3 rounded-lg text-sm font-bold"
               >
-                📅 استيراد الطلبات المجدولة فقط
+                {t('importScheduledOnly')}
               </button>
             </div>
             <div className="bg-sky-500/10 border border-sky-500/30 rounded-lg p-3 mb-4">
               <p className="text-xs text-slate-300">
-                💡 <strong>ملاحظة:</strong> سيتم استيراد فقط الطلبات التي تم الموافقة عليها من الحسابات وليس عليها حظر.
+                💡 <strong>{t('importNoteLabel')}</strong> {t('importNoteBody')}
               </p>
             </div>
             <button
               onClick={() => setShowImportModal(false)}
               className="w-full bg-white/[0.06] hover:bg-white/[0.1] text-white py-2 rounded-lg text-sm font-bold"
             >
-              ❌ إلغاء
+              {t('cancel')}
             </button>
           </div>
         </div>

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useDashcamDict, type DashcamDictKey } from '../i18n/dashcamDict';
 import { saveDashcamConfig, loadDashcamConfig, loadAssets, loadDevicesRegistry, saveDevicesRegistry } from '../firebase/firestore';
 
 async function reportDashcamDevice(connected: boolean) {
@@ -36,22 +37,23 @@ interface TruckCam {
   event?: string;
 }
 
-const CAM_LABELS: Record<CamStatus, { ar: string; cls: string }> = {
-  online: { ar: '🟢 متصل', cls: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' },
-  recording: { ar: '🔴 يسجل', cls: 'bg-red-500/20 text-red-400 border-red-500/30' },
-  offline: { ar: '⚪ غير متصل', cls: 'bg-slate-500/20 text-slate-400 border-white/10' },
-  error: { ar: '🔴 خطأ', cls: 'bg-orange-500/20 text-orange-400 border-orange-500/30' },
+const CAM_LABELS: Record<CamStatus, { key: DashcamDictKey; cls: string }> = {
+  online: { key: 'camOnlineLbl', cls: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' },
+  recording: { key: 'camRecording', cls: 'bg-red-500/20 text-red-400 border-red-500/30' },
+  offline: { key: 'camOffline', cls: 'bg-slate-500/20 text-slate-400 border-white/10' },
+  error: { key: 'camError', cls: 'bg-orange-500/20 text-orange-400 border-orange-500/30' },
 };
 
-const EVENTS = [
-  '⚠️ فرملة مفاجئة Hard Braking',
-  '⚡ تسارع مفاجئ Rapid Acceleration',
-  '🌀 انحراف عن المسار Lane Departure',
-  '🚨 تصادم خفيف Collision Alert',
+const EVENTS: Array<DashcamDictKey> = [
+  'evBrake',
+  'evAccel',
+  'evLane',
+  'evCollision',
 ];
 
 export default function DashcamIntegration({ onClose }: DashcamIntegrationProps) {
   const { currentUser } = useAuth();
+  const t = useDashcamDict();
   const [trucks, setTrucks] = useState<TruckCam[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [quality, setQuality] = useState<'1080p' | '720p' | '480p'>('1080p');
@@ -158,9 +160,9 @@ export default function DashcamIntegration({ onClose }: DashcamIntegrationProps)
         {/* Header */}
         <div className="flex justify-between items-center p-5 border-b border-white/10 sticky top-0 bg-[#0B111E] rounded-t-2xl z-10">
           <div>
-            <h2 className="text-lg font-black tracking-tight text-white">📹 داش كام الشاحنات</h2>
-            <p className="text-xs text-slate-400">Fleet Dashcam · Live Feed & Recordings</p>
-            <span className="mt-1 inline-block bg-yellow-500/15 text-yellow-400 border border-yellow-500/30 text-[10px] font-bold px-2 py-0.5 rounded">⚠️ معاينة تجريبية — يحتاج أجهزة كاميرات فعلية</span>
+            <h2 className="text-lg font-black tracking-tight text-white">{t('title')}</h2>
+            <p className="text-xs text-slate-400">Fleet Dashcam · Live Feed &amp; Recordings</p>
+            <span className="mt-1 inline-block bg-yellow-500/15 text-yellow-400 border border-yellow-500/30 text-[10px] font-bold px-2 py-0.5 rounded">{t('betaWarning')}</span>
           </div>
           <button onClick={onClose} className="bg-white/[0.06] hover:bg-white/10 text-slate-300 w-9 h-9 rounded-lg font-bold">✕</button>
         </div>
@@ -169,7 +171,7 @@ export default function DashcamIntegration({ onClose }: DashcamIntegrationProps)
           {/* Settings bar */}
           <div className="flex flex-wrap items-center gap-3 bg-white/[0.03] border border-white/10 rounded-xl p-3">
             <label className="flex items-center gap-2 text-xs font-bold text-slate-300">
-              الجودة:
+              {t('quality')}
               <select value={quality} onChange={e => setQuality(e.target.value as any)} className="bg-white/[0.04] border border-white/10 rounded-lg p-1.5 text-white text-xs">
                 <option value="1080p">1080p HD</option>
                 <option value="720p">720p</option>
@@ -178,42 +180,42 @@ export default function DashcamIntegration({ onClose }: DashcamIntegrationProps)
             </label>
             <label className="flex items-center gap-2 bg-white/[0.04] border border-white/10 rounded-lg px-3 py-1.5 cursor-pointer select-none">
               <input type="checkbox" checked={loopRecording} onChange={e => setLoopRecording(e.target.checked)} className="accent-sky-500" />
-              <span className="text-xs font-bold text-slate-300">♻️ تسجيل حلقي Loop</span>
+              <span className="text-xs font-bold text-slate-300">{t('loopRecording')}</span>
             </label>
             <label className="flex items-center gap-2 bg-white/[0.04] border border-white/10 rounded-lg px-3 py-1.5 cursor-pointer select-none">
               <input type="checkbox" checked={eventDetection} onChange={e => setEventDetection(e.target.checked)} className="accent-red-500" />
-              <span className="text-xs font-bold text-slate-300">🚨 كشف الأحداث AI</span>
+              <span className="text-xs font-bold text-slate-300">{t('eventDetection')}</span>
             </label>
             <button
               onClick={() => { const v = !camOnline; setCamOnline(v); reportDashcamDevice(v); }}
               className={`mr-auto text-xs font-bold px-3 py-1.5 rounded-lg border ${camOnline ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40' : 'bg-white/[0.05] text-slate-300 border-white/10'}`}>
-              {camOnline ? '✅ نظام الكاميرات متصل' : '🔌 توصيل نظام الكاميرات'}
+              {camOnline ? t('camOnline') : t('camConnect')}
             </button>
-            <span className="text-[10px] text-slate-500">📹 {trucks.length} كاميرا · 🟢 {trucks.filter(t => t.status !== 'offline').length} متصلة</span>
+            <span className="text-[10px] text-slate-500">{t('camCount').replace('{total}', String(trucks.length)).replace('{online}', String(trucks.filter(x => x.status !== 'offline').length))}</span>
           </div>
 
           {/* Fleet grid */}
           <div>
-            <h3 className="text-xs text-slate-400 uppercase mb-2 font-bold">الأسطول · Fleet Cameras</h3>
+            <h3 className="text-xs text-slate-400 uppercase mb-2 font-bold">{t('fleetCams')}</h3>
             {trucks.length === 0 ? (
-              <div className="bg-white/[0.03] border border-dashed border-white/10 rounded-xl p-6 text-center text-sm text-slate-400">لا توجد شاحنات مسجلة — أضف الأسطول من صفحة الإدارة</div>
+              <div className="bg-white/[0.03] border border-dashed border-white/10 rounded-xl p-6 text-center text-sm text-slate-400">{t('noTrucks')}</div>
             ) : (
               <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                {trucks.map(t => (
-                  <button key={t.code} onClick={() => { setSelected(t.code); setLiveMode(true); }}
-                    className={`p-3 rounded-xl border text-right transition ${selected === t.code ? 'bg-sky-500/15 border-sky-500/40' : 'bg-white/[0.03] border-white/10 hover:bg-white/[0.06]'}`}>
+                {trucks.map(trk => (
+                  <button key={trk.code} onClick={() => { setSelected(trk.code); setLiveMode(true); }}
+                    className={`p-3 rounded-xl border text-right transition ${selected === trk.code ? 'bg-sky-500/15 border-sky-500/40' : 'bg-white/[0.03] border-white/10 hover:bg-white/[0.06]'}`}>
                     <div className="flex justify-between items-center mb-1">
-                      <span className="font-black text-white text-sm" dir="ltr">{t.code}</span>
-                      <span className={`text-[9px] px-1.5 py-0.5 rounded border font-bold ${CAM_LABELS[t.status].cls}`}>{CAM_LABELS[t.status].ar}</span>
+                      <span className="font-black text-white text-sm" dir="ltr">{trk.code}</span>
+                      <span className={`text-[9px] px-1.5 py-0.5 rounded border font-bold ${CAM_LABELS[trk.status].cls}`}>{t(CAM_LABELS[trk.status].key)}</span>
                     </div>
-                    <p className="text-[10px] text-slate-400 mb-1">👤 {t.driver}</p>
-                    <p className="text-[10px] text-slate-400">🚀 {t.speed} كم/س · 💾 {Math.round((t.storageUsedGB / t.storageGB) * 100)}%</p>
+                    <p className="text-[10px] text-slate-400 mb-1">👤 {trk.driver}</p>
+                    <p className="text-[10px] text-slate-400">🚀 {trk.speed} {t('speedUnit')} · 💾 {Math.round((trk.storageUsedGB / trk.storageGB) * 100)}%</p>
                     <div className="flex gap-1 mt-1 text-[9px]">
-                      <span className={t.front ? 'text-emerald-400' : 'text-slate-600'}>⬆ أمامية</span>
-                      {t.rear && <span className={t.rear ? 'text-emerald-400' : 'text-slate-600'}>⬇ خلفية</span>}
-                      {t.cabin && <span className="text-emerald-400">👤 كبينة</span>}
+                      <span className={trk.front ? 'text-emerald-400' : 'text-slate-600'}>{t('frontCam')}</span>
+                      {trk.rear && <span className={trk.rear ? 'text-emerald-400' : 'text-slate-600'}>{t('rearCam')}</span>}
+                      {trk.cabin && <span className="text-emerald-400">{t('cabinCam')}</span>}
                     </div>
-                    {t.event && <p className="text-[9px] text-orange-400 mt-1 font-bold">{t.event}</p>}
+                    {trk.event && <p className="text-[9px] text-orange-400 mt-1 font-bold">{t(trk.event as DashcamDictKey)}</p>}
                   </button>
                 ))}
               </div>
@@ -224,12 +226,12 @@ export default function DashcamIntegration({ onClose }: DashcamIntegrationProps)
           {selectedTruck && (
             <div>
               <div className="flex justify-between items-center mb-2">
-                <h3 className="text-xs text-slate-400 uppercase font-bold">البث المباشر · Live — {selectedTruck.code}</h3>
+                <h3 className="text-xs text-slate-400 uppercase font-bold">{t('liveTitle').replace('{code}', selectedTruck.code)}</h3>
                 <div className="flex gap-2">
                   <button onClick={() => setLiveMode(!liveMode)} className={`${liveMode ? 'bg-red-500 hover:bg-red-600' : 'bg-emerald-500 hover:bg-emerald-600'} text-white text-[10px] font-bold px-3 py-1.5 rounded-lg`}>
-                    {liveMode ? '⏹️ إيقاف البث' : '▶️ تشغيل البث'}
+                    {liveMode ? t('stopLive') : t('startLive')}
                   </button>
-                  <button onClick={() => alert('💾 تم حفظ مقطع من بث ' + selectedTruck.code)} className="bg-sky-500/20 text-sky-400 border border-sky-500/30 hover:bg-sky-500/30 text-[10px] font-bold px-3 py-1.5 rounded-lg">💾 حفظ مقطع</button>
+                  <button onClick={() => alert(t('clipSaved').replace('{code}', selectedTruck.code))} className="bg-sky-500/20 text-sky-400 border border-sky-500/30 hover:bg-sky-500/30 text-[10px] font-bold px-3 py-1.5 rounded-lg">{t('saveClip')}</button>
                 </div>
               </div>
               <div className="relative bg-black rounded-xl overflow-hidden border border-white/10">
@@ -240,22 +242,22 @@ export default function DashcamIntegration({ onClose }: DashcamIntegrationProps)
                   </div>
                 )}
                 <div className="absolute bottom-2 left-2 flex gap-2">
-                  <span className={`text-[9px] px-2 py-0.5 rounded border font-bold ${CAM_LABELS[selectedTruck.status].cls}`}>{CAM_LABELS[selectedTruck.status].ar}</span>
-                  <span className="text-[9px] px-2 py-0.5 rounded bg-black/60 text-white font-bold">📍 GPS متزامن</span>
-                  <span className="text-[9px] px-2 py-0.5 rounded bg-black/60 text-white font-bold">🚀 {selectedTruck.speed} كم/س</span>
+                  <span className={`text-[9px] px-2 py-0.5 rounded border font-bold ${CAM_LABELS[selectedTruck.status].cls}`}>{t(CAM_LABELS[selectedTruck.status].key)}</span>
+                  <span className="text-[9px] px-2 py-0.5 rounded bg-black/60 text-white font-bold">{t('gpsSync')}</span>
+                  <span className="text-[9px] px-2 py-0.5 rounded bg-black/60 text-white font-bold">🚀 {selectedTruck.speed} {t('speedUnit')}</span>
                 </div>
               </div>
 
               {/* Recent clips */}
               <div className="mt-3">
-                <h4 className="text-[10px] text-slate-400 uppercase mb-1 font-bold">أحدث المقاطع · Recent Clips</h4>
+                <h4 className="text-[10px] text-slate-400 uppercase mb-1 font-bold">{t('recentClips')}</h4>
                 <div className="space-y-1">
                   {[0, 1, 2].map(i => (
                     <div key={i} className="flex justify-between items-center bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2">
-                      <span className="text-xs text-slate-300">🎬 مقطع {i + 1} — {new Date(Date.now() - (i + 1) * 3600000).toLocaleString('en-GB')}</span>
+                      <span className="text-xs text-slate-300">{t('clipItem').replace('{n}', String(i + 1)).replace('{time}', new Date(Date.now() - (i + 1) * 3600000).toLocaleString('en-GB'))}</span>
                       <div className="flex gap-2">
-                        <button onClick={() => alert('▶️ تشغيل المقطع')} className="text-[10px] bg-sky-500/20 text-sky-400 px-2 py-0.5 rounded font-bold">▶️ تشغيل</button>
-                        <button onClick={() => alert('⬇️ تحميل المقطع')} className="text-[10px] bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded font-bold">⬇️ تحميل</button>
+                        <button onClick={() => alert(t('clipPlayAlert'))} className="text-[10px] bg-sky-500/20 text-sky-400 px-2 py-0.5 rounded font-bold">{t('playClip')}</button>
+                        <button onClick={() => alert(t('clipDownloadAlert'))} className="text-[10px] bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded font-bold">{t('downloadClip')}</button>
                       </div>
                     </div>
                   ))}

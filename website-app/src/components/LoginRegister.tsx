@@ -1,9 +1,11 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useLoginRegisterDict } from '../i18n/loginRegisterDict';
 import BrandLogo from './BrandLogo';
 
 export default function LoginRegister() {
+  const t = useLoginRegisterDict();
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -22,10 +24,10 @@ export default function LoginRegister() {
       if (success) {
         navigate('/');
       } else {
-        setError('البريد الإلكتروني / رقم الهاتف أو كلمة المرور غير صحيحة');
+        setError(t('errBadCredentials'));
       }
     } catch (err) {
-      setError('حدث خطأ أثناء تسجيل الدخول');
+      setError(t('errGeneric'));
     } finally {
       setIsLoading(false);
     }
@@ -39,10 +41,10 @@ export default function LoginRegister() {
             <BrandLogo width={220} fill rounded="rounded-2xl" />
           </div>
           <h2 className="mt-6 text-center text-3xl font-extrabold text-white">
-            تسجيل الدخول
+            {t('loginTitle')}
           </h2>
           <p className="mt-2 text-center text-sm text-slate-400">
-            نظام إدارة مصانع الخرسانة — FimtoSoft
+            {t('subtitle')}
           </p>
         </div>
 
@@ -54,12 +56,12 @@ export default function LoginRegister() {
 
         <form className="mt-8 space-y-6" onSubmit={handleLogin}>
           <div className="bg-sky-500/10 border border-dashed border-sky-500/40 rounded-lg p-3 text-sky-300 text-xs text-center">
-            🔐 بياناتك الآن موحدة مع نظام الخرسانة الرئيسي (الباكند المركزي)
+            {t('unifiedNote')}
           </div>
           <div className="rounded-md shadow-sm space-y-4">
             <div>
               <label htmlFor="identifier-login" className="block text-sm font-medium text-slate-300 mb-1">
-                البريد الإلكتروني أو رقم الهاتف
+                {t('identifierLabel')}
               </label>
               <input
                 id="identifier-login"
@@ -69,12 +71,12 @@ export default function LoginRegister() {
                 value={identifier}
                 onChange={(e) => setIdentifier(e.target.value)}
                 className="appearance-none relative block w-full px-3 py-2 bg-white/[0.04] border border-white/10 text-white rounded-lg focus:outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)] placeholder-slate-500"
-                placeholder="you@example.com  أو  +9665xxxxxxxx"
+                placeholder={t('idPlaceholder')}
               />
             </div>
 
             <div>
-              <label htmlFor="password-login" className="block text-sm font-medium text-slate-300 mb-1">كلمة المرور</label>
+              <label htmlFor="password-login" className="block text-sm font-medium text-slate-300 mb-1">{t('passwordLabel')}</label>
               <input
                 id="password-login"
                 name="password"
@@ -83,7 +85,7 @@ export default function LoginRegister() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="appearance-none relative block w-full px-3 py-2 bg-white/[0.04] border border-white/10 text-white rounded-lg focus:outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)] placeholder-slate-500"
-                placeholder="كلمة المرور"
+                placeholder={t('passwordPh')}
               />
             </div>
           </div>
@@ -94,12 +96,12 @@ export default function LoginRegister() {
               disabled={isLoading}
               className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-lg text-white bg-gradient-to-r from-sky-500 to-cyan-500 hover:from-sky-400 hover:to-cyan-400 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-sky-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 shadow-[0_0_20px_rgba(56,189,248,0.3)]"
             >
-              {isLoading ? 'جاري تسجيل الدخول...' : 'تسجيل الدخول'}
+              {isLoading ? t('loggingIn') : t('loginBtn')}
             </button>
           </div>
 
           <div className="text-center text-xs text-slate-400">
-            إنشاء الحسابات يتم من لوحة تحكم المالك — تواصل مع مدير النظام للحصول على حساب
+            {t('accountsNote')}
           </div>
         </form>
       </div>

@@ -15,6 +15,7 @@ import ErpSuppliers from '../components/ErpSuppliers';
 import AccountingIntegration from '../components/AccountingIntegration';
 import DemandForecast from '../components/DemandForecast';
 import { DeviceStatusBadge } from '../components/DeviceHub';
+import { useFinanceDict } from '../i18n/financeDict';
 
 interface Payment { id: number; date: string; client: string; orderNo: string; amount: number; method: string; status: 'paid' | 'partial' | 'pending'; note: string; link?: string; qr?: string; ref?: string; }
 interface PO { id: number; date: string; material: string; qty: number; unit: string; supplier: string; unitPrice: number; total: number; status: 'open' | 'delivered'; reason: string; }
@@ -31,6 +32,7 @@ const MATERIALS = [
 export default function Finance() {
   const { currentUser, logout } = useAuth();
   const navigate = useNavigate();
+  const t = useFinanceDict();
   const [tab, setTab] = useState<'payments' | 'reorder'>('payments');
   const [payments, setPayments] = useState<Payment[]>([]);
   const [pos, setPos] = useState<PO[]>([]);
@@ -115,7 +117,7 @@ export default function Finance() {
     if (!demandM3) { alert('No scheduled orders for tomorrow found — nothing to cover.'); return; }
     if (!anyShort) { alert('✅ Current stock + open POs already cover tomorrow\'s demand.'); return; }
     const now = new Date().toISOString().split('T')[0];
-    const next = MATERIALS.filter((m, i) => cov[i].short > 0).map(m => {
+    const next = MATERIALS.filter((_, i) => cov[i].short > 0).map(m => {
       const i = MATERIALS.indexOf(m);
       const qty = Math.ceil(cov[i].short * 2) / 2;
       const unitPrice = m.key === 'admixture' ? 12 : 650;
@@ -149,7 +151,7 @@ export default function Finance() {
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <span className="bg-emerald-500/15 text-emerald-500 text-xs px-3 py-1.5 rounded-lg font-bold border border-emerald-500/30">🟢 {currentUser.plantName}</span>
-          <button onClick={() => { logout(); navigate('/'); }} className="bg-white/[0.05] text-slate-300 text-xs px-3 py-1.5 rounded-lg font-bold border border-white/10 hover:border-red-400/60 hover:text-red-300 transition-colors">🚪 خروج</button>
+          <button onClick={() => { logout(); navigate('/'); }} className="bg-white/[0.05] text-slate-300 text-xs px-3 py-1.5 rounded-lg font-bold border border-white/10 hover:border-red-400/60 hover:text-red-300 transition-colors">{t('logout')}</button>
         </div>
       </div>
 
@@ -170,11 +172,11 @@ export default function Finance() {
           <div className="bg-white/[0.04] border border-white/10 rounded-xl p-6 backdrop-blur-xl mt-4">
             <div className="flex items-center justify-between mb-4">
               <div>
-                <h3 className="text-lg font-black tracking-tight text-white">🔗 ربط المحاسبة <DeviceStatusBadge id="accounting" /></h3>
+                <h3 className="text-lg font-black tracking-tight text-white">{t('accountingLink')} <DeviceStatusBadge id="accounting" /></h3>
                 <p className="text-xs text-slate-400">QuickBooks / Sage integration</p>
               </div>
               <button onClick={() => setShowAccounting(true)} className="bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold px-4 py-2 rounded-lg">
-                ⚙️ إعداد الربط
+                {t('accountingSetup')}
               </button>
             </div>
           </div>

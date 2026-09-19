@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import QRCode from 'qrcode';
+import { useEInvoiceDict } from '../i18n/eInvoiceDict';
 
 interface InvoiceProps {
   invoiceNo: string;
@@ -40,6 +41,7 @@ function encodeTLV(parts: { tag: number; value: string }[]): string {
 }
 
 export default function EInvoice(props: InvoiceProps) {
+  const t = useEInvoiceDict();
   const [vatRate, setVatRate] = useState(15);
   const [currency, setCurrency] = useState<'SAR' | 'EGP'>('SAR');
   const [qr, setQr] = useState('');
@@ -48,7 +50,7 @@ export default function EInvoice(props: InvoiceProps) {
   const sellerVatNo = '3-123-456-7890';
 
   const unitPrice = props.unitPrice ?? (props.orderType === 'concrete' ? (UNIT_PRICES[props.concreteType || '3000'] || 2700) : 5);
-  const unitLabel = props.orderType === 'concrete' ? 'م³' : 'بلوك';
+  const unitLabel = props.orderType === 'concrete' ? t('unitM3') : t('unitBlock');
   const totalExVat = unitPrice * props.quantity;
   const vatAmount = totalExVat * (vatRate / 100);
   const total = totalExVat + vatAmount;
@@ -78,12 +80,12 @@ export default function EInvoice(props: InvoiceProps) {
           <div className="flex justify-between items-start border-b-2 border-black pb-3">
             <div>
               <h2 className="text-xl font-black">FIMTO CONCRETE</h2>
-              <p className="text-xs">صناعة خرسانة جاهزة وبلوكات</p>
-              <p className="text-[10px] text-gray-600 mt-1">الرياض - المنطقة الصناعية الثانية<br />Tel: +966 5X XXX XXXX</p>
+              <p className="text-xs">{t('madeLine')}</p>
+              <p className="text-[10px] text-gray-600 mt-1">{t('cityLine')}<br />Tel: +966 5X XXX XXXX</p>
               <p className="text-[10px] mt-1">VAT No: {sellerVatNo}</p>
             </div>
             <div className="text-right">
-              <p className="text-2xl font-black">فاتورة</p>
+              <p className="text-2xl font-black">{t('invoice')}</p>
               <p className="text-[10px] text-gray-600">Electronic Invoice (QR)</p>
               <p className="text-xs font-bold mt-1"># {props.invoiceNo}</p>
               <p className="text-[10px]">{props.date} — {props.time}</p>
@@ -91,33 +93,33 @@ export default function EInvoice(props: InvoiceProps) {
           </div>
 
           <div className="py-3 text-xs border-b border-gray-300">
-            <p><b>العميل:</b> {props.customerName}</p>
-            <p><b>كود العميل:</b> {props.customerCode || '—'}</p>
-            <p><b>الهاتف:</b> {props.customerPhone || '—'}</p>
-            <p><b>المشروع:</b> {props.projectName || '—'}</p>
-            {props.elementType && <p><b>العنصر:</b> {props.elementType}</p>}
-            {props.mixDesign && <p><b>الخلطة:</b> {props.mixDesign}</p>}
+            <p><b>{t('customerL')}</b> {props.customerName}</p>
+            <p><b>{t('customerCodeL')}</b> {props.customerCode || '—'}</p>
+            <p><b>{t('phoneL')}</b> {props.customerPhone || '—'}</p>
+            <p><b>{t('projectL')}</b> {props.projectName || '—'}</p>
+            {props.elementType && <p><b>{t('elementL')}</b> {props.elementType}</p>}
+            {props.mixDesign && <p><b>{t('mixL')}</b> {props.mixDesign}</p>}
           </div>
 
           {(props.ticketNo || props.vehiclePlate) && (
             <div className="flex flex-wrap justify-between gap-2 py-2 px-2 my-2 border border-gray-400 rounded text-[10px]">
-              <span><b>تذكرة التسليم:</b> {props.ticketNo || '—'}</span>
-              {props.vehiclePlate && <span><b>رقم الشاحنة:</b> <span dir="ltr">{props.vehiclePlate}</span></span>}
+              <span><b>{t('deliveryTicket')}</b> {props.ticketNo || '—'}</span>
+              {props.vehiclePlate && <span><b>{t('truckNo')}</b> <span dir="ltr">{props.vehiclePlate}</span></span>}
             </div>
           )}
 
           <table className="w-full text-xs my-3">
             <thead>
               <tr className="border-b border-black text-left">
-                <th className="py-1">البيان</th>
-                <th className="py-1">الكمية</th>
-                <th className="py-1">السعر</th>
-                <th className="py-1 text-right">الإجمالي</th>
+                <th className="py-1">{t('descHead')}</th>
+                <th className="py-1">{t('qtyHead')}</th>
+                <th className="py-1">{t('priceHead')}</th>
+                <th className="py-1 text-right">{t('totalHead')}</th>
               </tr>
             </thead>
             <tbody>
               <tr className="border-b border-gray-300">
-                <td className="py-1">{props.orderType === 'concrete' ? `خرسانة ${props.concreteType} psi` : 'بلوك اسمنتي'}</td>
+                <td className="py-1">{props.orderType === 'concrete' ? t('concreteItem').replace('{type}', props.concreteType || '') : t('blockItem')}</td>
                 <td className="py-1">{props.quantity} {unitLabel}</td>
                 <td className="py-1">{fmt(unitPrice)}</td>
                 <td className="py-1 text-right">{fmt(totalExVat)}</td>
@@ -127,15 +129,15 @@ export default function EInvoice(props: InvoiceProps) {
 
           <div className="flex justify-between items-center gap-4">
             <div className="flex items-center gap-2">
-              <label className="text-[10px] text-gray-600">ضريبة:</label>
+              <label className="text-[10px] text-gray-600">{t('taxLabel')}</label>
               <select
                 value={vatRate}
                 onChange={e => setVatRate(Number(e.target.value))}
                 className="border border-gray-400 rounded text-[11px] px-1 py-0.5"
               >
-                <option value={15}>15% (السعودية)</option>
-                <option value={14}>14% (مصر)</option>
-                <option value={0}>0%</option>
+                <option value={15}>{t('vat15')}</option>
+                <option value={14}>{t('vat14')}</option>
+                <option value={0}>{t('vat0')}</option>
               </select>
               <select
                 value={currency}
@@ -147,9 +149,9 @@ export default function EInvoice(props: InvoiceProps) {
               </select>
             </div>
             <div className="text-right text-sm font-bold space-y-0.5">
-              <div className="flex justify-between gap-6"><span className="text-gray-600 text-[11px] font-normal">المجموع:</span><span>{fmt(totalExVat)} {currency}</span></div>
-              <div className="flex justify-between gap-6"><span className="text-gray-600 text-[11px] font-normal">الضريبة ({vatRate}%):</span><span>{fmt(vatAmount)} {currency}</span></div>
-              <div className="flex justify-between gap-6 border-t-2 border-black pt-0.5 text-base"><span>الإجمالي:</span><span>{fmt(total)} {currency}</span></div>
+              <div className="flex justify-between gap-6"><span className="text-gray-600 text-[11px] font-normal">{t('subTotal')}</span><span>{fmt(totalExVat)} {currency}</span></div>
+              <div className="flex justify-between gap-6"><span className="text-gray-600 text-[11px] font-normal">{t('vatAmount').replace('{rate}', String(vatRate))}</span><span>{fmt(vatAmount)} {currency}</span></div>
+              <div className="flex justify-between gap-6 border-t-2 border-black pt-0.5 text-base"><span>{t('grandTotal')}</span><span>{fmt(total)} {currency}</span></div>
             </div>
           </div>
 
@@ -158,11 +160,11 @@ export default function EInvoice(props: InvoiceProps) {
               ? <img src={qr} alt="QR" className="w-32 h-32 border border-gray-300 rounded" />
               : <div className="w-32 h-32 bg-gray-200 rounded flex items-center justify-center text-[10px] text-gray-500">QR...</div>}
           </div>
-          <p className="text-center text-[9px] text-gray-500 mt-1">تحقق من صحة الفاتورة إلكترونياً عبر رمز QR</p>
+          <p className="text-center text-[9px] text-gray-500 mt-1">{t('verifyHint')}</p>
 
           <div className="flex gap-2 mt-4">
-            <button onClick={() => window.print()} className="flex-1 bg-sky-500 hover:bg-sky-400 text-white font-bold py-2.5 rounded-lg">🖨️ طباعة</button>
-            <button onClick={props.onClose} className="flex-1 bg-gray-300 hover:bg-gray-400 font-bold py-2.5 rounded-lg">إغلاق</button>
+            <button onClick={() => window.print()} className="flex-1 bg-sky-500 hover:bg-sky-400 text-white font-bold py-2.5 rounded-lg">{t('print')}</button>
+            <button onClick={props.onClose} className="flex-1 bg-gray-300 hover:bg-gray-400 font-bold py-2.5 rounded-lg">{t('close')}</button>
           </div>
         </div>
       </div>

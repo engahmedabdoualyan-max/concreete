@@ -9,6 +9,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useAccountingDict, type AccountingDictKey } from '../i18n/accountingDict';
 import { loadAccountingSettings, saveAccountingSettings, loadDevicesRegistry, saveDevicesRegistry } from '../firebase/firestore';
 
 /* ------------------------------------------------------------------ */
@@ -28,6 +29,7 @@ type ExportFormat = 'csv' | 'qbo';
 interface PlatformConfig {
   name: string;
   nameAr: string;
+  nameArKey: AccountingDictKey;
   icon: string;
   color: string;
   colorBorder: string;
@@ -48,6 +50,7 @@ const PLATFORMS: Record<Platform, PlatformConfig> = {
   quickbooks: {
     name: 'QuickBooks Online',
     nameAr: 'QuickBooks أونلاين',
+    nameArKey: 'qbName',
     icon: '📗',
     color: 'bg-emerald-500/20 text-emerald-300',
     colorBorder: 'border-emerald-500/40',
@@ -55,23 +58,24 @@ const PLATFORMS: Record<Platform, PlatformConfig> = {
   sage: {
     name: 'Sage',
     nameAr: 'Sage ساج',
+    nameArKey: 'sageName',
     icon: '📘',
     color: 'bg-blue-500/20 text-blue-300',
     colorBorder: 'border-blue-500/40',
   },
 };
 
-const DATA_TYPES: { key: DataType; label: string; labelAr: string }[] = [
-  { key: 'invoices', label: 'Invoices', labelAr: 'الفواتير' },
-  { key: 'payments', label: 'Payments', labelAr: 'المدفوعات' },
-  { key: 'purchaseOrders', label: 'Purchase Orders', labelAr: 'طلبات الشراء' },
-  { key: 'expenses', label: 'Expenses', labelAr: 'المصاريف' },
+const DATA_TYPES: { key: DataType; label: string; labelArKey: AccountingDictKey }[] = [
+  { key: 'invoices', label: 'Invoices', labelArKey: 'dtInvoices' },
+  { key: 'payments', label: 'Payments', labelArKey: 'dtPayments' },
+  { key: 'purchaseOrders', label: 'Purchase Orders', labelArKey: 'dtPurchaseOrders' },
+  { key: 'expenses', label: 'Expenses', labelArKey: 'dtExpenses' },
 ];
 
-const FREQUENCIES: { key: SyncFrequency; label: string; labelAr: string }[] = [
-  { key: 'daily', label: 'Daily', labelAr: 'يومي' },
-  { key: 'weekly', label: 'Weekly', labelAr: 'أسبوعي' },
-  { key: 'monthly', label: 'Monthly', labelAr: 'شهري' },
+const FREQUENCIES: { key: SyncFrequency; label: string; labelArKey: AccountingDictKey }[] = [
+  { key: 'daily', label: 'Daily', labelArKey: 'freqDaily' },
+  { key: 'weekly', label: 'Weekly', labelArKey: 'freqWeekly' },
+  { key: 'monthly', label: 'Monthly', labelArKey: 'freqMonthly' },
 ];
 
 /* ------------------------------------------------------------------ */
@@ -196,6 +200,7 @@ async function reportAccountingDevice(connected: boolean, platformName?: string)
 
 export default function AccountingIntegration({ onClose }: AccountingIntegrationProps) {
   const { currentUser } = useAuth();
+  const t = useAccountingDict();
 
   /* ---- settings state ---- */
   const [settings, setSettings] = useState<SyncSettings>({
@@ -260,7 +265,7 @@ export default function AccountingIntegration({ onClose }: AccountingIntegration
         ...prev,
         [platform]: { connected: true, lastSync: null },
       }));
-      const name = PLATFORMS.find(x => x.id === platform)?.nameAr || platform;
+      const name = PLATFORMS[platform].nameAr;
       reportAccountingDevice(true, name);
     }, 1500);
   }, []);
@@ -336,9 +341,9 @@ export default function AccountingIntegration({ onClose }: AccountingIntegration
   };
 
   const statusLabel = (s: ConnectionStatus) => {
-    if (s === 'connected') return { en: 'Connected', ar: 'متصل' };
-    if (s === 'syncing') return { en: 'Syncing…', ar: 'جاري المزامنة…' };
-    return { en: 'Disconnected', ar: 'غير متصل' };
+    if (s === 'connected') return { en: t('stConnected'), ar: t('stConnected') };
+    if (s === 'syncing') return { en: t('stSyncing'), ar: t('stSyncing') };
+    return { en: t('stDisconnected'), ar: t('stDisconnected') };
   };
 
   /* ================================================================== */
@@ -366,8 +371,8 @@ export default function AccountingIntegration({ onClose }: AccountingIntegration
             <span className="text-2xl">🔗</span>
             <div>
               <h2 className="text-lg font-bold text-white">Accounting Integration</h2>
-              <p className="text-xs text-slate-400">ربط برامج المحاسبة — QuickBooks &amp; Sage</p>
-              <span className="mt-1 inline-block bg-yellow-500/15 text-yellow-400 border border-yellow-500/30 text-[10px] font-bold px-2 py-0.5 rounded">⚠️ وضع تجريبي — التصدير CSV/QBO جاهز، المزامنة المباشرة تحتاج OAuth خادم</span>
+              <p className="text-xs text-slate-400">{t('subtitle')}</p>
+              <span className="mt-1 inline-block bg-yellow-500/15 text-yellow-400 border border-yellow-500/30 text-[10px] font-bold px-2 py-0.5 rounded">{t('betaWarning')}</span>
             </div>
           </div>
         </div>
@@ -375,9 +380,9 @@ export default function AccountingIntegration({ onClose }: AccountingIntegration
         {/* ---- Tabs ---- */}
         <div className="flex gap-1 px-6 pt-4">
           {([
-            { key: 'platforms' as const, en: 'Platforms', ar: 'المنصات' },
-            { key: 'settings' as const, en: 'Settings', ar: 'الإعدادات' },
-            { key: 'export' as const, en: 'Export', ar: 'تصدير' },
+            { key: 'platforms' as const, en: 'Platforms', arKey: 'tabPlatforms' as const },
+            { key: 'settings' as const, en: 'Settings', arKey: 'tabSettings' as const },
+            { key: 'export' as const, en: 'Export', arKey: 'tabExport' as const },
           ]).map(tab => (
             <button
               key={tab.key}
@@ -388,7 +393,7 @@ export default function AccountingIntegration({ onClose }: AccountingIntegration
                   : 'bg-transparent border-transparent text-slate-500 hover:text-slate-300'
               }`}
             >
-              {tab.en} <span className="text-[10px] opacity-60">/ {tab.ar}</span>
+              {tab.en} <span className="text-[10px] opacity-60">/ {t(tab.arKey)}</span>
             </button>
           ))}
         </div>
@@ -423,7 +428,7 @@ export default function AccountingIntegration({ onClose }: AccountingIntegration
                         <span className="text-2xl">{cfg.icon}</span>
                         <div>
                           <p className="text-sm font-bold text-white">{cfg.name}</p>
-                          <p className="text-[10px] text-slate-400">{cfg.nameAr}</p>
+                          <p className="text-[10px] text-slate-400">{t(cfg.nameArKey)}</p>
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
@@ -435,7 +440,7 @@ export default function AccountingIntegration({ onClose }: AccountingIntegration
                     {/* Connection details */}
                     {st === 'connected' && settingsForPlatform.lastSync && (
                       <p className="text-[10px] text-slate-500 mb-3">
-                        Last sync / آخر مزامنة: <span className="text-slate-300">{settingsForPlatform.lastSync}</span>
+                        {t('lastSyncLabel').replace('{time}', settingsForPlatform.lastSync)}
                       </p>
                     )}
 
@@ -455,7 +460,7 @@ export default function AccountingIntegration({ onClose }: AccountingIntegration
                     {/* Sync result */}
                     {lastSyncResult?.platform === platform && st === 'connected' && (
                       <p className="text-[10px] text-emerald-400 mb-3">
-                        ✓ Synced {lastSyncResult.count} records at {lastSyncResult.time}
+                        {t('syncedRecords').replace('{count}', String(lastSyncResult.count)).replace('{time}', lastSyncResult.time)}
                       </p>
                     )}
 
@@ -466,7 +471,7 @@ export default function AccountingIntegration({ onClose }: AccountingIntegration
                           onClick={() => connectPlatform(platform)}
                           className={`text-[11px] font-bold px-4 py-1.5 rounded-lg border transition-colors ${cfg.color} ${cfg.colorBorder} hover:brightness-125`}
                         >
-                          Connect / ربط
+                          {t('connect')}
                         </button>
                       )}
                       {st === 'connected' && (
@@ -475,18 +480,18 @@ export default function AccountingIntegration({ onClose }: AccountingIntegration
                             onClick={() => runSync(platform)}
                             className="text-[11px] font-bold px-4 py-1.5 rounded-lg bg-sky-500/20 text-sky-300 border border-sky-500/40 hover:bg-sky-500/30 transition-colors"
                           >
-                            Sync Now / مزامنة الآن
+                            {t('syncNow')}
                           </button>
                           <button
                             onClick={() => disconnectPlatform(platform)}
                             className="text-[11px] font-bold px-4 py-1.5 rounded-lg bg-red-500/20 text-red-300 border border-red-500/40 hover:bg-red-500/30 transition-colors"
                           >
-                            Disconnect / قطع الربط
+                            {t('disconnectSync')}
                           </button>
                         </>
                       )}
                       {st === 'syncing' && (
-                        <span className="text-[11px] text-yellow-400 animate-pulse">Syncing… جاري المزامنة</span>
+                        <span className="text-[11px] text-yellow-400 animate-pulse">{t('stSyncing')}</span>
                       )}
                     </div>
                   </div>
@@ -496,10 +501,7 @@ export default function AccountingIntegration({ onClose }: AccountingIntegration
               {/* OAuth / API-key note */}
               <div className="bg-white/[0.03] border border-white/[0.06] rounded-lg p-3">
                 <p className="text-[10px] text-slate-400 leading-relaxed">
-                  <span className="text-slate-300 font-bold">Note:</span> This is a simulation interface.
-                  In production, QuickBooks uses OAuth 2.0 flow and Sage uses API key authentication.
-                  <br />
-                  <span className="text-slate-500">ملاحظة: واجهة محاكاة — QuickBooks يستخدم OAuth 2.0 و Sage يستخدم مفتاح API</span>
+                  {t('simulationNote')}
                 </p>
               </div>
             </div>
@@ -513,7 +515,7 @@ export default function AccountingIntegration({ onClose }: AccountingIntegration
               {/* Data types */}
               <div>
                 <p className="text-xs font-bold text-white mb-2">Data Types to Sync</p>
-                <p className="text-[10px] text-slate-500 mb-3">أنواع البيانات للمزامنة</p>
+                <p className="text-[10px] text-slate-500 mb-3">{t('dataTypesSub')}</p>
                 <div className="space-y-2">
                   {DATA_TYPES.map(dt => {
                     const checked = settings.dataTypes.includes(dt.key);
@@ -534,7 +536,7 @@ export default function AccountingIntegration({ onClose }: AccountingIntegration
                             {checked && '✓'}
                           </span>
                           <span className="text-xs font-bold">{dt.label}</span>
-                          <span className="text-[10px] text-slate-500">{dt.labelAr}</span>
+                          <span className="text-[10px] text-slate-500">{t(dt.labelArKey)}</span>
                         </div>
                       </button>
                     );
@@ -545,7 +547,7 @@ export default function AccountingIntegration({ onClose }: AccountingIntegration
               {/* Auto-sync frequency */}
               <div>
                 <p className="text-xs font-bold text-white mb-2">Auto-Sync Frequency</p>
-                <p className="text-[10px] text-slate-500 mb-3">تكرار المزامنة التلقائية</p>
+                <p className="text-[10px] text-slate-500 mb-3">{t('freqSub')}</p>
                 <div className="flex gap-2">
                   {FREQUENCIES.map(f => (
                     <button
@@ -559,7 +561,7 @@ export default function AccountingIntegration({ onClose }: AccountingIntegration
                     >
                       {f.label}
                       <br />
-                      <span className="text-[10px] opacity-60">{f.labelAr}</span>
+                      <span className="text-[10px] opacity-60">{t(f.labelArKey)}</span>
                     </button>
                   ))}
                 </div>
@@ -568,9 +570,7 @@ export default function AccountingIntegration({ onClose }: AccountingIntegration
               {/* Firebase persistence note */}
               <div className="bg-white/[0.03] border border-white/[0.06] rounded-lg p-3">
                 <p className="text-[10px] text-slate-400 leading-relaxed">
-                  <span className="text-slate-300 font-bold">⚙ Firebase:</span> Settings are saved automatically to your account.
-                  <br />
-                  <span className="text-slate-500">يتم حفظ الإعدادات تلقائياً في حسابك عبر Firebase</span>
+                  <span className="text-slate-300 font-bold">⚙ Firebase:</span> {t('firebaseNote')}
                 </p>
               </div>
             </div>
@@ -583,12 +583,12 @@ export default function AccountingIntegration({ onClose }: AccountingIntegration
             <div className="space-y-4">
               <div>
                 <p className="text-xs font-bold text-white mb-1">Export Accounting Data</p>
-                <p className="text-[10px] text-slate-500 mb-4">تصدير البيانات المحاسبية بصيغة CSV أو QBO</p>
+                <p className="text-[10px] text-slate-500 mb-4">{t('exportSub')}</p>
               </div>
 
               {/* Selected data types summary */}
               <div className="bg-white/[0.03] border border-white/[0.06] rounded-lg p-3 mb-2">
-                <p className="text-[10px] text-slate-400 mb-1">Included data / البيانات المشمولة:</p>
+                <p className="text-[10px] text-slate-400 mb-1">{t('includedData')}</p>
                 <div className="flex flex-wrap gap-1.5">
                   {settings.dataTypes.map(dk => {
                     const dt = DATA_TYPES.find(d => d.key === dk);
@@ -599,7 +599,7 @@ export default function AccountingIntegration({ onClose }: AccountingIntegration
                     ) : null;
                   })}
                   {settings.dataTypes.length === 0 && (
-                    <span className="text-[10px] text-red-400">No data types selected — اختر أنواع البيانات من الإعدادات</span>
+                    <span className="text-[10px] text-red-400">{t('noDataTypes')}</span>
                   )}
                 </div>
               </div>
@@ -613,7 +613,7 @@ export default function AccountingIntegration({ onClose }: AccountingIntegration
                 >
                   <span className="text-3xl">📄</span>
                   <span className="text-xs font-bold text-white">CSV Export</span>
-                  <span className="text-[10px] text-slate-400">ملف CSV</span>
+                  <span className="text-[10px] text-slate-400">{t('csvFile')}</span>
                 </button>
                 <button
                   disabled={settings.dataTypes.length === 0}
@@ -622,18 +622,14 @@ export default function AccountingIntegration({ onClose }: AccountingIntegration
                 >
                   <span className="text-3xl">📗</span>
                   <span className="text-xs font-bold text-white">QBO Export</span>
-                  <span className="text-[10px] text-slate-400">ملف QuickBooks</span>
+                  <span className="text-[10px] text-slate-400">{t('qboFile')}</span>
                 </button>
               </div>
 
               {/* Format info */}
               <div className="bg-white/[0.03] border border-white/[0.06] rounded-lg p-3">
                 <p className="text-[10px] text-slate-400 leading-relaxed">
-                  <span className="text-slate-300 font-bold">CSV:</span> Universal format compatible with Excel, Google Sheets, and most accounting tools.
-                  <br />
-                  <span className="text-slate-300 font-bold">QBO:</span> QuickBooks Online format — import directly into QuickBooks Desktop or Online.
-                  <br />
-                  <span className="text-slate-500">CSV: متوافق مع Excel و Google Sheets — QBO:可以直接导入 QuickBooks</span>
+                  {t('formatNote')}
                 </p>
               </div>
             </div>

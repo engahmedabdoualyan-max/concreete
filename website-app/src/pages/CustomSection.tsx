@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { loadEffectiveConfig } from '../firebase/firestore';
+import { useCustomSectionDict } from '../i18n/customSectionDict';
 
 export default function CustomSection() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const t = useCustomSectionDict();
   const [info, setInfo] = useState<{ en?: string; ar?: string; image?: string; bgImage?: string; desc?: string }>(() => {
     try {
       const cfg = JSON.parse(localStorage.getItem('fimto_module_config') || '{}');
@@ -44,13 +46,13 @@ export default function CustomSection() {
             <div className="flex items-center justify-center gap-3 mb-4">
               <div className="w-12 h-12 rounded-xl bg-sky-500/20 flex items-center justify-center text-2xl">📦</div>
               <div className="text-left">
-                <p className="text-sm font-bold text-white">قسم مخصص</p>
+                <p className="text-sm font-bold text-white">{t('customSection')}</p>
                 <p className="text-xs text-slate-400">Custom Section · {id}</p>
               </div>
             </div>
             <p className="text-xs text-slate-400 leading-relaxed">
-              هذا القسم مخصص ويمكن للمدير إضافته من خلال لوحة الإدارة.
-              <br />يمكن ربطه بأي محتوى أو تطبيق مخصص.
+              {t('customDesc1')}
+              <br />{t('customDesc2')}
             </p>
           </div>
 
@@ -58,7 +60,7 @@ export default function CustomSection() {
             onClick={() => navigate('/')}
             className="mt-8 w-full bg-gradient-to-r from-sky-500 to-cyan-500 hover:from-sky-400 hover:to-cyan-400 text-white font-bold py-3 rounded-lg transition shadow-[0_0_20px_rgba(56,189,248,0.3)]"
           >
-            ← العودة للوحة الرئيسية
+            {t('backToMain')}
           </button>
         </div>
       </div>

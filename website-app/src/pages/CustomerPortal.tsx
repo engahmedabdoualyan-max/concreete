@@ -1,8 +1,9 @@
-import { useState, useEffect, useMemo, type FormEvent } from 'react';
+import { useState, useMemo, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { loadAllOrdersForCustomer, loadAllInvoicesForCustomer, loadPlantProfile } from '../firebase/firestore';
 import BrandLogo from '../components/BrandLogo';
 import LiveTracking from '../components/LiveTracking';
+import { useCustomerPortalDict } from '../i18n/customerPortalDict';
 import emailjs from '@emailjs/browser';
 
 /* ─── Types ─── */
@@ -28,18 +29,18 @@ interface Invoice {
 
 /* ─── Helpers ─── */
 const STATUS_MAP: Record<string, { ar: string; color: string; icon: string }> = {
-  pending:     { ar: 'بانتظار الموافقة', color: 'text-yellow-400 bg-yellow-500/10 border-yellow-500/30', icon: '⏳' },
-  approved:    { ar: 'تمت الموافقة',    color: 'text-blue-400 bg-blue-500/10 border-blue-500/30',    icon: '✅' },
-  scheduled:   { ar: 'تم الجدولة',      color: 'text-indigo-400 bg-indigo-500/10 border-indigo-500/30', icon: '📅' },
-  in_progress: { ar: 'قيد التنفيذ',     color: 'text-orange-400 bg-orange-500/10 border-orange-500/30', icon: '🚚' },
-  completed:   { ar: 'تم التسليم',      color: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/30', icon: '🎉' },
-  cancelled:   { ar: 'ملغي',            color: 'text-red-400 bg-red-500/10 border-red-500/30',       icon: '❌' },
+  pending:     { ar: 'stPending', color: 'text-yellow-400 bg-yellow-500/10 border-yellow-500/30', icon: '⏳' },
+  approved:    { ar: 'stApproved',    color: 'text-blue-400 bg-blue-500/10 border-blue-500/30',    icon: '✅' },
+  scheduled:   { ar: 'stScheduled',      color: 'text-indigo-400 bg-indigo-500/10 border-indigo-500/30', icon: '📅' },
+  in_progress: { ar: 'stInProgress',     color: 'text-orange-400 bg-orange-500/10 border-orange-500/30', icon: '🚚' },
+  completed:   { ar: 'stCompleted',      color: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/30', icon: '🎉' },
+  cancelled:   { ar: 'stCancelled',            color: 'text-red-400 bg-red-500/10 border-red-500/30',       icon: '❌' },
 };
 
 const INV_STATUS: Record<string, { ar: string; color: string }> = {
-  unpaid:  { ar: 'غير مدفوعة',   color: 'text-red-400 bg-red-500/10' },
-  partial: { ar: 'دفعة جزئية',   color: 'text-yellow-400 bg-yellow-500/10' },
-  paid:    { ar: 'مدفوعة بالكامل', color: 'text-emerald-400 bg-emerald-500/10' },
+  unpaid:  { ar: 'invUnpaid',   color: 'text-red-400 bg-red-500/10' },
+  partial: { ar: 'invPartial',   color: 'text-yellow-400 bg-yellow-500/10' },
+  paid:    { ar: 'invPaid', color: 'text-emerald-400 bg-emerald-500/10' },
 };
 
 const inputCls = "w-full bg-white/[0.04] border border-white/10 rounded-xl p-3.5 text-slate-100 text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_16px_rgba(56,189,248,0.2)] transition placeholder:text-slate-500";
@@ -47,16 +48,17 @@ const inputCls = "w-full bg-white/[0.04] border border-white/10 rounded-xl p-3.5
 function generateOTP(): string { return String(Math.floor(100000 + Math.random() * 900000)); }
 
 /* ─── Server OTP helper ─── */
-async function apiPost<T = any>(url: string, body: any): Promise<T> {
+async function apiPost<T = any>(url: string, body: any, errMsg: string): Promise<T> {
   const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
   const json = await res.json().catch(() => ({}));
-  if (!res.ok || json?.success === false) throw new Error(json?.message || 'حدث خطأ — حاول مرة أخرى');
+  if (!res.ok || json?.success === false) throw new Error(json?.message || errMsg);
   return json?.data ?? json;
 }
 
 /* ─── Main Component ─── */
 export default function CustomerPortal() {
   const navigate = useNavigate();
+  const t = useCustomerPortalDict();
 
   /* ── Auth state ── */
   const [phase, setPhase] = useState<'login' | 'otp' | 'dashboard'>('login');
@@ -74,7 +76,6 @@ export default function CustomerPortal() {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [activeTab, setActiveTab] = useState<'orders' | 'invoices'>('orders');
   const [expandedOrder, setExpandedOrder] = useState<string | null>(null);
-  const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [plantBrand, setPlantBrand] = useState<{ name: string; logo: string }>({ name: '', logo: '' });
 
   /* ── Search ── */
@@ -102,10 +103,10 @@ export default function CustomerPortal() {
   const handleLogin = async (e: FormEvent) => {
     e.preventDefault();
     setError('');
-    if (!identifier.trim()) { setError('أدخل رقم الموبايل أو رقم الفاتورة'); return; }
+    if (!identifier.trim()) { setError(t('errEnterIdentifier')); return; }
     setBusy(true);
     try {
-      await apiPost('/api/otp/request', { identifier: identifier.trim() });
+      await apiPost('/api/otp/request', { identifier: identifier.trim() }, t('errGeneric'));
       setServerOtp(true);
       setOtpSentTo(identifier.trim());
       setOtp('');
@@ -126,14 +127,14 @@ export default function CustomerPortal() {
         import.meta.env.VITE_EMAILJS_TEMPLATE_ID || 'template_ablqhm3',
         {
           to_email: identifier,
-          to_name: 'عميل Fimto',
-          subject: `🔐 رمز التحقق: ${code}`,
-          message: `مرحباً،\n\nرمز التحقق الخاص بك: ${code}\n\nهذا الرمز صالح لمدة 5 دقائق فقط.\n\nإذا لم تطلب هذا الرمز، تجاهل هذه الرسالة.\n\nمع خالص التحيات،\nفريق Fimto Soft`,
+          to_name: t('customerName'),
+          subject: `${t('otpSubject')}: ${code}`,
+          message: `${t('otpGreeting')}\n\n${t('otpCodeLabel')} ${code}\n\n${t('otpValidity')}\n\n${t('otpIgnore')}\n\n${t('otpRegards')}\n${t('otpTeam')}`,
         },
         { publicKey: import.meta.env.VITE_EMAILJS_PUBLIC_KEY || 'UPIUNYeckrEK-z_xz' }
       );
     } catch {
-      alert(`⚠️ فشل إرسال الإيميل. رمز التحقق: ${code}`);
+      alert(`${t('emailSendFail')} ${code}`);
     }
     setBusy(false);
   };
@@ -142,19 +143,19 @@ export default function CustomerPortal() {
   const handleVerifyOtp = async (e: FormEvent) => {
     e.preventDefault();
     setError('');
-    if (!/^\d{6}$/.test(otp)) { setError('أدخل رمزاً مكوّناً من 6 أرقام'); return; }
+    if (!/^\d{6}$/.test(otp)) { setError(t('errOtp6')); return; }
     setBusy(true);
     try {
       if (serverOtp) {
-        await apiPost('/api/otp/verify', { identifier: otpSentTo || identifier.trim(), code: otp });
+        await apiPost('/api/otp/verify', { identifier: otpSentTo || identifier.trim(), code: otp }, t('errGeneric'));
       } else if (otp !== generatedOtp) {
-        setError('الرمز غير صحيح');
+        setError(t('errOtpWrong'));
         setBusy(false);
         return;
       }
       await loadCustomerData(identifier.trim());
     } catch (err: any) {
-      setError(err?.message || 'حدث خطأ أثناء التحقق — حاول مرة أخرى');
+      setError(err?.message || t('errVerify'));
     }
     setBusy(false);
   };
@@ -195,17 +196,17 @@ export default function CustomerPortal() {
         <div className="w-full max-w-md">
           <div className="text-center mb-8">
             <div className="flex justify-center mb-4"><BrandLogo width={160} rounded="rounded-2xl" /></div>
-            <h1 className="text-2xl font-black text-white mb-2">متابعة الطلبات والفواتير</h1>
-            <p className="text-sm text-slate-400">أدخل رقم الموبايل أو رقم الفاتورة للدخول</p>
+            <h1 className="text-2xl font-black text-white mb-2">{t('portalTitle')}</h1>
+            <p className="text-sm text-slate-400">{t('portalSub')}</p>
           </div>
 
           <form onSubmit={handleLogin} className="bg-[#0B111E]/80 border border-white/10 rounded-2xl p-6 space-y-4">
             <div>
-              <label className="text-xs text-slate-400 font-semibold mb-2 block">رقم الموبايل أو الفاتورة</label>
+              <label className="text-xs text-slate-400 font-semibold mb-2 block">{t('identifierLabel')}</label>
               <input
                 value={identifier}
                 onChange={e => setIdentifier(e.target.value)}
-                placeholder="رقم الموبايل أو رقم الفاتورة"
+                placeholder={t('identifierPlaceholder')}
                 className={inputCls}
                 dir="ltr"
               />
@@ -213,11 +214,11 @@ export default function CustomerPortal() {
             {error && <p className="text-red-400 text-sm text-center">{error}</p>}
             <button type="submit" disabled={busy}
               className="w-full bg-gradient-to-r from-sky-500 to-cyan-500 hover:from-sky-400 hover:to-cyan-400 disabled:opacity-50 text-white font-bold py-3.5 rounded-xl transition shadow-[0_0_20px_rgba(56,189,248,0.3)]">
-              {busy ? '⏳ جاري الإرسال...' : '📱 إرسال رمز التحقق'}
+              {busy ? t('sending') : t('sendOtp')}
             </button>
             <button type="button" onClick={() => navigate('/')}
               className="w-full bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 text-slate-300 font-bold py-3 rounded-xl transition text-sm">
-              ← العودة للموقع
+              {t('backToSite')}
             </button>
           </form>
         </div>
@@ -232,23 +233,23 @@ export default function CustomerPortal() {
         <div className="w-full max-w-md">
           <div className="text-center mb-8">
             <div className="flex justify-center mb-4"><BrandLogo width={160} rounded="rounded-2xl" /></div>
-            <h1 className="text-2xl font-black text-white mb-2">التحقق من الهوية</h1>
-            <p className="text-sm text-slate-400">أدخل الرمز المُرسل إلى <strong className="text-sky-300">{otpSentTo}</strong></p>
+            <h1 className="text-2xl font-black text-white mb-2">{t('verifyIdentity')}</h1>
+            <p className="text-sm text-slate-400">{t('otpSentTo')} <strong className="text-sky-300">{otpSentTo}</strong></p>
           </div>
 
           <form onSubmit={handleVerifyOtp} className="bg-[#0B111E]/80 border border-white/10 rounded-2xl p-6 space-y-4">
             <div>
-              <label className="text-xs text-slate-400 font-semibold mb-2 block">رمز التحقق (6 أرقام)</label>
+              <label className="text-xs text-slate-400 font-semibold mb-2 block">{t('otpLabel')}</label>
               <input value={otp} onChange={e => setOtp(e.target.value)} placeholder="000000"
                 className={`${inputCls} text-center text-2xl tracking-[0.5em] font-mono`} maxLength={6} dir="ltr" />
             </div>
             {error && <p className="text-red-400 text-sm text-center">{error}</p>}
             <button type="submit" disabled={busy}
               className="w-full bg-gradient-to-r from-sky-500 to-cyan-500 hover:from-sky-400 hover:to-cyan-400 disabled:opacity-50 text-white font-bold py-3.5 rounded-xl transition shadow-[0_0_20px_rgba(56,189,248,0.3)]">
-              {busy ? '⏳ جاري التحقق...' : '✅ تحقق ودخول'}
+              {busy ? t('verifying') : t('verifyAndLogin')}
             </button>
             <button type="button" onClick={() => { setPhase('login'); setError(''); setOtp(''); }}
-              className="w-full text-slate-400 text-sm underline mt-2">← تعديل الرقم</button>
+              className="w-full text-slate-400 text-sm underline mt-2">{t('editNumber')}</button>
           </form>
         </div>
       </div>
@@ -268,14 +269,14 @@ export default function CustomerPortal() {
               <BrandLogo width={40} rounded="rounded-xl" />
             )}
             <div>
-              <h1 className="text-sm font-black text-white">لوحة متابعة العميل</h1>
+              <h1 className="text-sm font-black text-white">{t('clientDashboard')}</h1>
               <p className="text-[10px] text-sky-400">{plantBrand.name ? `${plantBrand.name} · ` : ''}{identifier}</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
             <button onClick={() => { setPhase('login'); setOrders([]); setInvoices([]); setIdentifier(''); setOtp(''); }}
               className="bg-white/[0.05] text-slate-300 text-xs px-3 py-1.5 rounded-lg font-bold border border-white/10 hover:border-red-400/60 hover:text-red-300 transition-colors">
-              خروج ↩
+              {t('logoutExit')}
             </button>
           </div>
         </div>
@@ -285,10 +286,10 @@ export default function CustomerPortal() {
         {/* Stats Row */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {[
-            { label: 'إجمالي الطلبات', value: stats.total, icon: '📦', color: 'text-white' },
-            { label: 'طلبات نشطة', value: stats.active, icon: '🚚', color: 'text-sky-400' },
-            { label: 'تم التسليم', value: stats.completed, icon: '✅', color: 'text-emerald-400' },
-            { label: 'المبلغ غير المدفوع', value: `${stats.unpaid.toLocaleString('ar-EG')} ر.س`, icon: '💰', color: 'text-yellow-400' },
+            { label: t('statsTotalOrders'), value: stats.total, icon: '📦', color: 'text-white' },
+            { label: t('statsActiveOrders'), value: stats.active, icon: '🚚', color: 'text-sky-400' },
+            { label: t('statsDelivered'), value: stats.completed, icon: '✅', color: 'text-emerald-400' },
+            { label: t('statsUnpaid'), value: `${stats.unpaid.toLocaleString('ar-EG')} ${t('sar')}`, icon: '💰', color: 'text-yellow-400' },
           ].map((s, i) => (
             <div key={i} className="bg-white/[0.03] border border-white/10 rounded-xl p-4 text-center">
               <span className="text-2xl">{s.icon}</span>
@@ -313,15 +314,15 @@ export default function CustomerPortal() {
           <div className="flex bg-white/[0.03] border border-white/10 rounded-xl p-1">
             <button onClick={() => setActiveTab('orders')}
               className={`flex-1 px-4 py-2 rounded-lg text-sm font-bold transition ${activeTab === 'orders' ? 'bg-sky-500/20 text-sky-300' : 'text-slate-400 hover:text-white'}`}>
-              📦 الطلبات ({orders.length})
+              📦 {t('ordersTab')} ({orders.length})
             </button>
             <button onClick={() => setActiveTab('invoices')}
               className={`flex-1 px-4 py-2 rounded-lg text-sm font-bold transition ${activeTab === 'invoices' ? 'bg-sky-500/20 text-sky-300' : 'text-slate-400 hover:text-white'}`}>
-              🧾 الفواتير ({invoices.length})
+              🧾 {t('invoicesTab')} ({invoices.length})
             </button>
           </div>
           <input value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
-            placeholder="🔍 بحث بالرقم أو المشروع..."
+            placeholder={t('searchPlaceholder')}
             className="bg-white/[0.04] border border-white/10 rounded-xl px-4 py-2 text-sm text-slate-200 outline-none focus:border-sky-400/50 w-full sm:w-64 placeholder:text-slate-500" />
         </div>
 
@@ -331,7 +332,7 @@ export default function CustomerPortal() {
             {filteredOrders.length === 0 && (
               <div className="text-center py-12 text-slate-500">
                 <p className="text-4xl mb-3">📦</p>
-                <p className="font-bold">لا توجد طلبات</p>
+                <p className="font-bold">{t('noOrders')}</p>
               </div>
             )}
             {filteredOrders.map(order => {
@@ -350,20 +351,20 @@ export default function CustomerPortal() {
                       </div>
                     </div>
                     <div className="flex items-center gap-3 shrink-0">
-                      <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full border ${st.color}`}>{st.ar}</span>
+                      <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full border ${st.color}`}>{t(st.ar)}</span>
                       <span className="text-slate-500 text-xs">{order.orderDate}</span>
                       <svg className={`w-4 h-4 text-slate-500 transition-transform ${isExpanded ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 9l6 6 6-6" /></svg>
                     </div>
                   </button>
                   {isExpanded && (
                     <div className="px-4 pb-4 pt-2 border-t border-white/10 grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
-                      <div><span className="text-slate-500">الكمية:</span> <strong className="text-slate-200">{order.quantity} م³</strong></div>
-                      <div><span className="text-slate-500">نوع الخرسانة:</span> <strong className="text-slate-200">{order.concreteType}</strong></div>
-                      <div><span className="text-slate-500">السحلب:</span> <strong className="text-slate-200">{order.slump}</strong></div>
-                      <div><span className="text-slate-500">الموقع:</span> <strong className="text-slate-200">{order.projectLocation}</strong></div>
-                      <div><span className="text-slate-500">المندوب:</span> <strong className="text-slate-200">{order.salesRep}</strong></div>
-                      <div><span className="text-slate-500">التاريخ:</span> <strong className="text-slate-200">{order.orderDate} {order.orderTime}</strong></div>
-                      {order.notes && <div className="col-span-full"><span className="text-slate-500">ملاحظات:</span> <strong className="text-slate-200">{order.notes}</strong></div>}
+                      <div><span className="text-slate-500">{t('quantity')}</span> <strong className="text-slate-200">{order.quantity} {t('m3')}</strong></div>
+                      <div><span className="text-slate-500">{t('concreteType')}</span> <strong className="text-slate-200">{order.concreteType}</strong></div>
+                      <div><span className="text-slate-500">{t('slump')}</span> <strong className="text-slate-200">{order.slump}</strong></div>
+                      <div><span className="text-slate-500">{t('location')}</span> <strong className="text-slate-200">{order.projectLocation}</strong></div>
+                      <div><span className="text-slate-500">{t('salesRep')}</span> <strong className="text-slate-200">{order.salesRep}</strong></div>
+                      <div><span className="text-slate-500">{t('date')}</span> <strong className="text-slate-200">{order.orderDate} {order.orderTime}</strong></div>
+                      {order.notes && <div className="col-span-full"><span className="text-slate-500">{t('notes')}</span> <strong className="text-slate-200">{order.notes}</strong></div>}
                       <div className="col-span-full pt-2 border-t border-white/10">
                         <div className="flex items-center gap-2">
                           {['pending', 'approved', 'scheduled', 'in_progress', 'completed'].map((s, i) => {
@@ -372,7 +373,7 @@ export default function CustomerPortal() {
                           })}
                         </div>
                         <div className="flex justify-between text-[9px] text-slate-500 mt-1">
-                          <span>بانتظار</span><span>موافقة</span><span>جدولة</span><span>تنفيذ</span><span>تسليم</span>
+                          <span>{t('progPending')}</span><span>{t('progApproval')}</span><span>{t('progScheduling')}</span><span>{t('progExec')}</span><span>{t('progDelivery')}</span>
                         </div>
                       </div>
                     </div>
@@ -389,7 +390,7 @@ export default function CustomerPortal() {
             {filteredInvoices.length === 0 && (
               <div className="text-center py-12 text-slate-500">
                 <p className="text-4xl mb-3">🧾</p>
-                <p className="font-bold">لا توجد فواتير</p>
+                <p className="font-bold">{t('noInvoices')}</p>
               </div>
             )}
             {filteredInvoices.map(inv => {
@@ -402,12 +403,12 @@ export default function CustomerPortal() {
                       <p className="text-sm font-bold text-white">{inv.invoiceNo || inv.id}</p>
                       <p className="text-[11px] text-slate-400">{inv.date}</p>
                     </div>
-                    <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full ${ist.color}`}>{ist.ar}</span>
+                    <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full ${ist.color}`}>{t(ist.ar)}</span>
                   </div>
                   <div className="grid grid-cols-3 gap-2 text-xs mt-3 pt-3 border-t border-white/10">
-                    <div><span className="text-slate-500">الإجمالي:</span> <strong className="text-white">{inv.grandTotal.toLocaleString('ar-EG')} ر.س</strong></div>
-                    <div><span className="text-slate-500">المدفوع:</span> <strong className="text-emerald-400">{(inv.paidAmount || 0).toLocaleString('ar-EG')} ر.س</strong></div>
-                    <div><span className="text-slate-500">المتبقي:</span> <strong className="text-yellow-400">{(inv.grandTotal - (inv.paidAmount || 0)).toLocaleString('ar-EG')} ر.س</strong></div>
+                    <div><span className="text-slate-500">{t('invTotal')}</span> <strong className="text-white">{inv.grandTotal.toLocaleString('ar-EG')} {t('sar')}</strong></div>
+                    <div><span className="text-slate-500">{t('invPaidAmt')}</span> <strong className="text-emerald-400">{(inv.paidAmount || 0).toLocaleString('ar-EG')} {t('sar')}</strong></div>
+                    <div><span className="text-slate-500">{t('invRemaining')}</span> <strong className="text-yellow-400">{(inv.grandTotal - (inv.paidAmount || 0)).toLocaleString('ar-EG')} {t('sar')}</strong></div>
                   </div>
                 </div>
               );

@@ -11,6 +11,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api/client';
 import ExportButtons from './ExportButtons';
+import { useErpDict } from '../i18n/erpDict';
 
 interface PendingOrder {
   id: string;
@@ -68,6 +69,7 @@ const RISK_STYLE: Record<string, { badge: string; border: string }> = {
 };
 
 export default function ErpFinance() {
+  const t = useErpDict();
   const [data, setData] = useState<FinanceData | null>(null);
   const [error, setError] = useState('');
   const [busyId, setBusyId] = useState('');
@@ -80,7 +82,7 @@ export default function ErpFinance() {
     setError('');
     api.get<FinanceData>('/api/finance?status=PENDING_FINANCE&limit=20')
       .then(setData)
-      .catch((e: any) => setError(e?.message || 'تعذر تحميل بيانات المالية'));
+      .catch((e: any) => setError(e?.message || t('errLoadFinance')));
   };
 
   const loadRisk = () => {
@@ -103,7 +105,7 @@ export default function ErpFinance() {
       setRiskData(prev => prev ? { ...prev, summary: res.summary } : prev);
       loadRisk();
     } catch (e: any) {
-      setRiskError(e?.message || 'فشل إعادة حساب المخاطر');
+      setRiskError(e?.message || t('errRiskRecalc'));
     } finally {
       setRiskBusy(false);
     }
@@ -115,7 +117,7 @@ export default function ErpFinance() {
       await api.post('/api/finance/approve', { orderId, paperClearanceGranted: true });
       load();
     } catch (e: any) {
-      setError(e?.message || 'فشل الموافقة');
+      setError(e?.message || t('errApprove'));
     } finally {
       setBusyId('');
     }
@@ -124,7 +126,7 @@ export default function ErpFinance() {
   const reject = async (orderId: string) => {
     const r = (reason[orderId] || '').trim();
     if (r.length < 10) {
-      setError('سبب الرفض مطلوب (10 أحرف على الأقل)');
+      setError(t('errRejectReason'));
       return;
     }
     setBusyId(orderId);
@@ -132,7 +134,7 @@ export default function ErpFinance() {
       await api.post('/api/finance/reject', { orderId, reason: r });
       load();
     } catch (e: any) {
-      setError(e?.message || 'فشل الرفض');
+      setError(e?.message || t('errReject'));
     } finally {
       setBusyId('');
     }
@@ -147,16 +149,16 @@ export default function ErpFinance() {
     <div className="bg-white/[0.02] border border-sky-500/20 rounded-xl p-4 mt-6">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-sm font-bold text-white flex items-center gap-2">
-          <span>🏦</span> طابور الاعتمادات — النظام الموحد (ERP)
+          <span>🏦</span> {t('financeHeader')}
         </h3>
         <button onClick={load} className="text-[11px] text-sky-300 border border-sky-500/30 rounded px-2 py-1 hover:bg-sky-500/10">
-          تحديث ↻
+          {t('refresh')}
         </button>
       </div>
 
       {error && <div className="text-xs text-red-400 bg-red-500/10 border border-red-500/30 rounded p-2 mb-3">{error}</div>}
 
-      {!data && !error && <div className="text-xs text-slate-400 py-4 text-center">جاري تحميل البيانات الموحدة...</div>}
+      {!data && !error && <div className="text-xs text-slate-400 py-4 text-center">{t('loadingFinance')}</div>}
 
       {data && (
         <>
@@ -174,19 +176,19 @@ export default function ErpFinance() {
           {/* Credit summary */}
           <div className="flex flex-wrap gap-3 text-[11px] text-slate-300 mb-4">
             <span className="bg-white/[0.03] border border-white/10 rounded px-2 py-1">
-              عملاء: <b className="text-white">{data.creditSummary?.totalClients ?? 0}</b>
+              {t('clientsLabel')}<b className="text-white">{data.creditSummary?.totalClients ?? 0}</b>
             </span>
             <span className="bg-white/[0.03] border border-white/10 rounded px-2 py-1">
-              حد الائتمان: <b className="text-white">{(Number(data.creditSummary?.totalCreditLimitSar) || 0).toLocaleString()} ر.س</b>
+              {t('creditLimitLabel')}<b className="text-white">{(Number(data.creditSummary?.totalCreditLimitSar) || 0).toLocaleString()} {t('sar')}</b>
             </span>
             <span className="bg-white/[0.03] border border-white/10 rounded px-2 py-1">
-              مستحق: <b className="text-amber-300">{(Number(data.creditSummary?.totalOutstandingSar) || 0).toLocaleString()} ر.س</b>
+              {t('dueLabel')}<b className="text-amber-300">{(Number(data.creditSummary?.totalOutstandingSar) || 0).toLocaleString()} {t('sar')}</b>
             </span>
             <span className="bg-white/[0.03] border border-white/10 rounded px-2 py-1">
-              تجاوز الحد: <b className={data.creditSummary?.overLimitCount ? 'text-red-400' : 'text-white'}>{data.creditSummary?.overLimitCount ?? 0}</b>
+              {t('overLimitLabel')}<b className={data.creditSummary?.overLimitCount ? 'text-red-400' : 'text-white'}>{data.creditSummary?.overLimitCount ?? 0}</b>
             </span>
             <span className="bg-white/[0.03] border border-white/10 rounded px-2 py-1">
-              محظور: <b className="text-red-400">{data.creditSummary?.blacklistedCount ?? 0}</b>
+              {t('blacklistedLabel')}<b className="text-red-400">{data.creditSummary?.blacklistedCount ?? 0}</b>
             </span>
           </div>
 
@@ -194,57 +196,57 @@ export default function ErpFinance() {
           <div className="mb-4">
             <div className="flex items-center justify-between mb-2">
               <h4 className="text-xs font-bold text-white flex items-center gap-1.5">
-                <span>🛡️</span> تقييم مخاطر العملاء التلقائي
+                {t('autoRiskHdr')}
               </h4>
               <div className="flex items-center gap-2">
                 <ExportButtons
-                  filename="تقييم_مخاطر_العملاء"
-                  title="تقرير تقييم مخاطر العملاء"
-                  subtitle={`إجمالي ${riskData?.total ?? 0} عميل`}
+                  filename={t('fileNameRisk')}
+                  title={t('financeExportTitle')}
+                  subtitle={`${t('totalLabel')} ${riskData?.total ?? 0} ${t('clientUnit')}`}
                   columns={[
-                    { header: 'العميل', key: 'name' },
-                    { header: 'درجة المخاطرة', key: 'score' },
-                    { header: 'التصنيف', key: 'level' },
-                    { header: 'الاستفادة من الائتمان', key: 'util' },
-                    { header: 'ملاحظات', key: 'notes' },
+                    { header: t('client'), key: 'name' },
+                    { header: t('riskScoreLabel'), key: 'score' },
+                    { header: t('riskLevel'), key: 'level' },
+                    { header: t('riskUtilisation'), key: 'util' },
+                    { header: t('riskNotes'), key: 'notes' },
                   ]}
                   rows={(riskData?.clients ?? []).map(c => ({
                     name: c.companyName || c.clientCode,
                     score: c.riskScore,
-                    level: c.riskScore === 'HIGH' ? 'عالية' : c.riskScore === 'MEDIUM' ? 'متوسطة' : 'منخفضة',
+                    level: c.riskScore === 'HIGH' ? t('riskHigh') : c.riskScore === 'MEDIUM' ? t('riskMedium') : t('riskLow'),
                     util: `${c.utilisationPct ?? 0}%`,
                     notes: c.riskNotes ?? '-',
                   }))}
                 />
-                <span className="text-[10px] text-slate-400">آخر تحديث: {riskData?.clients?.[0]?.riskLastUpdatedAt ? new Date(riskData.clients[0].riskLastUpdatedAt).toLocaleDateString() : '-'}</span>
+                <span className="text-[10px] text-slate-400">{t('lastUpdate')}{riskData?.clients?.[0]?.riskLastUpdatedAt ? new Date(riskData.clients[0].riskLastUpdatedAt).toLocaleDateString() : '-'}</span>
                 <button
                   onClick={recalcRisk}
                   disabled={riskBusy}
                   className="text-[11px] bg-violet-500/20 text-violet-300 border border-violet-500/40 rounded px-2 py-1 hover:bg-violet-500/30 disabled:opacity-40"
                 >
-                  {riskBusy ? 'جاري الحساب...' : '🔄 أعد الحساب'}
+                  {riskBusy ? t('recalcRiskBusy') : t('recalcRisk')}
                 </button>
               </div>
             </div>
             {riskError && <div className="text-xs text-red-400 bg-red-500/10 border border-red-500/30 rounded p-2 mb-2">{riskError}</div>}
-            {!riskData && !riskError && <div className="text-xs text-slate-500">جاري تحميل تقييم المخاطر...</div>}
+            {!riskData && !riskError && <div className="text-xs text-slate-500">{t('loadingRisk')}</div>}
             {riskData && riskData.total > 0 && (
               <>
                 <div className="flex flex-wrap gap-2 mb-2 text-[11px]">
-                  <span className="bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 rounded px-2 py-0.5">🟢 منخفضة: <b>{riskData.summary.LOW}</b></span>
-                  <span className="bg-yellow-500/10 border border-yellow-500/30 text-yellow-300 rounded px-2 py-0.5">🟡 متوسطة: <b>{riskData.summary.MEDIUM}</b></span>
-                  <span className="bg-red-500/10 border border-red-500/30 text-red-300 rounded px-2 py-0.5">🔴 عالية: <b>{riskData.summary.HIGH}</b></span>
-                  <span className="bg-white/[0.03] border border-white/10 text-slate-400 rounded px-2 py-0.5">الإجمالي: <b className="text-white">{riskData.total}</b></span>
+                  <span className="bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 rounded px-2 py-0.5">{t('riskChipLow')}<b>{riskData.summary.LOW}</b></span>
+                  <span className="bg-yellow-500/10 border border-yellow-500/30 text-yellow-300 rounded px-2 py-0.5">{t('riskChipMedium')}<b>{riskData.summary.MEDIUM}</b></span>
+                  <span className="bg-red-500/10 border border-red-500/30 text-red-300 rounded px-2 py-0.5">{t('riskChipHigh')}<b>{riskData.summary.HIGH}</b></span>
+                  <span className="bg-white/[0.03] border border-white/10 text-slate-400 rounded px-2 py-0.5">{t('riskTotalChip')}<b className="text-white">{riskData.total}</b></span>
                 </div>
                 <div className="overflow-x-auto">
                   <table className="w-full text-xs text-slate-300">
                     <thead className="bg-white/[0.04] text-slate-400 text-[10px]">
                       <tr>
-                        <th className="p-2 text-right">العميل</th>
-                        <th className="p-2">المخاطر</th>
-                        <th className="p-2">الاستخدام</th>
-                        <th className="p-2">المستحق</th>
-                        <th className="p-2">العوامل</th>
+                        <th className="p-2 text-right">{t('client')}</th>
+                        <th className="p-2">{t('riskHeader')}</th>
+                        <th className="p-2">{t('usage')}</th>
+                        <th className="p-2">{t('outstanding')}</th>
+                        <th className="p-2">{t('riskFactors')}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -253,7 +255,7 @@ export default function ErpFinance() {
                           <td className="p-2 font-bold text-white">{c.companyName} <span className="text-slate-500 font-mono text-[9px]">({c.clientCode})</span></td>
                           <td className="p-2">
                             <span className={`px-2 py-0.5 rounded font-bold text-[10px] border ${RISK_STYLE[c.riskScore]?.badge}`}>
-                              {c.riskScore === 'HIGH' ? '🔴 عالية' : c.riskScore === 'MEDIUM' ? '🟡 متوسطة' : '🟢 منخفضة'}
+                              {c.riskScore === 'HIGH' ? t('riskBadgeHigh') : c.riskScore === 'MEDIUM' ? t('riskBadgeMedium') : t('riskBadgeLow')}
                             </span>
                             {c.isBlacklisted && <span className="ml-1 px-1.5 py-0.5 rounded text-[9px] bg-red-600 text-white font-bold">⛔ BLACKLIST</span>}
                           </td>
@@ -269,13 +271,13 @@ export default function ErpFinance() {
                 </div>
               </>
             )}
-            {riskData && riskData.total === 0 && <div className="text-xs text-slate-500">لا يوجد عملاء بعد.</div>}
+            {riskData && riskData.total === 0 && <div className="text-xs text-slate-500">{t('noRiskClients')}</div>}
           </div>
 
           {/* Pending queue */}
           <div className="space-y-2">
             {data.queue.orders.length === 0 && (
-              <div className="text-xs text-slate-500 text-center py-3">لا توجد طلبات بانتظار الاعتماد ✓</div>
+              <div className="text-xs text-slate-500 text-center py-3">{t('noPendingOrders')}</div>
             )}
             {data.queue.orders.map(o => (
               <div key={o.id} className="bg-white/[0.03] border border-white/10 rounded-lg p-3">
@@ -292,7 +294,7 @@ export default function ErpFinance() {
                     </div>
                   </div>
                   <div className="text-right">
-                    <div className="text-sm font-black text-sky-300">{(o.orderValueSar).toLocaleString()} ر.س</div>
+                    <div className="text-sm font-black text-sky-300">{(o.orderValueSar).toLocaleString()} {t('sar')}</div>
                     <div className={`text-[10px] font-mono ${o.wouldExceedCreditLimit ? 'text-red-400' : 'text-green-400'}`}>
                       credit {o.creditUtilisationPct}% · avail {o.creditAvailableSar.toLocaleString()}
                       {o.isBlacklisted && ' · ⛔ BLACKLISTED'}
@@ -306,12 +308,12 @@ export default function ErpFinance() {
                     disabled={busyId === o.id}
                     className="text-[11px] bg-gradient-to-r from-emerald-500 to-green-500 text-white font-bold rounded px-3 py-1.5 hover:from-emerald-400 hover:to-green-400 disabled:opacity-40"
                   >
-                    ✓ اعتماد
+                    {t('approveOrder')}
                   </button>
                   <input
                     value={reason[o.id] || ''}
                     onChange={e => setReason(r => ({ ...r, [o.id]: e.target.value }))}
-                    placeholder="سبب الرفض (إلزامي)"
+                    placeholder={t('rejectReasonPlaceholder')}
                     className="flex-1 min-w-[160px] text-[11px] bg-white/[0.04] border border-white/10 rounded px-2 py-1.5 text-slate-200 outline-none focus:border-red-400/60"
                   />
                   <button
@@ -319,7 +321,7 @@ export default function ErpFinance() {
                     disabled={busyId === o.id}
                     className="text-[11px] bg-red-500/20 text-red-300 border border-red-500/40 rounded px-3 py-1.5 hover:bg-red-500/30 disabled:opacity-40"
                   >
-                    ✕ رفض
+                    {t('rejectOrder')}
                   </button>
                 </div>
               </div>

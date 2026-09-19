@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useDatePickerDict } from '../i18n/datePickerDict';
 import { useDate, gregorianToHijri, hijriToGregorian, hijriMonths, gregorianMonths } from '../context/DateContext';
 
 interface DatePickerProps {
@@ -10,6 +11,7 @@ interface DatePickerProps {
 
 export default function DatePicker({ value, onChange, label, required }: DatePickerProps) {
   const { calendarType, toggleCalendar } = useDate();
+  const t = useDatePickerDict();
   
   // Convert value to internal Date object
   const [internalDate, setInternalDate] = useState<Date>(() => {
@@ -91,7 +93,7 @@ export default function DatePicker({ value, onChange, label, required }: DatePic
             onClick={toggleCalendar}
             className="text-[10px] px-2 py-0.5 bg-sky-500 hover:bg-sky-400 text-white rounded font-bold"
           >
-            {calendarType === 'gregorian' ? '📅 ميلادي' : '🌙 هجري'}
+            {calendarType === 'gregorian' ? t('gregorian') : t('hijri')}
           </button>
         </label>
       )}
@@ -127,7 +129,7 @@ export default function DatePicker({ value, onChange, label, required }: DatePic
           onChange={handleYearChange}
           className="min-w-0 w-24 bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]"
           required={required}
-          placeholder="السنة"
+          placeholder={t('yearPlaceholder')}
         />
       </div>
     </div>

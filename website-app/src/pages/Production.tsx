@@ -9,6 +9,7 @@ import BrandLogo from '../components/BrandLogo';
 import NotificationsBell from '../components/NotificationsBell';
 import BatchControllerIntegration from '../components/BatchControllerIntegration';
 import { DeviceStatusBadge } from '../components/DeviceHub';
+import { useProductionDict } from '../i18n/productionDict';
 
 interface Delivery { date: string; material: string; qty: number; invoice: string; }
 interface ProdRun { date: string; time: string; recipe: string; volume: number; cementUsed: number; sandUsed: number; gravelUsed: number; orderId?: string; }
@@ -68,6 +69,7 @@ const MAX: Record<string, number> = { cement: 100, sand: 200, gravel: 300, admix
 export default function Production() {
   const { currentUser, logout } = useAuth();
   const navigate = useNavigate();
+  const t = useProductionDict();
   const DEF_INV = { cement: 85, sand: 156, gravel: 270, admixture: 1700 };
   const DEF_DELIV = [{ date: '2026-06-17', material: 'cement', qty: 25, invoice: 'INV-4012' }, { date: '2026-06-18', material: 'admixture', qty: 500, invoice: 'INV-4099' }];
   const [inventory, setInventory] = useState<Record<string, number>>(DEF_INV);
@@ -186,7 +188,7 @@ export default function Production() {
   };
 
   const deleteAddition = (id: number) => {
-    if (confirm('هل تريد حذف هذا المضاف؟')) {
+    if (confirm(t('deleteAdditionConfirm'))) {
       setAdditions(additions.filter(a => a.id !== id));
     }
   };
@@ -242,9 +244,9 @@ export default function Production() {
 
     // التحقق من توفر المواد الخام
     if (inventory.cement < cementUsed || inventory.sand < sandUsed) {
-      alert('⚠️ لا توجد مواد خام كافية!\n' +
-        `الأسمنت المطلوب: ${cementUsed.toFixed(2)} طن (المتاح: ${inventory.cement.toFixed(2)} طن)\n` +
-        `الرمل المطلوب: ${sandUsed.toFixed(2)} طن (المتاح: ${inventory.sand.toFixed(2)} طن)`);
+      alert(t('insufficientRaw') +
+        `${t('cementReq')}${cementUsed.toFixed(2)}${t('tons')}${t('availOpen')}${inventory.cement.toFixed(2)}${t('tons')}${t('closeParen')}\n` +
+        `${t('sandReq')}${sandUsed.toFixed(2)}${t('tons')}${t('availOpen')}${inventory.sand.toFixed(2)}${t('tons')}${t('closeParen')}`);
       return;
     }
 
@@ -276,11 +278,11 @@ export default function Production() {
     };
     setBlockProductions(prev => [...prev, production]);
 
-    alert(`✅ تم إنتاج ${qty} بلوك من نوع ${block.name}\n` +
-      `📦 تم تحديث المخزون:\n` +
-      `- الأسمنت: -${cementUsed.toFixed(2)} طن\n` +
-      `- الرمل: -${sandUsed.toFixed(2)} طن\n` +
-      `- مخزون البلوك: +${qty} بلوك`);
+    alert(`${t('prodBlocksPrefix')}${qty} ${t('blockUnit')}${t('prodBlocksMid')}${block.name}\n` +
+      `${t('inventoryUpdated')}\n` +
+      `${t('dashCement')}-${cementUsed.toFixed(2)}${t('tons')}\n` +
+      `${t('dashSand')}-${sandUsed.toFixed(2)}${t('tons')}\n` +
+      `${t('dashBlockStock')}${qty} ${t('blockUnit')}`);
     setBlockProdForm({ blockCode: '', quantity: '' });
   };
 
@@ -349,13 +351,13 @@ export default function Production() {
       saveOrders(currentUser!.username, orders.map(o => o.id === order.id ? updated : o)).catch(() => {});
       if (currentUser) addNotification(currentUser.username, {
         level: done ? 'success' : 'info',
-        title: `🏭 إنتاج ${vol} م³ للطلب ${order.orderNo}`,
-        body: `${order.customerName} · تم تسليم ${Math.min(delivered, Number(order.quantity) || delivered).toFixed(1)} / ${order.quantity} م³${done ? ' — ✅ اكتمل الطلب' : ''}`,
+        title: `${t('prodNotifPrefix')}${vol}${t('m3')}${t('prodNotifMid')}${order.orderNo}`,
+        body: `${order.customerName}${t('delivBodyPipe')}${Math.min(delivered, Number(order.quantity) || delivered).toFixed(1)} / ${order.quantity}${t('m3')}${done ? ` — ✅ ${t('completedOrder')}` : ''}`,
       }).catch(() => {});
       setBatchForm({ recipe: 'C30', volume: '', orderId: '' });
       alert(done
-        ? `✅ تم إنتاج ${vol} م³ — اكتمل الطلب ${order.orderNo} بالكامل (${order.quantity} م³) وتم خصم الخامات من المخزون.`
-        : `🚀 تم إنتاج ${vol} م³ للطلب ${order.orderNo} — خصم ${cementN.toFixed(2)} طن أسمنت من المخزون. المتبقي ${(Number(order.quantity) - Math.min(delivered, Number(order.quantity))).toFixed(1)} م³.`);
+        ? `${t('prodDonePrefix')}${vol}${t('m3')}${t('prodDoneMid')}${order.orderNo}${t('prodDoneMid2')}${order.quantity}${t('prodDoneSuffix')}`
+        : `${t('prodRunPrefix')}${vol}${t('m3')}${t('prodRunMid')}${order.orderNo}${t('prodRunMid2')}${cementN.toFixed(2)}${t('prodRunMid3')}${(Number(order.quantity) - Math.min(delivered, Number(order.quantity))).toFixed(1)}${t('prodRunSuffix')}`);
       return;
     }
     setBatchForm({ recipe: 'C30', volume: '', orderId: '' });
@@ -383,11 +385,11 @@ export default function Production() {
           <h1 className="text-sm font-black tracking-tight text-white">🏭 Concrete Production & Material Inventory</h1>
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          <button onClick={() => setShowBatchCtrl(true)} className="bg-purple-500/20 text-purple-400 border border-purple-500/30 hover:bg-purple-500/30 text-xs font-bold px-3 py-1.5 rounded-lg">🏭 ربط متحكم المحطة</button>
+          <button onClick={() => setShowBatchCtrl(true)} className="bg-purple-500/20 text-purple-400 border border-purple-500/30 hover:bg-purple-500/30 text-xs font-bold px-3 py-1.5 rounded-lg">{t('batchCtrl')}</button>
           <DeviceStatusBadge id="batchController" />
           <NotificationsBell />
           <span className="bg-emerald-500/15 text-emerald-500 text-xs px-3 py-1.5 rounded-lg font-bold border border-emerald-500/30">🟢 {currentUser.plantName}</span>
-          <button onClick={() => { logout(); navigate('/'); }} className="bg-white/[0.05] text-slate-300 text-xs px-3 py-1.5 rounded-lg font-bold border border-white/10 hover:border-red-400/60 hover:text-red-300 transition-colors">🚪 خروج</button>
+          <button onClick={() => { logout(); navigate('/'); }} className="bg-white/[0.05] text-slate-300 text-xs px-3 py-1.5 rounded-lg font-bold border border-white/10 hover:border-red-400/60 hover:text-red-300 transition-colors">{t('logout')}</button>
           <p className="text-[10px] text-emerald-500/80">Design by Dr. Ahmad Abdo Alyan</p>
         </div>
       </div>
@@ -445,11 +447,11 @@ export default function Production() {
               </div>
               <div><label className="text-xs text-slate-400 font-semibold">Volume (m³)</label><input type="number" step="0.1" value={batchForm.volume} onChange={e => setBatchForm({ ...batchForm, volume: e.target.value })} placeholder="10" className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm" required /></div>
               <div>
-                <label className="text-xs text-slate-400 font-semibold">ربط الإنتاج بالطلب (orderId)</label>
+                <label className="text-xs text-slate-400 font-semibold">{t('linkOrder')}</label>
                 <select value={batchForm.orderId} onChange={e => setBatchForm({ ...batchForm, orderId: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm">
-                  <option value="">— بدون ربط (إنتاج عام) —</option>
+                  <option value="">{t('noLink')}</option>
                   {orders.filter((o: any) => o.status === 'in_progress' || o.status === 'scheduled').map((o: any) => (
-                    <option key={o.id} value={o.id}>{o.orderNo || o.id} · {o.customerName} · تسليم {(Number(o.deliveredQty) || 0).toFixed(1)}/{o.quantity} م³</option>
+                    <option key={o.id} value={o.id}>{o.orderNo || o.id} · {o.customerName} · {t('delivWord')} {(Number(o.deliveredQty) || 0).toFixed(1)}/{o.quantity} {t('m3')}</option>
                   ))}
                 </select>
               </div>
@@ -472,30 +474,30 @@ export default function Production() {
             </form>
 
             {/* 🧪 إدارة الإضافات الكيماوية */}
-            <h3 className="text-lg font-black tracking-tight text-white mt-8 mb-4 pb-2 border-b border-white/10">🧪 إدارة الإضافات الكيماوية</h3>
+            <h3 className="text-lg font-black tracking-tight text-white mt-8 mb-4 pb-2 border-b border-white/10">{t('admixSection')}</h3>
             <div className="space-y-3">
-              <input value={additionForm.name} onChange={e => setAdditionForm({ ...additionForm, name: e.target.value })} placeholder="اسم المضاف" className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm" />
+              <input value={additionForm.name} onChange={e => setAdditionForm({ ...additionForm, name: e.target.value })} placeholder={t('namePlaceholder')} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm" />
               <select value={additionForm.type} onChange={e => setAdditionForm({ ...additionForm, type: e.target.value as Addition['type'] })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm">
-                <option value="delay_set">🧪 تأخير شك</option>
-                <option value="strength_enhance">💪 زيادة قوة</option>
-                <option value="integrated">🔬 متكامل</option>
+                <option value="delay_set">{t('delaySet')}</option>
+                <option value="strength_enhance">{t('strengthEnhance')}</option>
+                <option value="integrated">{t('integrated')}</option>
               </select>
               <div className="grid grid-cols-2 gap-2">
-                <input type="number" step="0.1" value={additionForm.dosagePerM3} onChange={e => setAdditionForm({ ...additionForm, dosagePerM3: e.target.value })} placeholder="الجرعة/م³" className="bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm" />
-                <input type="number" step="0.1" value={additionForm.currentStock} onChange={e => setAdditionForm({ ...additionForm, currentStock: e.target.value })} placeholder="المخزون الحالي" className="bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm" />
+                <input type="number" step="0.1" value={additionForm.dosagePerM3} onChange={e => setAdditionForm({ ...additionForm, dosagePerM3: e.target.value })} placeholder={t('dosagePlaceholder')} className="bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm" />
+                <input type="number" step="0.1" value={additionForm.currentStock} onChange={e => setAdditionForm({ ...additionForm, currentStock: e.target.value })} placeholder={t('stockPlaceholder')} className="bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm" />
               </div>
               <div className="grid grid-cols-2 gap-2">
-                <input type="number" step="0.1" value={additionForm.minStock} onChange={e => setAdditionForm({ ...additionForm, minStock: e.target.value })} placeholder="الحد الأدنى" className="bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm" />
-                <input type="number" step="0.1" value={additionForm.costPerUnit} onChange={e => setAdditionForm({ ...additionForm, costPerUnit: e.target.value })} placeholder="التكلفة/وحدة" className="bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm" />
+                <input type="number" step="0.1" value={additionForm.minStock} onChange={e => setAdditionForm({ ...additionForm, minStock: e.target.value })} placeholder={t('minStockPlaceholder')} className="bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm" />
+                <input type="number" step="0.1" value={additionForm.costPerUnit} onChange={e => setAdditionForm({ ...additionForm, costPerUnit: e.target.value })} placeholder={t('costPlaceholder')} className="bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm" />
               </div>
-              <input value={additionForm.supplier} onChange={e => setAdditionForm({ ...additionForm, supplier: e.target.value })} placeholder="المورد" className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm" />
+              <input value={additionForm.supplier} onChange={e => setAdditionForm({ ...additionForm, supplier: e.target.value })} placeholder={t('supplierPlaceholder')} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm" />
               {editingAddition ? (
                 <div className="flex gap-2">
-                  <button onClick={() => updateAddition(editingAddition)} className="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-2 rounded-lg">💾 حفظ التعديل</button>
-                  <button onClick={() => { setEditingAddition(null); setAdditionForm({ name: '', type: 'delay_set', dosagePerM3: '', currentStock: '', minStock: '', unit: 'كجم', supplier: '', costPerUnit: '' }); }} className="flex-1 bg-slate-500 hover:bg-slate-600 text-white font-bold py-2 rounded-lg">❌ إلغاء</button>
+                  <button onClick={() => updateAddition(editingAddition)} className="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-2 rounded-lg">{t('saveEdit')}</button>
+                  <button onClick={() => { setEditingAddition(null); setAdditionForm({ name: '', type: 'delay_set', dosagePerM3: '', currentStock: '', minStock: '', unit: 'كجم', supplier: '', costPerUnit: '' }); }} className="flex-1 bg-slate-500 hover:bg-slate-600 text-white font-bold py-2 rounded-lg">{t('cancel')}</button>
                 </div>
               ) : (
-                <button onClick={addAddition} className="w-full bg-purple-500 hover:bg-purple-600 text-white font-bold py-2 rounded-lg">➕ إضافة مضاف</button>
+                <button onClick={addAddition} className="w-full bg-purple-500 hover:bg-purple-600 text-white font-bold py-2 rounded-lg">{t('addAddition')}</button>
               )}
             </div>
           </div>
@@ -563,13 +565,13 @@ export default function Production() {
                 <tbody>{blockProductions.slice(-5).reverse().map((p, i) => <tr key={i} className="border-b border-white/10"><td className="p-3">{p.date}</td><td className="p-3 font-bold text-sky-400">{p.blockCode}</td><td className="p-3">{p.quantity}</td><td className="p-3">{p.totalCement.toFixed(2)} T</td><td className="p-3">{p.totalSand.toFixed(2)} T</td><td className="p-3"><span className="bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded text-xs font-bold">Produced</span></td></tr>)}</tbody></table>
             </div>
 
-            <h4 className="text-xs text-slate-400 uppercase mb-2">🧪 الإضافات الكيماوية ({additions.length})</h4>
+            <h4 className="text-xs text-slate-400 uppercase mb-2">🧪 {t('admixTitle')} ({additions.length})</h4>
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm text-slate-300"><thead className="bg-white/[0.04] text-slate-400 text-xs uppercase"><tr><th className="p-3">الاسم</th><th className="p-3">النوع</th><th className="p-3">الجرعة/م³</th><th className="p-3">المخزون</th><th className="p-3">الحد الأدنى</th><th className="p-3">المورد</th><th className="p-3">الإجراءات</th></tr></thead>
+              <table className="w-full text-left text-sm text-slate-300"><thead className="bg-white/[0.04] text-slate-400 text-xs uppercase"><tr><th className="p-3">{t('thName')}</th><th className="p-3">{t('thType')}</th><th className="p-3">{t('thDosage')}</th><th className="p-3">{t('thStock')}</th><th className="p-3">{t('thMinStock')}</th><th className="p-3">{t('thSupplier')}</th><th className="p-3">{t('thActions')}</th></tr></thead>
                 <tbody>{additions.map(a => (
                   <tr key={a.id} className="border-b border-white/10">
                     <td className="p-3 font-bold text-white">{a.name}</td>
-                    <td className="p-3"><span className={`px-2 py-0.5 rounded text-xs font-bold ${a.type === 'delay_set' ? 'bg-blue-500/20 text-blue-400' : a.type === 'strength_enhance' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-purple-500/20 text-purple-400'}`}>{a.type === 'delay_set' ? 'تأخير شك' : a.type === 'strength_enhance' ? 'زيادة قوة' : 'متكامل'}</span></td>
+                    <td className="p-3"><span className={`px-2 py-0.5 rounded text-xs font-bold ${a.type === 'delay_set' ? 'bg-blue-500/20 text-blue-400' : a.type === 'strength_enhance' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-purple-500/20 text-purple-400'}`}>{a.type === 'delay_set' ? t('delaySet') : a.type === 'strength_enhance' ? t('strengthEnhance') : t('integrated')}</span></td>
                     <td className="p-3">{a.dosagePerM3} {a.unit}</td>
                     <td className="p-3"><span className={a.currentStock < a.minStock ? 'text-red-400 font-bold' : 'text-emerald-400'}>{a.currentStock} {a.unit}</span></td>
                     <td className="p-3">{a.minStock} {a.unit}</td>
