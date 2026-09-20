@@ -2,6 +2,7 @@ import { useState, useEffect, type FormEvent } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useAdmin, rolePermissions, ROLE_KEYS, MODULE_KEYS, type UserRole } from '../context/AdminContext';
 import { useLang } from '../context/LangContext';
+import { useAdminDict } from '../i18n/adminDict';
 import type { Translations } from '../context/translations';
 import { useNavigate } from 'react-router-dom';
 import LangSelector from '../components/LangSelector';
@@ -77,6 +78,7 @@ function Field({ label, value, onChange, type = 'text', rows }: {
 function OnlinePanel({ users, trees, loading, onRefresh }: {
   users: any[]; trees: Record<string, CompanyTree>; loading: boolean; onRefresh: () => void;
 }) {
+  const d = useAdminDict();
   const [tick, setTick] = useState(0);
   useEffect(() => { const i = setInterval(() => setTick(x => x + 1), 30_000); return () => clearInterval(i); }, []);
   void tick;
@@ -85,20 +87,20 @@ function OnlinePanel({ users, trees, loading, onRefresh }: {
   (users || []).forEach(u => { byUname.set(String(u?.username || '').toLowerCase(), u); });
 
   const rel = (ts?: number | null) => {
-    if (!ts || typeof ts !== 'number' || ts <= 0) return 'غير معروف';
+    if (!ts || typeof ts !== 'number' || ts <= 0) return d('unknown');
     const diff = Date.now() - ts;
     const m = Math.floor(diff / 60000);
-    if (m < 1) return 'الآن';
-    if (m < 60) return `منذ ${m} دقيقة`;
+    if (m < 1) return d('now');
+    if (m < 60) return d('minutesAgo').replace('{m}', String(m));
     const h = Math.floor(m / 60);
-    return `منذ ${h} ساعة${m % 60 ? ` و${m % 60} دقيقة` : ''}`;
+    return d('hoursAgo').replace('{h}', String(h)) + (m % 60 ? d('minutesMore').replace('{mm}', String(m % 60)) : '');
   };
 
   const badge = (u: any) => {
     const on = isOnline(typeof u?.lastSeenAt === 'number' ? u.lastSeenAt : null);
     return (
       <span className={`text-xs px-2.5 py-1 rounded font-bold ${on ? 'bg-emerald-500/20 text-emerald-400' : 'bg-slate-600/30 text-slate-400'}`}>
-        {on ? '🟢 أونلاين' : '🔴 أوفلاين'}
+        {on ? d('online') : d('offline')}
       </span>
     );
   };
@@ -110,7 +112,7 @@ function OnlinePanel({ users, trees, loading, onRefresh }: {
         <p className="text-xs text-slate-400 truncate" dir="ltr">@{u?.username}{u?.roleAr ? ` · ${u?.roleAr}` : ''}</p>
       </div>
       <div className="text-right shrink-0 flex items-center gap-2">
-        <span className="text-[10px] text-slate-500">آخر نشاط: {rel(u?.lastSeenAt)}</span>
+        <span className="text-[10px] text-slate-500">{d('lastActivity').replace('{t}', rel(u?.lastSeenAt))}</span>
         {badge(u)}
       </div>
     </div>
@@ -130,40 +132,42 @@ function OnlinePanel({ users, trees, loading, onRefresh }: {
     return un !== 'guest' && !knownTreeUnames.has(un);
   });
 
+  const hint = d('presenceHint');
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h2 className="text-xl font-black tracking-tight text-white">🟢 المتواجدون الآن</h2>
-          <p className="text-sm text-slate-400 mt-1">الحساب يعتبر أونلاين إذا فتح التطبيق/الموقع خلال آخر 5 دقائق (يُحدَّث كل 30 ثانية تلقائياً).</p>
+          <h2 className="text-xl font-black tracking-tight text-white">{d('presentNow')}</h2>
+          <p className="text-sm text-slate-400 mt-1">{hint}</p>
         </div>
         <button
           onClick={() => { onRefresh(); }}
           disabled={loading}
           className="bg-gradient-to-r from-sky-500 to-cyan-500 hover:from-sky-400 hover:to-cyan-400 disabled:opacity-50 text-white px-5 py-2 rounded-lg font-bold text-sm transition-all duration-300 shadow-[0_0_20px_rgba(56,189,248,0.3)]"
         >
-          {loading ? '⏳ جاري التحديث...' : '🔄 تحديث'}
+          {loading ? d('updating') : d('refresh')}
         </button>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-        <div className="bg-white/[0.04] rounded-2xl border border-emerald-500/30 p-6"><p className="text-xs text-slate-400">🟢 أونلاين الآن</p><p className="text-3xl font-black text-emerald-400">{onlineCount}</p></div>
-        <div className="bg-white/[0.04] rounded-2xl border border-white/10 p-6"><p className="text-xs text-slate-400">👥 إجمالي الحسابات</p><p className="text-3xl font-black text-white">{(users || []).length}</p></div>
-        <div className="bg-white/[0.04] rounded-2xl border border-white/10 p-6"><p className="text-xs text-slate-400">🏢 الشركات والأشجار</p><p className="text-3xl font-black text-white">{Object.keys(trees).length}</p></div>
+        <div className="bg-white/[0.04] rounded-2xl border border-emerald-500/30 p-6"><p className="text-xs text-slate-400">{d('onlineNow')}</p><p className="text-3xl font-black text-emerald-400">{onlineCount}</p></div>
+        <div className="bg-white/[0.04] rounded-2xl border border-white/10 p-6"><p className="text-xs text-slate-400">{d('totalAccounts')}</p><p className="text-3xl font-black text-white">{(users || []).length}</p></div>
+        <div className="bg-white/[0.04] rounded-2xl border border-white/10 p-6"><p className="text-xs text-slate-400">{d('companiesAndTrees')}</p><p className="text-3xl font-black text-white">{Object.keys(trees).length}</p></div>
       </div>
 
-      {loading && <div className="bg-white/[0.04] rounded-2xl border border-white/10 p-10 text-center text-slate-400">⏳ تحميل حالة الوجود...</div>}
+      {loading && <div className="bg-white/[0.04] rounded-2xl border border-white/10 p-10 text-center text-slate-400">{d('loadingPresence')}</div>}
 
       {Object.entries(trees).map(([uname, tr]) => {
         const owner = byUname.get(uname);
         return (
           <div key={uname} className="bg-white/[0.04] rounded-2xl border border-white/10 p-6 backdrop-blur-xl">
             <div className="flex items-center justify-between mb-3">
-              <h3 className="font-bold text-white text-lg">🏭 {tr.companyUsername} <span className="text-xs text-slate-500">شجرة الحسابات</span></h3>
-              <span className="text-xs px-2.5 py-1 rounded font-bold bg-sky-500/15 text-sky-300">{tr.accounts?.length || 0} حساب</span>
+              <h3 className="font-bold text-white text-lg">🏭 {tr.companyUsername} <span className="text-xs text-slate-500">{d('accountsTree')}</span></h3>
+              <span className="text-xs px-2.5 py-1 rounded font-bold bg-sky-500/15 text-sky-300">{d('accountsCount').replace('{n}', String(tr.accounts?.length || 0))}</span>
             </div>
             <div className="space-y-2">
-              {owner && <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-3 py-1.5 mb-1"><p className="text-[11px] font-bold text-emerald-400 mb-1">👑 صاحب الشركة</p>{row(owner)}</div>}
+              {owner && <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-3 py-1.5 mb-1"><p className="text-[11px] font-bold text-emerald-400 mb-1">{d('companyOwner')}</p>{row(owner)}</div>}
               {(tr.accounts || []).map(a => {
                 const em = String(a?.email || '').trim().toLowerCase();
                 const u = byUname.get(em) || { username: em, roleAr: a?.roleAr, plantName: '' };
@@ -176,7 +180,7 @@ function OnlinePanel({ users, trees, loading, onRefresh }: {
 
       {others.length > 0 && (
         <div className="bg-white/[0.04] rounded-2xl border border-white/10 p-6 backdrop-blur-xl">
-          <h3 className="font-bold text-white text-lg mb-3">👥 حسابات الشركات الأخرى</h3>
+          <h3 className="font-bold text-white text-lg mb-3">{d('otherCompanyAccounts')}</h3>
           <div className="space-y-2">{others.map(u => row(u))}</div>
         </div>
       )}
@@ -188,6 +192,7 @@ export default function AdminPanel() {
   const { currentUser, logout } = useAuth();
   const { plant, savePlant, users, addUser, updateUser, deleteUser, canManageAdmin } = useAdmin();
   const { t } = useLang();
+  const d = useAdminDict();
   const navigate = useNavigate();
 
   const [tab, setTab] = useState<Tab>('overview');
@@ -249,7 +254,7 @@ export default function AdminPanel() {
     setGpsBusy(true);
     setGpsMsg('');
     if (!navigator.geolocation) {
-      setGpsMsg('⚠️ Geolocation is not supported by this browser.');
+      setGpsMsg(d('geolocationUnsupported'));
       setGpsBusy(false);
       return;
     }
@@ -258,11 +263,11 @@ export default function AdminPanel() {
         const { latitude, longitude } = pos.coords;
         setPlantGps({ lat: latitude, lng: longitude });
         try { await savePlantGPS(currentUser!.username, latitude, longitude); } catch {}
-        setGpsMsg(`✅ GPS saved (${latitude.toFixed(5)}, ${longitude.toFixed(5)}). Now used by all sections.`);
+        setGpsMsg(d('gpsSavedMsg').replace('{lat}', latitude.toFixed(5)).replace('{lng}', longitude.toFixed(5)));
         setGpsBusy(false);
       },
       err => {
-        setGpsMsg(`⚠️ ${err.message} — allow location access or enter coordinates manually.`);
+        setGpsMsg(d('gpsErrorMsg').replace('{err}', err.message));
         setGpsBusy(false);
       },
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 },
@@ -281,7 +286,7 @@ export default function AdminPanel() {
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !currentUser) return;
-    if (!file.type.startsWith('image/')) { showToast('⚠️ Please select an image file.'); return; }
+    if (!file.type.startsWith('image/')) { showToast(d('selectImageFile')); return; }
     const reader = new FileReader();
     reader.onload = () => {
       const img = new Image();
@@ -298,9 +303,9 @@ export default function AdminPanel() {
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
         const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
         setLogo(dataUrl);
-        savePlantLogo(currentUser!.username, dataUrl).then(() => showToast('✅ Plant logo uploaded & shared across the site.')).catch(() => showToast('⚠️ Could not save logo.'));
+        savePlantLogo(currentUser!.username, dataUrl).then(() => showToast(d('logoUploaded'))).catch(() => showToast(d('logoSaveFailed')));
       };
-      img.onerror = () => showToast('⚠️ Could not read image.');
+      img.onerror = () => showToast(d('logoReadFailed'));
       img.src = String(reader.result);
     };
     reader.readAsDataURL(file);
@@ -366,13 +371,13 @@ export default function AdminPanel() {
   const tabs: { key: Tab; label: string; emoji: string }[] = [
     { key: 'overview', label: t('tabOverview'), emoji: '📊' },
     { key: 'plant', label: t('tabPlantData'), emoji: '🏭' },
-    { key: 'plants', label: 'Plants & Block Lines', emoji: '🏗️' },
+    { key: 'plants', label: d('readyMixPlants'), emoji: '🏗️' },
     { key: 'users', label: t('tabUsers'), emoji: '👥' },
-    { key: 'sections', label: 'Sections Overview', emoji: '🧩' },
-    { key: 'erp', label: 'ERP Finance & Inventory', emoji: '💼' },
-    { key: 'gps', label: 'GPS Map', emoji: '🗺️' },
-    { key: 'online', label: 'المتواجدون الآن', emoji: '🟢' },
-    { key: 'devices', label: 'الأجهزة الطرفية', emoji: '🔌' },
+    { key: 'sections', label: d('sectionsOverview'), emoji: '🧩' },
+    { key: 'erp', label: d('tabErp'), emoji: '💼' },
+    { key: 'gps', label: d('tabGps'), emoji: '🗺️' },
+    { key: 'online', label: d('tabOnline'), emoji: '🟢' },
+    { key: 'devices', label: d('tabDevices'), emoji: '🔌' },
   ];
 
   return (
@@ -395,7 +400,7 @@ export default function AdminPanel() {
               onClick={() => { logout(); navigate('/'); }}
               className="bg-white/[0.06] hover:bg-red-500/20 text-white px-5 py-2.5 rounded-lg font-bold transition-all duration-300 border border-white/10 hover:border-red-400/60"
             >
-              🚪 خروج
+              🚪 {d('logout')}
             </button>
           </div>
         </div>
@@ -428,13 +433,13 @@ export default function AdminPanel() {
               {logo ? (
                 <img src={logo} alt="Plant logo" className="h-20 w-auto object-contain rounded-xl bg-white p-1" />
               ) : (
-                <div className="h-20 w-28 rounded-xl bg-white/[0.03] border border-dashed border-white/10 flex items-center justify-center text-[10px] text-slate-500">No logo yet</div>
+                <div className="h-20 w-28 rounded-xl bg-white/[0.03] border border-dashed border-white/10 flex items-center justify-center text-[10px] text-slate-500">{d('noLogoYet')}</div>
               )}
               <div className="text-center md:text-left">
                 <p className="text-2xl font-bold text-white">🏭 {plant.name || '—'}</p>
                 <p className="text-sm text-slate-400 mt-1">{plant.city || '—'}{plant.city && plant.country ? ', ' : ''}{plant.country || ''} · 📏 {plant.capacityM3 || '—'} m³ · 🎛️ {plant.mixerCount || '0'} mixers · 🚛 {plant.truckCount || '0'} trucks</p>
               </div>
-              <button onClick={() => setTab('plant')} className="md:ml-auto bg-sky-500/15 text-sky-300 border border-sky-500/40 hover:bg-sky-500/25 px-4 py-2 rounded-lg font-bold text-sm transition-colors">✏️ Edit Plant & Logo</button>
+              <button onClick={() => setTab('plant')} className="md:ml-auto bg-sky-500/15 text-sky-300 border border-sky-500/40 hover:bg-sky-500/25 px-4 py-2 rounded-lg font-bold text-sm transition-colors">{d('editPlantAndLogo')}</button>
             </div>
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -447,11 +452,11 @@ export default function AdminPanel() {
                 <p className="text-lg font-bold text-white truncate">{plant.capacityM3 || '—'}</p>
               </div>
               <div className="bg-white/[0.04] rounded-2xl border border-white/10 p-6 backdrop-blur-xl">
-                <p className="text-xs text-slate-400 font-semibold mb-1">🏗️ Ready-Mix Plants</p>
+                <p className="text-xs text-slate-400 font-semibold mb-1">🏗️ {d('readyMixPlants')}</p>
                 <p className="text-lg font-bold text-white truncate">{plantCount}</p>
               </div>
               <div className="bg-white/[0.04] rounded-2xl border border-white/10 p-6 backdrop-blur-xl">
-                <p className="text-xs text-slate-400 font-semibold mb-1">🧱 Block Lines</p>
+                <p className="text-xs text-slate-400 font-semibold mb-1">🧱 {d('blockLines')}</p>
                 <p className="text-lg font-bold text-white truncate">{blockCount}</p>
               </div>
               <div className="bg-white/[0.04] rounded-2xl border border-white/10 p-6 backdrop-blur-xl">
@@ -504,11 +509,11 @@ export default function AdminPanel() {
           <div className="space-y-6">
             <div className="flex flex-wrap gap-2">
               {([
-                { k: 'profile', l: '📋 Plant Profile & Logo' },
-                { k: 'fleet', l: '🚚 Assets & Fleet' },
-                { k: 'stock', l: '🏬 Warehouses & Stock' },
-                { k: 'config', l: '⚙️ Production Config' },
-                { k: 'trackers', l: '🛰️ GPS & Trackers' },
+                { k: 'profile', l: '📋 ' + d('subProfile') },
+                { k: 'fleet', l: '🚚 ' + d('subFleet') },
+                { k: 'stock', l: '🏬 ' + d('subStock') },
+                { k: 'config', l: '⚙️ ' + d('subConfig') },
+                { k: 'trackers', l: '🛰️ ' + d('subTrackers') },
               ] as { k: FactorySub; l: string }[]).map(sb => (
                 <button
                   key={sb.k}
@@ -532,14 +537,14 @@ export default function AdminPanel() {
                 {logo ? (
                   <img src={logo} alt="Plant logo" className="h-20 w-auto object-contain rounded-xl bg-white p-1" />
                 ) : (
-                  <div className="h-20 w-28 rounded-xl bg-white/[0.03] border border-dashed border-white/10 flex items-center justify-center text-[10px] text-slate-500">No logo yet</div>
+                  <div className="h-20 w-28 rounded-xl bg-white/[0.03] border border-dashed border-white/10 flex items-center justify-center text-[10px] text-slate-500">{d('noLogoYet')}</div>
                 )}
                 <div className="flex-1 min-w-[220px]">
-                  <p className="font-bold text-white text-sm">🖼️ Plant Logo</p>
-                  <p className="text-xs text-slate-400 mt-1">Upload the factory logo — it appears across the site and on printed reports (Fleet Report, QC reports, Schedule).</p>
+                  <p className="font-bold text-white text-sm">🖼️ {d('plantLogo')}</p>
+                  <p className="text-xs text-slate-400 mt-1">{d('logoHint')}</p>
                   <div className="mt-3 flex gap-2">
                     <label className="bg-sky-500/15 text-sky-300 border border-sky-500/40 hover:bg-sky-500/25 text-xs px-4 py-2 rounded-lg font-bold cursor-pointer transition-colors inline-block">
-                      📤 {logo ? 'Replace Logo' : 'Upload Logo'}
+                      📤 {logo ? d('replaceLogo') : d('uploadLogo')}
                       <input type="file" accept="image/*" onChange={handleLogoUpload} className="hidden" />
                     </label>
                     {logo && (
@@ -547,11 +552,11 @@ export default function AdminPanel() {
                         type="button"
                         onClick={async () => {
                           setLogo('');
-                          try { await savePlantLogo(currentUser!.username, ''); showToast('✅ Plant logo removed.'); } catch { showToast('⚠️ Could not remove logo.'); }
+                          try { await savePlantLogo(currentUser!.username, ''); showToast(d('logoRemoved')); } catch { showToast(d('logoRemoveFailed')); }
                         }}
                         className="bg-red-600/20 text-red-400 border border-red-500/30 hover:bg-red-600/30 text-xs px-4 py-2 rounded-lg font-bold transition-colors"
                       >
-                        🗑️ Remove
+                        🗑️ {d('remove')}
                       </button>
                     )}
                   </div>
@@ -580,9 +585,9 @@ export default function AdminPanel() {
             <div className="mt-5 bg-white/[0.03] border border-white/10 rounded-xl p-4">
               <div className="flex items-center justify-between flex-wrap gap-3 mb-3">
                 <div>
-                  <p className="font-bold text-white text-sm">📍 Plant GPS (shared across all sections)</p>
+                  <p className="font-bold text-white text-sm">📍 {d('plantGpsShared')}</p>
                   <p className="text-xs text-slate-400 mt-1">
-                    {plantGps ? `Saved: ${plantGps.lat.toFixed(5)}, ${plantGps.lng.toFixed(5)}` : 'No GPS saved yet — detect your location or enter coordinates manually.'}
+                    {plantGps ? d('gpsSaved').replace('{lat}', plantGps.lat.toFixed(5)).replace('{lng}', plantGps.lng.toFixed(5)) : d('noGpsSaved')}
                   </p>
                 </div>
                 <button
@@ -591,31 +596,31 @@ export default function AdminPanel() {
                   disabled={gpsBusy}
                   className="bg-gradient-to-r from-sky-500 to-cyan-500 hover:from-sky-400 hover:to-cyan-400 disabled:opacity-50 text-white px-5 py-2.5 rounded-lg font-bold text-sm transition-all duration-300"
                 >
-                  {gpsBusy ? '⏳ Detecting...' : '📍 Detect My Location'}
+                  {gpsBusy ? d('detecting') : d('detectMyLocation')}
                 </button>
               </div>
               <div className="grid grid-cols-2 gap-4">
-                <Field label="Latitude" value={plantGps ? String(plantGps.lat) : ''} onChange={v => setPlantGps(p => ({ lat: Number(v) || 0, lng: p?.lng || 0 }))} />
-                <Field label="Longitude" value={plantGps ? String(plantGps.lng) : ''} onChange={v => setPlantGps(p => ({ lat: p?.lat || 0, lng: Number(v) || 0 }))} />
+                <Field label={d('latitude')} value={plantGps ? String(plantGps.lat) : ''} onChange={v => setPlantGps(p => ({ lat: Number(v) || 0, lng: p?.lng || 0 }))} />
+                <Field label={d('longitude')} value={plantGps ? String(plantGps.lng) : ''} onChange={v => setPlantGps(p => ({ lat: p?.lat || 0, lng: Number(v) || 0 }))} />
               </div>
               <div className="flex items-center justify-between flex-wrap gap-3 mt-3">
                 {gpsMsg && <p className={`text-xs font-bold ${gpsMsg.includes('✅') ? 'text-emerald-400' : 'text-yellow-400'}`}>{gpsMsg}</p>}
                 <button
                   type="button"
                   onClick={async () => {
-                    if (!plantGps) { setGpsMsg('⚠️ Enter latitude/longitude first.'); return; }
+                    if (!plantGps) { setGpsMsg(d('enterCoordsFirst')); return; }
                     try {
                       await savePlantGPS(currentUser!.username, plantGps.lat, plantGps.lng);
                       const { saveGpsLocationToSupabase, loadGpsLocationsFromSupabase } = await import('../supabase/supabase');
                       await saveGpsLocationToSupabase({ username: currentUser!.username, label: 'plant', lat: plantGps.lat, lng: plantGps.lng });
                       const rows = await loadGpsLocationsFromSupabase();
                       setSupaGps(rows.map(r => ({ username: r.username, label: r.label, lat: r.lat, lng: r.lng })));
-                      setGpsMsg(`✅ GPS saved (${plantGps.lat.toFixed(5)}, ${plantGps.lng.toFixed(5)}).`);
-                    } catch { setGpsMsg('⚠️ Could not save GPS.'); }
+                      setGpsMsg(`✅ ${d('gpsSavedMsg').replace('{lat}', plantGps.lat.toFixed(5)).replace('{lng}', plantGps.lng.toFixed(5))}`);
+                    } catch { setGpsMsg(d('gpsSaveFailed')); }
                   }}
                   className="ml-auto bg-emerald-600/20 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-600/30 text-xs px-4 py-2 rounded-lg font-bold transition-colors"
                 >
-                  💾 Save GPS
+                  💾 {d('saveGps')}
                 </button>
               </div>
             </div>
@@ -756,21 +761,21 @@ export default function AdminPanel() {
         {tab === 'sections' && (
           <div className="space-y-6">
             <div className="flex items-center justify-between">
-              <h2 className="text-xl font-black tracking-tight text-white">🧩 Sections Overview</h2>
+              <h2 className="text-xl font-black tracking-tight text-white">🧩 {d('sectionsOverview')}</h2>
               <button
                 onClick={loadSectionSummary}
                 disabled={summaryLoading}
                 className="bg-gradient-to-r from-sky-500 to-cyan-500 hover:from-sky-400 hover:to-cyan-400 disabled:opacity-50 text-white px-5 py-2 rounded-lg font-bold text-sm transition-all duration-300 shadow-[0_0_20px_rgba(56,189,248,0.3)]"
               >
-                {summaryLoading ? '⏳ Loading...' : '🔄 Refresh'}
+                {summaryLoading ? d('loading') : d('refresh')}
               </button>
             </div>
-            <p className="text-sm text-slate-400 -mt-3">Live aggregates from every section's database (trips, QC, orders, payments, purchase orders).</p>
+            <p className="text-sm text-slate-400 -mt-3">{d('sectionsHint')}</p>
 
             {summaryLoading ? (
-              <div className="bg-white/[0.04] rounded-2xl border border-white/10 p-10 text-center text-slate-400">⏳ Loading section data...</div>
+              <div className="bg-white/[0.04] rounded-2xl border border-white/10 p-10 text-center text-slate-400">⏳ {d('loadingSectionData')}</div>
             ) : summary.length === 0 ? (
-              <div className="bg-white/[0.04] rounded-2xl border border-white/10 p-10 text-center text-slate-400">No plants found yet.</div>
+              <div className="bg-white/[0.04] rounded-2xl border border-white/10 p-10 text-center text-slate-400">{d('noPlantsFound')}</div>
             ) : (
               summary.map(s => {
                 const collected = Array.isArray(s.payments) ? s.payments.reduce((x, p) => x + (Number(p.amountPaid) || Number(p.amount) || 0), 0) : 0;
@@ -781,19 +786,19 @@ export default function AdminPanel() {
                   <div key={s.username} className="bg-white/[0.04] rounded-2xl border border-white/10 p-6 backdrop-blur-xl">
                     <div className="flex items-center justify-between mb-4">
                       <h3 className="font-bold text-white text-lg">🏭 {s.plantName} <span className="text-xs text-slate-500">(@{s.username} · {s.city}, {s.country})</span></h3>
-                      <span className="text-xs px-2.5 py-1 rounded font-bold bg-sky-500/15 text-sky-300">{s.trips} trips</span>
+                      <span className="text-xs px-2.5 py-1 rounded font-bold bg-sky-500/15 text-sky-300">{s.trips} {d('tripsLabel')}</span>
                     </div>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-                      <div className="bg-white/[0.02] rounded-xl p-4"><p className="text-xs text-slate-400">🚛 Trips</p><p className="text-2xl font-bold text-white">{s.trips}</p></div>
-                      <div className="bg-white/[0.02] rounded-xl p-4"><p className="text-xs text-slate-400">📦 Volume</p><p className="text-2xl font-bold text-white">{Math.round(s.totalVolume)} m³</p></div>
-                      <div className="bg-white/[0.02] rounded-xl p-4"><p className="text-xs text-slate-400">🔬 QC Samples</p><p className="text-2xl font-bold text-white">{s.qcCount}</p></div>
-                      <div className="bg-white/[0.02] rounded-xl p-4"><p className="text-xs text-slate-400">📋 Open Orders</p><p className="text-2xl font-bold text-white">{openOrders}</p></div>
-                      <div className="bg-white/[0.02] rounded-xl p-4"><p className="text-xs text-slate-400">💰 Collected</p><p className="text-2xl font-bold text-emerald-400">{Math.round(collected)} SAR</p></div>
-                      <div className="bg-white/[0.02] rounded-xl p-4"><p className="text-xs text-slate-400">🛒 PO Spend</p><p className="text-2xl font-bold text-amber-400">{Math.round(posSpend)} SAR</p></div>
+                      <div className="bg-white/[0.02] rounded-xl p-4"><p className="text-xs text-slate-400">🚛 {d('statTrips')}</p><p className="text-2xl font-bold text-white">{s.trips}</p></div>
+                      <div className="bg-white/[0.02] rounded-xl p-4"><p className="text-xs text-slate-400">📦 {d('statVolume')}</p><p className="text-2xl font-bold text-white">{Math.round(s.totalVolume)} m³</p></div>
+                      <div className="bg-white/[0.02] rounded-xl p-4"><p className="text-xs text-slate-400">🔬 {d('statQc')}</p><p className="text-2xl font-bold text-white">{s.qcCount}</p></div>
+                      <div className="bg-white/[0.02] rounded-xl p-4"><p className="text-xs text-slate-400">📋 {d('statOpenOrders')}</p><p className="text-2xl font-bold text-white">{openOrders}</p></div>
+                      <div className="bg-white/[0.02] rounded-xl p-4"><p className="text-xs text-slate-400">💰 {d('statCollected')}</p><p className="text-2xl font-bold text-emerald-400">{Math.round(collected)} SAR</p></div>
+                      <div className="bg-white/[0.02] rounded-xl p-4"><p className="text-xs text-slate-400">🛒 {d('statPoSpend')}</p><p className="text-2xl font-bold text-amber-400">{Math.round(posSpend)} SAR</p></div>
                     </div>
                     {inventoryRows.length > 0 && (
                       <div className="mt-2">
-                        <p className="text-sm font-medium text-slate-300 mb-2">📦 Inventory</p>
+                        <p className="text-sm font-medium text-slate-300 mb-2">📦 {d('statInventory')}</p>
                         <div className="flex flex-wrap gap-2">
                           {inventoryRows.map(([k, v]) => (
                             <span key={k} className="text-xs bg-white/[0.03] border border-white/10 px-3 py-1.5 rounded-lg text-slate-300">{k}: <b className="text-white">{String(v)}</b></span>
@@ -830,11 +835,11 @@ export default function AdminPanel() {
             <div className="bg-white/[0.04] border border-white/10 rounded-xl p-6 backdrop-blur-xl mt-4">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <h3 className="text-lg font-black tracking-tight text-white">📹 داش كام الشاحنات <DeviceStatusBadge id="dashcam" /></h3>
-                  <p className="text-xs text-slate-400">Fleet Dashcam — بث مباشر، تسجيل، وكشف الأحداث بالذكاء الاصطناعي</p>
+                  <h3 className="text-lg font-black tracking-tight text-white">{d('dashcamTitle')} <DeviceStatusBadge id="dashcam" /></h3>
+                  <p className="text-xs text-slate-400">{d('dashcamDesc')}</p>
                 </div>
                 <button onClick={() => setShowDashcam(true)} className="bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-red-500/30 text-xs font-bold px-4 py-2 rounded-lg">
-                  ▶️ عرض الكاميرات
+                  ▶️ {d('viewCameras')}
                 </button>
               </div>
             </div>

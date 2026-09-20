@@ -5,6 +5,7 @@ import BrandLogo from '../components/BrandLogo';
 import type { UserSession } from '../context/AuthContext';
 import { TREE_ROLES, treeModsForRole } from '../lib/treeRoles';
 import { hashPassword } from '../lib/passwords';
+import { useConsoleDict } from '../i18n/consoleDict';
 
 const STORAGE_KEY = 'fimto_module_config';
 const SESSION_KEY = 'fimto_console_session';
@@ -59,6 +60,9 @@ const STATION_TYPE_OPTIONS = [
   { v: 'blocks', l: 'بلك' },
   { v: 'both', l: 'الاثنين معاً' },
 ];
+
+const PRODUCT_X_KEY: Record<string, string> = { both: 'productBoth', concrete: 'productConcrete', blocks: 'productBlocks' };
+const STATION_X_KEY: Record<string, string> = { concrete: 'stationTypeConcrete', blocks: 'stationTypeBlocks', both: 'stationTypeBoth' };
 
 interface Overrides { [path: string]: { image: string; bgImage: string } }
 
@@ -132,6 +136,7 @@ export default function Console() {
 
 function ConsoleInner() {
   const navigate = useNavigate();
+  const t = useConsoleDict();
   const [authed, setAuthed] = useState(false);
   const [step, setStep] = useState<'login' | 'otp' | 'panel'>('login');
   const [email, setEmail] = useState('');
@@ -170,13 +175,13 @@ const [companies, setCompanies] = useState<any[]>([]);
   const [protectSaving, setProtectSaving] = useState(false);
 
   const saveConfigBtn = async () => {
-    setError('💾 جاري حفظ الاعدادات على القاعدة...');
+    setError(t('savingToDb'));
     try {
       await saveSiteConfig({ overrides, custom });
-      setError('✅ تم حفظ الصور واعدادات الأقسام على القاعدة — دايمًا');
+      setError(t('savedToDbMsg'));
     } catch (err) {
       console.error('site config save', err);
-      setError('❌ فشل الحفظ على القاعدة (محلياً محفوظ)');
+      setError(t('saveDbFailed'));
     }
   };
 
@@ -189,7 +194,7 @@ const [companies, setCompanies] = useState<any[]>([]);
         setOverrides(ov);
         setCustom(cu);
         saveCfg(ov, cu);
-        setError('📥 تم تحميل الاعدادات المحفوظة من القاعدة');
+        setError(t('loadedFromDbMsg'));
       }
     } catch (e) { console.error('load cfg', e); }
   };
@@ -348,10 +353,10 @@ const [companies, setCompanies] = useState<any[]>([]);
   };
 
   const treeSaveReport = (ok: number, failed: { email: string; error: string }[]) => {
-    if (failed.length === 0) return `✅ تم حفظ الشجرة — ${ok} حساب مسجل في الداتابيز ✓`;
+    if (failed.length === 0) return `${t('treeSavedOk')}${ok}${t('accountsRegistered')}`;
     const names = failed.map(f => f.email).slice(0, 4).join('، ');
-    const more = failed.length > 4 ? ` (والى آخرها ${failed.length - 4})` : '';
-    return `⚠️ تم حفظ الشجرة، لكن نجح ${ok} / ${ok + failed.length} حساب فقط — فشل تسجيل: ${names}${more}. تحقق من الإتصال ثم أعد الحفظ`;
+    const more = failed.length > 4 ? `${t('moreAccountsSuffix')}${failed.length - 4}${t('accountsMoreEnd')}` : '';
+    return `${t('treeSavedPartial')}${ok}${t('outOfAccounts')}${ok + failed.length}${t('accountsFailedSuffix')}${names}${more}${t('resaveAfterCheck')}`;
   };
 
   const onlineBadge = (id: string) => {
@@ -359,10 +364,10 @@ const [companies, setCompanies] = useState<any[]>([]);
     const on = !!u && isOnline(typeof u.lastSeenAt === 'number' ? u.lastSeenAt : null);
     return (
       <span
-        title={`آخر نشاط: ${u?.lastSeenAt && typeof u.lastSeenAt === 'number' ? new Date(u.lastSeenAt).toLocaleString() : 'غير معروف'}`}
+        title={`${t('lastActivityLabel')}${u?.lastSeenAt && typeof u.lastSeenAt === 'number' ? new Date(u.lastSeenAt).toLocaleString() : t('unknownTime')}`}
         className={`text-[10px] font-bold px-2 py-1 rounded border shrink-0 ${on ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' : 'bg-white/[0.04] text-slate-500 border-white/10'}`}
       >
-        {on ? '🟢 أونلاين' : '🔴 أوفلاين'}
+        {on ? t('onlineStatus') : t('offlineStatus')}
       </span>
     );
   };
@@ -370,7 +375,7 @@ const [companies, setCompanies] = useState<any[]>([]);
   const handleLogin = async (e: FormEvent) => {
     e.preventDefault();
     setError('');
-    if (!email || !password) { setError('اكتب الإيميل والباسورد'); return; }
+    if (!email || !password) { setError(t('enterEmailPass')); return; }
     setSending(true);
     try {
       const res = await fetch('/api/console/login', {
@@ -385,20 +390,20 @@ const [companies, setCompanies] = useState<any[]>([]);
           localStorage.setItem(SESSION_KEY, '1');
           setAuthed(true);
           setStep('panel');
-          setError('⚠️ تم الدخول بدون كود تحقق (خدمة البريد غير مفعّلة للخادم مؤقتاً)');
+          setError(t('loginNoOtpMsg'));
           setSending(false);
           return;
         }
-        setError(json?.message || 'بيانات الدخول غير صحيحة');
+        setError(json?.message || t('invalidLogin'));
         setSending(false);
         return;
       }
       setOtpSentTo(email.trim().toLowerCase());
       setStep('otp');
-      setError('📩 تم إرسال كود التحقق على الإيميل');
+      setError(t('otpSentMsg'));
     } catch (err: any) {
       console.error('console login error:', err);
-      setError('تعذر الاتصال بالخادم — حاول مرة أخرى');
+      setError(t('serverUnreachable'));
     }
     setSending(false);
   };
@@ -406,7 +411,7 @@ const [companies, setCompanies] = useState<any[]>([]);
   const handleOtp = async (e: FormEvent) => {
     e.preventDefault();
     setError('');
-    if (!/^\d{6}$/.test(otp)) { setError('أدخل كوداً مكوّناً من 6 أرقام'); return; }
+    if (!/^\d{6}$/.test(otp)) { setError(t('otpInvalid')); return; }
     setSending(true);
     try {
       const res = await fetch('/api/otp/verify', {
@@ -416,7 +421,7 @@ const [companies, setCompanies] = useState<any[]>([]);
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok || json?.success === false) {
-        setError(json?.message || 'كود التأكيد غير صحيح');
+        setError(json?.message || t('otpWrong'));
         setSending(false);
         return;
       }
@@ -424,7 +429,7 @@ const [companies, setCompanies] = useState<any[]>([]);
       setAuthed(true);
       setStep('panel');
     } catch (err: any) {
-      setError('تعذر الاتصال بالخادم — حاول مرة أخرى');
+      setError(t('serverUnreachable'));
     }
     setSending(false);
   };
@@ -434,7 +439,7 @@ const [companies, setCompanies] = useState<any[]>([]);
     const next: Overrides = { ...overrides, [path]: { ...cur, [key]: value } };
     setOverrides(next);
     saveCfg(next, custom);
-    setError('تم الحفظ ✓');
+    setError(t('savedMsg'));
   };
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>, path: string, key: 'image' | 'bgImage') => {
@@ -442,14 +447,14 @@ const [companies, setCompanies] = useState<any[]>([]);
     if (!file) return;
     setUploadingPath(`${path}:${key}`);
     try {
-      setError('⏳ رفع الصورة...');
+      setError(t('uploadImage'));
       const url = await uploadConsoleImage(file, `modules/${path}`);
-      if (!url) throw new Error('الرفع فشل بدون نتيجة');
+      if (!url) throw new Error(t('uploadFailedNoResult'));
       updateOverride(path, key, url);
-      setError('✅ تم رفع الصورة وتحديث الإعدادات محلياً — اضغط "حفظ على القاعدة" لتخزينها');
+      setError(t('uploadResultMsg'));
     } catch (err) {
       console.error('Upload failed', err);
-      setError(`❌ فشل رفع الصورة: ${err instanceof Error ? err.message : 'خطأ غير معروف'}`);
+      setError(`${t('uploadFailed')}${err instanceof Error ? err.message : t('unknownError')}`);
     } finally {
       setUploadingPath('');
       e.target.value = '';
@@ -461,14 +466,14 @@ const [companies, setCompanies] = useState<any[]>([]);
     if (!file) return;
     setUploadingPath(`custom:${key}`);
     try {
-      setError('⏳ رفع الصورة...');
+      setError(t('uploadImage'));
       const url = await uploadConsoleImage(file, 'custom');
-      if (!url) throw new Error('الرفع فشل بدون نتيجة');
+      if (!url) throw new Error(t('uploadFailedNoResult'));
       setCustomMedia(prev => ({ ...prev, [key]: url }));
-      setError('✅ تم رفع الصورة — اضغط "اضافة القسم" للمتابعة');
+      setError(t('customUploadMsg'));
     } catch (err) {
       console.error('Upload failed', err);
-      setError(`❌ فشل رفع الصورة: ${err instanceof Error ? err.message : 'خطأ غير معروف'}`);
+      setError(`${t('uploadFailed')}${err instanceof Error ? err.message : t('unknownError')}`);
     } finally {
       setUploadingPath('');
       e.target.value = '';
@@ -523,7 +528,7 @@ const [companies, setCompanies] = useState<any[]>([]);
 
   const saveAllTree = async (username: string) => {
     const rows = trees[username] || [];
-    if (rows.length === 0) { setError('الشجرة فاضية — توليد حسابات اولاً'); return; }
+    if (rows.length === 0) { setError(t('treeEmptyMsg')); return; }
     setTreeSaving(true);
     const company = companies.find(c => c.username?.toLowerCase() === username) || {} as UserSession;
     try {
@@ -531,7 +536,7 @@ const [companies, setCompanies] = useState<any[]>([]);
       const hashed = await hashTreeRows(rows);
       const problems = await fs.checkTreeAccountConflicts(hashed, username);
       if (problems.length > 0) {
-        setError('❌ تعارض في الحسابات — تم ايقاف الحفظ:\n' + problems.slice(0, 8).join('\n'));
+        setError(t('treeConflictPrefix') + problems.slice(0, 8).join('\n'));
         setTreeSaving(false);
         return;
       }
@@ -548,7 +553,7 @@ const [companies, setCompanies] = useState<any[]>([]);
       setError(treeSaveReport(ok, failed));
     } catch (err) {
       console.error('Tree save failed', err);
-      setError('فشل حفظ الشجرة ❌');
+      setError(t('treeSaveFailed'));
     }
     setTreeSaving(false);
   };
@@ -571,29 +576,29 @@ const [companies, setCompanies] = useState<any[]>([]);
     const fs = await import('../firebase/firestore');
     // [اسم القسم, مفاتيح localStorage (بالترتيب), دالة الحفظ]
     const MAP: Array<[string, string[], (u: string, v: any) => Promise<void>]> = [
-      ['الرحلات', ['trips_data', 'trips'], fs.saveTrips],
-      ['الطلبات', ['concrete_plant_orders'], fs.saveOrders],
-      ['العملاء', ['concrete_plant_customers'], fs.saveCustomers],
-      ['الانتاج', ['plantProductionRuns'], fs.saveProductionRuns],
-      ['المخزون', ['plantInventory'], fs.saveInventory],
-      ['الوصفات', ['plantRecipes'], fs.saveRecipes],
-      ['معايرة المختبر', ['calibrationLogs'], fs.saveCalibrationLogs],
-      ['فحوصات الجودة', ['qcRecords'], fs.saveQCRecords],
-      ['التسليمات', ['plantDeliveries'], fs.saveDeliveries],
-      ['المدفوعات', ['plantPayments'], fs.savePayments],
-      ['امر التوريد', ['plantPOs'], fs.savePurchaseOrders],
-      ['الخرسانة الراجعة', ['plantReturns'], fs.saveReturns],
-      ['كشوف الوزن', ['plantWeigh'], fs.saveWeighbridgeRecords],
-      ['المصانع', ['plantAdditions'], fs.savePlants],
-      ['مصانع البلوك', ['plantBlocks'], fs.saveBlockPlants],
-      ['وقود الورشة', ['ws_fuel'], fs.saveFuelLogs],
-      ['زيت الورشة', ['ws_oil'], fs.saveOilLogs],
-      ['قطع غيار الورشة', ['ws_parts'], fs.saveSparePartLogs],
-      ['أعطال الورشة', ['ws_breakdowns'], fs.saveBreakdowns],
-      ['مخزون الورشة', ['ws_warehouse'], fs.saveWarehouse],
-      ['طلبات شراء الورشة', ['ws_purchreq'], fs.savePurchaseReqs],
-      ['محطات الخلط', ['ws_stations'], fs.saveStations],
-      ['صيانة المحطات', ['ws_maints'], fs.savePeriodicMaints],
+      [t('migTrips'), ['trips_data', 'trips'], fs.saveTrips],
+      [t('migOrders'), ['concrete_plant_orders'], fs.saveOrders],
+      [t('migCustomers'), ['concrete_plant_customers'], fs.saveCustomers],
+      [t('migProduction'), ['plantProductionRuns'], fs.saveProductionRuns],
+      [t('migInventory'), ['plantInventory'], fs.saveInventory],
+      [t('migRecipes'), ['plantRecipes'], fs.saveRecipes],
+      [t('migCalibration'), ['calibrationLogs'], fs.saveCalibrationLogs],
+      [t('migQc'), ['qcRecords'], fs.saveQCRecords],
+      [t('migDeliveries'), ['plantDeliveries'], fs.saveDeliveries],
+      [t('migPayments'), ['plantPayments'], fs.savePayments],
+      [t('migPurchaseOrders'), ['plantPOs'], fs.savePurchaseOrders],
+      [t('migReturns'), ['plantReturns'], fs.saveReturns],
+      [t('migWeighbridge'), ['plantWeigh'], fs.saveWeighbridgeRecords],
+      [t('migPlants'), ['plantAdditions'], fs.savePlants],
+      [t('migBlockPlants'), ['plantBlocks'], fs.saveBlockPlants],
+      [t('migFuel'), ['ws_fuel'], fs.saveFuelLogs],
+      [t('migOil'), ['ws_oil'], fs.saveOilLogs],
+      [t('migSpareParts'), ['ws_parts'], fs.saveSparePartLogs],
+      [t('migBreakdowns'), ['ws_breakdowns'], fs.saveBreakdowns],
+      [t('migWarehouse'), ['ws_warehouse'], fs.saveWarehouse],
+      [t('migPurchaseReqs'), ['ws_purchreq'], fs.savePurchaseReqs],
+      [t('migStations'), ['ws_stations'], fs.saveStations],
+      [t('migPeriodicMaints'), ['ws_maints'], fs.savePeriodicMaints],
     ];
 
     // أسطول الورشة + إعداداتها مخزنة بمفاتيح ديناميكية fms_assets_<plant> / fms_cfg_<plant>
@@ -601,13 +606,13 @@ const [companies, setCompanies] = useState<any[]>([]);
     for (const k of plantAssets) {
       const v = read(k);
       if (!hasData(v)) continue;
-      try { await fs.saveAssets(username, v); done.push('أسطول الورشة (' + k.replace('fms_assets_', '') + ')'); } catch (e) { console.error('migrate assets', e); failed++; }
+      try { await fs.saveAssets(username, v); done.push(t('migWorkshopFleet') + k.replace('fms_assets_', '') + t('migNameEnd')); } catch (e) { console.error('migrate assets', e); failed++; }
     }
     const plantCfg = Object.keys(localStorage).filter((k) => k.startsWith('fms_cfg_'));
     for (const k of plantCfg) {
       const v = read(k);
       if (!hasData(v)) continue;
-      try { await fs.saveWorkshopConfig(username, v); done.push('إعدادات الورشة (' + k.replace('fms_cfg_', '') + ')'); } catch (e) { console.error('migrate cfg', e); failed++; }
+      try { await fs.saveWorkshopConfig(username, v); done.push(t('migWorkshopCfg') + k.replace('fms_cfg_', '') + t('migNameEnd')); } catch (e) { console.error('migrate cfg', e); failed++; }
     }
 
     const done: string[] = [];
@@ -625,8 +630,8 @@ const [companies, setCompanies] = useState<any[]>([]);
       }
     }
     const msg = done.length
-      ? `✅ تم نقل بيانات المتصفح للقاعدة: ${done.join('، ')}` + (failed ? ` (فشل ${failed})` : '')
-      : '⚠️ لا توجد بيانات في المتصفح لهذه الشركة — سجّل دخولك على الموقع أولاً ثم عد هنا';
+      ? `${t('migrateMsgPrefix')}${done.join('، ')}` + (failed ? `${t('migrateFailedCount')}${failed}${t('migrateFailedCountEnd')}` : '')
+      : t('migrateNoDataMsg');
     setError(msg);
     setMigrating(null);
   };
@@ -634,7 +639,7 @@ const [companies, setCompanies] = useState<any[]>([]);
   const exportCsv = (username: string) => {
     const rows = trees[username] || [];
     const company = companies.find(c => c.username?.toLowerCase() === username);
-    const head = ['الايميل', 'الوظيفة', 'السيارة', 'GPS', 'التليفون', 'الباسورد', 'الصلاحيات'];
+    const head = [t('csvEmailHead'), t('csvRoleHead'), t('csvTruckHead'), 'GPS', t('csvPhoneHead'), t('csvPasswordHead'), t('csvPermsHead')];
     const lines = [head.join(',')];
     rows.forEach(r => {
       const perms = '"' + (r.permissions || []).join(' | ') + '"';
@@ -646,15 +651,15 @@ const [companies, setCompanies] = useState<any[]>([]);
     a.download = `tree-${username}.csv`;
     a.click();
     URL.revokeObjectURL(a.href);
-    setError('تم تنزيل ملف Excel (CSV) ✓');
+    setError(t('csvDownloadMsg'));
   };
 
   const exportPdf = (username: string) => {
     const rows = trees[username] || [];
     const company = companies.find(c => c.username?.toLowerCase() === username);
     const w = window.open('', '_blank');
-    if (!w) { setError('يفضل السماح بالنوافذ المنبثقة للطباعة'); return; }
-    w.document.write(`<!DOCTYPE html><html dir="rtl"><head><meta charset="utf-8"><title>شجرة التطبيق — ${company?.plantName || username}</title>
+    if (!w) { setError(t('popupHint')); return; }
+    w.document.write(`<!DOCTYPE html><html dir="rtl"><head><meta charset="utf-8"><title>${t('pdfTitlePrefix')}${company?.plantName || username}</title>
       <style>
         * { font-family: 'Segoe UI', Tahoma, Arial, sans-serif; }
         body { padding: 24px; color: #111; }
@@ -667,10 +672,10 @@ const [companies, setCompanies] = useState<any[]>([]);
         .badge { display: inline-block; background: #e0f2fe; color: #0369a1; border-radius: 4px; padding: 1px 6px; font-size: 10px; margin-left: 4px; }
         @media print { body { padding: 8px; } }
       </style></head><body>
-      <h1>🌳 شجرة حسابات التطبيق — ${company?.plantName || username}</h1>
-      <h2>إجمالي الحسابات: ${rows.length} · ${new Date().toLocaleDateString('ar-EG')}</h2>
+      <h1>${t('pdfH1Prefix')}${company?.plantName || username}</h1>
+      <h2>${t('pdfTotalPrefix')}${rows.length} · ${new Date().toLocaleDateString('ar-EG')}</h2>
       <table>
-        <thead><tr><th>#</th><th>الإيميل</th><th>الوظيفة</th><th>السيارة</th><th>GPS</th><th>التليفون</th><th>الباسورد</th><th>الصلاحيات</th></tr></thead>
+        <thead><tr><th>#</th><th>${t('pdfEmailHead')}</th><th>${t('csvRoleHead')}</th><th>${t('csvTruckHead')}</th><th>GPS</th><th>${t('csvPhoneHead')}</th><th>${t('csvPasswordHead')}</th><th>${t('csvPermsHead')}</th></tr></thead>
         <tbody>
           ${rows.map((r, i) => `<tr><td>${i + 1}</td><td dir="ltr">${r.email}</td><td>${r.roleAr}</td><td>${r.truck || '—'}</td><td>${r.gps || '—'}</td><td dir="ltr">${r.phone || '—'}</td><td dir="ltr">${r.password || '—'}</td><td>${(r.permissions || []).map(p => `<span class="badge">${p}</span>`).join('')}</td></tr>`).join('')}
         </tbody>
@@ -678,7 +683,7 @@ const [companies, setCompanies] = useState<any[]>([]);
       <script>window.onload = () => { window.print(); };<\/script>
     </body></html>`);
     w.document.close();
-    setError('نافذة الطباعة مفتوحة — PDF من خيار الحفظ كـ PDF');
+    setError(t('pdfPageOpened'));
   };
 
   const generateDraft = () => {
@@ -719,7 +724,7 @@ const [companies, setCompanies] = useState<any[]>([]);
       const fs = await import('../firebase/firestore');
       const problems = await fs.checkTreeAccountConflicts(rows, treeOpen);
       if (problems.length > 0) {
-        setError('❌ تعارض في الحسابات — تم ايقاف الحفظ:\n' + problems.slice(0, 8).join('\n'));
+        setError(t('treeConflictPrefix') + problems.slice(0, 8).join('\n'));
         setTreeSaving(false);
         return;
       }
@@ -739,7 +744,7 @@ const [companies, setCompanies] = useState<any[]>([]);
       setError(treeSaveReport(ok, failed));
     } catch (err) {
       console.error('Tree save failed', err);
-      setError('فشل حفظ الشجرة ❌');
+      setError(t('treeSaveFailed'));
     }
     setTreeSaving(false);
   };
@@ -761,7 +766,7 @@ const [companies, setCompanies] = useState<any[]>([]);
         await fs.deleteAppAccount(gone.email);
       } catch (e) { console.error('delete account doc', e); }
     }
-    setError(`تم حذف الحساب ${gone?.email || ''} نهائياً من الداتابيز ✓`);
+    setError(`${t('accountDeletedMsgPrefix')}${gone?.email || ''}${t('accountDeletedMsgSuffix')}`);
   };
 
   const addCustom = (e: FormEvent) => {
@@ -773,13 +778,13 @@ const [companies, setCompanies] = useState<any[]>([]);
     const desc = String(fd.get('desc') || '').trim();
     const image = customMedia.image;
     const bgImage = customMedia.bgImage;
-    if (!en) { setError('اسم القسم مطلوب (انجليزي)'); return; }
+    if (!en) { setError(t('customSectionNameReq')); return; }
     const next = [...custom, { id: `custom-${Date.now()}`, en, ar: ar || en, image, bgImage, desc }];
     setCustom(next);
     saveCfg(overrides, next);
     form.reset();
     setCustomMedia({ image: '', bgImage: '' });
-    setError('تمت اضافة القسم ✓');
+    setError(t('addCustomSectionDone'));
   };
 
   const removeCustom = (id: string) => {
@@ -793,10 +798,10 @@ const [companies, setCompanies] = useState<any[]>([]);
     setError('');
     setCreating(true);
     const { username, password, plantName, country, city, phone, email } = comp;
-    if (!username || !password || !plantName || !email) { setError('الاسم والباسورد واسم الشركة والايميل مطلوبين'); setCreating(false); return; }
+    if (!username || !password || !plantName || !email) { setError(t('createCompanyReq')); setCreating(false); return; }
     const uname = username.trim().toLowerCase();
-    if (uname.length < 3) { setError('اسم المستخدم يجب ان يكون ٣ احرف على الاقل'); setCreating(false); return; }
-    if (password.length < 6) { setError('كلمة المرور يجب ان تكون ٦ احرف على الاقل'); setCreating(false); return; }
+    if (uname.length < 3) { setError(t('usernameMinMsg')); setCreating(false); return; }
+    if (password.length < 6) { setError(t('passwordMinMsg')); setCreating(false); return; }
     try {
       const fs = await import('../firebase/firestore');
       const problems = await fs.checkLoginUniqueness(uname, password);
@@ -806,10 +811,10 @@ const [companies, setCompanies] = useState<any[]>([]);
       await fs.saveUser(user);
       setCompanies(prev => [user, ...prev.filter(c => (c.username || '').toLowerCase() !== uname)]);
       setComp({ username: '', password: '', plantName: '', country: 'Egypt', city: '', phone: '', email: '' });
-      setError(`✅ تم انشاء حساب الشركة ${uname} ✓ — افتح الشجرة واضيف حسابات التطبيق`);
+      setError(`${t('companyCreatedPrefix')}${uname}${t('companyCreatedSuffix')}`);
     } catch (err) {
       console.error('create company failed', err);
-      setError('فشل انشاء الشركة — تأكد من اتصال الداتابيز ❌');
+      setError(t('companyCreateFailed'));
     }
     setCreating(false);
   };
@@ -828,10 +833,10 @@ const [companies, setCompanies] = useState<any[]>([]);
       await saveUser({ ...cur, ...patch, username: uname });
       setCompanies(prev => prev.map(c => ((c.username || '').toLowerCase() === uname ? { ...c, ...patch } : c)));
       setEditingCompany(null);
-      setError(`✅ تم تحديث بيانات ${patch.plantName || uname}`);
+      setError(`${t('companyUpdatedPrefix')}${patch.plantName || uname}`);
     } catch (err) {
       console.error('update company failed', err);
-      setError('فشل تحديث بيانات الشركة ❌');
+      setError(t('companyUpdateFailed'));
     }
   };
 
@@ -840,15 +845,15 @@ const [companies, setCompanies] = useState<any[]>([]);
     setError('');
     const uname = username.toLowerCase();
     const sub = subs[uname] || { subscriptionStart: '', subscriptionEnd: '', subscriptionStatus: '' };
-    if (!sub.subscriptionEnd) { setError('اضبط تاريخ نهاية الاشتراك أولاً'); return; }
+    if (!sub.subscriptionEnd) { setError(t('setSubEndFirst')); return; }
     try {
       await saveCompanySubscription(uname, sub);
       const cur = companies.find(c => (c.username || '').toLowerCase() === uname) || {} as UserSession;
       await saveUser({ ...cur, username: uname, subscriptionStart: sub.subscriptionStart, subscriptionEnd: sub.subscriptionEnd, subscriptionStatus: sub.subscriptionStatus }).catch(() => {});
-      setError(`✅ تم حفظ الاشتراك لـ ${uname} حتى ${sub.subscriptionEnd}`);
+      setError(`${t('subSavedPrefix')}${uname}${t('untilPrefix')}${sub.subscriptionEnd}`);
     } catch (err) {
       console.error('save subscription failed', err);
-      setError('فشل حفظ الاشتراك ❌');
+      setError(t('subSaveFailed'));
     }
   };
 
@@ -867,7 +872,7 @@ const [companies, setCompanies] = useState<any[]>([]);
   const handlePlantLogo = (username: string, e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (!file.type.startsWith('image/')) { setError('⚠️ اختر صورة فقط'); return; }
+    if (!file.type.startsWith('image/')) { setError(t('imageOnlyMsg')); return; }
     const reader = new FileReader();
     reader.onload = () => {
       const img = new Image();
@@ -885,7 +890,7 @@ const [companies, setCompanies] = useState<any[]>([]);
         const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
         plantField(username, 'logo', dataUrl);
       };
-      img.onerror = () => setError('⚠️ تعذر قراءة الصورة');
+      img.onerror = () => setError(t('imageReadFailed'));
       img.src = String(reader.result);
     };
     reader.readAsDataURL(file);
@@ -906,10 +911,10 @@ const [companies, setCompanies] = useState<any[]>([]);
       });
       await savePlantLogo(uname, logo || '').catch(() => {});
       setPlantDirty(prev => ({ ...prev, [uname]: false }));
-      setError(`✅ تم حفظ بيانات شركة ${name || uname} (اللوغو والانتاجية والمعدات والاسطول)`);
+      setError(`${t('plantSavedPrefix')}${name || uname}${t('plantSavedSuffix')}`);
     } catch (err) {
       console.error('save plant profile failed', err);
-      setError('فشل حفظ بيانات الشركة ❌');
+      setError(t('plantSaveFailed'));
     }
   };
 
@@ -964,8 +969,8 @@ const [companies, setCompanies] = useState<any[]>([]);
     try {
       const st = await getStorageStatus(uname);
       setStorage(prev => ({ ...prev, [uname]: { usedMB: st.usedMB, quotaMB: st.quotaMB, pct: st.pct } }));
-      setError('✅ تم تحديث مؤشر استهلاك البيانات');
-    } catch { setError('فشل تحديث المؤشر ❌'); }
+      setError(t('storageRefreshed'));
+    } catch { setError(t('storageRefreshFailed')); }
   };
 
   // ===== حذف شركة بالكامل — يتطلب كتابة "مسح" مرتين + باسورد الحماية لو محمية =====
@@ -999,7 +1004,7 @@ const [companies, setCompanies] = useState<any[]>([]);
       });
       const vjson = await vres.json().catch(() => ({}));
       if (!vres.ok || vjson?.success === false) {
-        setError('❌ ' + (vjson?.message || 'باسورد الحماية غير صحيح'));
+        setError('❌ ' + (vjson?.message || t('wrongProtectPass')));
         setProtectPass('');
         setProtectSaving(false);
         return;
@@ -1007,11 +1012,11 @@ const [companies, setCompanies] = useState<any[]>([]);
       const cur = companies.find(c => (c.username || '').toLowerCase() === uname) || {} as UserSession;
       await saveUser({ ...cur, username: uname, protected: toLock });
       setCompanies(prev => prev.map(c => ((c.username || '').toLowerCase() === uname ? { ...c, protected: toLock } : c)));
-      setError(`✅ تم ${toLock ? 'حماية' : 'إلغاء حماية'} الشركة ${name}`);
+      setError(`${t('companyProtectedMsg')}${toLock ? t('protectedLock') : t('protectedUnlock')}${t('companyNameSuffix')}${name}`);
       setProtectTarget(null);
     } catch (err) {
       console.error('protect company failed', err);
-      setError('فشل تحديث الحماية ❌');
+      setError(t('protectSaveFailed'));
     } finally {
       setProtectSaving(false);
       setProtectPass('');
@@ -1030,7 +1035,7 @@ const [companies, setCompanies] = useState<any[]>([]);
     if (!deleteTarget) return;
     const { uname, name, isProtected } = deleteTarget;
     if (delType1.trim() !== 'مسح' || delType2.trim() !== 'مسح') {
-      setError('اكتب "مسح" في الحقلين لتأكيد الحذف');
+      setError(t('deleteConfirmEnuf'));
       return;
     }
     setDeleting(true);
@@ -1045,7 +1050,7 @@ const [companies, setCompanies] = useState<any[]>([]);
         const vjson = await vres.json().catch(() => ({}));
         if (!vres.ok || vjson?.success === false) {
           setDeleting(false);
-          setError('❌ ' + (vjson?.message || 'باسورد الحماية غير صحيح — لا يمكن حذف شركة محمية بدونه'));
+          setError('❌ ' + (vjson?.message || t('wrongProtectPassDelete')));
           return;
         }
       }
@@ -1066,11 +1071,11 @@ const [companies, setCompanies] = useState<any[]>([]);
       setTrees(prev => { const n = { ...prev }; delete n[uname]; return n; });
       setPlant(prev => { const n = { ...prev }; delete n[uname]; return n; });
       setStorage(prev => { const n = { ...prev }; delete n[uname]; return n; });
-      setError(`✅ تم حذف الشركة ${name}`);
+      setError(`${t('companyDeletedPrefix')}${name}`);
       setDeleteTarget(null);
     } catch (err) {
       console.error('delete company failed', err);
-      setError('فشل حذف الشركة ❌');
+      setError(t('companyDeleteFailed'));
     } finally {
       setDeleting(false);
       setDelType1('');
@@ -1091,14 +1096,14 @@ const [companies, setCompanies] = useState<any[]>([]);
         <div className="bg-[#0B111E]/95 border border-white/10 rounded-2xl w-full max-w-md p-8 shadow-[0_0_60px_rgba(56,189,248,0.12)]">
           <div className="text-center mb-6">
             <div className="flex justify-center mb-4"><BrandLogo width={150} fill rounded="rounded-2xl" /></div>
-            <h2 className="text-xl font-black text-white mb-2">🔐 كود التاكيد</h2>
-            <p className="text-sm text-slate-400">تم ارسال الكود الى {otpSentTo}</p>
+            <h2 className="text-xl font-black text-white mb-2">{t('otpTitle')}</h2>
+            <p className="text-sm text-slate-400">{t('otpSentToPrefix')}{otpSentTo}</p>
           </div>
           <form onSubmit={handleOtp} className="space-y-4">
-            <input value={otp} onChange={o => setOtp(o.target.value)} placeholder="كود من 6 ارقام" className={`${inputCls} text-center text-lg tracking-widest`} />
+            <input value={otp} onChange={o => setOtp(o.target.value)} placeholder={t('otpPlaceholder')} className={`${inputCls} text-center text-lg tracking-widest`} />
             {error && <p className="text-red-400 text-sm text-center">{error}</p>}
-            <button type="submit" className="w-full bg-gradient-to-r from-sky-500 to-cyan-500 hover:from-sky-400 hover:to-cyan-400 text-white font-bold py-3 rounded-lg transition shadow-[0_0_20px_rgba(56,189,248,0.3)]">✅ تأكيد الدخول</button>
-            <button type="button" onClick={() => { setStep('login'); setError(''); }} className="w-full text-slate-400 text-sm underline mt-1">← رجوع للتسجيل</button>
+            <button type="submit" className="w-full bg-gradient-to-r from-sky-500 to-cyan-500 hover:from-sky-400 hover:to-cyan-400 text-white font-bold py-3 rounded-lg transition shadow-[0_0_20px_rgba(56,189,248,0.3)]">{t('otpSubmit')}</button>
+            <button type="button" onClick={() => { setStep('login'); setError(''); }} className="w-full text-slate-400 text-sm underline mt-1">{t('otpBackToLogin')}</button>
           </form>
         </div>
       </Shell>
@@ -1111,23 +1116,23 @@ const [companies, setCompanies] = useState<any[]>([]);
         <div className="bg-[#0B111E]/95 border border-white/10 rounded-2xl w-full max-w-md p-8 shadow-[0_0_60px_rgba(56,189,248,0.12)]">
           <div className="text-center mb-6">
             <div className="flex justify-center mb-4"><BrandLogo width={150} fill rounded="rounded-2xl" /></div>
-            <h2 className="text-xl font-black text-white mb-2">🛡️ لوحة التحكم</h2>
-            <p className="text-xs text-slate-500">دخول المسؤول — سيتم ارسال كود تاكيد على البريد</p>
+            <h2 className="text-xl font-black text-white mb-2">{t('loginTitle')}</h2>
+            <p className="text-xs text-slate-500">{t('loginSubtitle')}</p>
           </div>
           <form onSubmit={handleLogin} className="space-y-4">
             <div className="flex flex-col">
-              <label className="text-xs text-slate-400 font-semibold mb-1">البريد الالكتروني</label>
+              <label className="text-xs text-slate-400 font-semibold mb-1">{t('emailLabel')}</label>
               <input type="email" value={email} onChange={o => setEmail(o.target.value)} className={inputCls} />
             </div>
             <div className="flex flex-col">
-              <label className="text-xs text-slate-400 font-semibold mb-1">كلمة المرور</label>
+              <label className="text-xs text-slate-400 font-semibold mb-1">{t('passwordLabel')}</label>
               <input type="password" value={password} onChange={o => setPassword(o.target.value)} className={inputCls} />
             </div>
             {error && <p className="text-red-400 text-sm text-center">{error}</p>}
             <button type="submit" disabled={sending} className="w-full bg-gradient-to-r from-sky-500 to-cyan-500 hover:from-sky-400 hover:to-cyan-400 disabled:opacity-50 disabled:cursor-wait text-white font-bold py-3 rounded-lg transition shadow-[0_0_20px_rgba(56,189,248,0.3)]">
-              {sending ? '⏳ جاري ارسال الكود...' : '🔓 دخول'}
+              {sending ? t('sendingCode') : t('loginBtn')}
             </button>
-            <button type="button" onClick={() => navigate('/')} className="w-full text-slate-400 text-sm underline mt-1">← العودة للرئيسية</button>
+            <button type="button" onClick={() => navigate('/')} className="w-full text-slate-400 text-sm underline mt-1">{t('backToHome')}</button>
           </form>
         </div>
       </Shell>
@@ -1137,27 +1142,27 @@ const [companies, setCompanies] = useState<any[]>([]);
   const companiesTab = (
     <div className="grid grid-cols-1 gap-5">
       <div className="rounded-2xl border border-white/10 bg-[#0B111E]/60 backdrop-blur-xl p-5">
-        <h3 className="text-base font-black text-white mb-3">➕ انشاء حساب شركة جديدة</h3>
+        <h3 className="text-base font-black text-white mb-3">{t('newCompanyTitle')}</h3>
         <form onSubmit={createCompany} className="space-y-3">
           <div className="grid grid-cols-2 gap-3">
-            <input value={comp.username} onChange={o => setComp({ ...comp, username: o.target.value })} placeholder="اسم المستخدم *" className={inputCls} />
-            <input type="password" value={comp.password} onChange={o => setComp({ ...comp, password: o.target.value })} placeholder="كلمة المرور (لوحة الويب) *" className={inputCls} />
+            <input value={comp.username} onChange={o => setComp({ ...comp, username: o.target.value })} placeholder={t('usernamePh')} className={inputCls} />
+            <input type="password" value={comp.password} onChange={o => setComp({ ...comp, password: o.target.value })} placeholder={t('webPasswordPh')} className={inputCls} />
           </div>
-          <input value={comp.plantName} onChange={o => setComp({ ...comp, plantName: o.target.value })} placeholder="اسم الشركة / المحطة *" className={inputCls} />
+          <input value={comp.plantName} onChange={o => setComp({ ...comp, plantName: o.target.value })} placeholder={t('plantNamePh')} className={inputCls} />
           <div className="grid grid-cols-3 gap-3">
-            <input value={comp.country} onChange={o => setComp({ ...comp, country: o.target.value })} placeholder="الدولة" className={inputCls} />
-            <input value={comp.city} onChange={o => setComp({ ...comp, city: o.target.value })} placeholder="المدينة" className={inputCls} />
-            <input value={comp.phone} onChange={o => setComp({ ...comp, phone: o.target.value })} placeholder="التليفون" className={inputCls} />
+            <input value={comp.country} onChange={o => setComp({ ...comp, country: o.target.value })} placeholder={t('countryPh')} className={inputCls} />
+            <input value={comp.city} onChange={o => setComp({ ...comp, city: o.target.value })} placeholder={t('cityPh')} className={inputCls} />
+            <input value={comp.phone} onChange={o => setComp({ ...comp, phone: o.target.value })} placeholder={t('phonePh')} className={inputCls} />
           </div>
-          <input type="email" value={comp.email} onChange={o => setComp({ ...comp, email: o.target.value })} placeholder="البريد الالكتروني *" className={inputCls} />
-          <button type="submit" disabled={creating} className="w-full bg-gradient-to-r from-sky-500 to-cyan-500 hover:from-sky-400 hover:to-cyan-400 disabled:opacity-50 text-white font-bold py-2.5 rounded-lg text-sm transition shadow-[0_0_20px_rgba(56,189,248,0.3)]">{creating ? '⏳ جاري الفحص والحفظ...' : 'انشاء الحساب'}</button>
+          <input type="email" value={comp.email} onChange={o => setComp({ ...comp, email: o.target.value })} placeholder={t('emailPh')} className={inputCls} />
+          <button type="submit" disabled={creating} className="w-full bg-gradient-to-r from-sky-500 to-cyan-500 hover:from-sky-400 hover:to-cyan-400 disabled:opacity-50 text-white font-bold py-2.5 rounded-lg text-sm transition shadow-[0_0_20px_rgba(56,189,248,0.3)]">{creating ? t('checkingSaving') : t('createAccountBtn')}</button>
         </form>
       </div>
 
       <div className="rounded-2xl border border-white/10 bg-[#0B111E]/60 backdrop-blur-xl p-5">
-        <h3 className="text-base font-black text-white mb-3">الشركات المسجلة ({companies.length}) {companies.filter(u => isOnline(typeof presence[(u.username || '').toLowerCase()]?.lastSeenAt === 'number' ? presence[(u.username || '').toLowerCase()]?.lastSeenAt : null)).length > 0 && <span className="text-emerald-400">· 🟢 {companies.filter(u => isOnline(typeof presence[(u.username || '').toLowerCase()]?.lastSeenAt === 'number' ? presence[(u.username || '').toLowerCase()]?.lastSeenAt : null)).length} متواجد الآن</span>}</h3>
+        <h3 className="text-base font-black text-white mb-3">{t('registeredCompanies')} ({companies.length}) {companies.filter(u => isOnline(typeof presence[(u.username || '').toLowerCase()]?.lastSeenAt === 'number' ? presence[(u.username || '').toLowerCase()]?.lastSeenAt : null)).length > 0 && <span className="text-emerald-400">· 🟢 {companies.filter(u => isOnline(typeof presence[(u.username || '').toLowerCase()]?.lastSeenAt === 'number' ? presence[(u.username || '').toLowerCase()]?.lastSeenAt : null)).length}{t('onlineNow')}</span>}</h3>
         {companies.length === 0 ? (
-          <p className="text-xs text-slate-500 text-center py-8">لا توجد شركات بعد — انشئ شركة ثم افتح شجرتها</p>
+          <p className="text-xs text-slate-500 text-center py-8">{t('noCompaniesYet')}</p>
         ) : (
           <div className="space-y-2 max-h-[75vh] overflow-y-auto">
 {companies.map(u => {
@@ -1178,42 +1183,42 @@ const [companies, setCompanies] = useState<any[]>([]);
                       <span className={`text-[10px] font-bold px-2 py-1 rounded ${u.status === 'ACTIVE' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30' : 'bg-sky-500/10 text-sky-300 border border-sky-500/30'}`}>{u.status || 'FREE_TRIAL'}</span>
                       {onlineBadge(uname)}
                       {isProtected && (
-                        <span className="text-[10px] font-bold px-2 py-1 rounded bg-yellow-500/10 text-yellow-300 border border-yellow-500/30" title="شركة محمية — الحذف يتطلب باسورد الحماية">🔒 محمية</span>
+                        <span className="text-[10px] font-bold px-2 py-1 rounded bg-yellow-500/10 text-yellow-300 border border-yellow-500/30" title={t('protectedBadgeTitle')}>{t('protectedBadge')}</span>
                       )}
                       <button
                         onClick={() => openTree(uname)}
                         className={`text-[11px] font-bold px-2.5 py-1.5 rounded-lg border transition-colors ${open ? 'bg-sky-500/15 border-sky-500/40 text-sky-300' : 'bg-white/[0.05] border-white/10 text-slate-300 hover:border-sky-400/50'}`}
                       >
-                        🌳 الشجرة {accts.length > 0 ? `(${accts.length})` : ''}
+                        {t('treeBtn')} {accts.length > 0 ? `(${accts.length})` : ''}
                       </button>
                       <button
                         onClick={() => setEditingCompany(editingCompany === uname ? null : uname)}
                         className="bg-white/[0.05] border border-white/10 text-amber-300 text-[11px] font-bold px-2.5 py-1.5 rounded-lg hover:border-amber-400/50 transition-colors"
-                        title="تعديل بيانات الشركة"
+                        title={t('editCompanyTitle')}
                       >
-                        ✏️ تعديل
+                        {t('editBtn')}
                       </button>
                       <button
                         onClick={() => askProtect(uname, !isProtected)}
                         className={`text-[11px] font-bold px-2.5 py-1.5 rounded-lg transition-colors ${isProtected ? 'bg-yellow-500/20 border border-yellow-500/50 text-yellow-300 hover:bg-yellow-500/30' : 'bg-black/60 border border-white/10 text-slate-300 hover:border-yellow-500/50 hover:text-yellow-300'}`}
-                        title={isProtected ? 'الشركة محمية — اضغط لفك الحماية (بباسورد)' : 'حماية الشركة من الحذف (بباسورد)'}
+                        title={isProtected ? t('unlockTitle') : t('protectTitle')}
                       >
-                        {isProtected ? '🔓 فك الحماية' : '🔒 حماية'}
+                        {isProtected ? t('unlockProtectBtn') : t('protectBtn')}
                       </button>
                       <button
                         onClick={() => askDeleteCompany(uname)}
                         className={`bg-white/[0.05] border border-white/10 text-red-400 hover:border-red-400/50 text-[11px] font-bold px-2.5 py-1.5 rounded-lg transition-colors`}
-                        title={isProtected ? 'حذف الشركة نهائياً — يتطلب باسورد الحماية' : 'حذف الشركة نهائياً'}
+                        title={isProtected ? t('deleteCompanyTitleProtected') : t('deleteCompanyTitleShort')}
                       >
-                        🗑️ حذف
+                        {t('deleteBtnFull')}
                       </button>
                       <button
                         onClick={() => migrateBrowserData(uname)}
                         disabled={migrating === uname}
                         className="bg-white/[0.05] border border-white/10 text-emerald-300 text-[11px] font-bold px-2.5 py-1.5 rounded-lg hover:border-emerald-400/50 disabled:opacity-50 transition-colors"
-                        title="نقل بيانات المتصفح (الرحلات والطلبات والمخزون...) إلى قاعدة البيانات مرة واحدة"
+                        title={t('migrateBtnTitle')}
                       >
-                        {migrating === uname ? '⏳ نقل...' : '📥 نقل بيانات'}
+                        {migrating === uname ? t('migratingBtn') : t('migrateBtn')}
                       </button>
                     </div>
                   </div>
@@ -1224,32 +1229,32 @@ const [companies, setCompanies] = useState<any[]>([]);
                         value={(companies.find(c => (c.username || '').toLowerCase() === uname)?.plantName || '') as string}
                         onChange={o => updateCompanyInfoLocal(uname, { plantName: o.target.value })}
                         className={inputCls}
-                        placeholder="اسم الشركة"
+                        placeholder={t('companyNamePh')}
                       />
                       <input
                         value={(companies.find(c => (c.username || '').toLowerCase() === uname)?.email || '') as string}
                         onChange={o => updateCompanyInfoLocal(uname, { email: o.target.value })}
                         className={inputCls}
-                        placeholder="البريد الالكتروني"
+                        placeholder={t('emailLabel')}
                         dir="ltr"
                       />
                       <input
                         value={(companies.find(c => (c.username || '').toLowerCase() === uname)?.phone || '') as string}
                         onChange={o => updateCompanyInfoLocal(uname, { phone: o.target.value })}
                         className={inputCls}
-                        placeholder="التليفون"
+                        placeholder={t('phonePh')}
                       />
                       <input
                         value={(companies.find(c => (c.username || '').toLowerCase() === uname)?.country || '') as string}
                         onChange={o => updateCompanyInfoLocal(uname, { country: o.target.value })}
                         className={inputCls}
-                        placeholder="الدولة"
+                        placeholder={t('countryPh')}
                       />
                       <input
                         value={(companies.find(c => (c.username || '').toLowerCase() === uname)?.city || '') as string}
                         onChange={o => updateCompanyInfoLocal(uname, { city: o.target.value })}
                         className={inputCls}
-                        placeholder="المدينة"
+                        placeholder={t('cityPh')}
                       />
                       <button
                         onClick={() => {
@@ -1258,37 +1263,37 @@ const [companies, setCompanies] = useState<any[]>([]);
                         }}
                         className="bg-gradient-to-r from-amber-500 to-orange-500 text-white text-[11px] font-bold px-3 py-2 rounded-lg transition"
                       >
-                        💾 حفظ تعديلات الشركة
+                        {t('saveCompanyEdits')}
                       </button>
                     </div>
                   )}
 
                   <div className="mt-3 pt-3 border-t border-white/10 space-y-2">
-                    <p className="text-[11px] font-bold text-slate-300">📅 الاشتراك</p>
+                    <p className="text-[11px] font-bold text-slate-300">{t('subscriptionLabel')}</p>
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                       <input
                         type="date"
                         value={(subs[uname]?.subscriptionStart || '') as string}
                         onChange={o => setSub(uname, 'subscriptionStart', o.target.value)}
                         className={`${inputCls} text-xs`}
-                        title="بداية الاشتراك"
+                        title={t('subStartTitle')}
                       />
                       <input
                         type="date"
                         value={(subs[uname]?.subscriptionEnd || '') as string}
                         onChange={o => setSub(uname, 'subscriptionEnd', o.target.value)}
                         className={`${inputCls} text-xs`}
-                        title="نهاية الاشتراك"
+                        title={t('subEndTitle')}
                       />
                       <select
                         value={(subs[uname]?.subscriptionStatus || '') as string}
                         onChange={o => setSub(uname, 'subscriptionStatus', o.target.value)}
                         className={inputCls}
                       >
-                        <option value="">— الحالة —</option>
-                        <option value="active">نشط</option>
-                        <option value="trial">تجريبي</option>
-                        <option value="expired">منتهي</option>
+                        <option value="">{t('subStatusPlaceholder')}</option>
+                        <option value="active">{t('subStatusActive')}</option>
+                        <option value="trial">{t('subStatusTrial')}</option>
+                        <option value="expired">{t('subStatusExpired')}</option>
                       </select>
                     </div>
                     <div className="flex items-center gap-2">
@@ -1296,20 +1301,20 @@ const [companies, setCompanies] = useState<any[]>([]);
                         onClick={() => saveSubscription(uname)}
                         className="bg-gradient-to-r from-sky-500 to-cyan-500 text-white text-[11px] font-bold px-3 py-2 rounded-lg transition"
                       >
-                        💾 حفظ الاشتراك
+                        {t('saveSubscriptionBtn')}
                       </button>
                       {(subs[uname]?.subscriptionStatus === 'expired' || (subs[uname]?.subscriptionEnd && new Date(subs[uname].subscriptionEnd) < new Date())) ? (
-                        <span className="text-[10px] font-bold text-red-400 bg-red-500/10 border border-red-500/30 px-2 py-1 rounded">🔒 الاشتراك منتهي — سيتم قفل التطبيق عند الدخول</span>
+                        <span className="text-[10px] font-bold text-red-400 bg-red-500/10 border border-red-500/30 px-2 py-1 rounded">{t('subExpiredMsg')}</span>
                       ) : (subs[uname]?.subscriptionEnd ? (
-                        <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 px-2 py-1 rounded">✅ اشتراك مفعل حتى {subs[uname].subscriptionEnd}</span>
+                        <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 px-2 py-1 rounded">{t('subActivePrefix')}{subs[uname].subscriptionEnd}</span>
                       ) : null)}
                     </div>
                   </div>
 
                   <div className="mt-3 pt-3 border-t border-white/10">
                     <div className="flex items-center justify-between mb-1">
-                      <p className="text-[11px] font-bold text-slate-300">💾 استهلاك البيانات</p>
-                      <button onClick={() => refreshStorage(uname)} className="text-[10px] font-bold text-sky-400 hover:text-sky-300 underline">تحديث</button>
+                      <p className="text-[11px] font-bold text-slate-300">{t('storageUsage')}</p>
+                      <button onClick={() => refreshStorage(uname)} className="text-[10px] font-bold text-sky-400 hover:text-sky-300 underline">{t('refreshBtn')}</button>
                     </div>
                     {st ? (
                       <div>
@@ -1324,79 +1329,79 @@ const [companies, setCompanies] = useState<any[]>([]);
                           />
                         </div>
                         <p className={`text-[10px] mt-1 font-bold ${st.pct >= 90 ? 'text-red-400' : st.pct >= 70 ? 'text-amber-300' : 'text-emerald-400'}`}>
-                          {st.pct >= 90 ? '⚠️ مساحة شبه ممتلئة — احذف بيانات قديمة' : st.pct >= 70 ? 'تنبيه: الاقتراب من حد المساحة' : 'المساحة متاحة'}
+                          {st.pct >= 90 ? t('storageFull') : st.pct >= 70 ? t('storageWarning') : t('storageOk')}
                         </p>
                       </div>
                     ) : (
-                      <p className="text-[10px] text-slate-500">جارِ قراءة مساحة البيانات...</p>
+                      <p className="text-[10px] text-slate-500">{t('readingStorage')}</p>
                     )}
                   </div>
 
                   {open && (
                     <div className="mt-3 pt-3 border-t border-white/10 space-y-3">
                       <div className="bg-sky-500/10 border border-sky-500/30 rounded-lg px-3 py-2">
-                        <p className="text-sm font-black text-white">🌳 شجرة حسابات — {u.plantName || u.username || uname}</p>
+                        <p className="text-sm font-black text-white">{t('treeHeaderPrefix')}{u.plantName || u.username || uname}</p>
                         <p className="text-[10px] text-slate-400 mt-0.5" dir="ltr">@{uname}</p>
                       </div>
 
                       {/* بيانات الشركة — نفس خواص لوحة الادارة (اللوجو + الانتاجية + المعدات + الاسطول) */}
                       <div className="rounded-lg bg-white/[0.03] border border-white/10 p-3 space-y-2">
                         <button onClick={() => toggleCollapse(uname, 'plant')} className="w-full flex items-center justify-between gap-2 group">
-                          <p className="text-[11px] font-bold text-slate-300">🏭 بيانات الشركة (لوحة الادارة)</p>
+                          <p className="text-[11px] font-bold text-slate-300">{t('plantDataBtn')}</p>
                           <span className={`text-[10px] text-slate-400 transition-transform ${isCollapsed(uname, 'plant') ? 'rotate-180' : ''}`}>{isCollapsed(uname, 'plant') ? '▲' : '▼'}</span>
                         </button>
                         {!isCollapsed(uname, 'plant') && (
                         <div className="space-y-2">
                         <div className="flex items-center gap-3">
                           {plantInfo.logo ? (
-                            <img src={plantInfo.logo} alt="لوجو الشركة" className="h-14 w-auto object-contain rounded-lg bg-white p-1" />
+                            <img src={plantInfo.logo} alt={t('logoAlt')} className="h-14 w-auto object-contain rounded-lg bg-white p-1" />
                           ) : (
-                            <div className="h-14 w-20 rounded-lg bg-white/[0.03] border border-dashed border-white/10 flex items-center justify-center text-[9px] text-slate-500">لا يوجد لوجو</div>
+                            <div className="h-14 w-20 rounded-lg bg-white/[0.03] border border-dashed border-white/10 flex items-center justify-center text-[9px] text-slate-500">{t('noLogo')}</div>
                           )}
                           <div className="flex gap-2 flex-wrap">
                             <label className="bg-sky-500/15 text-sky-300 border border-sky-500/40 hover:bg-sky-500/25 text-[10px] px-3 py-1.5 rounded-lg font-bold cursor-pointer transition-colors">
-                              📤 {plantInfo.logo ? 'تغيير اللوجو' : 'رفع اللوجو'}
+                              {plantInfo.logo ? t('changeLogo') : t('uploadLogo')}
                               <input type="file" accept="image/*" onChange={e => handlePlantLogo(uname, e)} className="hidden" />
                             </label>
                             {plantInfo.logo && (
-                              <button onClick={() => plantField(uname, 'logo', '')} className="bg-red-600/20 text-red-400 border border-red-500/30 hover:bg-red-600/30 text-[10px] px-3 py-1.5 rounded-lg font-bold transition-colors">🗑️ حذف اللوجو</button>
+                              <button onClick={() => plantField(uname, 'logo', '')} className="bg-red-600/20 text-red-400 border border-red-500/30 hover:bg-red-600/30 text-[10px] px-3 py-1.5 rounded-lg font-bold transition-colors">{t('deleteLogo')}</button>
                             )}
                           </div>
                         </div>
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                          <input value={plantInfo.name || ''} onChange={o => plantField(uname, 'name', o.target.value)} className={`${inputCls} text-xs`} placeholder="اسم المصنع" />
-                          <input value={plantInfo.manager || ''} onChange={o => plantField(uname, 'manager', o.target.value)} className={`${inputCls} text-xs`} placeholder="مدير المصنع" />
-                          <input value={plantInfo.phone || ''} onChange={o => plantField(uname, 'phone', o.target.value)} className={`${inputCls} text-xs`} placeholder="التليفون" />
-                          <input value={plantInfo.email || ''} onChange={o => plantField(uname, 'email', o.target.value)} className={`${inputCls} text-xs`} dir="ltr" placeholder="البريد الالكتروني" />
+                          <input value={plantInfo.name || ''} onChange={o => plantField(uname, 'name', o.target.value)} className={`${inputCls} text-xs`} placeholder={t('plantNamePh2')} />
+                          <input value={plantInfo.manager || ''} onChange={o => plantField(uname, 'manager', o.target.value)} className={`${inputCls} text-xs`} placeholder={t('plantManagerPh')} />
+                          <input value={plantInfo.phone || ''} onChange={o => plantField(uname, 'phone', o.target.value)} className={`${inputCls} text-xs`} placeholder={t('phonePh')} />
+                          <input value={plantInfo.email || ''} onChange={o => plantField(uname, 'email', o.target.value)} className={`${inputCls} text-xs`} dir="ltr" placeholder={t('emailLabel')} />
                           <select value={plantInfo.country || ''} onChange={o => plantField(uname, 'country', o.target.value)} className={inputCls}>
-                            <option value="">— الدولة —</option>
+                            <option value="">{t('countryPlaceholder')}</option>
                             {COUNTRIES.map(c => <option key={c} value={c}>{c}</option>)}
                           </select>
                           <select value={plantInfo.city || ''} onChange={o => plantField(uname, 'city', o.target.value)} className={inputCls}>
-                            <option value="">— المدينة —</option>
+                            <option value="">{t('cityPlaceholder')}</option>
                             {(CITIES_BY_COUNTRY[plantInfo.country] || []).map(c => <option key={c} value={c}>{c}</option>)}
                           </select>
-                          <input value={plantInfo.address || ''} onChange={o => plantField(uname, 'address', o.target.value)} className={`${inputCls} text-xs`} placeholder="العنوان" />
-                          <input value={plantInfo.licenseNumber || ''} onChange={o => plantField(uname, 'licenseNumber', o.target.value)} className={`${inputCls} text-xs`} placeholder="رقم الترخيص" />
-                          <input value={plantInfo.foundingYear || ''} onChange={o => plantField(uname, 'foundingYear', o.target.value)} className={`${inputCls} text-xs`} placeholder="سنة التأسيس" />
-                          <select value={plantInfo.products || 'both'} onChange={o => plantField(uname, 'products', o.target.value)} className={inputCls} title="المنتجات">
-                            <option value="">— المنتجات —</option>
-                            {PRODUCTS_OPTIONS.map(p => <option key={p.v} value={p.v}>{p.l}</option>)}
+                          <input value={plantInfo.address || ''} onChange={o => plantField(uname, 'address', o.target.value)} className={`${inputCls} text-xs`} placeholder={t('addressPh')} />
+                          <input value={plantInfo.licenseNumber || ''} onChange={o => plantField(uname, 'licenseNumber', o.target.value)} className={`${inputCls} text-xs`} placeholder={t('licensePh')} />
+                          <input value={plantInfo.foundingYear || ''} onChange={o => plantField(uname, 'foundingYear', o.target.value)} className={`${inputCls} text-xs`} placeholder={t('foundingYearPh')} />
+                          <select value={plantInfo.products || 'both'} onChange={o => plantField(uname, 'products', o.target.value)} className={inputCls} title={t('productsTitle')}>
+                            <option value="">{t('productsPlaceholder')}</option>
+                            {PRODUCTS_OPTIONS.map(p => <option key={p.v} value={p.v}>{t(PRODUCT_X_KEY[p.v])}</option>)}
                           </select>
-                          <input type="number" value={plantInfo.capacityM3 || ''} onChange={o => plantField(uname, 'capacityM3', o.target.value)} className={`${inputCls} text-xs`} placeholder="📏 الانتاجية م³" title="الانتاجية م³" />
-                          <input type="number" value={plantInfo.mixerCount || ''} onChange={o => plantField(uname, 'mixerCount', o.target.value)} className={`${inputCls} text-xs`} placeholder="🎛️ عدد الخلاطات / المعدات" title="عدد الخلاطات / المعدات" />
-                          <input type="number" value={plantInfo.truckCount || ''} onChange={o => plantField(uname, 'truckCount', o.target.value)} className={`${inputCls} text-xs`} placeholder="🚛 حجم الاسطول" title="عدد السيارات / حجم الاسطول" />
+                          <input type="number" value={plantInfo.capacityM3 || ''} onChange={o => plantField(uname, 'capacityM3', o.target.value)} className={`${inputCls} text-xs`} placeholder={t('capacityPh')} title={t('capacityTitle')} />
+                          <input type="number" value={plantInfo.mixerCount || ''} onChange={o => plantField(uname, 'mixerCount', o.target.value)} className={`${inputCls} text-xs`} placeholder={t('mixerCountPh')} title={t('mixerCountTitle')} />
+                          <input type="number" value={plantInfo.truckCount || ''} onChange={o => plantField(uname, 'truckCount', o.target.value)} className={`${inputCls} text-xs`} placeholder={t('fleetPh')} title={t('fleetTitle')} />
                         </div>
 
                         {/* الأفرع والمحطات */}
                         <div className="pt-2 border-t border-white/10 space-y-2">
                           <div className="flex items-center justify-between gap-2 flex-wrap">
                             <button onClick={() => toggleCollapse(uname, 'branches')} className="flex items-center gap-1.5 group">
-                              <p className="text-[11px] font-bold text-slate-300">🏗️ الأفرع والمحطات والورديات</p>
+                              <p className="text-[11px] font-bold text-slate-300">{t('branchesHeader')}</p>
                               <span className={`text-[10px] text-slate-400 transition-transform ${isCollapsed(uname, 'branches') ? 'rotate-180' : ''}`}>{isCollapsed(uname, 'branches') ? '▲' : '▼'}</span>
                             </button>
                             <div className="flex items-center gap-2">
-                              <span className="text-[10px] text-slate-400">عدد الأفرع</span>
+                              <span className="text-[10px] text-slate-400">{t('branchCountLabel')}</span>
                               <input
                                 type="number" min={0} max={20}
                                 value={(branches(uname).length || 0)}
@@ -1409,16 +1414,16 @@ const [companies, setCompanies] = useState<any[]>([]);
                           {!isCollapsed(uname, 'branches') && (
                           <div className="space-y-2">
                           {branches(uname).length === 0 && (
-                            <p className="text-[10px] text-slate-500 text-center py-2">اختر عدد الأفرع ثم املأ بيانات كل فرع ومحطاته</p>
+                            <p className="text-[10px] text-slate-500 text-center py-2">{t('branchesHint')}</p>
                           )}
 
                           {branches(uname).map((b, bi) => (
                             <div key={bi} className="rounded-lg bg-white/[0.03] border border-white/10 p-2.5 space-y-2">
                               <div className="flex items-center gap-2">
-                                <span className="text-[11px] font-bold text-sky-300 w-14 shrink-0">فرع {bi + 1}</span>
-                                <input value={b.name || ''} onChange={o => setBranchField(uname, bi, 'name', o.target.value)} className={`${inputCls} text-xs`} placeholder="اسم الفرع" />
+                                <span className="text-[11px] font-bold text-sky-300 w-14 shrink-0">{t('branchPrefix')}{bi + 1}</span>
+                                <input value={b.name || ''} onChange={o => setBranchField(uname, bi, 'name', o.target.value)} className={`${inputCls} text-xs`} placeholder={t('branchNamePh')} />
                                 <div className="flex items-center gap-1.5 shrink-0">
-                                  <span className="text-[10px] text-slate-400">المحطات</span>
+                                  <span className="text-[10px] text-slate-400">{t('stationsLabel')}</span>
                                   <input
                                     type="number" min={0} max={30}
                                     value={((b.stations && b.stations.length) || 0)}
@@ -1431,33 +1436,33 @@ const [companies, setCompanies] = useState<any[]>([]);
                               {(b.stations || []).map((s: any, si: number) => (
                                 <div key={si} className="rounded-lg bg-white/[0.02] border border-white/[0.06] p-2 space-y-2">
                                   <div className="flex items-center gap-2">
-                                    <span className="text-[10px] font-bold text-amber-300 w-14 shrink-0">محطة {si + 1}</span>
-                                    <input value={s.code || ''} onChange={o => setStationField(uname, bi, si, 'code', o.target.value)} className={`${inputCls} text-xs`} dir="ltr" placeholder="كود المحطة" />
-                                    <select value={s.type || 'concrete'} onChange={o => setStationField(uname, bi, si, 'type', o.target.value)} className={`${inputCls} text-xs shrink-0`} title="نوع المحطة">
-                                      {STATION_TYPE_OPTIONS.map(p => <option key={p.v} value={p.v}>{p.l}</option>)}
+                                    <span className="text-[10px] font-bold text-amber-300 w-14 shrink-0">{t('stationPrefix')}{si + 1}</span>
+                                    <input value={s.code || ''} onChange={o => setStationField(uname, bi, si, 'code', o.target.value)} className={`${inputCls} text-xs`} dir="ltr" placeholder={t('stationCodePh')} />
+                                    <select value={s.type || 'concrete'} onChange={o => setStationField(uname, bi, si, 'type', o.target.value)} className={`${inputCls} text-xs shrink-0`} title={t('stationTypeTitle')}>
+                                      {STATION_TYPE_OPTIONS.map(p => <option key={p.v} value={p.v}>{t(STATION_X_KEY[p.v])}</option>)}
                                     </select>
                                   </div>
                                   <div className="grid grid-cols-2 gap-2">
-                                    <input type="number" value={s.designCap || ''} onChange={o => setStationField(uname, bi, si, 'designCap', o.target.value)} className={`${inputCls} text-xs`} placeholder="🎚️ الانتاجية التصميمية م³/س" />
-                                    <input type="number" value={s.actualCap || ''} onChange={o => setStationField(uname, bi, si, 'actualCap', o.target.value)} className={`${inputCls} text-xs`} placeholder="⚙️ الانتاجية الفعلية م³/س" />
+                                    <input type="number" value={s.designCap || ''} onChange={o => setStationField(uname, bi, si, 'designCap', o.target.value)} className={`${inputCls} text-xs`} placeholder={t('designCapPh')} />
+                                    <input type="number" value={s.actualCap || ''} onChange={o => setStationField(uname, bi, si, 'actualCap', o.target.value)} className={`${inputCls} text-xs`} placeholder={t('actualCapPh')} />
                                   </div>
 
                                   {/* زراعات البلك */}
                                   {s.type !== 'concrete' && (
-                                    <input type="number" value={s.blockMachines || ''} onChange={o => setStationField(uname, bi, si, 'blockMachines', o.target.value)} className={`${inputCls} text-xs`} placeholder="🧱 عدد زراعات البلك (ماكينات الانتاج)" title="عدد زراعات البلك (ماكينة انتاج البلك)" />
+                                    <input type="number" value={s.blockMachines || ''} onChange={o => setStationField(uname, bi, si, 'blockMachines', o.target.value)} className={`${inputCls} text-xs`} placeholder={t('blockMachinesPh')} title={t('blockMachinesTitle')} />
                                   )}
 
                                   {/* المشغلين والورديات */}
                                   <div className="space-y-1.5">
                                     <div className="flex items-center justify-between">
-                                      <p className="text-[10px] font-bold text-slate-400">👷 المشغلون والورديات</p>
-                                      <button onClick={() => { const ops = [...((station(uname, bi, si).operators || []))]; ops.push({ name: '', shift: '' }); setStationField(uname, bi, si, 'operators', ops); }} className="text-[10px] font-bold text-sky-400 hover:text-sky-300 border border-sky-500/30 bg-sky-500/10 px-2 py-0.5 rounded">➕ مشغل</button>
+                                      <p className="text-[10px] font-bold text-slate-400">{t('operatorsHeader')}</p>
+                                      <button onClick={() => { const ops = [...((station(uname, bi, si).operators || []))]; ops.push({ name: '', shift: '' }); setStationField(uname, bi, si, 'operators', ops); }} className="text-[10px] font-bold text-sky-400 hover:text-sky-300 border border-sky-500/30 bg-sky-500/10 px-2 py-0.5 rounded">{t('addOperator')}</button>
                                     </div>
                                     {(s.operators || []).map((op: any, oi: number) => (
                                       <div key={oi} className="flex items-center gap-2">
                                         <span className="text-[10px] text-slate-500 w-6 shrink-0">{oi + 1}</span>
-                                        <input value={op.name || ''} onChange={o => setOperatorField(uname, bi, si, oi, 'name', o.target.value)} className={`${inputCls} text-xs`} placeholder="اسم المشغل" />
-                                        <input value={op.shift || ''} onChange={o => setOperatorField(uname, bi, si, oi, 'shift', o.target.value)} className={`${inputCls} text-xs`} placeholder="الوردية / فترة التواجد" />
+                                        <input value={op.name || ''} onChange={o => setOperatorField(uname, bi, si, oi, 'name', o.target.value)} className={`${inputCls} text-xs`} placeholder={t('operatorNamePh')} />
+                                        <input value={op.shift || ''} onChange={o => setOperatorField(uname, bi, si, oi, 'shift', o.target.value)} className={`${inputCls} text-xs`} placeholder={t('operatorShiftPh')} />
                                         <button onClick={() => setStationField(uname, bi, si, 'operators', (s.operators || []).filter((_: any, j: number) => j !== oi))} className="text-red-400 hover:bg-red-500/10 text-[10px] font-bold px-2 py-1 rounded border border-red-500/30 shrink-0">✕</button>
                                       </div>
                                     ))}
@@ -1466,14 +1471,14 @@ const [companies, setCompanies] = useState<any[]>([]);
                                   {/* الشيلارات (مصانع الثلج) */}
                                   <div className="space-y-1.5">
                                     <div className="flex items-center justify-between">
-                                      <p className="text-[10px] font-bold text-slate-400">🧊 الشيلارات (مصانع الثلج)</p>
-                                      <button onClick={() => { const ch = [...((station(uname, bi, si).chillers || []))]; ch.push({ name: '', capacity: '' }); setStationField(uname, bi, si, 'chillers', ch); }} className="text-[10px] font-bold text-cyan-400 hover:text-cyan-300 border border-cyan-500/30 bg-cyan-500/10 px-2 py-0.5 rounded">➕ شيلار</button>
+                                      <p className="text-[10px] font-bold text-slate-400">{t('chillersHeader')}</p>
+                                      <button onClick={() => { const ch = [...((station(uname, bi, si).chillers || []))]; ch.push({ name: '', capacity: '' }); setStationField(uname, bi, si, 'chillers', ch); }} className="text-[10px] font-bold text-cyan-400 hover:text-cyan-300 border border-cyan-500/30 bg-cyan-500/10 px-2 py-0.5 rounded">{t('addChiller')}</button>
                                     </div>
                                     {(s.chillers || []).map((c: any, ci: number) => (
                                       <div key={ci} className="flex items-center gap-2">
                                         <span className="text-[10px] text-slate-500 w-6 shrink-0">{ci + 1}</span>
-                                        <input value={c.name || ''} onChange={o => setChillerField(uname, bi, si, ci, 'name', o.target.value)} className={`${inputCls} text-xs`} placeholder="اسم / كود الشيلار" />
-                                        <input type="number" value={c.capacity || ''} onChange={o => setChillerField(uname, bi, si, ci, 'capacity', o.target.value)} className={`${inputCls} text-xs`} placeholder="الانتاجية طن/يوم" />
+                                        <input value={c.name || ''} onChange={o => setChillerField(uname, bi, si, ci, 'name', o.target.value)} className={`${inputCls} text-xs`} placeholder={t('chillerNamePh')} />
+                                        <input type="number" value={c.capacity || ''} onChange={o => setChillerField(uname, bi, si, ci, 'capacity', o.target.value)} className={`${inputCls} text-xs`} placeholder={t('chillerCapPh')} />
                                         <button onClick={() => setStationField(uname, bi, si, 'chillers', (s.chillers || []).filter((_: any, j: number) => j !== ci))} className="text-red-400 hover:bg-red-500/10 text-[10px] font-bold px-2 py-1 rounded border border-red-500/30 shrink-0">✕</button>
                                       </div>
                                     ))}
@@ -1491,10 +1496,10 @@ const [companies, setCompanies] = useState<any[]>([]);
                             disabled={!plantDirty[uname]}
                             className={`${plantDirty[uname] ? 'bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400' : 'bg-white/[0.05] text-slate-500 cursor-not-allowed'} text-white text-[11px] font-bold px-4 py-2 rounded-lg transition`}
                           >
-                            💾 حفظ بيانات الشركة
+                            {t('saveCompanyDataBtn')}
                           </button>
-                          {plantDirty[uname] && <span className="text-[10px] font-bold text-amber-300">تعديلات غير محفوظة</span>}
-                          <span className="text-[10px] text-slate-500">تُقرأ في لوحة الادارة والطباعة والتقرير في تطبيق الشركة</span>
+                          {plantDirty[uname] && <span className="text-[10px] font-bold text-amber-300">{t('unsavedEdits')}</span>}
+                          <span className="text-[10px] text-slate-500">{t('plantDataNote')}</span>
                         </div>
                         </div>
                         )}
@@ -1502,10 +1507,10 @@ const [companies, setCompanies] = useState<any[]>([]);
 
                       <div className="flex flex-wrap gap-2">
                         <button onClick={() => saveAllTree(uname)} disabled={treeSaving} className="bg-gradient-to-r from-emerald-500 to-cyan-500 disabled:opacity-50 text-white text-[11px] font-bold px-3 py-2 rounded-lg transition shadow-[0_0_14px_rgba(56,189,248,0.25)]">
-                          {treeSaving ? '⏳...' : '💾 حفظ كل التعديلات على الداتابيز'}
+                          {treeSaving ? t('uploadingShort') : t('saveAllDbBtn')}
                         </button>
-                        <button onClick={() => exportCsv(uname)} className="bg-white/[0.06] border border-white/10 text-slate-300 text-[11px] font-bold px-3 py-2 rounded-lg hover:bg-sky-400/10 hover:border-sky-400/40 hover:text-sky-300 transition-colors">📊 Excel CSV</button>
-                        <button onClick={() => exportPdf(uname)} className="bg-white/[0.06] border border-white/10 text-slate-300 text-[11px] font-bold px-3 py-2 rounded-lg hover:bg-sky-400/10 hover:border-sky-400/40 hover:text-sky-300 transition-colors">🖨️ PDF/طباعة</button>
+                        <button onClick={() => exportCsv(uname)} className="bg-white/[0.06] border border-white/10 text-slate-300 text-[11px] font-bold px-3 py-2 rounded-lg hover:bg-sky-400/10 hover:border-sky-400/40 hover:text-sky-300 transition-colors">{t('exportCsvBtn')}</button>
+                        <button onClick={() => exportPdf(uname)} className="bg-white/[0.06] border border-white/10 text-slate-300 text-[11px] font-bold px-3 py-2 rounded-lg hover:bg-sky-400/10 hover:border-sky-400/40 hover:text-sky-300 transition-colors">{t('exportPdfBtn')}</button>
                       </div>
 
                       {accts.length > 0 && (
@@ -1520,11 +1525,11 @@ const [companies, setCompanies] = useState<any[]>([]);
                                 </div>
                               </div>
                               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                <input value={a.truck || ''} onChange={o => updateSavedRow(uname, i, 'truck', o.target.value)} className={`${inputCls} text-xs`} placeholder="🚚 السيارة / لوحة التسجيل" />
-                                <input value={a.gps || ''} onChange={o => updateSavedRow(uname, i, 'gps', o.target.value)} className={`${inputCls} text-xs`} placeholder="📡 جهاز GPS / Tracker ID" />
+                                <input value={a.truck || ''} onChange={o => updateSavedRow(uname, i, 'truck', o.target.value)} className={`${inputCls} text-xs`} placeholder={t('truckPh')} />
+                                <input value={a.gps || ''} onChange={o => updateSavedRow(uname, i, 'gps', o.target.value)} className={`${inputCls} text-xs`} placeholder={t('gpsPh')} />
                               </div>
                               <div className="flex justify-end">
-                                <button onClick={() => deleteTreeAccount(uname, i)} className="text-red-400 hover:bg-red-500/10 text-[11px] font-bold px-2.5 py-1.5 rounded-lg border border-red-500/30 shrink-0">حذف</button>
+                                <button onClick={() => deleteTreeAccount(uname, i)} className="text-red-400 hover:bg-red-500/10 text-[11px] font-bold px-2.5 py-1.5 rounded-lg border border-red-500/30 shrink-0">{t('deleteBtn')}</button>
                               </div>
                             </div>
                           ))}
@@ -1533,21 +1538,21 @@ const [companies, setCompanies] = useState<any[]>([]);
 
                       <div className="grid grid-cols-[1fr_80px_auto] gap-2">
                         <select value={treeRole} onChange={o => setTreeRole(o.target.value)} className={inputCls}>
-                          {ROLES.map(r => <option key={r.key} value={r.key}>{r.ar}</option>)}
+                          {ROLES.map(r => <option key={r.key} value={r.key}>{t('role_' + r.key)}</option>)}
                         </select>
-                        <input type="number" min={1} value={treeCount} onChange={o => setTreeCount(Number(o.target.value))} className={inputCls} placeholder="عدد" />
-                        <button onClick={generateDraft} className="bg-sky-500/15 border border-sky-500/40 text-sky-300 text-xs font-bold px-3 py-2 rounded-lg hover:bg-sky-500/25 transition-colors whitespace-nowrap">⚙️ توليد {ROLES.find(r => r.key === treeRole)?.ar}</button>
+                        <input type="number" min={1} value={treeCount} onChange={o => setTreeCount(Number(o.target.value))} className={inputCls} placeholder={t('countPh')} />
+                        <button onClick={generateDraft} className="bg-sky-500/15 border border-sky-500/40 text-sky-300 text-xs font-bold px-3 py-2 rounded-lg hover:bg-sky-500/25 transition-colors whitespace-nowrap">{t('generateBtn')}{t('role_' + (ROLES.find(r => r.key === treeRole)?.key || treeRole))}</button>
                       </div>
 
                       {treeDraft.length > 0 && (
                         <div className="space-y-2">
                           {treeDraft.map((r, i) => (
                             <div key={i} className="grid grid-cols-1 sm:grid-cols-2 gap-2 rounded-lg bg-white/[0.03] border border-white/10 p-2.5">
-                              <input value={r.email} onChange={o => updateTreeRow(i, 'email', o.target.value)} className={`${inputCls} text-sm`} dir="ltr" placeholder="الايميل" />
-                              <input value={r.phone} onChange={o => updateTreeRow(i, 'phone', o.target.value)} className={`${inputCls} text-sm`} dir="ltr" placeholder="التليفون" />
-                              <input type="password" value={r.password} onChange={o => updateTreeRow(i, 'password', o.target.value)} className={`${inputCls} text-sm`} dir="ltr" placeholder="الباسورد" />
-                              <input value={r.truck || ''} onChange={o => updateTreeRow(i, 'truck', o.target.value)} className={`${inputCls} text-sm`} dir="ltr" placeholder="🚚 السيارة" />
-                              <input value={r.gps || ''} onChange={o => updateTreeRow(i, 'gps', o.target.value)} className={`${inputCls} text-sm`} dir="ltr" placeholder="📡 GPS" />
+                              <input value={r.email} onChange={o => updateTreeRow(i, 'email', o.target.value)} className={`${inputCls} text-sm`} dir="ltr" placeholder={t('emailPhShort')} />
+                              <input value={r.phone} onChange={o => updateTreeRow(i, 'phone', o.target.value)} className={`${inputCls} text-sm`} dir="ltr" placeholder={t('phonePh')} />
+                              <input type="password" value={r.password} onChange={o => updateTreeRow(i, 'password', o.target.value)} className={`${inputCls} text-sm`} dir="ltr" placeholder={t('passwordPhShort')} />
+                              <input value={r.truck || ''} onChange={o => updateTreeRow(i, 'truck', o.target.value)} className={`${inputCls} text-sm`} dir="ltr" placeholder={t('truckPhShort')} />
+                              <input value={r.gps || ''} onChange={o => updateTreeRow(i, 'gps', o.target.value)} className={`${inputCls} text-sm`} dir="ltr" placeholder={t('gpsPhShort')} />
                               <div className="text-[10px] text-slate-400">
                                 {r.permissions.map(p => <span key={p} className="inline-block bg-slate-700/30 text-slate-300 px-1.5 py-0.5 rounded mr-1 mb-1">{p}</span>)}
                               </div>
@@ -1555,15 +1560,15 @@ const [companies, setCompanies] = useState<any[]>([]);
                           ))}
                           <div className="flex gap-2">
                             <button onClick={saveTree} disabled={treeSaving} className="flex-1 bg-gradient-to-r from-emerald-500 to-cyan-500 disabled:opacity-50 text-white text-xs font-bold py-2.5 rounded-lg transition shadow-[0_0_16px_rgba(56,189,248,0.25)]">
-                              {treeSaving ? '⏳...' : `💾 حفظ ${treeDraft.length} حساب جديد في الداتابيز`}
+                              {treeSaving ? t('uploadingShort') : `${t('saveAccountsPrefix')}${treeDraft.length}${t('newAccountsSuffix')}`}
                             </button>
-                            <button onClick={resetDraft} className="bg-white/[0.05] border border-white/10 text-slate-300 text-xs font-bold px-3 rounded-lg hover:border-red-400/50">إلغاء</button>
+                            <button onClick={resetDraft} className="bg-white/[0.05] border border-white/10 text-slate-300 text-xs font-bold px-3 rounded-lg hover:border-red-400/50">{t('cancelBtn')}</button>
                           </div>
                         </div>
                       )}
 
                       {accts.length === 0 && treeDraft.length === 0 && (
-                        <p className="text-[11px] text-slate-400 text-center">اختر الوظيفة وعدد التطبيقات ثم اضغط توليد — كل حساب هيتسجل ايميله وصلاحياته وربط سيارته وGPS في الداتابيز</p>
+                        <p className="text-[11px] text-slate-400 text-center">{t('treeHint')}</p>
                       )}
                     </div>
                   )}
@@ -1581,26 +1586,26 @@ const [companies, setCompanies] = useState<any[]>([]);
       <div className="w-full max-w-5xl">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h2 className="text-2xl font-black text-white tracking-tight">🛡️ لوحة التحكم الكاملة</h2>
-            <p className="text-xs text-slate-400 mt-1">رفع صور الاقسام + شجرة حسابات التطبيق للشركات</p>
+            <h2 className="text-2xl font-black text-white tracking-tight">{t('panelTitle')}</h2>
+            <p className="text-xs text-slate-400 mt-1">{t('panelSubtitle')}</p>
           </div>
           <div className="flex gap-2">
-            <button onClick={() => navigate('/')} className="bg-white/[0.05] text-slate-300 text-xs px-3 py-1.5 rounded-lg font-bold border border-white/10 hover:border-sky-400/60 hover:text-sky-300 transition-colors">🏠 الرئيسية</button>
-            <button onClick={logout} className="bg-white/[0.05] text-slate-300 text-xs px-3 py-1.5 rounded-lg font-bold border border-white/10 hover:border-red-400/60 hover:text-red-300 transition-colors">🚪 خروج</button>
+            <button onClick={() => navigate('/')} className="bg-white/[0.05] text-slate-300 text-xs px-3 py-1.5 rounded-lg font-bold border border-white/10 hover:border-sky-400/60 hover:text-sky-300 transition-colors">{t('homeBtn')}</button>
+            <button onClick={logout} className="bg-white/[0.05] text-slate-300 text-xs px-3 py-1.5 rounded-lg font-bold border border-white/10 hover:border-red-400/60 hover:text-red-300 transition-colors">{t('logout')}</button>
           </div>
         </div>
 
         <div className="flex gap-2 mb-6">
-          <button onClick={() => setTab('sections')} className={`text-sm px-4 py-2 rounded-lg font-bold border transition-colors ${tab === 'sections' ? 'bg-sky-500/15 border-sky-500/40 text-sky-300' : 'bg-white/[0.04] border-white/10 text-slate-400 hover:text-slate-200'}`}>🖼️ الاقسام والصور</button>
-          <button onClick={() => setTab('companies')} className={`text-sm px-4 py-2 rounded-lg font-bold border transition-colors ${tab === 'companies' ? 'bg-sky-500/15 border-sky-500/40 text-sky-300' : 'bg-white/[0.04] border-white/10 text-slate-400 hover:text-slate-200'}`}>🏢 الشركات واشجار التطبيق</button>
+          <button onClick={() => setTab('sections')} className={`text-sm px-4 py-2 rounded-lg font-bold border transition-colors ${tab === 'sections' ? 'bg-sky-500/15 border-sky-500/40 text-sky-300' : 'bg-white/[0.04] border-white/10 text-slate-400 hover:text-slate-200'}`}>{t('tabSections')}</button>
+          <button onClick={() => setTab('companies')} className={`text-sm px-4 py-2 rounded-lg font-bold border transition-colors ${tab === 'companies' ? 'bg-sky-500/15 border-sky-500/40 text-sky-300' : 'bg-white/[0.04] border-white/10 text-slate-400 hover:text-slate-200'}`}>{t('tabCompanies')}</button>
         </div>
 
         {tab === 'sections' ? (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             <div className="rounded-2xl border border-white/10 bg-[#0B111E]/60 backdrop-blur-xl p-5">
-              <h3 className="text-base font-black text-white mb-1">الاقسام الحالية — رفع الصور من الجهاز</h3>
-              <p className="text-[11px] text-slate-500 mb-3">اضغط "رفع صورة" واختار ملف من جهازك — تظهر فوراً. بعد الانتهاء اضغط "حفظ على القاعدة" حتى تُحفظ الصور وتتاح مباشرة.</p>
-              <button onClick={saveConfigBtn} className="mb-3 w-full bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 text-white text-xs font-bold py-2.5 rounded-lg shadow-[0_0_16px_rgba(56,189,248,0.25)] transition">💾 حفظ الصور والأقسام المخصصة على القاعدة</button>
+              <h3 className="text-base font-black text-white mb-1">{t('sectionsHint')}</h3>
+              <p className="text-[11px] text-slate-500 mb-3">{t('sectionsHint2')}</p>
+              <button onClick={saveConfigBtn} className="mb-3 w-full bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 text-white text-xs font-bold py-2.5 rounded-lg shadow-[0_0_16px_rgba(56,189,248,0.25)] transition">{t('saveConfigBtn')}</button>
               <div className="space-y-4">
                 {CONSOLE_MODULES.map(mod => {
                   const ov = overrides[mod.path] || { image: '', bgImage: '' };
@@ -1608,21 +1613,21 @@ const [companies, setCompanies] = useState<any[]>([]);
                   return (
                     <div key={mod.path} className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
                       <div className="flex items-center justify-between mb-2">
-                        <span className="text-sm font-bold text-sky-300">{mod.en} — {mod.ar}</span>
-                        {ov.image || ov.bgImage ? <span className="text-[10px] text-emerald-400 font-bold">مفعّل ✓</span> : <span className="text-[10px] text-slate-500">افتراضي</span>}
+                        <span className="text-sm font-bold text-sky-300">{mod.en} — {t(mod.path)}</span>
+                        {ov.image || ov.bgImage ? <span className="text-[10px] text-emerald-400 font-bold">{t('activeBadge')}</span> : <span className="text-[10px] text-slate-500">{t('defaultBadge')}</span>}
                       </div>
                       <div className="flex flex-col gap-2">
                         <div className="flex gap-2 items-center">
-                          <input value={ov.image} onChange={o => updateOverride(mod.path, 'image', o.target.value)} placeholder="رابط صورة الايقونة (او ارفع)" className={`${inputCls} text-xs`} dir="ltr" />
+                          <input value={ov.image} onChange={o => updateOverride(mod.path, 'image', o.target.value)} placeholder={t('iconImageUrl')} className={`${inputCls} text-xs`} dir="ltr" />
                           <label className="shrink-0 bg-sky-500/15 border border-sky-500/40 text-sky-300 text-[11px] font-bold px-2.5 py-2.5 rounded-lg hover:bg-sky-500/25 transition-colors cursor-pointer">
-                            {upl('image') ? '⏳...' : '⬆️ رفع'}
+                            {upl('image') ? t('uploadingShort') : t('uploadBtn')}
                             <input type="file" accept="image/*" className="hidden" onChange={e => handleUpload(e, mod.path, 'image')} />
                           </label>
                         </div>
                         <div className="flex gap-2 items-center">
-                          <input value={ov.bgImage} onChange={o => updateOverride(mod.path, 'bgImage', o.target.value)} placeholder="رابط صورة خلفية القسم (او ارفع)" className={`${inputCls} text-xs`} dir="ltr" />
+                          <input value={ov.bgImage} onChange={o => updateOverride(mod.path, 'bgImage', o.target.value)} placeholder={t('bgImageUrl')} className={`${inputCls} text-xs`} dir="ltr" />
                           <label className="shrink-0 bg-sky-500/15 border border-sky-500/40 text-sky-300 text-[11px] font-bold px-2.5 py-2.5 rounded-lg hover:bg-sky-500/25 transition-colors cursor-pointer">
-                            {upl('bgImage') ? '⏳...' : '⬆️ رفع'}
+                            {upl('bgImage') ? t('uploadingShort') : t('uploadBtn')}
                             <input type="file" accept="image/*" className="hidden" onChange={e => handleUpload(e, mod.path, 'bgImage')} />
                           </label>
                         </div>
@@ -1635,42 +1640,42 @@ const [companies, setCompanies] = useState<any[]>([]);
 
             <div className="space-y-5">
               <div className="rounded-2xl border border-white/10 bg-[#0B111E]/60 backdrop-blur-xl p-5">
-                <h3 className="text-base font-black text-white mb-3">➕ اضافة قسم جديد (بالصور المرفوعة)</h3>
+                <h3 className="text-base font-black text-white mb-3">{t('addCustomSectionTitle')}</h3>
                 <form onSubmit={addCustom} className="space-y-3">
-                  <input name="en" placeholder="اسم القسم بالانجليزي *" className={inputCls} />
-                  <input name="ar" placeholder="اسم القسم بالعربي" className={inputCls} />
+                  <input name="en" placeholder={t('customNameEn')} className={inputCls} />
+                  <input name="ar" placeholder={t('customNameAr')} className={inputCls} />
                   <div className="grid grid-cols-2 gap-2">
                     <div className="flex gap-2 items-center">
-                      <input value={customMedia.image} onChange={o => setCustomMedia(prev => ({ ...prev, image: o.target.value }))} placeholder="رابط صورة الايقونة" className={`${inputCls} text-xs`} dir="ltr" />
+                      <input value={customMedia.image} onChange={o => setCustomMedia(prev => ({ ...prev, image: o.target.value }))} placeholder={t('iconUrlCustom')} className={`${inputCls} text-xs`} dir="ltr" />
                       <label className="shrink-0 bg-sky-500/15 border border-sky-500/40 text-sky-300 text-[11px] font-bold px-2.5 py-2.5 rounded-lg hover:bg-sky-500/25 transition-colors cursor-pointer">
-                        {uploadingPath === 'custom:image' ? '⏳...' : '⬆️ رفع'}
+                        {uploadingPath === 'custom:image' ? t('uploadingShort') : t('uploadBtn')}
                         <input type="file" accept="image/*" className="hidden" onChange={e => handleCustomUpload(e, 'image')} />
                       </label>
                     </div>
                     <div className="flex gap-2 items-center">
-                      <input value={customMedia.bgImage} onChange={o => setCustomMedia(prev => ({ ...prev, bgImage: o.target.value }))} placeholder="رابط صورة الخلفية" className={`${inputCls} text-xs`} dir="ltr" />
+                      <input value={customMedia.bgImage} onChange={o => setCustomMedia(prev => ({ ...prev, bgImage: o.target.value }))} placeholder={t('bgUrlCustom')} className={`${inputCls} text-xs`} dir="ltr" />
                       <label className="shrink-0 bg-sky-500/15 border border-sky-500/40 text-sky-300 text-[11px] font-bold px-2.5 py-2.5 rounded-lg hover:bg-sky-500/25 transition-colors cursor-pointer">
-                        {uploadingPath === 'custom:bgImage' ? '⏳...' : '⬆️ رفع'}
+                        {uploadingPath === 'custom:bgImage' ? t('uploadingShort') : t('uploadBtn')}
                         <input type="file" accept="image/*" className="hidden" onChange={e => handleCustomUpload(e, 'bgImage')} />
                       </label>
                     </div>
                   </div>
-                  <input name="desc" placeholder="وصف مختصر" className={inputCls} />
-                  <button type="submit" className="w-full bg-gradient-to-r from-sky-500 to-cyan-500 hover:from-sky-400 hover:to-cyan-400 text-white font-bold py-2.5 rounded-lg text-sm transition shadow-[0_0_20px_rgba(56,189,248,0.3)]">اضافة القسم</button>
+                  <input name="desc" placeholder={t('customDesc')} className={inputCls} />
+                  <button type="submit" className="w-full bg-gradient-to-r from-sky-500 to-cyan-500 hover:from-sky-400 hover:to-cyan-400 text-white font-bold py-2.5 rounded-lg text-sm transition shadow-[0_0_20px_rgba(56,189,248,0.3)]">{t('addSectionBtn')}</button>
                 </form>
               </div>
 
               {custom.length > 0 && (
                 <div className="rounded-2xl border border-white/10 bg-[#0B111E]/60 backdrop-blur-xl p-5">
-                  <h3 className="text-base font-black text-white mb-3">الاقسام المضافة ({custom.length})</h3>
+                  <h3 className="text-base font-black text-white mb-3">{t('customSectionsTitle')} ({custom.length})</h3>
                   <div className="space-y-2">
                     {custom.map(c => (
                       <div key={c.id} className="flex items-center justify-between rounded-xl border border-white/10 bg-white/[0.03] p-3">
                         <div className="min-w-0">
                           <p className="text-sm font-bold text-white truncate">{c.en} — {c.ar}</p>
-                          <p className="text-[10px] text-slate-500 truncate" dir="ltr">{c.image || c.bgImage || 'بدون صورة'}</p>
+                          <p className="text-[10px] text-slate-500 truncate" dir="ltr">{c.image || c.bgImage || t('noImage')}</p>
                         </div>
-                        <button onClick={() => removeCustom(c.id)} className="text-red-400 hover:bg-red-500/10 text-xs font-bold px-2.5 py-1.5 rounded-lg border border-red-500/30 shrink-0">حذف</button>
+                        <button onClick={() => removeCustom(c.id)} className="text-red-400 hover:bg-red-500/10 text-xs font-bold px-2.5 py-1.5 rounded-lg border border-red-500/30 shrink-0">{t('deleteBtn')}</button>
                       </div>
                     ))}
                   </div>
@@ -1687,17 +1692,17 @@ const [companies, setCompanies] = useState<any[]>([]);
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
             <div className="w-full max-w-md rounded-2xl border border-violet-500/40 bg-[#140B1E]/95 p-6 shadow-[0_0_60px_rgba(139,92,246,0.25)]">
               <h3 className="text-lg font-black text-violet-300 mb-1">
-                {protectTarget.toLock ? '🔒 حماية الشركة من الحذف' : '🔓 إلغاء حماية الشركة'}
+                {protectTarget.toLock ? t('protectModalTitleLocked') : t('protectModalTitleUnlock')}
               </h3>
               <p className="text-xs text-slate-400 mb-4">
-                الشركة <b className="text-white">{protectTarget.name}</b> — اكتب باسورد الحماية للمتابعة.
-                {protectTarget.toLock && <><br />الشركة المحمية لا يمكن حذفها بالخطأ.</>}
+                {t('protectModalDescPrefix')}<b className="text-white">{protectTarget.name}</b>{t('protectModalDescSuffix')}
+                {protectTarget.toLock && <><br />{t('protectModalLockedNote')}</>}
               </p>
               <input
                 type="password"
                 value={protectPass}
                 onChange={o => setProtectPass(o.target.value)}
-                placeholder="باسورد الحماية"
+                placeholder={t('protectPassPh')}
                 className={`${inputCls} text-center text-base font-black mb-4`}
                 dir="ltr"
                 autoFocus
@@ -1708,9 +1713,9 @@ const [companies, setCompanies] = useState<any[]>([]);
                   disabled={protectSaving || !protectPass}
                   className={`flex-1 disabled:opacity-30 disabled:cursor-not-allowed ${protectTarget.toLock ? 'bg-gradient-to-r from-violet-600 to-fuchsia-500 hover:from-violet-500 hover:to-fuchsia-400' : 'bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400'} text-white font-bold py-2.5 rounded-lg transition`}
                 >
-                  {protectSaving ? '⏳ جاري الحفظ...' : protectTarget.toLock ? '🔒 تفعيل الحماية' : '🔓 فك الحماية'}
+                  {protectSaving ? t('savingShort') : protectTarget.toLock ? t('protectSaveBtn') : t('unprotectSaveBtn')}
                 </button>
-                <button onClick={() => { setProtectTarget(null); setProtectPass(''); }} disabled={protectSaving} className="bg-white/[0.06] border border-white/10 text-slate-300 text-sm font-bold px-5 rounded-lg hover:border-slate-400/50 transition-colors">إلغاء</button>
+                <button onClick={() => { setProtectTarget(null); setProtectPass(''); }} disabled={protectSaving} className="bg-white/[0.06] border border-white/10 text-slate-300 text-sm font-bold px-5 rounded-lg hover:border-slate-400/50 transition-colors">{t('cancelBtn')}</button>
               </div>
             </div>
           </div>
@@ -1720,15 +1725,15 @@ const [companies, setCompanies] = useState<any[]>([]);
         {deleteTarget && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4" onClick={closeDeleteModal}>
             <div className="w-full max-w-md rounded-2xl border border-red-500/40 bg-[#140A0A]/95 p-6 shadow-[0_0_60px_rgba(239,68,68,0.25)]" onClick={e => e.stopPropagation()}>
-              <h3 className="text-lg font-black text-red-300 mb-1">⚠️ حذف الشركة نهائياً</h3>
+              <h3 className="text-lg font-black text-red-300 mb-1">{t('deleteModalTitle')}</h3>
               <p className="text-xs text-slate-400 mb-4">
-                سيتم حذف <b className="text-white">{deleteTarget.name}</b> مع شجرة التطبيق وجميع حساباتها وبياناتها — لا يمكن التراجع.
-                <br />اكتب كلمة <b className="text-red-300">مسح</b> في الحقلين أدناه لتأكيد الحذف.
+                {t('deleteModalDescPrefix')}<b className="text-white">{deleteTarget.name}</b>{t('deleteModalDescSuffix')}
+                <br />{t('deleteModalHintPrefix')}<b className="text-red-300">مسح</b>{t('deleteModalHintSuffix')}
               </p>
               <input
                 value={delType1}
                 onChange={o => setDelType1(o.target.value)}
-                placeholder="اكتب: مسح"
+                placeholder={t('delType1Ph')}
                 className={`${inputCls} text-center text-base font-black mb-2 ${delType1.trim() === 'مسح' ? 'border-emerald-400/60' : ''}`}
                 dir="rtl"
                 autoFocus
@@ -1736,18 +1741,18 @@ const [companies, setCompanies] = useState<any[]>([]);
               <input
                 value={delType2}
                 onChange={o => setDelType2(o.target.value)}
-                placeholder="اكتبها مرة أخرى للتأكيد: مسح"
+                placeholder={t('delType2Ph')}
                 className={`${inputCls} text-center text-base font-black mb-4 ${delType2.trim() === 'مسح' ? 'border-emerald-400/60' : ''}`}
                 dir="rtl"
               />
               {deleteTarget.isProtected && (
                 <div className="mb-4 rounded-lg border border-yellow-500/30 bg-yellow-500/5 p-2.5">
-                  <p className="text-[11px] font-bold text-yellow-300 mb-1.5">🔒 هذه الشركة محمية — اكتب باسورد الحماية لتأكيد الحذف</p>
+                  <p className="text-[11px] font-bold text-yellow-300 mb-1.5">{t('protectedDeleteNote')}</p>
                   <input
                     type="password"
                     value={delPass}
                     onChange={o => setDelPass(o.target.value)}
-                    placeholder="باسورد الحماية"
+                    placeholder={t('protectPassPh')}
                     className={`${inputCls} text-center text-base font-black ${delPass.length > 0 ? 'border-emerald-400/60' : ''}`}
                     dir="ltr"
                   />
@@ -1759,9 +1764,9 @@ const [companies, setCompanies] = useState<any[]>([]);
                   disabled={deleting || delType1.trim() !== 'مسح' || delType2.trim() !== 'مسح' || (deleteTarget.isProtected && delPass.length < 3)}
                   className="flex-1 bg-gradient-to-r from-red-600 to-red-500 disabled:opacity-30 disabled:cursor-not-allowed hover:from-red-500 hover:to-red-400 text-white font-bold py-2.5 rounded-lg transition"
                 >
-                  {deleting ? '⏳ جاري الحذف...' : '🗑️ نعم، احذف نهائياً'}
+                  {deleting ? t('deletingShort') : t('confirmDeleteBtn')}
                 </button>
-                <button onClick={closeDeleteModal} disabled={deleting} className="bg-white/[0.06] border border-white/10 text-slate-300 text-sm font-bold px-5 rounded-lg hover:border-slate-400/50 transition-colors">إلغاء</button>
+                <button onClick={closeDeleteModal} disabled={deleting} className="bg-white/[0.06] border border-white/10 text-slate-300 text-sm font-bold px-5 rounded-lg hover:border-slate-400/50 transition-colors">{t('cancelBtn')}</button>
               </div>
             </div>
           </div>

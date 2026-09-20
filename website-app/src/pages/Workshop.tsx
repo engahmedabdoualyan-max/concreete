@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { useLang } from '../context/LangContext';
+import { useWorkshopDict } from '../i18n/workshopDict';
 import { loadAssets, saveAssets, loadWorkshopConfig, saveWorkshopConfig, loadFuelLogs, saveFuelLogs, loadOilLogs, saveOilLogs, loadSparePartLogs, saveSparePartLogs, loadBreakdowns, saveBreakdowns, loadWarehouse, saveWarehouse, loadPurchaseReqs, savePurchaseReqs, loadStations, saveStations, loadPeriodicMaints, savePeriodicMaints } from '../firebase/firestore';
 import { api } from '../api/client';
 import QuickJump from '../components/QuickJump';
@@ -47,7 +47,7 @@ function loadLocal<T>(key: string, def: T): T { try { const s = localStorage.get
 export default function Workshop() {
   const { currentUser, logout } = useAuth();
   const navigate = useNavigate();
-  const { t } = useLang();
+  const t = useWorkshopDict();
   const [tab, setTab] = useState<Tab>('home');
   const [assets, setAssets] = useState<Asset[]>(DEF_ASSETS);
   const [config, setConfig] = useState(DEF_CONFIG);
@@ -251,8 +251,8 @@ export default function Workshop() {
   if (reportVehicle) {
     try {
       const trips = JSON.parse(localStorage.getItem('trips_data')||localStorage.getItem('trips')||'[]');
-      vehTrips = trips.filter((t:any)=>t.code===reportVehicle && (!reportFrom||t.date>=reportFrom) && (!reportTo||t.date<=reportTo));
-      vehTotalM3 = vehTrips.reduce((s:number,t:any)=>s+Number(t.qty||0),0);
+      vehTrips = trips.filter((trip:any)=>trip.code===reportVehicle && (!reportFrom||trip.date>=reportFrom) && (!reportTo||trip.date<=reportTo));
+      vehTotalM3 = vehTrips.reduce((s:number,trip:any)=>s+Number(trip.qty||0),0);
       vehTotalBlocks = Math.round(vehTotalM3 * 12.5);
     } catch {}
     vehTotalFuel = ff.reduce((s,f)=>s+f.liters,0);
@@ -283,7 +283,7 @@ export default function Workshop() {
     {id:'home',label:t('home')},{id:'fuel',label:t('fuelAndDiesel')},{id:'oil',label:t('oilAndFluids')},
     {id:'spareparts',label:t('spareParts')},{id:'breakdown',label:t('breakdownReports')},
     {id:'purchaserequests',label:t('purchaseRequests')},{id:'warehouse',label:t('warehouse')},
-    {id:'vehiclereport',label:t('vehicleReport')},{id:'mixingstations',label:'🏭 محطات الخلط'},{id:'config',label:t('fleetSettings')},{id:'reports',label:t('reports')},
+    {id:'vehiclereport',label:t('vehicleReport')},{id:'mixingstations',label:t('mixingStations')},{id:'config',label:t('fleetSettings')},{id:'reports',label:t('reports')},
   ];
 
   const sevColor = (s: string) => s==='Critical'?'bg-red-600':s==='Major'?'bg-orange-500':'bg-yellow-500 text-slate-900';
@@ -298,7 +298,7 @@ export default function Workshop() {
           <QuickJump />
           <LangSelector />
           <span className="bg-emerald-500/15 text-emerald-500 text-xs px-3 py-1.5 rounded-lg font-bold border border-emerald-500/30">{currentUser.plantName}</span>
-          <button onClick={() => { logout(); navigate('/'); }} className="bg-white/[0.05] text-slate-300 text-xs px-3 py-1.5 rounded-lg font-bold border border-white/10 hover:border-red-400/60 hover:text-red-300 transition-colors">🚪 خروج</button>
+          <button onClick={() => { logout(); navigate('/'); }} className="bg-white/[0.05] text-slate-300 text-xs px-3 py-1.5 rounded-lg font-bold border border-white/10 hover:border-red-400/60 hover:text-red-300 transition-colors">{t('logout')}</button>
         </div>
       </div>
       {openBDs.length>0 && (<div className="bg-red-900/40 border-b border-red-500/40 px-6 py-2.5"><p className="text-sm text-red-300 font-bold">{openBDs.length} Open Breakdowns - vehicles out of service</p></div>)}
@@ -312,10 +312,10 @@ export default function Workshop() {
         {tab==='home'&&(<div className="space-y-6">
           {/* Driver Breakdown Reports (from the driver app → ERP work orders) */}
           {driverReports.length>0&&(<div className="bg-red-950/40 border border-red-500/40 rounded-xl p-5">
-            <div className="flex justify-between items-center mb-4"><h3 className="text-lg font-bold text-red-300">🚨 بلاغات السائقين (أوامر صيانة واردة)</h3><span className="text-xs text-red-400 font-bold">{driverReports.length} Open</span></div>
-            <div className="overflow-x-auto"><table className="w-full text-sm text-slate-300"><thead className="bg-white/[0.04] text-slate-400 text-xs"><tr><th className="p-3">أمر الصيانة</th><th className="p-3">الخلاطة</th><th className="p-3">اللوحة</th><th className="p-3">الخطورة</th><th className="p-3">نوع المركبة</th><th className="p-3">الوصف</th><th className="p-3">مرفقات</th><th className="p-3">التاريخ</th></tr></thead><tbody>{driverReports.map(wo=>(<tr key={wo.workOrderNumber} className="border-b border-white/10"><td className="p-3 font-bold text-red-300">{wo.workOrderNumber}</td><td className="p-3 font-bold">{wo.vehicleCode}</td><td className="p-3">{wo.plateNumber||'-'}</td><td className="p-3"><span className={`px-2 py-0.5 rounded text-xs font-bold ${wo.severity==='CRITICAL'?'bg-red-500 text-white':wo.severity==='HIGH'?'bg-orange-500 text-white':wo.severity==='MEDIUM'?'bg-yellow-500 text-slate-900':'bg-emerald-500/70 text-white'}`}>{wo.severity}</span></td><td className="p-3">{wo.vehicleType||'-'}</td><td className="p-3 max-w-[280px] truncate" title={wo.faultDescription}>{wo.faultDescription}</td><td className="p-3">
-        {(wo.photoBase64||wo.photoUrl||wo.photo)?<a href={wo.photoBase64?`data:image/jpeg;base64,${wo.photoBase64}`:(wo.photoUrl||wo.photo)} target="_blank" rel="noreferrer" className="text-sky-400 font-bold text-xs underline mr-2">📷 صورة</a>:null}
-        {(wo.audioBase64||wo.audioUrl||wo.audio)?<a href={wo.audioBase64?`data:audio/m4a;base64,${wo.audioBase64}`:(wo.audioUrl||wo.audio)} target="_blank" rel="noreferrer" className="text-emerald-400 font-bold text-xs underline">🎙️ صوت</a>:null}
+            <div className="flex justify-between items-center mb-4"><h3 className="text-lg font-bold text-red-300">{t('driverReportsTitle')}</h3><span className="text-xs text-red-400 font-bold">{driverReports.length} Open</span></div>
+            <div className="overflow-x-auto"><table className="w-full text-sm text-slate-300"><thead className="bg-white/[0.04] text-slate-400 text-xs"><tr><th className="p-3">{t('thWorkOrder')}</th><th className="p-3">{t('thMixer')}</th><th className="p-3">{t('thPlate')}</th><th className="p-3">{t('thSeverity')}</th><th className="p-3">{t('thVehicleType')}</th><th className="p-3">{t('thDescription')}</th><th className="p-3">{t('thAttachments')}</th><th className="p-3">{t('thDate')}</th></tr></thead><tbody>{driverReports.map(wo=>(<tr key={wo.workOrderNumber} className="border-b border-white/10"><td className="p-3 font-bold text-red-300">{wo.workOrderNumber}</td><td className="p-3 font-bold">{wo.vehicleCode}</td><td className="p-3">{wo.plateNumber||'-'}</td><td className="p-3"><span className={`px-2 py-0.5 rounded text-xs font-bold ${wo.severity==='CRITICAL'?'bg-red-500 text-white':wo.severity==='HIGH'?'bg-orange-500 text-white':wo.severity==='MEDIUM'?'bg-yellow-500 text-slate-900':'bg-emerald-500/70 text-white'}`}>{wo.severity}</span></td><td className="p-3">{wo.vehicleType||'-'}</td><td className="p-3 max-w-[280px] truncate" title={wo.faultDescription}>{wo.faultDescription}</td><td className="p-3">
+        {(wo.photoBase64||wo.photoUrl||wo.photo)?<a href={wo.photoBase64?`data:image/jpeg;base64,${wo.photoBase64}`:(wo.photoUrl||wo.photo)} target="_blank" rel="noreferrer" className="text-sky-400 font-bold text-xs underline mr-2">{t('photoLink')}</a>:null}
+        {(wo.audioBase64||wo.audioUrl||wo.audio)?<a href={wo.audioBase64?`data:audio/m4a;base64,${wo.audioBase64}`:(wo.audioUrl||wo.audio)} target="_blank" rel="noreferrer" className="text-emerald-400 font-bold text-xs underline">{t('audioLink')}</a>:null}
         {!(wo.photoBase64||wo.photoUrl||wo.photo||wo.audioBase64||wo.audioUrl||wo.audio)?<span className="text-slate-600">—</span>:null}
       </td><td className="p-3">{wo.createdAt?new Date(wo.createdAt).toLocaleString():'-'}</td></tr>))}</tbody></table></div>
           </div>)}
@@ -396,7 +396,7 @@ export default function Workshop() {
           <div className="bg-white/[0.04] border border-white/10 rounded-xl p-6"><h3 className="text-lg font-bold text-emerald-400 mb-4">{editingWhId?t('editWarehouseItem'):t('addWarehouseItem')}</h3><div className="space-y-3">
             <div className="grid grid-cols-2 gap-3"><div><label className="text-xs text-slate-400 font-semibold">{t('itemCode')}</label><input value={whForm.code} onChange={e=>setWhForm({...whForm,code:e.target.value})} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm" required/></div><div><label className="text-xs text-slate-400 font-semibold">{t('itemName')}</label><input value={whForm.name} onChange={e=>setWhForm({...whForm,name:e.target.value})} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm" required/></div></div>
             <div className="grid grid-cols-2 gap-3"><div><label className="text-xs text-slate-400 font-semibold">{t('itemCategory')}</label><select value={whForm.category} onChange={e=>setWhForm({...whForm,category:e.target.value})} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm"><option>Mechanical</option><option>Electrical</option><option>Hydraulic</option><option>Pneumatic</option><option>Tires</option><option>Filters</option><option>Oils</option></select></div><div><label className="text-xs text-slate-400 font-semibold">{t('unit')}</label><select value={whForm.unit} onChange={e=>setWhForm({...whForm,unit:e.target.value})} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm"><option>Piece</option><option>Liter</option><option>Kg</option><option>Meter</option><option>Set</option></select></div></div>
-            <div className="grid grid-cols-4 gap-3"><div><label className="text-xs text-slate-400 font-semibold">{t('currentStock')}</label><input type="number" value={whForm.currentStock} onChange={e=>setWhForm({...whForm,currentStock:e.target.value})} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm"/></div><div><label className="text-xs text-slate-400 font-semibold">{t('minStockLevel')}</label><input type="number" value={whForm.minStock} onChange={e=>setWhForm({...whForm,minStock:e.target.value})} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm"/></div><div><label className="text-xs text-slate-400 font-semibold">🛡️ Safety Stock</label><input type="number" value={whForm.safetyStock} onChange={e=>setWhForm({...whForm,safetyStock:e.target.value})} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm" placeholder="احتياطي"/></div><div><label className="text-xs text-slate-400 font-semibold">{t('unitCost')}</label><input type="number" step="0.01" value={whForm.unitCost} onChange={e=>setWhForm({...whForm,unitCost:e.target.value})} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm"/></div></div>
+            <div className="grid grid-cols-4 gap-3"><div><label className="text-xs text-slate-400 font-semibold">{t('currentStock')}</label><input type="number" value={whForm.currentStock} onChange={e=>setWhForm({...whForm,currentStock:e.target.value})} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm"/></div><div><label className="text-xs text-slate-400 font-semibold">{t('minStockLevel')}</label><input type="number" value={whForm.minStock} onChange={e=>setWhForm({...whForm,minStock:e.target.value})} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm"/></div><div><label className="text-xs text-slate-400 font-semibold">🛡️ Safety Stock</label><input type="number" value={whForm.safetyStock} onChange={e=>setWhForm({...whForm,safetyStock:e.target.value})} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm" placeholder={t('safetyStockPlaceholder')}/></div><div><label className="text-xs text-slate-400 font-semibold">{t('unitCost')}</label><input type="number" step="0.01" value={whForm.unitCost} onChange={e=>setWhForm({...whForm,unitCost:e.target.value})} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm"/></div></div>
             <div className="grid grid-cols-2 gap-3"><div><label className="text-xs text-slate-400 font-semibold">{t('supplier')}</label><input value={whForm.supplier} onChange={e=>setWhForm({...whForm,supplier:e.target.value})} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm"/></div><div><label className="text-xs text-slate-400 font-semibold">{t('location')}</label><input value={whForm.location} onChange={e=>setWhForm({...whForm,location:e.target.value})} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm"/></div></div>
             <button onClick={addWhItem} className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3 rounded-lg">{editingWhId?t('save'):t('addWarehouseItem')}</button>
             {editingWhId&&<button onClick={()=>{setEditingWhId(null);setWhForm({code:'',name:'',category:'Mechanical',currentStock:'',minStock:'',safetyStock:'',unit:'Piece',unitCost:'',supplier:'',location:'',notes:''});}} className="w-full bg-white/[0.06] text-white font-bold py-2 rounded-lg text-sm">{t('cancel')}</button>}
@@ -509,22 +509,22 @@ export default function Workshop() {
             <div className="bg-white/[0.04] border border-white/10 rounded-xl p-6">
               <h3 className="text-lg font-bold text-cyan-400 mb-4">{editingStId?'Edit Station':'Register Mixing/Block Station'}</h3>
               <div className="space-y-3">
-                <div><label className="text-xs text-slate-400 font-semibold">Station Name / اسم المحطة</label><input value={stForm.name} onChange={e=>setStForm({...stForm,name:e.target.value})} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm" placeholder="محطة الخلط المركزية" required/></div>
+                <div><label className="text-xs text-slate-400 font-semibold">{t('stationNameLabel')}</label><input value={stForm.name} onChange={e=>setStForm({...stForm,name:e.target.value})} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm" placeholder={t('stationNamePlaceholder')} required/></div>
                 <div className="grid grid-cols-2 gap-3">
-                  <div><label className="text-xs text-slate-400 font-semibold">Product Type / نوع المنتج</label><select value={stForm.productType} onChange={e=>setStForm({...stForm,productType:e.target.value as any,unit:e.target.value==='blocks'?'Blocks/day':'m³/h'})} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm"><option value="concrete">🏗️ Concrete (خرسانة)</option><option value="blocks">🧱 Blocks (بلوك)</option><option value="both">🔄 Both (خرسانة + بلوك)</option></select></div>
-                  <div><label className="text-xs text-slate-400 font-semibold">Operator / المشغل</label><input value={stForm.operator} onChange={e=>setStForm({...stForm,operator:e.target.value})} placeholder="اسم المشغل" className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm" required/></div>
+                  <div><label className="text-xs text-slate-400 font-semibold">{t('productTypeLabel')}</label><select value={stForm.productType} onChange={e=>setStForm({...stForm,productType:e.target.value as any,unit:e.target.value==='blocks'?'Blocks/day':'m³/h'})} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm"><option value="concrete">{t('concreteOption')}</option><option value="blocks">{t('blocksOption')}</option><option value="both">{t('bothOption')}</option></select></div>
+                  <div><label className="text-xs text-slate-400 font-semibold">{t('operatorLabel')}</label><input value={stForm.operator} onChange={e=>setStForm({...stForm,operator:e.target.value})} placeholder={t('operatorPlaceholder')} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm" required/></div>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
-                  <div><label className="text-xs text-slate-400 font-semibold">Status / الحالة</label><select value={stForm.status} onChange={e=>setStForm({...stForm,status:e.target.value as any})} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm"><option value="Running">🟢 Running (قيد التشغيل)</option><option value="Maintenance">🟡 Maintenance (صيانة)</option><option value="Stopped">🔴 Stopped (متوقفة)</option></select></div>
-                  <div><label className="text-xs text-slate-400 font-semibold">Unit / الوحدة</label><select value={stForm.unit} onChange={e=>setStForm({...stForm,unit:e.target.value})} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm"><option>m³/h</option><option>m³/day</option><option>Blocks/day</option><option>Blocks/h</option><option>Ton/h</option></select></div>
+                  <div><label className="text-xs text-slate-400 font-semibold">{t('statusLabel')}</label><select value={stForm.status} onChange={e=>setStForm({...stForm,status:e.target.value as any})} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm"><option value="Running">{t('runningOption')}</option><option value="Maintenance">{t('maintenanceOption')}</option><option value="Stopped">{t('stoppedOption')}</option></select></div>
+                  <div><label className="text-xs text-slate-400 font-semibold">{t('unitLabel')}</label><select value={stForm.unit} onChange={e=>setStForm({...stForm,unit:e.target.value})} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm"><option>m³/h</option><option>m³/day</option><option>Blocks/day</option><option>Blocks/h</option><option>Ton/h</option></select></div>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
-                  <div><label className="text-xs text-slate-400 font-semibold">Design Capacity / الإنتاجية التصميمية</label><input type="number" value={stForm.designCap} onChange={e=>setStForm({...stForm,designCap:e.target.value})} placeholder="120" className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm" required/></div>
-                  <div><label className="text-xs text-slate-400 font-semibold">Actual Capacity / الإنتاجية الواقعية</label><input type="number" value={stForm.actualCap} onChange={e=>setStForm({...stForm,actualCap:e.target.value})} placeholder="70" className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm" required/></div>
+                  <div><label className="text-xs text-slate-400 font-semibold">{t('designCapacityLabel')}</label><input type="number" value={stForm.designCap} onChange={e=>setStForm({...stForm,designCap:e.target.value})} placeholder="120" className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm" required/></div>
+                  <div><label className="text-xs text-slate-400 font-semibold">{t('actualCapacityLabel')}</label><input type="number" value={stForm.actualCap} onChange={e=>setStForm({...stForm,actualCap:e.target.value})} placeholder="70" className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm" required/></div>
                 </div>
-                <DatePicker value={stForm.installDate} onChange={val=>setStForm({...stForm,installDate:val})} label="Install Date / تاريخ التركيب" />
-                <div><label className="text-xs text-slate-400 font-semibold">Location / الموقع</label><input value={stForm.location} onChange={e=>setStForm({...stForm,location:e.target.value})} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm"/></div>
-                <div><label className="text-xs text-slate-400 font-semibold">Notes / ملاحظات</label><input value={stForm.notes} onChange={e=>setStForm({...stForm,notes:e.target.value})} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm"/></div>
+                <DatePicker value={stForm.installDate} onChange={val=>setStForm({...stForm,installDate:val})} label={t('installDateLabel')} />
+                <div><label className="text-xs text-slate-400 font-semibold">{t('locationLabel')}</label><input value={stForm.location} onChange={e=>setStForm({...stForm,location:e.target.value})} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm"/></div>
+                <div><label className="text-xs text-slate-400 font-semibold">{t('notesLabel')}</label><input value={stForm.notes} onChange={e=>setStForm({...stForm,notes:e.target.value})} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm"/></div>
                 <button onClick={saveStation} className="w-full bg-cyan-500 hover:bg-cyan-600 text-white font-bold py-3 rounded-lg">{editingStId?'Update Station':'Register Station'}</button>
                 {editingStId&&<button onClick={()=>{setEditingStId(null);setStForm({plantId:'',name:'',productType:'concrete',operator:'',designCap:'',actualCap:'',unit:'m³/h',location:'',installDate:'',status:'Running',notes:''});}} className="w-full bg-white/[0.06] text-white font-bold py-2 rounded-lg text-sm">Cancel</button>}
               </div>
@@ -545,31 +545,31 @@ export default function Workshop() {
             <div className="bg-white/[0.04] border border-white/10 rounded-xl p-6">
               <h3 className="text-lg font-bold text-orange-400 mb-4">{editingPmId?'Edit':'Schedule'} Periodic Maintenance</h3>
               <div className="space-y-3">
-                <div><label className="text-xs text-slate-400 font-semibold">Station / المحطة</label><select value={pmForm.stationId} onChange={e=>setPmForm({...pmForm,stationId:Number(e.target.value)})} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm" required><option value="0">-- Select Station --</option>{stations.map(s=><option key={s.id} value={s.id}>{s.name} - {s.productType==='concrete'?'خرسانة':s.productType==='blocks'?'بلوك':'كلاهما'} ({s.operator})</option>)}</select></div>
+                <div><label className="text-xs text-slate-400 font-semibold">{t('stationLabel')}</label><select value={pmForm.stationId} onChange={e=>setPmForm({...pmForm,stationId:Number(e.target.value)})} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm" required><option value="0">-- Select Station --</option>{stations.map(s=><option key={s.id} value={s.id}>{s.name} - {s.productType==='concrete'?t('concreteShort'):s.productType==='blocks'?t('blocksShort'):t('bothShort')} ({s.operator})</option>)}</select></div>
                   <div className="grid grid-cols-2 gap-3">
-                    <DatePicker value={pmForm.date} onChange={val=>setPmForm({...pmForm,date:val})} label="Date / التاريخ" required />
-                    <DatePicker value={pmForm.nextDue} onChange={val=>setPmForm({...pmForm,nextDue:val})} label="Next Due / القادم" />
+                    <DatePicker value={pmForm.date} onChange={val=>setPmForm({...pmForm,date:val})} label={t('dateLabel')} required />
+                    <DatePicker value={pmForm.nextDue} onChange={val=>setPmForm({...pmForm,nextDue:val})} label={t('nextDueLabel')} />
                   </div>
-                <div><label className="text-xs text-slate-400 font-semibold">Task Type / نوع المهمة</label><select value={pmForm.taskType} onChange={e=>setPmForm({...pmForm,taskType:e.target.value as any})} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm">
-                  <option value="Belts">🔗 Conveyor Belts (سيور ناقلة)</option>
-                  <option value="Greasing">💧 Greasing (تشحيم)</option>
-                  <option value="Oiling">🛢️ Oiling (تزييت)</option>
-                  <option value="Drum Cleaning">🧹 Drum Cleaning (تنظيف الحلة)</option>
-                  <option value="General Hygiene">🧼 General Hygiene (نظافة عامة)</option>
-                  <option value="Electrical Check">⚡ Electrical Check (فحص كهربائي)</option>
-                  <option value="Control Room">🖥️ Control Room (غرفة التحكم)</option>
-                  <option value="Software Update">💾 Software Update (تحديث برنامج)</option>
-                  <option value="Pipe Change">🔧 Pipe Change (تغيير مواسير)</option>
-                  <option value="Pipe Welding">🔥 Pipe Welding (لحام مواسير)</option>
-                  <option value="Pump Special Maintenance">🚰 Pump Special Maintenance (صيانة خاصة بالمضخة)</option>
-                  <option value="Other">📦 Other (أخرى)</option>
+                <div><label className="text-xs text-slate-400 font-semibold">{t('taskTypeLabel')}</label><select value={pmForm.taskType} onChange={e=>setPmForm({...pmForm,taskType:e.target.value as any})} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm">
+                  <option value="Belts">{t('taskBelts')}</option>
+                  <option value="Greasing">{t('taskGreasing')}</option>
+                  <option value="Oiling">{t('taskOiling')}</option>
+                  <option value="Drum Cleaning">{t('taskDrumCleaning')}</option>
+                  <option value="General Hygiene">{t('taskGeneralHygiene')}</option>
+                  <option value="Electrical Check">{t('taskElectricalCheck')}</option>
+                  <option value="Control Room">{t('taskControlRoom')}</option>
+                  <option value="Software Update">{t('taskSoftwareUpdate')}</option>
+                  <option value="Pipe Change">{t('taskPipeChange')}</option>
+                  <option value="Pipe Welding">{t('taskPipeWelding')}</option>
+                  <option value="Pump Special Maintenance">{t('taskPumpMaint')}</option>
+                  <option value="Other">{t('taskOther')}</option>
                 </select></div>
-                <div><label className="text-xs text-slate-400 font-semibold">Description / الوصف</label><textarea value={pmForm.description} onChange={e=>setPmForm({...pmForm,description:e.target.value})} rows={2} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm resize-none" required/></div>
+                <div><label className="text-xs text-slate-400 font-semibold">{t('descriptionLabel')}</label><textarea value={pmForm.description} onChange={e=>setPmForm({...pmForm,description:e.target.value})} rows={2} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm resize-none" required/></div>
                 <div className="grid grid-cols-2 gap-3">
-                  <div><label className="text-xs text-slate-400 font-semibold">Technician / الفني</label><input value={pmForm.technician} onChange={e=>setPmForm({...pmForm,technician:e.target.value})} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm"/></div>
-                  <div><label className="text-xs text-slate-400 font-semibold">Status / الحالة</label><select value={pmForm.status} onChange={e=>setPmForm({...pmForm,status:e.target.value as any})} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm"><option value="Scheduled">Scheduled (مجدول)</option><option value="Done">Done (تم)</option><option value="Overdue">Overdue (متأخر)</option></select></div>
+                  <div><label className="text-xs text-slate-400 font-semibold">{t('technicianLabel')}</label><input value={pmForm.technician} onChange={e=>setPmForm({...pmForm,technician:e.target.value})} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm"/></div>
+                  <div><label className="text-xs text-slate-400 font-semibold">{t('statusLabel')}</label><select value={pmForm.status} onChange={e=>setPmForm({...pmForm,status:e.target.value as any})} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm"><option value="Scheduled">{t('scheduledOption')}</option><option value="Done">{t('doneOption')}</option><option value="Overdue">{t('overdueOption')}</option></select></div>
                 </div>
-                <div><label className="text-xs text-slate-400 font-semibold">Cost / التكلفة ({cur.symbol})</label><input type="number" step="0.01" value={pmForm.cost} onChange={e=>setPmForm({...pmForm,cost:e.target.value})} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm"/></div>
+                <div><label className="text-xs text-slate-400 font-semibold">{t('costLabel')} ({cur.symbol})</label><input type="number" step="0.01" value={pmForm.cost} onChange={e=>setPmForm({...pmForm,cost:e.target.value})} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm"/></div>
                 <button onClick={savePeriodicMaint} className="w-full bg-orange-500 hover:bg-orange-600 text-white font-bold py-3 rounded-lg">{editingPmId?'Update':'Schedule Maintenance'}</button>
                 {editingPmId&&<button onClick={()=>{setEditingPmId(null);setPmForm({stationId:0,date:new Date().toISOString().split('T')[0],taskType:'Greasing',description:'',technician:'',nextDue:'',status:'Scheduled',cost:'',notes:''});}} className="w-full bg-white/[0.06] text-white font-bold py-2 rounded-lg text-sm">Cancel</button>}
               </div>

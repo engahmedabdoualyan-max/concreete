@@ -2,7 +2,7 @@ import { useState, useEffect, type FormEvent, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth, type UserSession } from '../context/AuthContext';
 import { useAdmin } from '../context/AdminContext';
-import { useLang } from '../context/LangContext';
+import { useLang, type Translations } from '../context/LangContext';
 import { loadTrips, loadEffectiveConfig, resolveDbImage, isDbImageRef } from '../firebase/firestore';
 import QuickJump from '../components/QuickJump';
 import LangSelector from '../components/LangSelector';
@@ -20,9 +20,11 @@ interface Trip {
 interface ModuleDef {
   access: string;
   path: string;
-  en: string;
-  ar: string;
-  desc: string;
+  labelKey?: keyof Translations;
+  descKey?: keyof Translations;
+  en?: string;
+  ar?: string;
+  desc?: string;
   icon: ReactNode;
   image?: string;
   bgImage?: string;
@@ -121,18 +123,18 @@ const ICON = {
 };
 
 const MODULES: ModuleDef[] = [
-  { access: 'orders', path: 'orders', en: 'Orders', ar: 'الطلبات', desc: 'Order entry & approvals', icon: ICON.box },
-  { access: 'operation', path: 'operations', en: 'Operations', ar: 'التشغيل', desc: 'Fleet dispatch & tracking', icon: ICON.truck },
-  { access: 'production', path: 'production', en: 'Production', ar: 'الإنتاج', desc: 'Batching & inventory', icon: ICON.factory },
-  { access: 'materials', path: 'materials', en: 'Materials', ar: 'المواد', desc: 'Silo inventory & reorder', icon: ICON.layers },
-  { access: 'workshop', path: 'workshop', en: 'Workshop', ar: 'الورشة', desc: 'Maintenance & fleet', icon: ICON.wrench },
-  { access: 'mixing', path: 'mixing', en: 'Mixing & Quality', ar: 'المختبر والجودة', desc: 'QC samples & calibration', icon: ICON.flask },
-  { access: 'governance', path: 'governance', en: 'Governance', ar: 'الحوكمة', desc: 'Weighbridge & returns', icon: ICON.shield },
-  { access: 'schedule', path: 'schedule', en: 'Schedule', ar: 'الجدول', desc: 'Smart daily pouring', icon: ICON.calendar },
-  { access: 'evaluation', path: 'evaluation', en: 'Evaluation', ar: 'التقييم', desc: 'Plant OEE & KPI', icon: ICON.chart },
-  { access: 'finance', path: 'finance', en: 'Finance', ar: 'المالية', desc: 'Payments & POs', icon: ICON.coin },
-  { access: 'rnd', path: 'rnd', en: 'R & D', ar: 'البحث والتطوير', desc: 'Innovation & training', icon: ICON.atom },
-  { access: 'multiplant', path: 'multiplant', en: 'Multi Plant', ar: 'المحطات', desc: 'Multi-plant command center', icon: ICON.grid },
+  { access: 'orders', path: 'orders', labelKey: 'modOrders', descKey: 'modOrdersDesc', icon: ICON.box },
+  { access: 'operation', path: 'operations', labelKey: 'modOperations', descKey: 'modOperationsDesc', icon: ICON.truck },
+  { access: 'production', path: 'production', labelKey: 'modProduction', descKey: 'modProductionDesc', icon: ICON.factory },
+  { access: 'materials', path: 'materials', labelKey: 'modMaterials', descKey: 'modMaterialsDesc', icon: ICON.layers },
+  { access: 'workshop', path: 'workshop', labelKey: 'modWorkshop', descKey: 'modWorkshopDesc', icon: ICON.wrench },
+  { access: 'mixing', path: 'mixing', labelKey: 'modMixing', descKey: 'modMixingDesc', icon: ICON.flask },
+  { access: 'governance', path: 'governance', labelKey: 'modGovernance', descKey: 'modGovernanceDesc', icon: ICON.shield },
+  { access: 'schedule', path: 'schedule', labelKey: 'modSchedule', descKey: 'modScheduleDesc', icon: ICON.calendar },
+  { access: 'evaluation', path: 'evaluation', labelKey: 'modEvaluation', descKey: 'modEvaluationDesc', icon: ICON.chart },
+  { access: 'finance', path: 'finance', labelKey: 'modFinance', descKey: 'modFinanceDesc', icon: ICON.coin },
+  { access: 'rnd', path: 'rnd', labelKey: 'modRnd', descKey: 'modRndDesc', icon: ICON.atom },
+  { access: 'multiplant', path: 'multiplant', labelKey: 'modMultiPlant', descKey: 'modMultiPlantDesc', icon: ICON.grid },
 ];
 
 const DEFAULT_TRIPS: Trip[] = [
@@ -142,9 +144,12 @@ const DEFAULT_TRIPS: Trip[] = [
 ];
 
 function ModuleButton({ m, onGo, className = "", showDesc = false, mediaClass = "" }: { m: ModuleDef; onGo: () => void; className?: string; showDesc?: boolean; mediaClass?: string }) {
+  const { t, lang } = useLang();
   const media = m.bgImage || m.image;
   const stillRef = typeof media === 'string' && media.startsWith('dbimg://');
   const showMedia = !stillRef && media;
+  const label = m.labelKey ? t(m.labelKey) : (lang === 'ar' ? m.ar : m.en) || '';
+  const desc = m.descKey ? t(m.descKey) : m.desc || '';
   return (
     <button
       onClick={onGo}
@@ -154,7 +159,7 @@ function ModuleButton({ m, onGo, className = "", showDesc = false, mediaClass = 
       <div className={`relative w-[40%] shrink-0 h-full overflow-hidden rounded-l-xl ${mediaClass}`}>
         {showMedia ? (
           <>
-            <img src={media} alt={m.en} loading="lazy" className="absolute inset-0 w-full h-full object-cover" />
+            <img src={media} alt={label} loading="lazy" className="absolute inset-0 w-full h-full object-cover" />
             <div className="absolute inset-0 bg-[#080C14]/25" />
           </>
         ) : (
@@ -173,10 +178,9 @@ function ModuleButton({ m, onGo, className = "", showDesc = false, mediaClass = 
             <path d="M5 12h14" /><path d="M12 5l7 7-7 7" />
           </svg>
         )}
-        <h3 className="text-xl lg:text-2xl font-display font-black tracking-wide text-white leading-tight [text-shadow:0_2px_12px_rgba(0,0,0,0.85)] group-hover:text-sky-300 transition-colors duration-300">{m.en}</h3>
-        <p className="text-sm font-bold text-sky-400/90 leading-snug [text-shadow:0_1px_8px_rgba(0,0,0,0.8)]" dir="rtl">{m.ar}</p>
+        <h3 className="text-xl lg:text-2xl font-display font-black tracking-wide text-white leading-tight [text-shadow:0_2px_12px_rgba(0,0,0,0.85)] group-hover:text-sky-300 transition-colors duration-300">{label}</h3>
         {showDesc && (
-          <p className="text-[11px] lg:text-xs font-medium text-slate-300/95 leading-relaxed tracking-wide [text-shadow:0_1px_6px_rgba(0,0,0,0.75)]">{m.desc}</p>
+          <p className="text-[11px] lg:text-xs font-medium text-slate-300/95 leading-relaxed tracking-wide [text-shadow:0_1px_6px_rgba(0,0,0,0.75)]">{desc}</p>
         )}
       </div>
     </button>
@@ -555,16 +559,16 @@ export default function Dashboard() {
       {currentUser && (
         <div className="px-4 sm:px-6 pt-6 max-w-[1280px] mx-auto w-full">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            {[
-              { label: 'الطلبات النشطة', value: trips.filter(t => t.status !== 'COMPLETED').length, icon: '📦', color: 'text-sky-400' },
-              { label: 'تم التسليم اليوم', value: trips.filter(t => t.status === 'COMPLETED').length, icon: '✅', color: 'text-emerald-400' },
-              { label: 'إجمالي الشحنات', value: trips.length, icon: '🚛', color: 'text-white' },
-              { label: 'المحطة', value: currentUser.plantName || '—', icon: '🏭', color: 'text-cyan-300', isText: true },
-            ].map((kpi, i) => (
+            {([
+              { labelKey: 'kpiActiveOrders', value: trips.filter(tr => tr.status !== 'COMPLETED').length, icon: '📦', color: 'text-sky-400' },
+              { labelKey: 'kpiDeliveredToday', value: trips.filter(tr => tr.status === 'COMPLETED').length, icon: '✅', color: 'text-emerald-400' },
+              { labelKey: 'kpiTotalShipments', value: trips.length, icon: '🚛', color: 'text-white' },
+              { labelKey: 'kpiPlant', value: currentUser.plantName || '—', icon: '🏭', color: 'text-cyan-300' },
+            ] as { labelKey: keyof Translations; value: string | number; icon: string; color: string }[]).map((kpi, i) => (
               <div key={i} className="bg-white/[0.03] border border-white/10 rounded-xl p-3 text-center hover:border-white/20 transition">
                 <span className="text-xl">{kpi.icon}</span>
-                <p className={`text-lg font-black mt-1 ${kpi.color}`}>{kpi.isText ? kpi.value : kpi.value}</p>
-                <p className="text-[10px] text-slate-500 mt-0.5">{kpi.label}</p>
+                <p className={`text-lg font-black mt-1 ${kpi.color}`}>{kpi.value}</p>
+                <p className="text-[10px] text-slate-500 mt-0.5">{t(kpi.labelKey)}</p>
               </div>
             ))}
           </div>
@@ -577,13 +581,13 @@ export default function Dashboard() {
         {/* Hero — brand statement */}
         <div className="relative text-center mb-10 lg:mb-14">
           <h2 className="relative text-3xl sm:text-4xl lg:text-5xl font-display font-black tracking-tight text-white leading-tight">
-            Fimto Soft <span className="text-sky-400">·</span> Technical Management Program
+            Fimto Soft <span className="text-sky-400">·</span> {t('heroBrandLine')}
           </h2>
           <p className="relative mt-6 font-display font-black tracking-[0.45em] uppercase bg-gradient-to-r from-sky-400 via-cyan-300 to-sky-400 bg-clip-text text-transparent drop-shadow-[0_0_20px_rgba(56,189,248,0.35)] text-base sm:text-lg">
             CONCRETE
           </p>
           <p className="relative font-body text-base sm:text-lg mt-7 w-full px-2 text-center text-slate-400 leading-relaxed">
-            برنامج إدارة محطات الخرسانة الجاهزة — لوحة تحكم ذكية تجمع كل الأقسام في مشهد واحد متكامل
+            {t('heroSubline')}
           </p>
         </div>
 

@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { loadAssets, saveAssets, loadGpsConfig, loadPlantGPS, savePlantGPS, getAllPlantsSummary, loadGpsHistory, saveGpsHistory, getAllLivePositions, type PlantSummary } from '../firebase/firestore';
 import { loadGpsLocationsFromSupabase, saveGpsLocationToSupabase } from '../supabase/supabase';
+import { useGpsFleetMapDict } from '../i18n/gpsFleetMapDict';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
@@ -23,6 +24,7 @@ function today() { return new Date().toISOString().slice(0, 10); }
 const TYPE_ICON: Record<string, string> = { Mixer: '🚛', 'Mobile Pump': '🎯', 'Light Vehicle': '🚗', Loader: '🚜', Generator: '⚡', Station: '🏗️' };
 
 export default function GpsFleetMap({ onToast }: { onToast: (msg: string) => void }) {
+  const d = useGpsFleetMapDict();
   const { currentUser } = useAuth();
   const [assets, setAssets] = useState<any[]>([]);
   const assetsRef = useRef<any[]>([]);
@@ -81,7 +83,7 @@ export default function GpsFleetMap({ onToast }: { onToast: (msg: string) => voi
           apiFetch(base + '/api/devices', cfg.username, cfg.password),
           apiFetch(base + '/api/positions', cfg.username, cfg.password),
         ]);
-        const devById = new Map((Array.isArray(devs) ? devs : []).map(d => [d.id, d.uniqueId]));
+        const devById = new Map((Array.isArray(devs) ? devs : []).map(dv => [dv.id, dv.uniqueId]));
         const m: Record<string, { lat: number; lng: number; fixTime: string; speed?: number }> = {};
         (Array.isArray(pos) ? pos : []).forEach((p: any) => {
           const u = devById.get(p.deviceId);
@@ -129,7 +131,7 @@ export default function GpsFleetMap({ onToast }: { onToast: (msg: string) => voi
     routeLayer.current.clearLayers();
 
     const plantIcon = L.divIcon({ html: '🏭', className: '', iconSize: [26, 26] });
-    if (plantGps) markerLayer.current.addLayer(L.marker([plantGps.lat, plantGps.lng], { icon: plantIcon }).bindPopup('<b>🏭 Plant HQ</b>'));
+    if (plantGps) markerLayer.current.addLayer(L.marker([plantGps.lat, plantGps.lng], { icon: plantIcon }).bindPopup(`<b>${d('plantHq')}</b>`));
 
     const allAssets = Array.isArray(assets) ? assets : [];
     const freshDriver = (Array.isArray(driverLive) ? driverLive : []).filter(d => Date.now() - (d.ts || 0) < 180000);
@@ -157,9 +159,9 @@ export default function GpsFleetMap({ onToast }: { onToast: (msg: string) => voi
       return L.divIcon({ className: '', html: `<div class="gps-pin">${emoji}${dot}</div>`, iconSize: [26, 26] });
     };
     filtered.forEach(({ a, pos }) => {
-      const liveSpeed = live[a.gpsId] && live[a.gpsId].speed != null ? '· ' + Math.round(live[a.gpsId].speed) + ' km/h' : '';
-      const srcLine = pos!.src === 'tracker' ? `<br/>📡 Tracker Live ${liveSpeed}` : pos!.src === 'driver' ? `<br/>📱 Driver GPS ${pos!.speed != null ? '· ' + Math.round(pos!.speed) + ' km/h' : ''}${pos!.who ? '<br/>' + pos!.who : ''}` : '<br/>💾 Stored';
-      const pop = `<b>${a.id} (${a.plate || '—'})</b><br/>${a.type || ''}${a.gpsId ? '<br/>Tracker: ' + a.gpsId : ''}${srcLine}<br/>Updated: ${a.gpsUpdatedAt ? new Date(a.gpsUpdatedAt).toLocaleString() : '—'}`;
+      const liveSpeed = live[a.gpsId] && live[a.gpsId].speed != null ? '· ' + Math.round(live[a.gpsId].speed) + ' ' + d('kmh') : '';
+      const srcLine = pos!.src === 'tracker' ? `<br/>${d('trackerLive')} ${liveSpeed}` : pos!.src === 'driver' ? `<br/>${d('driverGps')} ${pos!.speed != null ? '· ' + Math.round(pos!.speed) + ' ' + d('kmh') : ''}${pos!.who ? '<br/>' + pos!.who : ''}` : `<br/>${d('storedLoc')}`;
+      const pop = `<b>${a.id} (${a.plate || '—'})</b><br/>${a.type || ''}${a.gpsId ? `<br/>${d('trackerLabel')} ${a.gpsId}` : ''}${srcLine}<br/>${d('updatedLabel')} ${a.gpsUpdatedAt ? new Date(a.gpsUpdatedAt).toLocaleString() : '—'}`;
       markerLayer.current!.addLayer(L.marker([pos!.lat, pos!.lng], { icon: iconFor(a, pos!.src) }).bindPopup(pop));
     });
 
@@ -170,12 +172,12 @@ export default function GpsFleetMap({ onToast }: { onToast: (msg: string) => voi
     if (route.length >= 2) {
       const line = L.polyline(route, { color: '#38bdf8', weight: 4, opacity: 0.9 }).addTo(routeLayer.current!);
       const start = route[0], end = route[route.length - 1];
-      routeLayer.current.addLayer(L.marker(start, { icon: L.divIcon({ className: '', html: '<span style="font-size:16px">🟢</span>', iconSize: [18, 18] }) }).bindPopup('<b>Start</b>'));
-      routeLayer.current.addLayer(L.marker(end, { icon: L.divIcon({ className: '', html: '<span style="font-size:16px">🔴</span>', iconSize: [18, 18] }) }).bindPopup('<b>End</b>'));
+      routeLayer.current.addLayer(L.marker(start, { icon: L.divIcon({ className: '', html: '<span style="font-size:16px">🟢</span>', iconSize: [18, 18] }) }).bindPopup(`<b>${d('start')}</b>`));
+      routeLayer.current.addLayer(L.marker(end, { icon: L.divIcon({ className: '', html: '<span style="font-size:16px">🔴</span>', iconSize: [18, 18] }) }).bindPopup(`<b>${d('end')}</b>`));
       routeTrips.forEach(t => {
         const g = typeof t.siteGeo === 'string' && t.siteGeo.includes(',') ? t.siteGeo.split(',').map(Number) : null;
         if (g && !isNaN(g[0]) && !isNaN(g[1])) {
-          routeLayer.current!.addLayer(L.marker([g[0], g[1]], { icon: L.divIcon({ className: '', html: '<span style="font-size:13px">⏹️</span>', iconSize: [16, 16] }) }).bindPopup(`<b>${t.siteName || 'Site'}</b><br/>${t.projectName || ''}<br/>${t.stationDep || t.siteArr || ''} · ${t.qty || ''} m³ · ${t.status || ''}`));
+          routeLayer.current!.addLayer(L.marker([g[0], g[1]], { icon: L.divIcon({ className: '', html: '<span style="font-size:13px">⏹️</span>', iconSize: [16, 16] }) }).bindPopup(`<b>${t.siteName || d('site')}</b><br/>${t.projectName || ''}<br/>${t.stationDep || t.siteArr || ''} · ${t.qty || ''} m³ · ${t.status || ''}`));
         }
       });
       map.fitBounds(line.getBounds(), { padding: [40, 40] });
@@ -187,7 +189,7 @@ export default function GpsFleetMap({ onToast }: { onToast: (msg: string) => voi
 
   const detectGps = () => {
     setGpsMsg('');
-    if (!navigator.geolocation) { setGpsMsg('⚠️ Geolocation not supported.'); return; }
+    if (!navigator.geolocation) { setGpsMsg(d('geolocationNotSupported')); return; }
     navigator.geolocation.getCurrentPosition(
       async pos => {
         const { latitude, longitude } = pos.coords;
@@ -196,9 +198,9 @@ export default function GpsFleetMap({ onToast }: { onToast: (msg: string) => voi
           try { await savePlantGPS(currentUser.username, latitude, longitude); } catch {}
           saveGpsLocationToSupabase({ username: currentUser.username, label: 'plant', lat: latitude, lng: longitude }).catch(() => {});
         }
-        setGpsMsg(`✅ Plant GPS saved (${latitude.toFixed(5)}, ${longitude.toFixed(5)}).`);
+        setGpsMsg(d('plantGpsSavedMsg').replace('{lat}', latitude.toFixed(5)).replace('{lng}', longitude.toFixed(5)));
       },
-      err => setGpsMsg(`⚠️ ${err.message}`),
+      err => setGpsMsg(d('gpsErrorPrefix').replace('{err}', err.message)),
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 },
     );
   };
@@ -209,11 +211,11 @@ export default function GpsFleetMap({ onToast }: { onToast: (msg: string) => voi
     loadGpsLocationsFromSupabase().then(rows => setSupaGps(rows.map(r => ({ username: r.username, label: r.label, lat: r.lat, lng: r.lng })))).catch(() => {});
     getAllPlantsSummary().then(s => setSummary(s)).catch(() => {});
     loadGpsConfig(currentUser.username).then(c => c && setCfg({ server: '', username: '', password: '', liveEnabled: false, refreshSec: 15, ...c })).catch(() => {});
-    setGpsMsg('✅ Data reloaded.');
+    setGpsMsg(d('dataReloadedMsg'));
   };
 
   const showRoute = async () => {
-    if (!histVehicle) { setHistMsg('⚠️ Select a vehicle first.'); return; }
+    if (!histVehicle) { setHistMsg(d('selectVehicleFirst')); return; }
     setHistBusy(true);
     setHistMsg('');
     const asset = (Array.isArray(assets) ? assets : []).find(a => a.id === histVehicle);
@@ -233,7 +235,7 @@ export default function GpsFleetMap({ onToast }: { onToast: (msg: string) => voi
         }
       }
     } catch (e: any) {
-      setHistMsg('⚠️ Tracker route API unavailable (' + (e.message || 'error') + ') — showing operation trips instead.');
+      setHistMsg(d('trackerRouteApiUnavailable').replace('{err}', e.message || 'error'));
     }
 
     const trips = (summary || []).flatMap(s => (Array.isArray(s.tripList) ? s.tripList : []));
@@ -261,8 +263,8 @@ export default function GpsFleetMap({ onToast }: { onToast: (msg: string) => voi
       if (found && Array.isArray(found.points)) { setRoute(found.points); pts.push(...found.points); }
     }
     setHistMsg(pts.length
-      ? `✅ Route built: ${pts.length} point(s) — ${matched.length} operation trip(s) for ${histVehicle} on ${histDate}.`
-      : '⚠️ No route data for this vehicle/date. Enable the tracker server (GPS & Trackers) or add operation trips.');
+      ? d('routeBuiltMsg').replace('{points}', String(pts.length)).replace('{trips}', String(matched.length)).replace('{vehicle}', histVehicle).replace('{date}', histDate)
+      : d('noRouteDataMsg'));
     setHistBusy(false);
   };
 
@@ -275,10 +277,10 @@ export default function GpsFleetMap({ onToast }: { onToast: (msg: string) => voi
     (typeof a.gpsLat === 'number' && typeof a.gpsLng === 'number')
   ).length;
   const filters = [
-    { k: 'all', l: '🚚 All Equipment' },
-    { k: 'mixer', l: '🚛 All Mixers' },
-    { k: 'pump', l: '🎯 All Pumps' },
-    { k: 'mixer+pump', l: '🚛🎯 Mixers + Pumps' },
+    { k: 'all', l: d('filterAll') },
+    { k: 'mixer', l: d('filterMixers') },
+    { k: 'pump', l: d('filterPumps') },
+    { k: 'mixer+pump', l: d('filterMixPumps') },
   ];
 
   return (
@@ -286,72 +288,72 @@ export default function GpsFleetMap({ onToast }: { onToast: (msg: string) => voi
       <style>{`.gps-pin{position:relative;width:26px;height:26px;display:flex;align-items:center;justify-content:center;font-size:16px;filter:drop-shadow(0 1px 2px rgba(0,0,0,.6))}.gps-live{position:absolute;top:-1px;right:-1px;width:8px;height:8px;border-radius:50%;background:#22c55e;border:1px solid #fff;animation:gpsblink 1.2s infinite}.gps-live.gps-driver{background:#38bdf8}@keyframes gpsblink{0%,100%{opacity:1}50%{opacity:.3}}`}</style>
 
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-xl font-bold text-white">🗺️ GPS Fleet Map</h2>
+        <h2 className="text-xl font-bold text-white">{d('fleetMapTitle')}</h2>
         <div className="flex items-center gap-2">
           <span className={`px-3 py-1.5 rounded-lg text-xs font-bold border ${liveState === 'on' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40' : liveState === 'error' ? 'bg-red-500/20 text-red-400 border-red-500/40' : 'bg-white/[0.03] text-slate-400 border-white/10'}`}>
-            {liveState === 'on' ? `🟢 Live · ${online} tracker + ${driverOnline} driver` : liveState === 'connecting' ? '⏳ Connecting...' : liveState === 'error' ? `🔴 Tracker offline · ${driverOnline} driver` : `⚪ ${driverOnline > 0 ? driverOnline + ' driver live' : 'No live feed'}`}
+            {liveState === 'on' ? d('liveBadgeOn').replace('{trackers}', String(online)).replace('{drivers}', String(driverOnline)) : liveState === 'connecting' ? d('connecting') : liveState === 'error' ? d('trackerOfflineBadge').replace('{drivers}', String(driverOnline)) : driverOnline > 0 ? d('liveBadgeOff').replace('{drivers}', String(driverOnline)) : d('noLiveFeed')}
           </span>
-          {lastPoll && <span className="text-[11px] text-slate-500">updated {Math.round((Date.now() - lastPoll) / 1000)}s ago</span>}
-          <button onClick={detectGps} className="bg-gradient-to-r from-sky-500 to-cyan-500 hover:from-sky-400 hover:to-cyan-400 text-white px-4 py-1.5 rounded-lg font-bold text-xs transition-all duration-300 shadow-[0_0_20px_rgba(56,189,248,0.3)]">📍 Detect My Location</button>
-          <button onClick={reload} className="bg-white/[0.06] hover:bg-white/[0.1] text-white px-4 py-1.5 rounded-lg font-bold text-xs transition-all duration-300">🔄 Reload</button>
+          {lastPoll && <span className="text-[11px] text-slate-500">{d('updatedSecondsAgo').replace('{s}', String(Math.round((Date.now() - lastPoll) / 1000)))}</span>}
+          <button onClick={detectGps} className="bg-gradient-to-r from-sky-500 to-cyan-500 hover:from-sky-400 hover:to-cyan-400 text-white px-4 py-1.5 rounded-lg font-bold text-xs transition-all duration-300 shadow-[0_0_20px_rgba(56,189,248,0.3)]">{d('detectMyLocation')}</button>
+          <button onClick={reload} className="bg-white/[0.06] hover:bg-white/[0.1] text-white px-4 py-1.5 rounded-lg font-bold text-xs transition-all duration-300">{d('reload')}</button>
         </div>
       </div>
 
-      {liveState === 'error' && <p className="text-xs font-bold text-red-400 bg-red-500/10 border border-red-500/30 rounded-lg px-4 py-2">⚠️ Live feed failed: {liveMsg} — check the server in GPS &amp; Trackers (server URL, credentials, CORS).</p>}
+      {liveState === 'error' && <p className="text-xs font-bold text-red-400 bg-red-500/10 border border-red-500/30 rounded-lg px-4 py-2">{d('liveFeedFailedHint').replace('{msg}', liveMsg)}</p>}
       {gpsMsg && <p className={`text-xs font-bold ${gpsMsg.includes('✅') ? 'text-emerald-400' : 'text-yellow-400'}`}>{gpsMsg}</p>}
 
       <div className="flex flex-wrap items-center gap-2">
         {filters.map(f => <button key={f.k} onClick={() => setFilter(f.k)} className={chipCls(filter === f.k)}>{f.l}</button>)}
-        <button onClick={() => setFilter('asset')} className={chipCls(filter === 'asset')}>🔎 Specific Asset</button>
+        <button onClick={() => setFilter('asset')} className={chipCls(filter === 'asset')}>{d('specificAsset')}</button>
         {filter === 'asset' && (
           <select value={selectedAsset} onChange={e => setSelectedAsset(e.target.value)} className={inputCls}>
-            <option value="">— Select asset —</option>
+            <option value="">{d('selectAsset')}</option>
             {(Array.isArray(assets) ? assets : []).map(a => <option key={a.id} value={a.id}>{a.id} ({a.plate || a.type || '—'})</option>)}
           </select>
         )}
-        <span className="text-[11px] text-slate-500 ml-auto">{withPos} with position · {online} tracker live · {driverOnline} driver live</span>
+        <span className="text-[11px] text-slate-500 ml-auto">{d('posStatsLine').replace('{withPos}', String(withPos)).replace('{trackers}', String(online)).replace('{drivers}', String(driverOnline))}</span>
       </div>
 
       <div className="bg-white/[0.04] rounded-2xl border border-white/10 p-3">
         <div ref={mapRef} className="w-full h-[540px] rounded-xl overflow-hidden z-0" />
         <div className="flex flex-wrap items-center gap-4 mt-2 text-[11px] text-slate-400">
-          <span>Legend:</span>
-          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-[#22c55e]" style={{ boxShadow: '0 0 0 2px rgba(34,197,94,.25)' }} /> Tracker live</span>
-          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-[#38bdf8]" style={{ boxShadow: '0 0 0 2px rgba(56,189,248,.25)' }} /> Driver phone GPS</span>
-          <span>💾 = stored location</span>
-          <span>🏭 = plant HQ</span>
+          <span>{d('legend')}</span>
+          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-[#22c55e]" style={{ boxShadow: '0 0 0 2px rgba(34,197,94,.25)' }} /> {d('legendTrackerLive')}</span>
+          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-[#38bdf8]" style={{ boxShadow: '0 0 0 2px rgba(56,189,248,.25)' }} /> {d('legendDriverGps')}</span>
+          <span>{d('legendStored')}</span>
+          <span>{d('legendPlantHq')}</span>
         </div>
       </div>
 
       <div className="bg-white/[0.04] rounded-2xl border border-white/10 p-5">
         <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-          <h3 className="text-lg font-bold text-white">🛰️ Trip History & Route</h3>
-          <span className="text-xs text-slate-500">Select a date + vehicle to draw its route (from tracker server route API or operation trips).</span>
+          <h3 className="text-lg font-bold text-white">{d('tripHistoryTitle')}</h3>
+          <span className="text-xs text-slate-500">{d('tripHistoryHint')}</span>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-          <div><label className="text-[10px] text-slate-400 font-semibold">Date</label>
+          <div><label className="text-[10px] text-slate-400 font-semibold">{d('date')}</label>
             <input type="date" value={histDate} onChange={e => setHistDate(e.target.value)} className={`${inputCls} w-full`} /></div>
-          <div><label className="text-[10px] text-slate-400 font-semibold">Vehicle</label>
+          <div><label className="text-[10px] text-slate-400 font-semibold">{d('vehicle')}</label>
             <select value={histVehicle} onChange={e => setHistVehicle(e.target.value)} className={`${inputCls} w-full`}>
-              <option value="">— Select vehicle —</option>
+              <option value="">{d('selectVehicle')}</option>
               {(Array.isArray(assets) ? assets : []).map(a => <option key={a.id} value={a.id}>{a.id} ({a.plate || a.type || '—'}){a.gpsId ? ' · 📡' : ''}</option>)}
             </select></div>
-          <div><label className="text-[10px] text-slate-400 font-semibold">From (HH:MM)</label>
+          <div><label className="text-[10px] text-slate-400 font-semibold">{d('fromHHMM')}</label>
             <input type="time" value={histFrom} onChange={e => setHistFrom(e.target.value)} className={`${inputCls} w-full`} /></div>
-          <div><label className="text-[10px] text-slate-400 font-semibold">To (HH:MM)</label>
+          <div><label className="text-[10px] text-slate-400 font-semibold">{d('toHHMM')}</label>
             <input type="time" value={histTo} onChange={e => setHistTo(e.target.value)} className={`${inputCls} w-full`} /></div>
         </div>
         <div className="flex flex-wrap items-center gap-2 mt-4">
           <button onClick={showRoute} disabled={histBusy} className="bg-gradient-to-r from-sky-500 to-cyan-500 hover:from-sky-400 hover:to-cyan-400 disabled:opacity-50 text-white px-6 py-2 rounded-lg font-bold text-sm transition-all duration-300 shadow-[0_0_20px_rgba(56,189,248,0.3)]">
-            {histBusy ? '⏳ Building route...' : '🛰️ Show Route'}
+            {histBusy ? d('buildingRoute') : d('showRoute')}
           </button>
-          {route.length > 0 && <button onClick={() => { setRoute([]); setRouteTrips([]); setHistMsg(''); }} className="bg-white/[0.06] hover:bg-white/[0.1] text-white px-4 py-2 rounded-lg font-bold text-xs transition-all duration-300">🗑️ Clear Route</button>}
+          {route.length > 0 && <button onClick={() => { setRoute([]); setRouteTrips([]); setHistMsg(''); }} className="bg-white/[0.06] hover:bg-white/[0.1] text-white px-4 py-2 rounded-lg font-bold text-xs transition-all duration-300">{d('clearRoute')}</button>}
         </div>
         {histMsg && <p className={`text-xs font-bold mt-3 ${histMsg.includes('✅') ? 'text-emerald-400' : 'text-yellow-400'}`}>{histMsg}</p>}
         {routeTrips.length > 0 && (
           <div className="overflow-x-auto mt-4">
             <table className="w-full text-xs text-slate-300">
-              <thead className="bg-white/[0.04] text-slate-400"><tr>{['Time', 'Vehicle', 'Site / Project', 'Qty (m³)', 'Status'].map(h => <th key={h} className="p-2 text-left text-[10px] uppercase tracking-wider">{h}</th>)}</tr></thead>
+              <thead className="bg-white/[0.04] text-slate-400"><tr>{[d('tableTime'), d('tableVehicle'), d('tableSiteProject'), d('tableQty'), d('tableStatus')].map(h => <th key={h} className="p-2 text-left text-[10px] uppercase tracking-wider">{h}</th>)}</tr></thead>
               <tbody>
                 {routeTrips.map((t, i) => (
                   <tr key={i} className="border-b border-white/10">
