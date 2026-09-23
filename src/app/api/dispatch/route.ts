@@ -150,6 +150,11 @@ export async function POST(req: NextRequest) {
       tenantId: auth.user.tenantId,
     });
 
+    // Tree-plane mirror (Epic 13 — best-effort: IN_PRODUCTION + remaining)
+    void import("@/lib/services/tree-sync.service")
+      .then((m) => m.mirrorOrderById(auth.user.tenantId, parsed.data.orderId))
+      .catch(() => {});
+
     return successResponse(
       {
         trip: result.trip,

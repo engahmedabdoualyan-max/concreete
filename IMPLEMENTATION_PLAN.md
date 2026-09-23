@@ -127,3 +127,9 @@
 - [x] 79. 13 API routes: HR desk + broadcasts + push + zones + ping/reports/overtime
 - [x] 80. Mobile `(hr)` group + HrFab on all screens + HeaderActions (profile+logout) on all headers + auto ping + i18n
 - [x] 81. Web: attendance tab in `/payroll` (zones + report + driver overtime) + `hr` role/module
+
+## Phase 20: Epic 13 — Data-Plane Unification 🔗
+- [x] 82. `DATA_UNIFICATION.md` (ownership matrix + rules + flows)
+- [x] 83. Schema: `orders.source_ref` + migration `0014` + `firebase-admin` dep
+- [x] 84. Service `tree-sync.service.ts` (import with declared fallbacks + finance gate + best-effort mirror)
+- [x] 85. 3 API routes + auto-mirror hooks (order create/finance/dispatch) + mobile magic-link-first share

@@ -901,6 +901,12 @@ export const orders = pgTable(
     /** Carbon footprint snapshot in kgCO2e (computed on demand) */
     carbonKgco2e: decimal("carbon_kgco2e", { precision: 12, scale: 2 }),
     carbonComputedAt: timestamp("carbon_computed_at"),
+    /**
+     * External reference (Epic 13 — data unification): Firestore tree
+     * document id when this order was imported from the field-speed
+     * plane. Null = native ERP order.
+     */
+    sourceRef: varchar("source_ref", { length: 80 }),
     /** Origin surface after the unified-DB merge: 'app' (mobile/ERP) | 'website' */
     source: varchar("source", { length: 20 }).notNull().default("app"),
     /** Sales Representative who created the order */
@@ -935,6 +941,7 @@ export const orders = pgTable(
     index("idx_orders_finance").on(t.financeOfficerId),
     index("idx_orders_number").on(t.orderNumber),
     index("idx_orders_tenant").on(t.tenantId),
+    index("idx_orders_source_ref").on(t.sourceRef),
   ]
 );
 

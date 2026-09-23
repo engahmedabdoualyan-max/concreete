@@ -102,8 +102,6 @@
 - [x] 4 API routes: login/callback/providers + صفحة `/sso`
 
 ## ✅ ملحمة 12 — التواصل مع HR + الحضور باللوكيشن (تم تسليمها)
-
-- [x] دور `HR_OFFICER` في الشجرة (باك إند + RBAC + موبايل + ويب + سكربت إنشاء)
 - [x] سكيما: `hr_requests` + `hr_broadcasts` + reads + `hr_zones` + `hr_attendance` + migrations `0012/0013`
 - [x] خدمة دفع Expo Push + تسجيل التوكن + ping عند الجديد والمراجعة والبث
 - [x] 13 API routes: requests/mine/review/cancel + broadcasts/read + push/register + zones + ping/attendance/today/driver-trips
@@ -111,6 +109,15 @@
 - [x] ping تلقائي: سائق كل 5 دقائق + مندوب عند الفتح + أول دخول=حضور وآخر خروج=انصراف
 - [x] ويب: تبويب حضور في `/payroll` (زونات + تقرير + إضافي السائقين) + دور `hr` في الشجرة
 - [x] ترجمات hr.* + attendance (311 مفتاح × 3 لغات)
+
+## ✅ ملحمة 13 — توحيد مساري البيانات (تم تسليمها)
+
+- [x] وثيقة `DATA_UNIFICATION.md`: مصفوفة ملكية + قواعد + تدفقات
+- [x] سكيما: `orders.source_ref` + migration `0014`
+- [x] خدمة `tree-sync.service.ts`: استيراد (مطابقات + إنشاء معلن + بوابة مالية) + مرآة best-effort
+- [x] 3 API routes: استيراد مفتاح + حلّ المرجع + مرآة يدوية + خطافات (إنشاء/مالية/توزيع)
+- [x] موبايل: مشاركة التتبع تحاول الرابط السحري أولاً ثم رسالة
+- [x] `firebase-admin` في الاعتمادات (اختياري التشغيل)
 
 ---
 

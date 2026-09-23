@@ -12,6 +12,7 @@ import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { erp, dataUsername } from "@/lib/firestore";
 import { useAuthStore } from "@/store/auth-store";
+import { api } from "@/lib/api";
 import { useT } from "@/lib/i18n";
 import { WHATSAPP_SHARE_BASE } from "@/types";
 import { ELEMENT_TYPES, BLOCK_PRODUCTS, INSULATION_TYPES, type SalesOrder } from "@/components/sales/BookingForm";
@@ -72,12 +73,23 @@ export default function TrackOrderScreen() {
     setSharing(true);
     try {
       const status = STATUS_STYLE[order.status] ?? STATUS_STYLE.pending;
+      // Epic 13: prefer a live ERP magic link when this tree order is synced
+      let linkLine = "";
+      try {
+        const erp = await api.getOrderByRef(order.id);
+        if (erp) {
+          const share = await api.shareOrder(erp.id, `tracking-${erp.orderNumber}`);
+          linkLine = `\n🔗 ${share.link}`;
+        }
+      } catch {
+        // fall through to snapshot-only message
+      }
       const message =
         `📦 ${t("sales.share.messagePrefix")} ${order.orderNo || order.id}\n` +
         `👤 ${order.customerName ?? ""}\n` +
         `🏗️ ${order.projectName ?? ""}\n` +
         `📦 ${order.quantity ?? ""} ${order.orderType === "concrete" ? "م³" : "بلوك"}\n` +
-        `${status.emoji} ${status.label}`;
+        `${status.emoji} ${status.label}${linkLine}`;
       if (viaWhatsApp) {
         await Linking.openURL(`${WHATSAPP_SHARE_BASE}${encodeURIComponent(message)}`);
       } else {

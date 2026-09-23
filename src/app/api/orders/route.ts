@@ -244,6 +244,11 @@ export async function POST(req: NextRequest) {
     socketEvent: "order:created",
   });
 
+  // Tree-plane mirror (Epic 13 — best-effort, never blocks order flow)
+  void import("@/lib/services/tree-sync.service")
+    .then((m) => m.mirrorOrderById(auth.user.tenantId, newOrder.id))
+    .catch(() => {});
+
   return successResponse(
     {
       id: newOrder.id,

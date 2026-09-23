@@ -296,6 +296,20 @@ class ApiClient {
     return response.data.data;
   }
 
+  /** Resolve a Firestore tree doc id → ERP order (Epic 13 unification). */
+  async getOrderByRef(
+    ref: string
+  ): Promise<{ id: string; orderNumber: string; status: string } | null> {
+    try {
+      const response = await this.client.get(
+        `/orders/by-ref?ref=${encodeURIComponent(ref)}`
+      );
+      return response.data.data;
+    } catch {
+      return null;
+    }
+  }
+
   // ─── E-Signature (Epic 3) ───────────────────────────────────────────────
 
   /** Upload the customer's sign-on-glass for a trip. */

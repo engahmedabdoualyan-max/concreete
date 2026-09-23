@@ -178,6 +178,11 @@ export async function POST(req: NextRequest) {
     socketEvent: "order:approved",
   });
 
+  // Tree-plane mirror (Epic 13 — best-effort)
+  void import("@/lib/services/tree-sync.service")
+    .then((m) => m.mirrorOrderById(order.tenantId, orderId))
+    .catch(() => {});
+
   return successResponse(
     {
       orderId,
