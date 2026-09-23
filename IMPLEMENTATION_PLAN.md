@@ -133,3 +133,8 @@
 - [x] 83. Schema: `orders.source_ref` + migration `0014` + `firebase-admin` dep
 - [x] 84. Service `tree-sync.service.ts` (import with declared fallbacks + finance gate + best-effort mirror)
 - [x] 85. 3 API routes + auto-mirror hooks (order create/finance/dispatch) + mobile magic-link-first share
+
+## Phase 21: Website Deploy 🌐
+- [x] 86. Built website-app (`vite build`, single-file) — verified bundle has rndMgr/hrOfficer + all new routes
+- [x] 87. Deployed `dist/` → `gh-pages` branch (GitHub Pages serves concrete.fimtosoft.com)
+- [x] 88. Backend auto-deploys on Vercel from main push (src/ changed)
