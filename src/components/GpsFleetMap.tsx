@@ -159,8 +159,10 @@ export default function GpsFleetMap({ onToast }: { onToast: (msg: string) => voi
       return L.divIcon({ className: '', html: `<div class="gps-pin">${emoji}${dot}</div>`, iconSize: [26, 26] });
     };
     filtered.forEach(({ a, pos }) => {
-      const liveSpeed = live[a.gpsId] && live[a.gpsId].speed != null ? '· ' + Math.round(live[a.gpsId].speed) + ' km/h' : '';
-      const srcLine = pos!.src === 'tracker' ? `<br/>📡 ${t('trackerLive')} ${liveSpeed}` : pos!.src === 'driver' ? `<br/>📱 ${t('driverPhoneGps')} ${pos!.speed != null ? '· ' + Math.round(pos!.speed) + ' km/h' : ''}${pos!.who ? '<br/>' + pos!.who : ''}` : `<br/>💾 ${t('storedLocation')}`;
+      const livePos = a.gpsId ? live[a.gpsId] : undefined;
+      const liveSpeed = livePos && livePos.speed != null ? '· ' + Math.round(livePos.speed) + ' km/h' : '';
+      const posSpeed = (pos as { speed?: number } | null)?.speed;
+      const srcLine = pos!.src === 'tracker' ? `<br/>📡 ${t('trackerLive')} ${liveSpeed}` : pos!.src === 'driver' ? `<br/>📱 ${t('driverPhoneGps')} ${posSpeed != null ? '· ' + Math.round(posSpeed) + ' km/h' : ''}${pos!.who ? '<br/>' + pos!.who : ''}` : `<br/>💾 ${t('storedLocation')}`;
       const pop = `<b>${a.id} (${a.plate || '—'})</b><br/>${a.type || ''}${a.gpsId ? '<br/>' + t('tracker') + ': ' + a.gpsId : ''}${srcLine}<br/>${t('updated')}: ${a.gpsUpdatedAt ? new Date(a.gpsUpdatedAt).toLocaleString() : '—'}`;
       markerLayer.current!.addLayer(L.marker([pos!.lat, pos!.lng], { icon: iconFor(a, pos!.src) }).bindPopup(pop));
     });
@@ -259,7 +261,7 @@ export default function GpsFleetMap({ onToast }: { onToast: (msg: string) => voi
     }
     if (!pts.length && currentUser && !viaServer) {
       const stored = await loadGpsHistory(currentUser.username).catch(() => []);
-      const found = (stored || []).find(e => e.vehicle === histVehicle && e.date === histDate);
+      const found = (stored || []).find((e: any) => e.vehicle === histVehicle && e.date === histDate);
       if (found && Array.isArray(found.points)) { setRoute(found.points); pts.push(...found.points); }
     }
     setHistMsg(pts.length

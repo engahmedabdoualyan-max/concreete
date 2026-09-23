@@ -534,7 +534,7 @@ export default function Dashboard() {
             <div className="relative w-full flex-1 flex items-center justify-center">
               <div className="pointer-events-none absolute inset-0 -z-10 blur-3xl" style={{ background: "radial-gradient(ellipse 60% 60% at 50% 50%, rgba(56,189,248,0.3), transparent 70%)" }} />
               <img
-                src={mainPhoto}
+                src={(mainPhoto as unknown as { src?: string }).src || String(mainPhoto as unknown as string)}
                 alt={t('erpImgAlt')}
                 className="w-full h-auto object-contain rounded-2xl border border-white/10 shadow-[0_0_40px_rgba(56,189,248,0.25),0_0_120px_rgba(56,189,248,0.15)]"
               />

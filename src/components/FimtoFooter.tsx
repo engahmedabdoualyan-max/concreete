@@ -42,7 +42,7 @@ export default function FimtoFooter() {
         <div className="min-w-0">
           <div className="flex items-center gap-3">
             <img
-              src={fimtoLogo}
+              src={(fimtoLogo as unknown as { src?: string }).src || String(fimtoLogo as unknown as string)}
               alt={t('fimtoLogoAlt')}
               className="h-10 w-10 rounded-xl object-contain bg-white p-1 shadow-lg"
             />

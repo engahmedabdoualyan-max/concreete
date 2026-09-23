@@ -310,7 +310,10 @@ export interface Translations {
   distanceToSite: string;
   done: string;
   dontHaveAccount: string;
+  downloadAndroid: string;
+  downloadApp: string;
   downloadCsv: string;
+  downloadIOS: string;
   driver: string;
   driverLive: string;
   driverLiveBroadcast: string;

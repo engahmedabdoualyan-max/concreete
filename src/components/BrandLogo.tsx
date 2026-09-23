@@ -23,7 +23,7 @@ export default function BrandLogo({ size = 40, width, height, rounded = 'rounded
       className={`${rounded} flex items-center justify-center overflow-hidden shadow-lg border border-white/20 bg-white shrink-0 hover:scale-105 transition-transform cursor-pointer`}
       style={{ width: w, height: h }}
     >
-      <img src={siteLogo} alt={t('siteLogoAlt')} className="w-full h-full object-contain" />
+      <img src={(siteLogo as unknown as { src?: string }).src || String(siteLogo as unknown as string)} alt={t('siteLogoAlt')} className="w-full h-full object-contain" />
     </a>
   );
 }

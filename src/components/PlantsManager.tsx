@@ -46,8 +46,8 @@ export default function PlantsManager({ onToast }: { onToast: (msg: string) => v
   const [blocks, setBlocks] = useState<BlockPlant[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [tab, setTab] = useState<'plants' | 'blocks'>('plants');
-  const [pf, setPf] = useState<Plant>({ id: '', name: '', location: '', type: 'Ready-Mix Batching Plant', status: 'Active', target: 0, actual: 0, capacity: 0, mixerCount: '', notes: '' } as Plant);
-  const [bf, setBf] = useState<BlockPlant>({ id: '', name: '', location: '', blockType: BLOCK_TYPES[0], status: 'Active', target: 0, actual: 0, capacity: 0, workers: '', machines: '', notes: '' } as BlockPlant);
+  const [pf, setPf] = useState<Plant>({ id: '', name: '', location: '', type: 'Ready-Mix Batching Plant', status: 'Active', target: 0, actual: 0, capacity: 0, mixerCount: 0, notes: '' });
+  const [bf, setBf] = useState<BlockPlant>({ id: '', name: '', location: '', blockType: BLOCK_TYPES[0], status: 'Active', target: 0, actual: 0, capacity: 0, workers: 0, machines: 0, notes: '' });
   const [editingP, setEditingP] = useState<string | null>(null);
   const [editingB, setEditingB] = useState<string | null>(null);
 
@@ -69,19 +69,19 @@ export default function PlantsManager({ onToast }: { onToast: (msg: string) => v
 
   const addPlant = () => {
     if (!pf.name) { onToast('⚠️ ' + t('enterPlantName')); return; }
-    const np: Plant = { ...pf, id: pf.id || 'p' + Date.now(), target: num(pf.target), actual: num(pf.actual), capacity: num(pf.capacity), mixerCount: String(pf.mixerCount) };
+    const np: Plant = { ...pf, id: pf.id || 'p' + Date.now(), target: num(pf.target), actual: num(pf.actual), capacity: num(pf.capacity), mixerCount: num(pf.mixerCount) };
     setPlants(prev => prev.some(x => x.id === np.id) ? prev.map(x => x.id === np.id ? np : x) : [...prev, np]);
     setEditingP(null);
-    setPf({ id: '', name: '', location: '', type: 'Ready-Mix Batching Plant', status: 'Active', target: 0, actual: 0, capacity: 0, mixerCount: '', notes: '' } as Plant);
+    setPf({ id: '', name: '', location: '', type: 'Ready-Mix Batching Plant', status: 'Active', target: 0, actual: 0, capacity: 0, mixerCount: 0, notes: '' });
     onToast(np.id.startsWith('p') ? '✅ ' + t('plantAdded') : '✅ ' + t('plantUpdated'));
   };
 
   const addBlock = () => {
     if (!bf.name) { onToast('⚠️ ' + t('enterBlockLineName')); return; }
-    const nb: BlockPlant = { ...bf, id: bf.id || 'b' + Date.now(), target: num(bf.target), actual: num(bf.actual), capacity: num(bf.capacity), workers: String(bf.workers), machines: String(bf.machines) };
+    const nb: BlockPlant = { ...bf, id: bf.id || 'b' + Date.now(), target: num(bf.target), actual: num(bf.actual), capacity: num(bf.capacity), workers: num(bf.workers), machines: num(bf.machines) };
     setBlocks(prev => prev.some(x => x.id === nb.id) ? prev.map(x => x.id === nb.id ? nb : x) : [...prev, nb]);
     setEditingB(null);
-    setBf({ id: '', name: '', location: '', blockType: BLOCK_TYPES[0], status: 'Active', target: 0, actual: 0, capacity: 0, workers: '', machines: '', notes: '' } as BlockPlant);
+    setBf({ id: '', name: '', location: '', blockType: BLOCK_TYPES[0], status: 'Active', target: 0, actual: 0, capacity: 0, workers: 0, machines: 0, notes: '' });
     onToast(nb.id.startsWith('b') ? '✅ ' + t('blockLineAdded') : '✅ ' + t('blockLineUpdated'));
   };
 
@@ -133,7 +133,7 @@ export default function PlantsManager({ onToast }: { onToast: (msg: string) => v
             <div className="mt-4"><label className="block text-xs text-slate-400 mb-1">{t('notes')}</label><input value={pf.notes} onChange={e => setPf({ ...pf, notes: e.target.value })} className={inputCls} /></div>
             <div className="flex gap-2 mt-4">
               <button onClick={addPlant} className="bg-sky-500 hover:bg-sky-400 text-white px-6 py-2 rounded-lg font-bold text-sm shadow-[0_0_20px_rgba(56,189,248,0.3)]">{editingP ? '💾 ' + t('savePlant') : '➕ ' + t('addPlant')}</button>
-              {editingP && <button onClick={() => { setEditingP(null); setPf({ id: '', name: '', location: '', type: 'Ready-Mix Batching Plant', status: 'Active', target: 0, actual: 0, capacity: 0, mixerCount: '', notes: '' } as Plant); }} className="bg-white/[0.06] hover:bg-white/[0.1] text-white px-4 py-2 rounded-lg font-bold text-sm">{t('cancel')}</button>}
+              {editingP && <button onClick={() => { setEditingP(null); setPf({ id: '', name: '', location: '', type: 'Ready-Mix Batching Plant', status: 'Active', target: 0, actual: 0, capacity: 0, mixerCount: 0, notes: '' }); }} className="bg-white/[0.06] hover:bg-white/[0.1] text-white px-4 py-2 rounded-lg font-bold text-sm">{t('cancel')}</button>}
             </div>
           </div>
 
@@ -185,7 +185,7 @@ export default function PlantsManager({ onToast }: { onToast: (msg: string) => v
             <div className="mt-4"><label className="block text-xs text-slate-400 mb-1">{t('notes')}</label><input value={bf.notes} onChange={e => setBf({ ...bf, notes: e.target.value })} className={inputCls} /></div>
             <div className="flex gap-2 mt-4">
               <button onClick={addBlock} className="bg-sky-500 hover:bg-sky-400 text-white px-6 py-2 rounded-lg font-bold text-sm shadow-[0_0_20px_rgba(56,189,248,0.3)]">{editingB ? '💾 ' + t('saveLine') : '➕ ' + t('addLine')}</button>
-              {editingB && <button onClick={() => { setEditingB(null); setBf({ id: '', name: '', location: '', blockType: BLOCK_TYPES[0], status: 'Active', target: 0, actual: 0, capacity: 0, workers: '', machines: '', notes: '' } as BlockPlant); }} className="bg-white/[0.06] hover:bg-white/[0.1] text-white px-4 py-2 rounded-lg font-bold text-sm">{t('cancel')}</button>}
+              {editingB && <button onClick={() => { setEditingB(null); setBf({ id: '', name: '', location: '', blockType: BLOCK_TYPES[0], status: 'Active', target: 0, actual: 0, capacity: 0, workers: 0, machines: 0, notes: '' }); }} className="bg-white/[0.06] hover:bg-white/[0.1] text-white px-4 py-2 rounded-lg font-bold text-sm">{t('cancel')}</button>}
             </div>
           </div>
 

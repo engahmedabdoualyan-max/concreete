@@ -464,8 +464,6 @@ export default function AdminPanel() {
                       await savePlantGPS(currentUser!.username, plantGps.lat, plantGps.lng);
                       const { saveGpsLocationToSupabase } = await import('../supabase/supabase');
                       await saveGpsLocationToSupabase({ username: currentUser!.username, label: 'plant', lat: plantGps.lat, lng: plantGps.lng });
-                      const rows = await loadGpsLocationsFromSupabase();
-                      setSupaGps(rows.map(r => ({ username: r.username, label: r.label, lat: r.lat, lng: r.lng })));
                       setGpsMsg(`✅ GPS saved (${plantGps.lat.toFixed(5)}, ${plantGps.lng.toFixed(5)}).`);
                     } catch { setGpsMsg('⚠️ Could not save GPS.'); }
                   }}

@@ -587,14 +587,14 @@ function ConsoleInner() {
         ) : (
           <div className="space-y-2 max-h-[520px] overflow-y-auto">
 {companies.map(u => {
-              const uname = (u.username || u.id || u.email || 'user').toLowerCase();
+              const uname = (u.username || u.email || 'user').toLowerCase();
               const open = treeOpen === uname;
               const accts = trees[uname] || [];
               return (
                 <div key={uname} className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
                   <div className="flex items-center justify-between gap-2">
                     <div className="min-w-0">
-                      <p className="text-sm font-bold text-white truncate">🏢 {u.plantName || u.username || u.name || '—'}</p>
+                      <p className="text-sm font-bold text-white truncate">🏢 {u.plantName || u.username || '—'}</p>
                       <p className="text-[10px] text-slate-500 truncate" dir="ltr">@{u.username || u.email || '—'} · {u.email || '—'}</p>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
