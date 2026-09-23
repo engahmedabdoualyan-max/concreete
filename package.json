@@ -8,7 +8,9 @@
     "website-app/apps/mobile"
   ],
   "overrides": {
-    "jiti": "2.7.0"
+    "jiti": "2.7.0",
+    "react-native": "0.74.5",
+    "@react-native/gradle-plugin": "0.74.87"
   },
   "scripts": {
     "dev": "next dev",
