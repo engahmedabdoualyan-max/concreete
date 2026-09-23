@@ -281,6 +281,168 @@ class ApiClient {
     return response.data.data;
   }
 
+  // ─── Customer Portal Sharing (Epic 2) ───────────────────────────────────
+
+  /** Issue a magic tracking link for one order (share with customer). */
+  async shareOrder(
+    orderId: string,
+    label?: string
+  ): Promise<{ token: string; link: string; scope: string; expiresAt: string }> {
+    const response = await this.client.post("/portal/share", {
+      scope: "ORDER",
+      orderId,
+      label,
+    });
+    return response.data.data;
+  }
+
+  // ─── E-Signature (Epic 3) ───────────────────────────────────────────────
+
+  /** Upload the customer's sign-on-glass for a trip. */
+  async saveTripSignature(
+    tripId: string,
+    signatureImage: string,
+    signedBy: string
+  ): Promise<{ id: string; tripNumber: string; signedBy: string; signedAt: string }> {
+    const response = await this.client.post(`/dispatch/${tripId}/signature`, {
+      signatureImage,
+      signedBy,
+    });
+    return response.data.data;
+  }
+
+  // ─── HR Social (Epic 12) ────────────────────────────────────────────────
+
+  async createHrRequest(data: {
+    type: "LEAVE" | "ADVANCE" | "SALARY_CONFIRM" | "OTHER";
+    startDate?: string;
+    endDate?: string;
+    amountSar?: number;
+    referenceId?: string;
+    reason?: string;
+  }): Promise<any> {
+    const response = await this.client.post("/hr/requests", data);
+    return response.data.data;
+  }
+
+  async getMyHrRequests(): Promise<{ requests: any[] }> {
+    const response = await this.client.get("/hr/requests/mine");
+    return response.data.data;
+  }
+
+  async getHrRequests(status?: string): Promise<{ requests: any[] }> {
+    const url = status ? `/hr/requests?status=${status}` : "/hr/requests";
+    const response = await this.client.get(url);
+    return response.data.data;
+  }
+
+  async reviewHrRequest(id: string, decision: "APPROVED" | "REJECTED", note?: string): Promise<any> {
+    const response = await this.client.post(`/hr/requests/${id}/review`, {
+      decision,
+      reviewNote: note,
+    });
+    return response.data.data;
+  }
+
+  async getBroadcasts(): Promise<{ broadcasts: any[] }> {
+    const response = await this.client.get("/hr/broadcasts");
+    return response.data.data;
+  }
+
+  async markBroadcastRead(id: string): Promise<void> {
+    await this.client.post(`/hr/broadcasts/${id}/read`);
+  }
+
+  async createBroadcast(data: { title: string; body: string; audience?: string[] }): Promise<any> {
+    const response = await this.client.post("/hr/broadcasts", data);
+    return response.data.data;
+  }
+
+  /** Register this device's Expo push token (best-effort). */
+  async registerPushToken(token: string): Promise<void> {
+    try {
+      await this.client.post("/push/register", { token });
+    } catch {
+      // Push registration must never break login/session flows
+    }
+  }
+
+  // ─── Geofence Attendance (Epic 12b) ─────────────────────────────────────
+
+  /** Position ping → server derives check-in/out (best-effort). */
+  async pingAttendance(latitude: number, longitude: number): Promise<any> {
+    try {
+      const response = await this.client.post("/hr/attendance/ping", {
+        latitude,
+        longitude,
+      });
+      return response.data.data;
+    } catch {
+      return null;
+    }
+  }
+
+  async getMyAttendanceToday(): Promise<any> {
+    try {
+      const response = await this.client.get("/hr/attendance/today");
+      return response.data.data?.attendance ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  async getAttendanceReport(from: string, to: string): Promise<any[]> {
+    try {
+      const response = await this.client.get(
+        `/hr/attendance?from=${from}&to=${to}`
+      );
+      return response.data.data?.attendance ?? [];
+    } catch {
+      return [];
+    }
+  }
+
+  async getDriverOvertime(from: string, to: string): Promise<any[]> {
+    try {
+      const response = await this.client.get(
+        `/hr/attendance/driver-trips?from=${from}&to=${to}`
+      );
+      return response.data.data?.drivers ?? [];
+    } catch {
+      return [];
+    }
+  }
+
+  async getHrZones(): Promise<any[]> {
+    try {
+      const response = await this.client.get("/hr/zones");
+      return response.data.data?.zones ?? [];
+    } catch {
+      return [];
+    }
+  }
+
+  // ─── Drum Telemetry (Epic 5) ────────────────────────────────────────────
+
+  /** Live drum RPM / temp / water + workability countdown for a trip. */
+  async getTripTelemetry(tripId: string): Promise<any> {
+    const response = await this.client.get(`/dispatch/${tripId}/telemetry`);
+    return response.data.data;
+  }
+
+  /** Issue a full customer-portal link for a client (orders + statements). */
+  async shareClientPortal(
+    clientId: string,
+    label?: string
+  ): Promise<{ token: string; link: string; scope: string; expiresAt: string }> {
+    const response = await this.client.post("/portal/share", {
+      scope: "CLIENT",
+      clientId,
+      label,
+    });
+    return response.data.data;
+  }
+
   // ─── Reference Data ──────────────────────────────────────────────────────────
 
   async getClients(): Promise<any[]> {

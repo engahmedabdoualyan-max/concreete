@@ -67,6 +67,8 @@ export const userRoleEnum = pgEnum("user_role", [
   "BATCH_OPERATOR",
   "SALES_REP",
   "DRIVER",
+  "RND_MANAGER",          // مدير البحث والتطوير — owns development plans, tasks, R&D follow-up
+  "HR_OFFICER",           // موظف الموارد البشرية — leave/advance requests, broadcasts, payroll support
   // ── Operational aliases retained for live-data backward compatibility ──
   "FINANCE",
   "DISPATCHER",
@@ -321,6 +323,102 @@ export const fuelLogTypeEnum = pgEnum("fuel_log_type", [
   "REFUEL",             // Normal refueling at plant or station
   "CONSUMPTION_LOG",    // Calculated from odometer reading
   "DISCREPANCY_REPORT", // Anomaly / suspected theft
+]);
+
+// ─── R&D Module Enumerations ──────────────────────────────────────────────────
+
+/** Development plan lifecycle — draft → finance approval → execution → closure */
+export const rndPlanStatusEnum = pgEnum("rnd_plan_status", [
+  "DRAFT",              // Created by management, not yet submitted
+  "PENDING_FINANCE",    // Submitted — awaiting finance manager budget approval
+  "APPROVED",           // Finance approved; ready for task distribution
+  "IN_PROGRESS",        // Tasks distributed and executing
+  "COMPLETED",          // All milestones/tasks closed
+  "REJECTED",           // Finance rejected the budget
+]);
+
+/** Development plan focus area */
+export const rndPlanCategoryEnum = pgEnum("rnd_plan_category", [
+  "PRODUCTION",         // تحسين الإنتاج (e.g. 5000 → 5200 m³)
+  "QUALITY",            // تحسين الجودة
+  "COST",               // تقليل التكاليف
+  "STAFF",              // تطوير الكوادر
+  "TECHNOLOGY",         // تبني التكنولوجيا
+  "PROCESS",            // تحسين العمليات
+]);
+
+/** Shared priority scale for plans and tasks */
+export const rndPriorityEnum = pgEnum("rnd_priority", [
+  "HIGH",
+  "MEDIUM",
+  "LOW",
+]);
+
+/** R&D task execution state */
+export const rndTaskStatusEnum = pgEnum("rnd_task_status", [
+  "TODO",
+  "IN_PROGRESS",
+  "REVIEW",
+  "DONE",
+  "BLOCKED",
+]);
+
+/** Budget line-item categories */
+export const rndBudgetCategoryEnum = pgEnum("rnd_budget_category", [
+  "EQUIPMENT",          // معدات وآلات
+  "SOFTWARE",           // برمجيات وتراخيص
+  "TRAINING",           // التدريب والتطوير
+  "CONSULTING",         // خدمات استشارية
+  "MARKETING",          // التسويق والترويج
+  "HR",                 // الموارد البشرية (تعيين/استبدال)
+  "MATERIALS",          // اختبار المواد الخام
+  "OTHER",
+]);
+
+/** Budget line-item lifecycle */
+export const rndBudgetItemStatusEnum = pgEnum("rnd_budget_item_status", [
+  "PLANNED",
+  "REQUESTED",
+  "APPROVED",
+  "ORDERED",
+  "RECEIVED",
+  "CANCELLED",
+]);
+
+/** External issue severity */
+export const rndIssueSeverityEnum = pgEnum("rnd_issue_severity", [
+  "CRITICAL",
+  "HIGH",
+  "MEDIUM",
+  "LOW",
+]);
+
+/** External issue classification */
+export const rndIssueCategoryEnum = pgEnum("rnd_issue_category", [
+  "EQUIPMENT",          // عطل معدات
+  "QUALITY",            // مشكلة جودة
+  "SAFETY",             // حادث سلامة
+  "STAFF",              // مشكلة موظفين
+  "SUPPLIER",           // مشكلة مورد
+  "OTHER",
+]);
+
+/** External issue resolution lifecycle */
+export const rndIssueStatusEnum = pgEnum("rnd_issue_status", [
+  "OPEN",
+  "INVESTIGATING",
+  "RESOLVING",
+  "RESOLVED",
+  "CLOSED",
+]);
+
+/** Product families beyond ready-mix (Epic 11). */
+export const productTypeEnum = pgEnum("product_type", [
+  "READY_MIX",
+  "AGGREGATE",
+  "ASPHALT",
+  "BLOCKS",
+  "CEMENT",
 ]);
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -668,6 +766,8 @@ export const mixDesigns = pgTable(
     }).default("0.05"),
     /** Maximum allowable water-cement ratio */
     maxWcRatio: decimal("max_wc_ratio", { precision: 4, scale: 3 }).default("0.5"),
+    /** Product family (Epic 11 — multi-material parity) */
+    productType: productTypeEnum("product_type").notNull().default("READY_MIX"),
 
     isActive: boolean("is_active").notNull().default(true),
     approvedById: uuid("approved_by_id").references(() => users.id, { onDelete: "set null" }),
@@ -796,6 +896,11 @@ export const orders = pgTable(
       scale: 2,
     }),
     status: orderStatusEnum("status").notNull().default("DRAFT"),
+    /** Product family (Epic 11 — multi-material parity) */
+    productType: productTypeEnum("product_type").notNull().default("READY_MIX"),
+    /** Carbon footprint snapshot in kgCO2e (computed on demand) */
+    carbonKgco2e: decimal("carbon_kgco2e", { precision: 12, scale: 2 }),
+    carbonComputedAt: timestamp("carbon_computed_at"),
     /** Origin surface after the unified-DB merge: 'app' (mobile/ERP) | 'website' */
     source: varchar("source", { length: 20 }).notNull().default("app"),
     /** Sales Representative who created the order */
@@ -1436,6 +1541,15 @@ export const trips = pgTable(
     }),
     /** Count of failed scan attempts (wrong site / wrong client) */
     qrFailedScanCount: integer("qr_failed_scan_count").notNull().default(0),
+    /**
+     * CUSTOMER E-SIGNATURE (sign-on-glass — Epic 3)
+     * Captured on the driver device at DEP_SITE. Stored as a PNG data URL
+     * (data:image/png;base64,...) — self-contained, no object storage needed.
+     */
+    signatureImage: text("signature_image"),
+    /** Printed name of the site person who signed */
+    signedBy: varchar("signed_by", { length: 120 }),
+    signedAt: timestamp("signed_at"),
     /** Dispatcher who created this trip */
     dispatchedById: uuid("dispatched_by_id").references(() => users.id, { onDelete: "set null" }),
     /** Computed metrics (populated at DEP_SITE / RETURN_PLANT) */
@@ -2403,8 +2517,1391 @@ export const auditLogs = pgTable(
 );
 
 // ─────────────────────────────────────────────────────────────────────────────
+// SECTION 13 — RESEARCH & DEVELOPMENT (R&D) — THE FACTORY BRAIN
+// ─────────────────────────────────────────────────────────────────────────────
+//
+//  Workflow:
+//    1. Management records the CURRENT STATE (production m³, efficiency,
+//       staff, cost/m³) with target values  →  rnd_current_states
+//    2. Management creates a DEVELOPMENT PLAN with milestones + budget
+//       →  rnd_plans + rnd_milestones
+//    3. Plans with financial requirements go to FINANCE for approval
+//       (status PENDING_FINANCE → APPROVED / REJECTED)
+//    4. R&D Manager distributes TASKS to responsible staff with due dates
+//       →  rnd_tasks + rnd_task_comments
+//    5. Budget line items (equipment, marketing, HR...) are tracked
+//       →  rnd_budget_plans + rnd_budget_items
+//    6. WEEKLY follow-up: planned vs actual, variance, blockers,
+//       next-week plan  →  rnd_weekly_entries
+//    7. Problems OUTSIDE any plan are tracked separately
+//       →  rnd_external_issues + rnd_issue_comments
+//    8. Staff are EVALUATED on task execution
+//       →  rnd_evaluations
+//
+//  Example: current output 5000 m³ → target 5200 m³ in one month.
+//  The target is split across sales reps (tasks), promo spend is added
+//  (budget → finance approval), HR is asked to hire/replace reps (tasks),
+//  and every week the achieved volume is compared with the plan.
+
+/**
+ * rnd_current_states — Baseline snapshot of the factory reality + targets.
+ * One row per tenant per period (e.g. "2026-Q1"). Every development plan
+ * builds on the latest current-state row.
+ */
+export const rndCurrentStates = pgTable(
+  "rnd_current_states",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    period: varchar("period", { length: 20 }).notNull(), // e.g. "2026-Q1"
+    /** Current monthly production (m³) */
+    currentProductionCapacity: decimal("current_production_capacity", { precision: 10, scale: 2 }).notNull().default("0"),
+    /** Target monthly production (m³) */
+    targetProductionCapacity: decimal("target_production_capacity", { precision: 10, scale: 2 }).notNull().default("0"),
+    currentEfficiencyPct: decimal("current_efficiency_pct", { precision: 5, scale: 2 }).notNull().default("0"),
+    targetEfficiencyPct: decimal("target_efficiency_pct", { precision: 5, scale: 2 }).notNull().default("0"),
+    currentStaffCount: integer("current_staff_count").notNull().default(0),
+    targetStaffCount: integer("target_staff_count").notNull().default(0),
+    /** Current cost per m³ in SAR */
+    currentCostPerM3: decimal("current_cost_per_m3", { precision: 10, scale: 2 }).notNull().default("0"),
+    targetCostPerM3: decimal("target_cost_per_m3", { precision: 10, scale: 2 }).notNull().default("0"),
+    /** Key issues identified (JSON array of {title, description, severity, category}) */
+    keyIssues: jsonb("key_issues").$type<
+      { title: string; description: string; severity: string; category: string }[]
+    >().default([]),
+    createdById: uuid("created_by_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("idx_rnd_state_tenant").on(t.tenantId),
+    index("idx_rnd_state_period").on(t.tenantId, t.period),
+  ]
+);
+
+/**
+ * rnd_plans — Development plans created by management.
+ */
+export const rndPlans = pgTable(
+  "rnd_plans",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    title: varchar("title", { length: 200 }).notNull(),
+    description: text("description"),
+    category: rndPlanCategoryEnum("category").notNull().default("PRODUCTION"),
+    priority: rndPriorityEnum("priority").notNull().default("MEDIUM"),
+    status: rndPlanStatusEnum("status").notNull().default("DRAFT"),
+    startDate: timestamp("start_date").notNull(),
+    endDate: timestamp("end_date").notNull(),
+    /** Approved budget in SAR (integer) */
+    budgetSar: integer("budget_sar").notNull().default(0),
+    /** Expected ROI percentage */
+    expectedRoiPct: decimal("expected_roi_pct", { precision: 5, scale: 2 }).default("0"),
+    /** Overall progress 0–100 (maintained by service layer) */
+    overallProgressPct: integer("overall_progress_pct").notNull().default(0),
+    /** Finance decision metadata */
+    financeReviewedById: uuid("finance_reviewed_by_id").references(() => users.id, { onDelete: "set null" }),
+    financeReviewedAt: timestamp("finance_reviewed_at"),
+    financeComments: text("finance_comments"),
+    financeApprovedBudgetSar: integer("finance_approved_budget_sar"),
+    createdById: uuid("created_by_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("idx_rnd_plans_status").on(t.status),
+    index("idx_rnd_plans_category").on(t.category),
+    index("idx_rnd_plans_tenant").on(t.tenantId),
+    index("idx_rnd_plans_dates").on(t.startDate, t.endDate),
+  ]
+);
+
+/**
+ * rnd_milestones — Time-boxed checkpoints inside a plan, each with an owner.
+ */
+export const rndMilestones = pgTable(
+  "rnd_milestones",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    planId: uuid("plan_id")
+      .notNull()
+      .references(() => rndPlans.id, { onDelete: "cascade" }),
+    title: varchar("title", { length: 200 }).notNull(),
+    description: text("description"),
+    targetDate: timestamp("target_date").notNull(),
+    actualDate: timestamp("actual_date"),
+    ownerId: uuid("owner_id").references(() => users.id, { onDelete: "set null" }),
+    status: varchar("status", { length: 20 }).notNull().default("PENDING"), // PENDING | IN_PROGRESS | COMPLETED | DELAYED
+    progressPct: integer("progress_pct").notNull().default(0),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("idx_rnd_ms_plan").on(t.planId),
+    index("idx_rnd_ms_owner").on(t.ownerId),
+    index("idx_rnd_ms_tenant").on(t.tenantId),
+  ]
+);
+
+/**
+ * rnd_tasks — Work assigned to staff (optionally under a plan).
+ */
+export const rndTasks = pgTable(
+  "rnd_tasks",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    planId: uuid("plan_id").references(() => rndPlans.id, { onDelete: "set null" }),
+    milestoneId: uuid("milestone_id").references(() => rndMilestones.id, { onDelete: "set null" }),
+    title: varchar("title", { length: 200 }).notNull(),
+    description: text("description"),
+    assigneeId: uuid("assignee_id").references(() => users.id, { onDelete: "set null" }),
+    /** Denormalised assignee name (mobile clients may assign by name before user exists) */
+    assigneeName: varchar("assignee_name", { length: 120 }),
+    startDate: timestamp("start_date"),
+    dueDate: timestamp("due_date").notNull(),
+    actualStartDate: timestamp("actual_start_date"),
+    actualEndDate: timestamp("actual_end_date"),
+    status: rndTaskStatusEnum("status").notNull().default("TODO"),
+    priority: rndPriorityEnum("priority").notNull().default("MEDIUM"),
+    progressPct: integer("progress_pct").notNull().default(0),
+    estimatedHours: decimal("estimated_hours", { precision: 8, scale: 2 }),
+    actualHours: decimal("actual_hours", { precision: 8, scale: 2 }),
+    createdById: uuid("created_by_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("idx_rnd_tasks_plan").on(t.planId),
+    index("idx_rnd_tasks_assignee").on(t.assigneeId),
+    index("idx_rnd_tasks_status").on(t.status),
+    index("idx_rnd_tasks_due").on(t.dueDate),
+    index("idx_rnd_tasks_tenant").on(t.tenantId),
+  ]
+);
+
+/** rnd_task_comments — Discussion thread on a task */
+export const rndTaskComments = pgTable(
+  "rnd_task_comments",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    taskId: uuid("task_id")
+      .notNull()
+      .references(() => rndTasks.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    content: text("content").notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("idx_rnd_tc_task").on(t.taskId),
+    index("idx_rnd_tc_tenant").on(t.tenantId),
+  ]
+);
+
+/**
+ * rnd_budget_plans — Budget container per development plan (and fiscal year).
+ */
+export const rndBudgetPlans = pgTable(
+  "rnd_budget_plans",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    planId: uuid("plan_id").references(() => rndPlans.id, { onDelete: "set null" }),
+    fiscalYear: varchar("fiscal_year", { length: 10 }).notNull(),
+    totalBudgetSar: integer("total_budget_sar").notNull().default(0),
+    allocatedBudgetSar: integer("allocated_budget_sar").notNull().default(0),
+    spentBudgetSar: integer("spent_budget_sar").notNull().default(0),
+    createdById: uuid("created_by_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("idx_rnd_bp_plan").on(t.planId),
+    index("idx_rnd_bp_tenant").on(t.tenantId),
+  ]
+);
+
+/** rnd_budget_items — Individual spend lines (promo, equipment, HR...) */
+export const rndBudgetItems = pgTable(
+  "rnd_budget_items",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    budgetPlanId: uuid("budget_plan_id")
+      .notNull()
+      .references(() => rndBudgetPlans.id, { onDelete: "cascade" }),
+    name: varchar("name", { length: 200 }).notNull(),
+    description: text("description"),
+    category: rndBudgetCategoryEnum("category").notNull().default("OTHER"),
+    estimatedCostSar: integer("estimated_cost_sar").notNull().default(0),
+    actualCostSar: integer("actual_cost_sar"),
+    vendor: varchar("vendor", { length: 160 }),
+    status: rndBudgetItemStatusEnum("status").notNull().default("PLANNED"),
+    financeApprovalRequired: boolean("finance_approval_required").notNull().default(true),
+    financeReviewedById: uuid("finance_reviewed_by_id").references(() => users.id, { onDelete: "set null" }),
+    financeReviewedAt: timestamp("finance_reviewed_at"),
+    createdById: uuid("created_by_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("idx_rnd_bi_budget").on(t.budgetPlanId),
+    index("idx_rnd_bi_category").on(t.category),
+    index("idx_rnd_bi_status").on(t.status),
+    index("idx_rnd_bi_tenant").on(t.tenantId),
+  ]
+);
+
+/**
+ * rnd_weekly_entries — Weekly follow-up per plan: planned vs actual,
+ * variance, blockers, actions taken, next-week plan.
+ */
+export const rndWeeklyEntries = pgTable(
+  "rnd_weekly_entries",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    planId: uuid("plan_id")
+      .notNull()
+      .references(() => rndPlans.id, { onDelete: "cascade" }),
+    weekNumber: integer("week_number").notNull(),
+    year: integer("year").notNull(),
+    weekStartDate: timestamp("week_start_date").notNull(),
+    weekEndDate: timestamp("week_end_date").notNull(),
+    plannedTarget: decimal("planned_target", { precision: 12, scale: 2 }).notNull().default("0"),
+    actualAchieved: decimal("actual_achieved", { precision: 12, scale: 2 }).notNull().default("0"),
+    variancePct: decimal("variance_pct", { precision: 6, scale: 2 }).notNull().default("0"),
+    isOnTrack: boolean("is_on_track").notNull().default(true),
+    blockers: text("blockers"),           // ما المشاكل التي منعت التنفيذ؟
+    actionsTaken: text("actions_taken"),
+    nextWeekPlan: text("next_week_plan"),
+    /** Metrics snapshot for trend charts */
+    metricsSnapshot: jsonb("metrics_snapshot").$type<Record<string, number>>().default({}),
+    submittedById: uuid("submitted_by_id").references(() => users.id, { onDelete: "set null" }),
+    reviewedById: uuid("reviewed_by_id").references(() => users.id, { onDelete: "set null" }),
+    reviewedAt: timestamp("reviewed_at"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("idx_rnd_w_plan").on(t.planId),
+    index("idx_rnd_w_week").on(t.planId, t.year, t.weekNumber),
+    index("idx_rnd_w_tenant").on(t.tenantId),
+  ]
+);
+
+/**
+ * rnd_external_issues — Factory problems OUTSIDE any development plan,
+ * tracked until resolution (root cause + fix recorded).
+ */
+export const rndExternalIssues = pgTable(
+  "rnd_external_issues",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    title: varchar("title", { length: 200 }).notNull(),
+    description: text("description"),
+    severity: rndIssueSeverityEnum("severity").notNull().default("MEDIUM"),
+    category: rndIssueCategoryEnum("category").notNull().default("OTHER"),
+    reportedById: uuid("reported_by_id").references(() => users.id, { onDelete: "set null" }),
+    reportedByName: varchar("reported_by_name", { length: 120 }),
+    assignedToId: uuid("assigned_to_id").references(() => users.id, { onDelete: "set null" }),
+    assignedToName: varchar("assigned_to_name", { length: 120 }),
+    status: rndIssueStatusEnum("status").notNull().default("OPEN"),
+    rootCause: text("root_cause"),
+    resolution: text("resolution"),
+    resolvedAt: timestamp("resolved_at"),
+    resolvedById: uuid("resolved_by_id").references(() => users.id, { onDelete: "set null" }),
+    /** Escalation links (optional) */
+    relatedPlanId: uuid("related_plan_id").references(() => rndPlans.id, { onDelete: "set null" }),
+    relatedTaskId: uuid("related_task_id").references(() => rndTasks.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("idx_rnd_ei_status").on(t.status),
+    index("idx_rnd_ei_severity").on(t.severity),
+    index("idx_rnd_ei_category").on(t.category),
+    index("idx_rnd_ei_assignee").on(t.assignedToId),
+    index("idx_rnd_ei_tenant").on(t.tenantId),
+  ]
+);
+
+/** rnd_issue_comments — Discussion thread on an external issue */
+export const rndIssueComments = pgTable(
+  "rnd_issue_comments",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    issueId: uuid("issue_id")
+      .notNull()
+      .references(() => rndExternalIssues.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    content: text("content").notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("idx_rnd_ic_issue").on(t.issueId),
+    index("idx_rnd_ic_tenant").on(t.tenantId),
+  ]
+);
+
+/**
+ * rnd_evaluations — Staff evaluation on R&D task execution:
+ * completion rate + quality + initiative + teamwork.
+ */
+export const rndEvaluations = pgTable(
+  "rnd_evaluations",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    employeeId: uuid("employee_id").references(() => users.id, { onDelete: "set null" }),
+    employeeName: varchar("employee_name", { length: 120 }).notNull(),
+    periodStart: timestamp("period_start").notNull(),
+    periodEnd: timestamp("period_end").notNull(),
+    tasksAssigned: integer("tasks_assigned").notNull().default(0),
+    tasksCompleted: integer("tasks_completed").notNull().default(0),
+    completionRatePct: integer("completion_rate_pct").notNull().default(0),
+    qualityScore: integer("quality_score").notNull().default(0),     // 1–10
+    initiativeScore: integer("initiative_score").notNull().default(0), // 1–10
+    teamworkScore: integer("teamwork_score").notNull().default(0),   // 1–10
+    overallScore: decimal("overall_score", { precision: 4, scale: 2 }).notNull().default("0"),
+    strengths: text("strengths"),
+    improvements: text("improvements"),
+    reviewerComments: text("reviewer_comments"),
+    evaluatedById: uuid("evaluated_by_id").references(() => users.id, { onDelete: "set null" }),
+    evaluatedByName: varchar("evaluated_by_name", { length: 120 }),
+    acknowledgedByEmployee: boolean("acknowledged_by_employee").notNull().default(false),
+    acknowledgedAt: timestamp("acknowledged_at"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("idx_rnd_ev_employee").on(t.employeeId),
+    index("idx_rnd_ev_period").on(t.periodStart, t.periodEnd),
+    index("idx_rnd_ev_tenant").on(t.tenantId),
+  ]
+);
+
+// ─── COMPETITOR INTELLIGENCE (المصانع المنافسة) ────────────────────────────────
+//
+//  R&D tracks rival plants: their mixes (خلطاتهم) and prices (أسعارهم)
+//  side-by-side with OUR mixes and prices (خلطاتنا وأسعارنا) so management
+//  can compare grade-by-grade and position pricing strategically.
+//
+//  • rnd_competitors — rival plant directory (name, city, contacts, notes)
+//  • rnd_competitor_products — one row per rival mix/grade with THEIR price
+//    plus OUR matched mix + OUR price snapshot → instant price-gap analysis
+
+/**
+ * rnd_competitors — Directory of rival concrete plants.
+ */
+export const rndCompetitors = pgTable(
+  "rnd_competitors",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    name: varchar("name", { length: 200 }).notNull(),
+    city: varchar("city", { length: 100 }),
+    phone: varchar("phone", { length: 20 }),
+    email: varchar("email", { length: 200 }),
+    website: varchar("website", { length: 300 }),
+    /** Free-form intel: fleet size, strengths, weaknesses, rumours... */
+    notes: text("notes"),
+    isActive: boolean("is_active").notNull().default(true),
+    createdById: uuid("created_by_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("idx_rnd_comp_tenant").on(t.tenantId),
+    index("idx_rnd_comp_name").on(t.name),
+  ]
+);
+
+/**
+ * rnd_competitor_products — Rival mixes & prices vs ours.
+ * Each row = one competitor grade (e.g. C30) with THEIR price per m³,
+ * linked to OUR mix design + OUR price for the same grade.
+ */
+export const rndCompetitorProducts = pgTable(
+  "rnd_competitor_products",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    competitorId: uuid("competitor_id")
+      .notNull()
+      .references(() => rndCompetitors.id, { onDelete: "cascade" }),
+    /** Rival grade / product name (e.g. "C30", "C40-SR") */
+    grade: varchar("grade", { length: 60 }).notNull(),
+    productName: varchar("product_name", { length: 200 }),
+    /** THEIR price per m³ in SAR */
+    theirPriceSar: integer("their_price_sar").notNull().default(0),
+    /** Link to OUR mix design for the same grade (optional) */
+    ourMixDesignId: uuid("our_mix_design_id").references(() => mixDesigns.id, {
+      onDelete: "set null",
+    }),
+    /** OUR price per m³ in SAR (snapshot, editable) */
+    ourPriceSar: integer("our_price_sar").notNull().default(0),
+    /** Pump / delivery extras included? (free text, e.g. "pump +20") */
+    extrasNote: varchar("extras_note", { length: 300 }),
+    /** When was this price observed? */
+    observedAt: timestamp("observed_at"),
+    /** Source of intel: "SITE_VISIT" | "CLIENT_QUOTE" | "MARKET" | "OTHER" */
+    source: varchar("source", { length: 30 }).default("MARKET"),
+    notes: text("notes"),
+    createdById: uuid("created_by_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("idx_rnd_cp_comp").on(t.competitorId),
+    index("idx_rnd_cp_grade").on(t.grade),
+    index("idx_rnd_cp_tenant").on(t.tenantId),
+  ]
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
 // SECTION 14 — DRIZZLE RELATIONS
 // ─────────────────────────────────────────────────────────────────────────────
+
+export const rndPlansRelations = relations(rndPlans, ({ one, many }) => ({
+  createdBy: one(users, {
+    fields: [rndPlans.createdById],
+    references: [users.id],
+  }),
+  financeReviewer: one(users, {
+    fields: [rndPlans.financeReviewedById],
+    references: [users.id],
+  }),
+  milestones: many(rndMilestones),
+  tasks: many(rndTasks),
+  weeklyEntries: many(rndWeeklyEntries),
+  budgetPlans: many(rndBudgetPlans),
+}));
+
+export const rndMilestonesRelations = relations(rndMilestones, ({ one, many }) => ({
+  plan: one(rndPlans, {
+    fields: [rndMilestones.planId],
+    references: [rndPlans.id],
+  }),
+  owner: one(users, {
+    fields: [rndMilestones.ownerId],
+    references: [users.id],
+  }),
+  tasks: many(rndTasks),
+}));
+
+export const rndTasksRelations = relations(rndTasks, ({ one, many }) => ({
+  plan: one(rndPlans, {
+    fields: [rndTasks.planId],
+    references: [rndPlans.id],
+  }),
+  milestone: one(rndMilestones, {
+    fields: [rndTasks.milestoneId],
+    references: [rndMilestones.id],
+  }),
+  assignee: one(users, {
+    fields: [rndTasks.assigneeId],
+    references: [users.id],
+  }),
+  comments: many(rndTaskComments),
+}));
+
+export const rndBudgetPlansRelations = relations(rndBudgetPlans, ({ one, many }) => ({
+  plan: one(rndPlans, {
+    fields: [rndBudgetPlans.planId],
+    references: [rndPlans.id],
+  }),
+  items: many(rndBudgetItems),
+}));
+
+export const rndExternalIssuesRelations = relations(rndExternalIssues, ({ one, many }) => ({
+  reporter: one(users, {
+    fields: [rndExternalIssues.reportedById],
+    references: [users.id],
+  }),
+  assignee: one(users, {
+    fields: [rndExternalIssues.assignedToId],
+    references: [users.id],
+  }),
+  relatedPlan: one(rndPlans, {
+    fields: [rndExternalIssues.relatedPlanId],
+    references: [rndPlans.id],
+  }),
+  comments: many(rndIssueComments),
+}));
+
+export const rndCompetitorsRelations = relations(rndCompetitors, ({ many }) => ({
+  products: many(rndCompetitorProducts),
+}));
+
+export const rndCompetitorProductsRelations = relations(
+  rndCompetitorProducts,
+  ({ one }) => ({
+    competitor: one(rndCompetitors, {
+      fields: [rndCompetitorProducts.competitorId],
+      references: [rndCompetitors.id],
+    }),
+    ourMixDesign: one(mixDesigns, {
+      fields: [rndCompetitorProducts.ourMixDesignId],
+      references: [mixDesigns.id],
+    }),
+  })
+);
+
+// ─── DRUM TELEMATICS IoT (Epic 5 — تيليمترية البرميل) ─────────────────────────
+//
+//  Live drum intelligence per mixer (InfoRMC / Coretex parity):
+//   • telematics_devices — sensor registry per vehicle (drum RPM probe,
+//     temperature probe, water-add flow meter, GPS tracker)
+//   • telematics_readings — high-frequency time series: RPM, concrete
+//     temperature, water added, position, speed
+//   Relations are declared right after the table definitions below.
+
+// ─── CUSTOMER PORTAL (بوابة العميل — Epic 2) ──────────────────────────────────
+//
+//  Passwordless magic-link access for customers:
+//   • SCOPE=ORDER  → public tracking of ONE delivery (timeline + ticket)
+//   • SCOPE=CLIENT → full portal: all orders + computed statements
+//
+//  The token IS the credential: unguessable nanoid (21 chars), expirable,
+//  revocable, view-counted. The public endpoint requires NO login.
+
+/**
+ * share_tokens — Magic links for the customer portal.
+ */
+export const shareTokens = pgTable(
+  "share_tokens",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    /** ORDER = single delivery tracking · CLIENT = full customer portal */
+    scope: varchar("scope", { length: 10 }).notNull(),
+    orderId: uuid("order_id").references(() => orders.id, { onDelete: "cascade" }),
+    clientId: uuid("client_id").references(() => clients.id, { onDelete: "cascade" }),
+    /** Unguessable public token (nanoid) — never sequential, never a UUID */
+    token: varchar("token", { length: 64 }).notNull().unique(),
+    expiresAt: timestamp("expires_at"),
+    viewCount: integer("view_count").notNull().default(0),
+    lastViewedAt: timestamp("last_viewed_at"),
+    isRevoked: boolean("is_revoked").notNull().default(false),
+    /** Optional label: "site engineer Ahmed", "sent via WhatsApp"... */
+    label: varchar("label", { length: 200 }),
+    createdById: uuid("created_by_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("idx_share_token").on(t.token),
+    index("idx_share_order").on(t.orderId),
+    index("idx_share_client").on(t.clientId),
+    index("idx_share_tenant").on(t.tenantId),
+  ]
+);
+
+/**
+ * telematics_devices — Sensor registry per vehicle.
+ * One row per physical probe: drum-RPM, temperature, water-add meter, tracker.
+ */
+export const telematicsDevices = pgTable(
+  "telematics_devices",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    vehicleId: uuid("vehicle_id")
+      .notNull()
+      .references(() => fleetVehicles.id, { onDelete: "cascade" }),
+    /** DRUM_RPM | CONCRETE_TEMP | WATER_ADD_METER | GPS_TRACKER */
+    deviceType: varchar("device_type", { length: 30 }).notNull(),
+    /** Vendor serial / IMEI printed on the probe */
+    serialNumber: varchar("serial_number", { length: 80 }),
+    isActive: boolean("is_active").notNull().default(true),
+    mountedAt: timestamp("mounted_at"),
+    lastSeenAt: timestamp("last_seen_at"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("idx_tm_dev_vehicle").on(t.vehicleId),
+    index("idx_tm_dev_tenant").on(t.tenantId),
+  ]
+);
+
+/**
+ * telematics_readings — High-frequency drum/fleet time series.
+ * Written by probes via POST /api/v1/telematics/ingest (integration key).
+ * Retention pruning is an ops task (see roadmap hardening notes).
+ */
+export const telematicsReadings = pgTable(
+  "telematics_readings",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    vehicleId: uuid("vehicle_id")
+      .notNull()
+      .references(() => fleetVehicles.id, { onDelete: "cascade" }),
+    /** Active trip at capture time (null when roaming/empty) */
+    tripId: uuid("trip_id").references(() => trips.id, { onDelete: "set null" }),
+    /** Drum revolutions per minute (0 = stopped — agitation gap!) */
+    drumRpm: decimal("drum_rpm", { precision: 5, scale: 2 }),
+    /** Fresh concrete temperature °C */
+    concreteTempC: decimal("concrete_temp_c", { precision: 4, scale: 1 }),
+    /** Water added since batch, litres (cumulative per trip) */
+    waterAddedL: decimal("water_added_l", { precision: 8, scale: 2 }),
+    latitude: decimal("latitude", { precision: 10, scale: 7 }),
+    longitude: decimal("longitude", { precision: 10, scale: 7 }),
+    speedKmh: decimal("speed_kmh", { precision: 6, scale: 2 }),
+    /** DEVICE | DRIVER_APP | GPS_VENDOR */
+    source: varchar("source", { length: 20 }).notNull().default("DEVICE"),
+    capturedAt: timestamp("captured_at").notNull().defaultNow(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("idx_tm_trip").on(t.tripId),
+    index("idx_tm_vehicle_time").on(t.vehicleId, t.capturedAt),
+    index("idx_tm_tenant").on(t.tenantId),
+  ]
+);
+
+/**
+ * integration_connections — External accounting endpoints.
+ * Credentials are AES-256-GCM encrypted (see accounting-sync.service).
+ */
+export const integrationConnections = pgTable(
+  "integration_connections",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    /** ZOHO_BOOKS | QUICKBOOKS | CSV_BRIDGE (SAP/Oracle file bridge) */
+    provider: varchar("provider", { length: 30 }).notNull(),
+    name: varchar("name", { length: 120 }).notNull(), // "Zoho — Main Books"
+    /** Encrypted JSON credentials (iv:ciphertext:tag, base64) */
+    credentialsEnc: text("credentials_enc").notNull(),
+    /** Non-secret provider settings (region, sandbox, item refs...) */
+    settings: jsonb("settings").$type<Record<string, unknown>>().default({}),
+    isActive: boolean("is_active").notNull().default(true),
+    lastTestedAt: timestamp("last_tested_at"),
+    lastTestOk: boolean("last_test_ok"),
+    lastTestMessage: varchar("last_test_message", { length: 500 }),
+    createdById: uuid("created_by_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("idx_intconn_tenant").on(t.tenantId),
+    index("idx_intconn_provider").on(t.provider),
+  ]
+);
+
+/**
+ * integration_sync_logs — Audit-grade trail of every external push.
+ */
+export const integrationSyncLogs = pgTable(
+  "integration_sync_logs",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    connectionId: uuid("connection_id")
+      .notNull()
+      .references(() => integrationConnections.id, { onDelete: "cascade" }),
+    direction: varchar("direction", { length: 10 }).notNull().default("OUT"), // OUT | IN
+    entityType: varchar("entity_type", { length: 30 }).notNull(), // CUSTOMER | INVOICE | CSV_EXPORT
+    localId: varchar("local_id", { length: 64 }),
+    externalId: varchar("external_id", { length: 120 }),
+    status: varchar("status", { length: 20 }).notNull(), // OK | FAILED
+    message: text("message"),
+    payload: jsonb("payload").$type<Record<string, unknown>>(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("idx_intlog_conn").on(t.connectionId),
+    index("idx_intlog_entity").on(t.entityType, t.localId),
+    index("idx_intlog_tenant").on(t.tenantId),
+  ]
+);
+
+/**
+ * zatca_documents — Phase-2 e-invoice registry with hash chain.
+ */
+export const zatcaDocuments = pgTable(
+  "zatca_documents",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    orderId: uuid("order_id").references(() => orders.id, { onDelete: "set null" }),
+    /** Our sequential invoice number, e.g. INV-2026-000123 */
+    invoiceNumber: varchar("invoice_number", { length: 40 }).notNull(),
+    /** ZATCA invoice UUID (we generate) */
+    invoiceUuid: varchar("invoice_uuid", { length: 64 }).notNull(),
+    /** STANDARD (B2B clearance) | SIMPLIFIED (B2C reporting) */
+    invoiceType: varchar("invoice_type", { length: 12 }).notNull().default("STANDARD"),
+    /** DRAFT | PENDING | CLEARED | REPORTED | REJECTED */
+    status: varchar("status", { length: 16 }).notNull().default("DRAFT"),
+    /** Sequential counter per ZATCA anti-gap rules */
+    counterValue: integer("counter_value").notNull(),
+    /** SHA-256 of the submitted UBL XML (hex) */
+    invoiceHash: varchar("invoice_hash", { length: 128 }),
+    /** Previous invoice hash (chain) */
+    previousHash: varchar("previous_hash", { length: 128 }),
+    /** Base64 TLV QR (Phase-1-compatible, always generated) */
+    qrTlvBase64: text("qr_tlv_base64"),
+    /** Money snapshot {exVat, vatAmount, total, currency} */
+    totals: jsonb("totals").$type<Record<string, number | string>>(),
+    /** Raw Fatoora API response (validation results, warnings...) */
+    fatooraResponse: jsonb("fatoora_response").$type<Record<string, unknown>>(),
+    rejectionReason: text("rejection_reason"),
+    clearedAt: timestamp("cleared_at"),
+    createdById: uuid("created_by_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("idx_zt_doc_tenant").on(t.tenantId),
+    index("idx_zt_doc_order").on(t.orderId),
+    index("idx_zt_doc_status").on(t.status),
+    index("idx_zt_doc_number").on(t.invoiceNumber),
+  ]
+);
+
+/**
+ * rfqs — Request-for-quotation headers.
+ */
+export const rfqs = pgTable(
+  "rfqs",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    rfqNumber: varchar("rfq_number", { length: 30 }).notNull().unique(), // RFQ-2026-00001
+    clientId: uuid("client_id")
+      .notNull()
+      .references(() => clients.id, { onDelete: "restrict" }),
+    deliverySiteId: uuid("delivery_site_id").references(() => deliverySites.id, {
+      onDelete: "set null",
+    }),
+    /** DRAFT | SUBMITTED | COSTED | APPROVED | REJECTED | CONVERTED | EXPIRED */
+    status: varchar("status", { length: 16 }).notNull().default("DRAFT"),
+    notes: text("notes"),
+    validUntil: timestamp("valid_until"),
+    requestedById: uuid("requested_by_id").references(() => users.id, { onDelete: "set null" }),
+    costedById: uuid("costed_by_id").references(() => users.id, { onDelete: "set null" }),
+    costedAt: timestamp("costed_at"),
+    approvedById: uuid("approved_by_id").references(() => users.id, { onDelete: "set null" }),
+    approvedAt: timestamp("approved_at"),
+    rejectionReason: text("rejection_reason"),
+    createdById: uuid("created_by_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("idx_rfq_tenant").on(t.tenantId),
+    index("idx_rfq_client").on(t.clientId),
+    index("idx_rfq_status").on(t.status),
+    index("idx_rfq_number").on(t.rfqNumber),
+  ]
+);
+
+/**
+ * rfq_items — One row per mix: volume + cost breakdown + margin + floor + quote.
+ * Money in SAR decimals (converted to cents only when creating orders).
+ */
+export const rfqItems = pgTable(
+  "rfq_items",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    rfqId: uuid("rfq_id")
+      .notNull()
+      .references(() => rfqs.id, { onDelete: "cascade" }),
+    mixDesignId: uuid("mix_design_id")
+      .notNull()
+      .references(() => mixDesigns.id, { onDelete: "restrict" }),
+    volumeM3: decimal("volume_m3", { precision: 8, scale: 2 }).notNull(),
+    /** Auto material estimate from silo costs (snapshot at costing time) */
+    materialCostPerM3: decimal("material_cost_per_m3", { precision: 10, scale: 2 }).default("0"),
+    haulCostPerM3: decimal("haul_cost_per_m3", { precision: 10, scale: 2 }).default("0"),
+    pumpCostPerM3: decimal("pump_cost_per_m3", { precision: 10, scale: 2 }).default("0"),
+    overheadCostPerM3: decimal("overhead_cost_per_m3", { precision: 10, scale: 2 }).default("0"),
+    totalCostPerM3: decimal("total_cost_per_m3", { precision: 10, scale: 2 }).default("0"),
+    marginPct: decimal("margin_pct", { precision: 5, scale: 2 }).default("0"),
+    /** Floor = total × (1 + margin). Approval blocked below this. */
+    floorPricePerM3: decimal("floor_price_per_m3", { precision: 10, scale: 2 }).default("0"),
+    quotedPricePerM3: decimal("quoted_price_per_m3", { precision: 10, scale: 2 }).default("0"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("idx_rfq_item_rfq").on(t.rfqId),
+    index("idx_rfq_item_mix").on(t.mixDesignId),
+    index("idx_rfq_item_tenant").on(t.tenantId),
+  ]
+);
+
+/**
+ * commission_schemes — Named % rates on delivered revenue.
+ */
+export const commissionSchemes = pgTable(
+  "commission_schemes",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    name: varchar("name", { length: 120 }).notNull(),
+    /** % of delivered revenue, e.g. 1.5 */
+    ratePct: decimal("rate_pct", { precision: 5, scale: 2 }).notNull(),
+    /** Minimum delivered m³ in the period to qualify (0 = none) */
+    minDeliveredM3: decimal("min_delivered_m3", { precision: 10, scale: 2 }).default("0"),
+    isActive: boolean("is_active").notNull().default(true),
+    createdById: uuid("created_by_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("idx_comm_scheme_tenant").on(t.tenantId),
+    index("idx_comm_scheme_active").on(t.isActive),
+  ]
+);
+
+/**
+ * sales_commissions — Earned rows: PENDING → APPROVED → PAID.
+ */
+export const salesCommissions = pgTable(
+  "sales_commissions",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    salesRepId: uuid("sales_rep_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    orderId: uuid("order_id").references(() => orders.id, { onDelete: "set null" }),
+    schemeId: uuid("scheme_id").references(() => commissionSchemes.id, { onDelete: "set null" }),
+    /** YYYY-MM period label, e.g. "2026-09" */
+    period: varchar("period", { length: 7 }).notNull(),
+    basisRevenueSar: decimal("basis_revenue_sar", { precision: 12, scale: 2 }).notNull(),
+    ratePct: decimal("rate_pct", { precision: 5, scale: 2 }).notNull(),
+    amountSar: decimal("amount_sar", { precision: 12, scale: 2 }).notNull(),
+    status: varchar("status", { length: 16 }).notNull().default("PENDING"),
+    approvedById: uuid("approved_by_id").references(() => users.id, { onDelete: "set null" }),
+    approvedAt: timestamp("approved_at"),
+    paidAt: timestamp("paid_at"),
+    notes: text("notes"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("idx_comm_rep").on(t.salesRepId),
+    index("idx_comm_order").on(t.orderId),
+    index("idx_comm_period").on(t.period),
+    index("idx_comm_status").on(t.status),
+    index("idx_comm_tenant").on(t.tenantId),
+  ]
+);
+
+/**
+ * payroll_employees — Salary packages (SAR monthly).
+ */
+export const payrollEmployees = pgTable(
+  "payroll_employees",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    /** Link to system user when the employee has a login (drivers, reps...) */
+    userId: uuid("user_id").references(() => users.id, { onDelete: "set null" }),
+    employeeCode: varchar("employee_code", { length: 20 }).notNull(),
+    fullName: varchar("full_name", { length: 120 }).notNull(),
+    nationalId: varchar("national_id", { length: 20 }),
+    /** SAUDI | NON_SAUDI */
+    nationality: varchar("nationality", { length: 12 }).notNull().default("NON_SAUDI"),
+    /**
+     * GOSI track — EXPLICIT, set from contribution history:
+     * LEGACY (registered before 2024-07-03) | NEW (first registration after)
+     * Non-Saudis ignore this (hazards-only regardless).
+     */
+    gosiSystem: varchar("gosi_system", { length: 10 }).notNull().default("LEGACY"),
+    jobTitle: varchar("job_title", { length: 120 }),
+    department: varchar("department", { length: 80 }),
+    baseSalarySar: decimal("base_salary_sar", { precision: 12, scale: 2 }).notNull().default("0"),
+    housingAllowanceSar: decimal("housing_allowance_sar", { precision: 12, scale: 2 }).notNull().default("0"),
+    transportAllowanceSar: decimal("transport_allowance_sar", { precision: 12, scale: 2 }).notNull().default("0"),
+    otherAllowancesSar: decimal("other_allowances_sar", { precision: 12, scale: 2 }).notNull().default("0"),
+    bankIban: varchar("bank_iban", { length: 40 }),
+    bankName: varchar("bank_name", { length: 80 }),
+    hireDate: timestamp("hire_date"),
+    isActive: boolean("is_active").notNull().default(true),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("idx_pay_emp_tenant").on(t.tenantId),
+    index("idx_pay_emp_code").on(t.employeeCode),
+    index("idx_pay_emp_user").on(t.userId),
+  ]
+);
+
+/**
+ * payroll_runs — Monthly snapshots: DRAFT → APPROVED → PAID.
+ */
+export const payrollRuns = pgTable(
+  "payroll_runs",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    period: varchar("period", { length: 7 }).notNull(), // YYYY-MM
+    status: varchar("status", { length: 16 }).notNull().default("DRAFT"),
+    totalGrossSar: decimal("total_gross_sar", { precision: 14, scale: 2 }).default("0"),
+    totalEmployeeGosiSar: decimal("total_employee_gosi_sar", { precision: 14, scale: 2 }).default("0"),
+    totalEmployerGosiSar: decimal("total_employer_gosi_sar", { precision: 14, scale: 2 }).default("0"),
+    totalDeductionsSar: decimal("total_deductions_sar", { precision: 14, scale: 2 }).default("0"),
+    totalNetSar: decimal("total_net_sar", { precision: 14, scale: 2 }).default("0"),
+    approvedById: uuid("approved_by_id").references(() => users.id, { onDelete: "set null" }),
+    approvedAt: timestamp("approved_at"),
+    paidAt: timestamp("paid_at"),
+    notes: text("notes"),
+    createdById: uuid("created_by_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("idx_pay_run_tenant").on(t.tenantId),
+    index("idx_pay_run_period").on(t.period),
+    index("idx_pay_run_status").on(t.status),
+  ]
+);
+
+/**
+ * payroll_lines — Per-employee math snapshot (immutable once APPROVED).
+ */
+export const payrollLines = pgTable(
+  "payroll_lines",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    runId: uuid("run_id")
+      .notNull()
+      .references(() => payrollRuns.id, { onDelete: "cascade" }),
+    employeeId: uuid("employee_id")
+      .notNull()
+      .references(() => payrollEmployees.id, { onDelete: "restrict" }),
+    employeeName: varchar("employee_name", { length: 120 }).notNull(),
+    daysWorked: decimal("days_worked", { precision: 5, scale: 2 }).notNull().default("30"),
+    baseSalarySar: decimal("base_salary_sar", { precision: 12, scale: 2 }).notNull(),
+    allowancesSar: decimal("allowances_sar", { precision: 12, scale: 2 }).notNull(),
+    grossSar: decimal("gross_sar", { precision: 12, scale: 2 }).notNull(),
+    /** Contributory wage actually used (basic+housing, capped 45k) */
+    gosiWageSar: decimal("gosi_wage_sar", { precision: 12, scale: 2 }).notNull(),
+    gosiSystem: varchar("gosi_system", { length: 10 }).notNull(),
+    employeeGosiSar: decimal("employee_gosi_sar", { precision: 12, scale: 2 }).notNull(),
+    employerGosiSar: decimal("employer_gosi_sar", { precision: 12, scale: 2 }).notNull(),
+    deductionsSar: decimal("deductions_sar", { precision: 12, scale: 2 }).notNull().default("0"),
+    deductionNote: varchar("deduction_note", { length: 200 }),
+    netSar: decimal("net_sar", { precision: 12, scale: 2 }).notNull(),
+    bankIban: varchar("bank_iban", { length: 40 }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("idx_pay_line_run").on(t.runId),
+    index("idx_pay_line_emp").on(t.employeeId),
+    index("idx_pay_line_tenant").on(t.tenantId),
+  ]
+);
+
+/**
+ * hr_requests — Employee → HR: leave, advance, salary confirmation, other.
+ */
+export const hrRequests = pgTable(
+  "hr_requests",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    requesterId: uuid("requester_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    /** LEAVE | ADVANCE | SALARY_CONFIRM | OTHER */
+    type: varchar("type", { length: 20 }).notNull(),
+    /** PENDING | APPROVED | REJECTED | CANCELLED */
+    status: varchar("status", { length: 16 }).notNull().default("PENDING"),
+    /** Leave dates / advance payday context */
+    startDate: timestamp("start_date"),
+    endDate: timestamp("end_date"),
+    /** Advance amount in SAR (ADVANCE only) */
+    amountSar: decimal("amount_sar", { precision: 12, scale: 2 }),
+    /** Reference: payroll line id for SALARY_CONFIRM */
+    referenceId: varchar("reference_id", { length: 64 }),
+    reason: text("reason"),
+    reviewedById: uuid("reviewed_by_id").references(() => users.id, { onDelete: "set null" }),
+    reviewedAt: timestamp("reviewed_at"),
+    reviewNote: varchar("review_note", { length: 500 }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("idx_hr_req_tenant").on(t.tenantId),
+    index("idx_hr_req_requester").on(t.requesterId),
+    index("idx_hr_req_status").on(t.status),
+    index("idx_hr_req_type").on(t.type),
+  ]
+);
+
+/**
+ * hr_broadcasts — HR → employees announcements (role-targeted or all).
+ */
+export const hrBroadcasts = pgTable(
+  "hr_broadcasts",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    title: varchar("title", { length: 200 }).notNull(),
+    body: text("body").notNull(),
+    /** Target roles JSON array, e.g. ["DRIVER"] — empty/null = everyone */
+    audience: jsonb("audience").$type<string[]>().default([]),
+    createdById: uuid("created_by_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("idx_hr_bc_tenant").on(t.tenantId),
+    index("idx_hr_bc_created").on(t.createdAt),
+  ]
+);
+
+/**
+ * hr_broadcast_reads — Read receipts (one row per reader).
+ */
+export const hrBroadcastReads = pgTable(
+  "hr_broadcast_reads",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    broadcastId: uuid("broadcast_id")
+      .notNull()
+      .references(() => hrBroadcasts.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    readAt: timestamp("read_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("idx_hr_bcr_broadcast").on(t.broadcastId),
+    index("idx_hr_bcr_user").on(t.userId),
+  ]
+);
+
+/**
+ * hr_zones — Work geofences (factory gate, plant yard, major sites).
+ */
+export const hrZones = pgTable(
+  "hr_zones",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    name: varchar("name", { length: 120 }).notNull(), // "م بوابة المصنع"
+    latitude: decimal("latitude", { precision: 10, scale: 7 }).notNull(),
+    longitude: decimal("longitude", { precision: 10, scale: 7 }).notNull(),
+    /** Geofence radius in metres */
+    radiusM: integer("radius_m").notNull().default(200),
+    isActive: boolean("is_active").notNull().default(true),
+    createdById: uuid("created_by_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("idx_hr_zone_tenant").on(t.tenantId),
+  ]
+);
+
+/**
+ * hr_attendance — One row per user per day (YYYY-MM-DD).
+ * checkIn = first zone entry · checkOut = last zone exit.
+ */
+export const hrAttendance = pgTable(
+  "hr_attendance",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    workDate: varchar("work_date", { length: 10 }).notNull(), // YYYY-MM-DD
+    checkInAt: timestamp("check_in_at"),
+    checkInLat: decimal("check_in_lat", { precision: 10, scale: 7 }),
+    checkInLng: decimal("check_in_lng", { precision: 10, scale: 7 }),
+    checkInZoneId: uuid("check_in_zone_id").references(() => hrZones.id, {
+      onDelete: "set null",
+    }),
+    checkOutAt: timestamp("check_out_at"),
+    checkOutLat: decimal("check_out_lat", { precision: 10, scale: 7 }),
+    checkOutLng: decimal("check_out_lng", { precision: 10, scale: 7 }),
+    /** Last inside-zone fix (drives check-out on exit) */
+    lastInsideAt: timestamp("last_inside_at"),
+    lastInsideLat: decimal("last_inside_lat", { precision: 10, scale: 7 }),
+    lastInsideLng: decimal("last_inside_lng", { precision: 10, scale: 7 }),
+    /** AUTO (geofence) | MANUAL (HR correction) */
+    source: varchar("source", { length: 10 }).notNull().default("AUTO"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("idx_hr_att_tenant").on(t.tenantId),
+    index("idx_hr_att_user_day").on(t.userId, t.workDate),
+  ]
+);
+
+export const hrBroadcastsRelations = relations(hrBroadcasts, ({ many }) => ({
+  reads: many(hrBroadcastReads),
+}));
+
+// ─── GEOFENCE ATTENDANCE (Epic 12b — حضور وانصراف باللوكيشن) ─────────────────
+//
+//  Location-based attendance like dedicated attendance apps:
+//   • hr_zones — work geofences (factory + sites): lat/lng + radius
+//   • hr_attendance — one row per user per day: first zone entry =
+//     check-in (حضور), last zone exit = check-out (انصراف).
+//  The mobile app pings position periodically; the server derives
+//  enter/exit transitions. Driver overtime reports join attendance
+//  with trip counts (trips = إضافي evidence).
+
+/**
+ * batch_controllers — One controller binding per batch plant.
+ * Settings hold provider-specific config (host/registerMap, baseUrl...).
+ * Secrets (if any) go in settings.apiKey — treat like credentials.
+ */
+export const batchControllers = pgTable(
+  "batch_controllers",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    batchPlantId: uuid("batch_plant_id").references(() => batchPlants.id, {
+      onDelete: "set null",
+    }),
+    name: varchar("name", { length: 120 }).notNull(), // "BP-01 Modbus"
+    /** MODBUS_TCP | HTTP_GATEWAY | SIMULATOR */
+    provider: varchar("provider", { length: 20 }).notNull(),
+    settings: jsonb("settings").$type<Record<string, unknown>>().notNull().default({}),
+    isActive: boolean("is_active").notNull().default(true),
+    /** Last live snapshot (state, progress, latency, message) */
+    lastStatus: jsonb("last_status").$type<Record<string, unknown>>(),
+    lastSeenAt: timestamp("last_seen_at"),
+    createdById: uuid("created_by_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("idx_batch_ctrl_tenant").on(t.tenantId),
+    index("idx_batch_ctrl_plant").on(t.batchPlantId),
+  ]
+);
+
+/**
+ * carbon_factors — Editable kgCO2e intensities.
+ * factorKey examples: CEMENT_KG, SAND_KG, GRAVEL_KG, WATER_L,
+ * ADMIXTURE_L, FLYASH_KG, SILICAFUME_KG, DIESEL_L, HAUL_TKM.
+ * Seeded lazily with IPCC-style defaults (see sustainability service).
+ */
+export const carbonFactors = pgTable(
+  "carbon_factors",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    factorKey: varchar("factor_key", { length: 40 }).notNull(),
+    unit: varchar("unit", { length: 20 }).notNull(),
+    kgco2ePerUnit: decimal("kgco2e_per_unit", { precision: 12, scale: 6 }).notNull(),
+    source: varchar("source", { length: 200 }),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("idx_carbon_tenant").on(t.tenantId),
+    index("idx_carbon_key").on(t.tenantId, t.factorKey),
+  ]
+);
+
+export const batchControllersRelations = relations(batchControllers, ({ one }) => ({
+  plant: one(batchPlants, {
+    fields: [batchControllers.batchPlantId],
+    references: [batchPlants.id],
+  }),
+}));
+
+// ─── MULTI-MATERIAL + CARBON (Epic 11 — مواد واستدامة) ────────────────────────
+//
+//  Beyond ready-mix (Command Alkon multi-material parity):
+//   • orders.product_type + mix_designs.product_type:
+//     READY_MIX | AGGREGATE | ASPHALT | BLOCKS | CEMENT (default READY_MIX)
+//   • carbon_factors — editable kgCO2e intensities per unit
+//   • orders.carbon_kgco2e — footprint snapshot (mix BOM × factors + haul)
+//  SSO (OIDC) needs no schema — config lives in tenants.settings.sso.
+
+export const payrollRunsRelations = relations(payrollRuns, ({ many }) => ({
+  lines: many(payrollLines),
+}));
+
+// ─── HR SOCIAL (Epic 12 — تواصل الموظفين مع HR) ──────────────────────────────
+//
+//  Two-way bridge between every employee and HR:
+//   • hr_requests — LEAVE | ADVANCE | SALARY_CONFIRM | OTHER.
+//     Created by ANY authenticated employee (own scope), reviewed
+//     (APPROVED/REJECTED + note) by HR_WRITE holders.
+//   • hr_broadcasts — HR announcements to roles/all + read receipts.
+//  Push delivery via Expo Push (see push.service.ts).
+
+// ─── BATCH-PLANT CONTROLLERS (Epic 10 — تكامل PLC) ────────────────────────────
+//
+//  Registry binding each batch plant to its controller:
+//   • MODBUS_TCP (Libra/generic PLC via register map — READ-ONLY v1)
+//   • HTTP_GATEWAY (Marcotte-style REST)
+//   • SIMULATOR (virtual plant for demos/dev — never production)
+//  Live reads are on-demand (no time-series table); last snapshot is
+//  cached on the row for dashboards.
+
+export const rfqsRelations = relations(rfqs, ({ many }) => ({
+  items: many(rfqItems),
+}));
+
+// ─── GCC PAYROLL GOSI + MUDAD (Epic 9 — الرواتب الخليجية) ─────────────────────
+//
+//  Saudi GOSI-accurate payroll (iCeipts / AKST parity):
+//   • payroll_employees — salary package + nationality + EXPLICIT gosi
+//     system (LEGACY pre-2024-07-03 vs NEW). The system follows
+//     contribution HISTORY, never the hire date (classic payroll error).
+//   • payroll_runs — monthly DRAFT → APPROVED → PAID snapshots
+//   • payroll_lines — per-employee gross/GOSI/deductions/net math
+//
+//  Rate engine (verified Sep-2026 sources):
+//   • Contributory wage = basic + housing ONLY, capped at SAR 45,000
+//   • Legacy Saudi: employee 9.75% (9 + 0.75) · employer 11.75% (9+2+0.75)
+//   • New-system Saudi (Jul-26): employee 10.75% · employer 12.75%,
+//     +0.5%/side each July through 2028 (final 11.75 / 13.75)
+//   • Non-Saudi: employer 2% hazards only, employee 0%
+
+export const zatcaDocumentsRelations = relations(zatcaDocuments, ({ one }) => ({
+  order: one(orders, {
+    fields: [zatcaDocuments.orderId],
+    references: [orders.id],
+  }),
+}));
+
+// ─── SALES QUOTING RFQ + COMMISSIONS (Epic 8 — عروض الأسعار والعمولات) ─────────
+//
+//  Enforced-margin quoting (D4A / MAS parity):
+//   • rfqs — header: client, site, status chain, validity, approvals
+//   • rfq_items — one row per mix: volume + cost breakdown + margin +
+//     floor price + quoted price. APPROVE is BLOCKED below floor.
+//   • commission_schemes — named % rates on delivered revenue
+//   • sales_commissions — earned rows: PENDING → APPROVED → PAID
+//
+//  Flow: DRAFT → SUBMITTED → COSTED → APPROVED → CONVERTED (→ orders)
+//  Conversion creates one DRAFT... no — PENDING_FINANCE order per item,
+//  so the finance gate is never bypassed.
+
+export const integrationConnectionsRelations = relations(
+  integrationConnections,
+  ({ many }) => ({
+    logs: many(integrationSyncLogs),
+  })
+);
+
+// ─── ZATCA PHASE-2 E-INVOICING (Epic 7 — الفوترة الإلكترونية) ─────────────────
+//
+//  Full Fatoora clearance/reporting (iCeipts / ERPGulf parity):
+//   • tenant.settings.zatca — taxpayer config (tokens AES-encrypted)
+//   • zatca_documents — every invoice: UBL hash chain (counter + previous
+//     hash per ZATCA rules), TLV QR, clearance status, Fatoora response
+//   • STANDARD (B2B) invoices go through clearance; SIMPLIFIED (B2C)
+//     go through reporting. Without configured tokens, docs are stored
+//     as PENDING with a valid TLV QR (Phase-1-compatible) until certs exist.
+
+export const telematicsDevicesRelations = relations(telematicsDevices, ({ one }) => ({
+  vehicle: one(fleetVehicles, {
+    fields: [telematicsDevices.vehicleId],
+    references: [fleetVehicles.id],
+  }),
+}));
+
+export const telematicsReadingsRelations = relations(telematicsReadings, ({ one }) => ({
+  vehicle: one(fleetVehicles, {
+    fields: [telematicsReadings.vehicleId],
+    references: [fleetVehicles.id],
+  }),
+  trip: one(trips, {
+    fields: [telematicsReadings.tripId],
+    references: [trips.id],
+  }),
+}));
+
+// ─── EXTERNAL ACCOUNTING INTEGRATIONS (Epic 6 — التكامل المحاسبي) ─────────────
+//
+//  Push customers + invoices to SAP / Oracle / QuickBooks / Zoho
+//  (Sysdyne QuickLink / D4A parity):
+//   • integration_connections — provider + ENCRYPTED credentials + status
+//   • integration_sync_logs — every push attempt (audit-grade trail)
+//  SAP/Oracle mid-market reality = file bridge: CSV export/import
+//  handled by the csv-bridge connector against the same log table.
 
 export const usersRelations = relations(users, ({ many }) => ({
   sessions: many(userSessions),
@@ -2770,3 +4267,14 @@ export type ExpenseCategory = (typeof expenseCategoryEnum.enumValues)[number];
 export type ExpensePaymentMethod = (typeof expensePaymentMethodEnum.enumValues)[number];
 export type SupplierPaymentMode = (typeof supplierPaymentModeEnum.enumValues)[number];
 export type PurchaseOrderStatus = (typeof purchaseOrderStatusEnum.enumValues)[number];
+// ── R&D module types ──
+export type RndPlanStatus = (typeof rndPlanStatusEnum.enumValues)[number];
+export type RndPlanCategory = (typeof rndPlanCategoryEnum.enumValues)[number];
+export type RndPriority = (typeof rndPriorityEnum.enumValues)[number];
+export type RndTaskStatus = (typeof rndTaskStatusEnum.enumValues)[number];
+export type RndBudgetCategory = (typeof rndBudgetCategoryEnum.enumValues)[number];
+export type RndBudgetItemStatus = (typeof rndBudgetItemStatusEnum.enumValues)[number];
+export type RndIssueSeverity = (typeof rndIssueSeverityEnum.enumValues)[number];
+export type RndIssueCategory = (typeof rndIssueCategoryEnum.enumValues)[number];
+export type RndIssueStatus = (typeof rndIssueStatusEnum.enumValues)[number];
+export type ProductType = (typeof productTypeEnum.enumValues)[number];

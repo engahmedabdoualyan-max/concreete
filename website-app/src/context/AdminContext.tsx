@@ -6,11 +6,11 @@ import {
   saveAdminUserToSupabase, deleteAdminUserFromSupabase, loadAdminUsersFromSupabase,
 } from '../supabase/supabase';
 
-export type UserRole = 'owner' | 'manager' | 'operator' | 'quality' | 'maintenance' | 'viewer' | 'sysadmin' | 'ptown';
-export type ModuleKey = 'operations' | 'production' | 'workshop' | 'mixing' | 'schedule' | 'orders' | 'evaluation' | 'rnd';
+export type UserRole = 'owner' | 'manager' | 'operator' | 'quality' | 'maintenance' | 'viewer' | 'sysadmin' | 'ptown' | 'rnd_manager' | 'hr';
+export type ModuleKey = 'operations' | 'production' | 'workshop' | 'mixing' | 'schedule' | 'orders' | 'evaluation' | 'rnd' | 'hr';
 
-export const ROLE_KEYS: UserRole[] = ['owner', 'manager', 'operator', 'quality', 'maintenance', 'viewer', 'sysadmin', 'ptown'];
-export const MODULE_KEYS: ModuleKey[] = ['operations', 'production', 'workshop', 'mixing', 'schedule', 'orders', 'evaluation', 'rnd'];
+export const ROLE_KEYS: UserRole[] = ['owner', 'manager', 'operator', 'quality', 'maintenance', 'viewer', 'sysadmin', 'ptown', 'rnd_manager', 'hr'];
+export const MODULE_KEYS: ModuleKey[] = ['operations', 'production', 'workshop', 'mixing', 'schedule', 'orders', 'evaluation', 'rnd', 'hr'];
 
 export interface PlantProfile {
   name: string;
@@ -61,11 +61,11 @@ export const DEFAULT_PLANT: PlantProfile = {
 export function rolePermissions(role: UserRole): Record<ModuleKey, boolean> {
   const all = (): Record<ModuleKey, boolean> => ({
     operations: true, production: true, workshop: true, mixing: true,
-    schedule: true, orders: true, evaluation: true, rnd: true,
+    schedule: true, orders: true, evaluation: true, rnd: true, hr: true,
   });
   const none = (): Record<ModuleKey, boolean> => ({
     operations: false, production: false, workshop: false, mixing: false,
-    schedule: false, orders: false, evaluation: false, rnd: false,
+    schedule: false, orders: false, evaluation: false, rnd: false, hr: false,
   });
   switch (role) {
     case 'owner':
@@ -79,6 +79,13 @@ export function rolePermissions(role: UserRole): Record<ModuleKey, boolean> {
       return { ...none(), mixing: true, evaluation: true };
     case 'maintenance':
       return { ...none(), workshop: true };
+    case 'rnd_manager':
+      // مدير البحث والتطوير — owns the R&D module, reads evaluation &
+      // orders (targets), no plant-config or user-admin rights
+      return { ...none(), rnd: true, evaluation: true, orders: true };
+    case 'hr':
+      // موظف الموارد البشرية — HR bridge: requests, broadcasts, attendance
+      return { ...none(), hr: true };
     case 'viewer':
       return none();
   }

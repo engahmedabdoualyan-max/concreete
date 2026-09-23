@@ -7,7 +7,7 @@ import { Stack, Redirect, useSegments } from "expo-router";
 import { useEffect, type ReactElement } from "react";
 import { ActivityIndicator, View, Text } from "react-native";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { useAuthStore, isDriver, isSalesRep, isOperationsMgr, isProductionMgr, isStationTech, isAccountant, isScheduleMgr, isLabTech, isWorkshopManager, isRepsManager } from "@/store/auth-store";
+import { useAuthStore, isDriver, isSalesRep, isOperationsMgr, isProductionMgr, isStationTech, isAccountant, isScheduleMgr, isLabTech, isWorkshopManager, isRepsManager, isRndManager, isHrOfficer } from "@/store/auth-store";
 import { isSubscriptionExpired } from "@/lib/tree-auth";
 import { reportPresence } from "@/lib/firestore";
 import "../global.css";
@@ -75,7 +75,11 @@ export default function RootLayout() {
                     ? "/(workshop)"
                     : isRepsManager(user)
                       ? "/(repsmgr)"
-                      : "/(dashboard)";
+                      : user.role === "RND_MANAGER"
+                        ? "/(rnd)"
+                        : user.role === "HR_OFFICER"
+                          ? "/(hr)"
+                          : "/(dashboard)";
         if (segments[0] === "(auth)" || segments[0] === undefined) {
           redirect = <Redirect href={home as any} />;
         }
@@ -106,6 +110,8 @@ export default function RootLayout() {
         <Stack.Screen name="(workshop)" />
         <Stack.Screen name="(repsmgr)" />
         <Stack.Screen name="(dashboard)" />
+        <Stack.Screen name="(rnd)" />
+        <Stack.Screen name="(hr)" />
       </Stack>
       {redirect}
       {isLoading && (

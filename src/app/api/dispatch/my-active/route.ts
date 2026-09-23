@@ -11,7 +11,7 @@
 import { NextRequest } from "next/server";
 import { db } from "@/db";
 import { trips, orders, clients, deliverySites, mixDesigns, fleetVehicles } from "@/db/schema";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, sql } from "drizzle-orm";
 import { requirePermission, errorResponse, successResponse } from "@/lib/auth/middleware";
 import { PERMISSIONS } from "@/lib/auth/rbac";
 
@@ -36,6 +36,11 @@ export async function GET(req: NextRequest) {
       isCompleted: trips.isCompleted,
       isCancelled: trips.isCancelled,
       createdAt: trips.createdAt,
+      // E-signature proof (Epic 3) — boolean only on the hot poll path;
+      // the full image is fetched on demand via the portal/trip detail.
+      hasSignature: sql<boolean>`${trips.signatureImage} IS NOT NULL`,
+      signedBy: trips.signedBy,
+      signedAt: trips.signedAt,
       vehicleCode: fleetVehicles.vehicleCode,
       plateNumber: fleetVehicles.plateNumber,
       clientName: clients.companyName,

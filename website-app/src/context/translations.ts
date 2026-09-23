@@ -644,6 +644,7 @@ export interface Translations {
   modOrders: string;
   modProduction: string;
   modRnd: string;
+  modHr: string;
   modSchedule: string;
   module: string;
   modWorkshop: string;
@@ -1194,6 +1195,8 @@ export interface Translations {
   updated: string;
   updateTrip: string;
   uploadReport: string;
+  rndManagerRole: string;
+  hrRole: string;
   userAdded: string;
   userDeleted: string;
   username: string;
@@ -1893,6 +1896,7 @@ export const enTranslations: Partial<Translations> = {
   modOrders: 'Orders',
   modProduction: 'Production',
   modRnd: 'R&D',
+  modHr: 'HR',
   modSchedule: 'Schedule',
   module: 'Module',
   modWorkshop: 'Workshop',
@@ -2446,6 +2450,8 @@ export const enTranslations: Partial<Translations> = {
   updated: 'Updated',
   updateTrip: 'Update Trip',
   uploadReport: 'Upload Report',
+  rndManagerRole: 'R&D MANAGER',
+  hrRole: 'HR Officer',
   userAdded: 'User added successfully',
   userDeleted: 'User deleted',
   username: 'Username',
@@ -3145,6 +3151,7 @@ export const arTranslations: Partial<Translations> = {
   modOrders: 'الطلبات',
   modProduction: 'الإنتاج',
   modRnd: 'البحث والتطوير',
+  modHr: 'الموارد البشرية',
   modSchedule: 'الجدولة',
   module: 'الوحدة',
   modWorkshop: 'الورشة',
@@ -3698,6 +3705,8 @@ export const arTranslations: Partial<Translations> = {
   updated: 'تم التحديث',
   updateTrip: 'تحديث الرحلة',
   uploadReport: 'رفع التقرير',
+  rndManagerRole: 'مدير البحث والتطوير',
+  hrRole: 'موظف الموارد البشرية',
   userAdded: 'تمت إضافة المستخدم بنجاح',
   userDeleted: 'تم حذف المستخدم',
   username: 'اسم المستخدم',

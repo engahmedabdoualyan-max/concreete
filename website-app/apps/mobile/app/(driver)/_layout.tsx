@@ -1,37 +1,35 @@
 /**
  * Driver Layout
- * Root layout for driver-specific screens
+ * Root layout for driver-specific screens.
+ * Every screen: HeaderActions (profile + logout) + HrFab (HR bridge).
  */
 
-import { Stack, useRouter } from "expo-router";
-import { View, Text, TouchableOpacity } from "react-native";
+import { Stack } from "expo-router";
+import { View, Text } from "react-native";
 import { useAuthStore } from "@/store/auth-store";
 import { useT } from "@/lib/i18n";
+import { HeaderActions } from "@/components/HeaderActions";
+import { HrFab } from "@/components/HrFab";
 
 export default function DriverLayout() {
   const { user } = useAuthStore();
-  const router = useRouter();
   const { t } = useT();
 
   return (
-    <>
+    <View className="flex-1">
       <Stack
         screenOptions={{
           headerStyle: { backgroundColor: "#F97316" },
           headerTintColor: "#FFFFFF",
           headerTitleStyle: { fontWeight: "bold", fontSize: 18 },
           headerTitleAlign: "center",
+          headerRight: () => <HeaderActions />,
         }}
       >
         <Stack.Screen
           name="index"
           options={{
             title: "رحلة السائق",
-            headerRight: () => (
-              <TouchableOpacity onPress={() => router.push("/(driver)/profile")} className="mr-2">
-                <Text className="text-white text-lg">👤</Text>
-              </TouchableOpacity>
-            ),
             headerLeft: () => (
               <View className="ml-2">
                 <Text className="text-white text-sm">
@@ -45,8 +43,10 @@ export default function DriverLayout() {
           name="history"
           options={{ title: "سجل الرحلات" }}
         />
+        <Stack.Screen name="sign" options={{ title: "✍️ توقيع العميل" }} />
         <Stack.Screen name="profile" options={{ title: t("profile.title") }} />
       </Stack>
-    </>
+      <HrFab />
+    </View>
   );
 }

@@ -26,6 +26,10 @@ const ROLE_EMOJIS: Record<UserRole, string> = {
   quality: '🔬',
   maintenance: '🔧',
   viewer: '👁️',
+  rnd_manager: '🧠',
+  sysadmin: '⚙️',
+  ptown: '🏭',
+  hr: '👔',
 };
 
 const ROLE_T_KEYS: Record<UserRole, keyof Translations> = {
@@ -35,6 +39,10 @@ const ROLE_T_KEYS: Record<UserRole, keyof Translations> = {
   quality: 'qualityRole',
   maintenance: 'maintenanceRole',
   viewer: 'viewerRole',
+  rnd_manager: 'rndManagerRole',
+  sysadmin: 'sysadminRole',
+  ptown: 'ptownRole',
+  hr: 'hrRole',
 };
 
 const MODULE_EMOJIS: Record<string, string> = {
@@ -46,6 +54,7 @@ const MODULE_EMOJIS: Record<string, string> = {
   orders: '📦',
   evaluation: '📊',
   rnd: '🔬',
+  hr: '👔',
 };
 
 const MODULE_T_KEYS: Record<string, keyof Translations> = {
@@ -57,6 +66,7 @@ const MODULE_T_KEYS: Record<string, keyof Translations> = {
   orders: 'modOrders',
   evaluation: 'modEvaluation',
   rnd: 'modRnd',
+  hr: 'modHr',
 };
 
 function Field({ label, value, onChange, type = 'text', rows }: {
@@ -489,7 +499,7 @@ export default function AdminPanel() {
                         <span className="text-xl">{ROLE_EMOJIS[u.role]}</span>
                         <div>
                           <p className="font-bold text-white">{u.name || u.username}</p>
-                          <p className="text-xs text-slate-400">@{u.username} · {u.role}</p>
+                          <p className="text-xs text-slate-400">@{u.username} · {t(ROLE_T_KEYS[u.role])}</p>
                         </div>
                       </div>
                       <span className={`text-xs px-2.5 py-1 rounded font-bold ${

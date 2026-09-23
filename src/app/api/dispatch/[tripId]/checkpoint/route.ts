@@ -17,12 +17,14 @@
 
 import { NextRequest } from "next/server";
 import { db } from "@/db";
-import { trips, tripCheckpoints } from "@/db/schema";
+import { trips, tripCheckpoints, orders, clients, deliverySites } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import { requirePermission } from "@/lib/auth/middleware";
 import { errorResponse, successResponse } from "@/lib/auth/middleware";
 import { PERMISSIONS } from "@/lib/auth/rbac";
 import { updateTripCheckpoint, CHECKPOINT_ORDER } from "@/lib/services/dispatch.service";
+import { predictEtaMinutes } from "@/lib/services/dispatch-optimization.service";
+import { notifyCustomer, type NotifyEvent } from "@/lib/services/notification.service";
 import { z } from "zod";
 import type { TripCheckpoint } from "@/db/schema";
 
@@ -167,6 +169,65 @@ export async function POST(
             timestamp: new Date().toISOString(),
           },
         };
+
+    // ── Customer auto-notification (Epic 1 — fire-and-forget) ─────────────
+    // DEP_PLANT → "mixer on the way" · ARR_SITE → "arrived" · DEP_SITE → "pour done"
+    // Never awaited: notification failures must never slow down or break dispatch.
+    const NOTIFY_MAP: Record<string, NotifyEvent | undefined> = {
+      DEP_PLANT: "TRUCK_DEPARTED",
+      ARR_SITE: "TRUCK_ARRIVED",
+      DEP_SITE: "POUR_FINISHED",
+    };
+    const notifyEvent = NOTIFY_MAP[parsed.data.checkpoint];
+    if (notifyEvent) {
+      void (async () => {
+        try {
+          const info = await db
+            .select({
+              phone: clients.phone,
+              siteName: deliverySites.siteName,
+              distanceKm: deliverySites.distanceFromPlantKm,
+              volumeM3: trips.loadedVolumeM3,
+            })
+            .from(trips)
+            .innerJoin(orders, eq(trips.orderId, orders.id))
+            .innerJoin(clients, eq(orders.clientId, clients.id))
+            .innerJoin(deliverySites, eq(orders.deliverySiteId, deliverySites.id))
+            .where(eq(trips.id, tripId))
+            .limit(1);
+          const row = info[0];
+          if (!row?.phone) return;
+          // Learned ETA (history → distance fallback); never blocks dispatch
+          let etaMinutes: number | undefined;
+          try {
+            const eta = await predictEtaMinutes(auth.user.tenantId, tripId);
+            if (eta && eta.etaMinutes > 0) etaMinutes = eta.etaMinutes;
+          } catch {
+            const distanceKm = row.distanceKm ? Number(row.distanceKm) : 0;
+            etaMinutes =
+              notifyEvent === "TRUCK_DEPARTED" && distanceKm > 0
+                ? Math.max(5, Math.round((distanceKm / 40) * 60))
+                : undefined;
+          }
+          await notifyCustomer({
+            tenantId: auth.user.tenantId,
+            tripId,
+            to: row.phone,
+            event: notifyEvent,
+            locale: "ar",
+            vars: {
+              tripNumber: trip.tripNumber,
+              siteName: row.siteName ?? undefined,
+              volumeM3: row.volumeM3 ?? undefined,
+              ticketNumber: updatedTripRows[0]?.deliveryTicketNumber ?? undefined,
+              etaMinutes,
+            },
+          });
+        } catch {
+          // Swallowed by design — notifyCustomer already audit-logs failures
+        }
+      })();
+    }
 
     return successResponse(
       {

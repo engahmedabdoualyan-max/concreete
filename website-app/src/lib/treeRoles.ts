@@ -5,7 +5,7 @@ export interface TreeRole {
   mods: string[];
 }
 
-const ALL_MODS = ['operations', 'production', 'workshop', 'mixing', 'schedule', 'orders', 'evaluation', 'rnd', 'governance', 'finance', 'materials', 'multiplant'];
+const ALL_MODS = ['operations', 'production', 'workshop', 'mixing', 'schedule', 'orders', 'evaluation', 'rnd', 'governance', 'finance', 'materials', 'multiplant', 'hr'];
 
 export const TREE_ROLES: TreeRole[] = [
   { key: 'sysadmin', ar: 'مدير نظام', perms: ['كل الصلاحيات', 'لوحة الإدارة'], mods: ALL_MODS },
@@ -24,6 +24,8 @@ export const TREE_ROLES: TreeRole[] = [
   { key: 'batchOp', ar: 'مشغل محطة', perms: ['الإنتاج', 'الخلاطة', 'الوزن'], mods: ['production', 'mixing', 'multiplant'] },
   { key: 'labMgr', ar: 'مدير مختبر', perms: ['المختبر', 'الجودة', 'المواصفات'], mods: ['mixing', 'evaluation', 'rnd', 'materials'] },
   { key: 'labTech', ar: 'فني مختبر', perms: ['الفحوصات', 'المعايرة', 'العينات'], mods: ['mixing', 'evaluation', 'rnd', 'materials'] },
+  { key: 'rndMgr', ar: 'مدير البحث والتطوير', perms: ['خطط التطوير', 'إسناد المهام', 'المتابعة الأسبوعية', 'تقييم الموظفين', 'ذكاء المنافسين'], mods: ['rnd', 'evaluation', 'orders'] },
+  { key: 'hrOfficer', ar: 'موظف الموارد البشرية', perms: ['طلبات الإجازات والسلف', 'إعلانات الموظفين', 'الحضور والانصراف', 'مسيرات الرواتب'], mods: ['hr', 'orders'] },
 ];
 
 export function treeModsForRole(key: string): string[] {

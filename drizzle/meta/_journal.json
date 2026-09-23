@@ -8,6 +8,97 @@
       "when": 1786149958889,
       "tag": "0000_productive_inertia",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1788667200000,
+      "tag": "0001_rnd_module",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1788753600000,
+      "tag": "0002_rnd_competitors",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1788840000000,
+      "tag": "0003_customer_portal",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1788926400000,
+      "tag": "0004_trip_signature",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1789012800000,
+      "tag": "0005_drum_telematics",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1789099200000,
+      "tag": "0006_accounting_integrations",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1789185600000,
+      "tag": "0007_zatca_documents",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1789272000000,
+      "tag": "0008_rfq_commissions",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1789358400000,
+      "tag": "0009_gcc_payroll",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1789444800000,
+      "tag": "0010_batch_controllers",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1789531200000,
+      "tag": "0011_multimaterial_carbon",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1789617600000,
+      "tag": "0012_hr_social",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1789704000000,
+      "tag": "0013_geofence_attendance",
+      "breakpoints": true
     }
   ]
 }

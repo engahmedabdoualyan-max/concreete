@@ -25,6 +25,14 @@ import CustomSection from './pages/CustomSection';
 import CustomerPortal from './pages/CustomerPortal';
 import LandingPage from './pages/LandingPage';
 import PresenceTracker from './components/PresenceTracker';
+import TrackOrder from './pages/TrackOrder';
+import AccountingIntegrations from './pages/AccountingIntegrations';
+import ZatcaCompliance from './pages/ZatcaCompliance';
+import Quotations from './pages/Quotations';
+import Payroll from './pages/Payroll';
+import BatchControl from './pages/BatchControl';
+import Sustainability from './pages/Sustainability';
+import SsoProviders from './pages/SsoProviders';
 
 export default function App() {
   return (
@@ -37,6 +45,15 @@ export default function App() {
         <Routes>
           <Route path="/login" element={<LoginRegister />} />
           <Route path="/landing" element={<LandingPage />} />
+          <Route path="/track/:token" element={<TrackOrder />} />
+          <Route path="/integrations" element={<AccountingIntegrations />} />
+          <Route path="/zatca" element={<ZatcaCompliance />} />
+          <Route path="/quoting" element={<Quotations />} />
+          <Route path="/payroll" element={<Payroll />} />
+          <Route path="/batch-control" element={<BatchControl />} />
+          <Route path="/sustainability" element={<Sustainability />} />
+          <Route path="/sso" element={<SsoProviders />} />
+          <Route path="/admin" element={<Admin />} />
           <Route path="/admin" element={<Admin />} />
           <Route path="/console" element={<Console />} />
           <Route path="/portal" element={<CustomerPortal />} />

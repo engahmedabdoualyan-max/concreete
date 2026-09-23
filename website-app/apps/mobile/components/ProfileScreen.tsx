@@ -21,10 +21,40 @@ import { useRouter } from "expo-router";
 import { useAuthStore } from "@/store/auth-store";
 import { useT } from "@/lib/i18n";
 import { WEB_ACCOUNT_DELETION_URL } from "@/types";
+import type { UserRole } from "@/types";
+
+/**
+ * Human-readable role labels per locale.
+ * Backend enum values (e.g. "RND_MANAGER") must never leak into the UI —
+ * R&D Manager always displays as "R&D MANAGER" / "مدير البحث والتطوير".
+ */
+const ROLE_LABELS: Record<string, { en: string; ar: string }> = {
+  SUPER_ADMIN: { en: "SUPER ADMIN", ar: "مدير النظام" },
+  PLANT_MGR: { en: "PLANT MANAGER", ar: "مدير المصنع" },
+  ACCOUNTANT: { en: "ACCOUNTANT", ar: "محاسب" },
+  FINANCE: { en: "FINANCE", ar: "المدير المالي" },
+  SALES_REP: { en: "SALES REP", ar: "مندوب مبيعات" },
+  DRIVER: { en: "DRIVER", ar: "سائق" },
+  RND_MANAGER: { en: "R&D MANAGER", ar: "مدير البحث والتطوير" },
+  HR_OFFICER: { en: "HR OFFICER", ar: "موظف الموارد البشرية" },
+  DISPATCHER: { en: "DISPATCHER", ar: "مرسل" },
+  BATCH_OPERATOR: { en: "BATCH OPERATOR", ar: "مشغل الخلاطة" },
+  LAB_TECH: { en: "LAB TECH", ar: "فني معمل" },
+  LAB_TECHNICIAN: { en: "LAB TECH", ar: "فني معمل" },
+  WORKSHOP_MGR: { en: "WORKSHOP MANAGER", ar: "مدير الورشة" },
+  WORKSHOP_MECHANIC: { en: "MECHANIC", ar: "ميكانيكي" },
+};
+
+export function roleLabel(role: UserRole | string | undefined, locale: string): string {
+  if (!role) return "—";
+  const entry = ROLE_LABELS[role];
+  if (!entry) return role;
+  return locale === "ar" ? entry.ar : entry.en;
+}
 
 export function ProfileScreen() {
   const { user, logout, deleteAccount } = useAuthStore();
-  const { t, isRtl } = useT();
+  const { t, locale, isRtl } = useT();
   const router = useRouter();
 
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -71,7 +101,9 @@ export function ProfileScreen() {
         </Text>
         {user?.role ? (
           <View className="self-start mt-3 bg-orange-100 rounded-full px-3 py-1">
-            <Text className="text-orange-700 font-semibold text-xs">{user.role}</Text>
+            <Text className="text-orange-700 font-semibold text-xs">
+              {roleLabel(user.role, locale)}
+            </Text>
           </View>
         ) : null}
         <Text className="text-slate-400 text-xs mt-3">

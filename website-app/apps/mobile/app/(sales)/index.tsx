@@ -17,6 +17,8 @@ import { Button } from "@/components/ui/Button";
 import { erp, dataUsername } from "@/lib/firestore";
 import { useAuthStore } from "@/store/auth-store";
 import { playAlertSound } from "@/lib/sound";
+import { api } from "@/lib/api";
+import { geolocation } from "@/lib/geolocation";
 
 /** Task assigned by مدير المناديب (rep_tasks collection). */
 interface RepTask {
@@ -58,6 +60,25 @@ export default function SalesHomeScreen() {
   const [filter, setFilter] = useState("all");
   const prevStatuses = useRef<Record<string, string>>({});
   const alerted = useRef<Set<string>>(new Set());
+
+  // Attendance ping on duty (Epic 12b) — best-effort, once per visit.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        await geolocation.requestForegroundPermission();
+        const loc = await geolocation.getCurrentLocation();
+        if (!cancelled && loc) {
+          await api.pingAttendance(loc.latitude, loc.longitude);
+        }
+      } catch {
+        // Attendance must never disturb sales flow
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Fetch orders from the SAME Firestore collection as the website
   const { data: orders, isLoading } = useQuery<SalesOrder[]>({

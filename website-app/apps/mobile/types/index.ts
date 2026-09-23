@@ -14,6 +14,8 @@ export type UserRole =
   | "SALES_REP"
   | "DRIVER"
   | "STATION_TECH"
+  | "RND_MANAGER"           // مدير البحث والتطوير
+  | "HR_OFFICER"            // موظف الموارد البشرية
   // Operational aliases retained for backward compatibility
   | "FINANCE"
   | "DISPATCHER"
@@ -119,6 +121,11 @@ export interface Trip {
   isCompleted: boolean;
   isCancelled: boolean;
   createdAt: string;
+
+  // E-signature proof (Epic 3 — from my-active; image fetched on demand)
+  hasSignature?: boolean;
+  signedBy?: string | null;
+  signedAt?: string | null;
 
   // Joins (from API)
   vehicleCode?: string;

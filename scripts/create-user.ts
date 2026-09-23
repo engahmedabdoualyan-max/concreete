@@ -32,8 +32,8 @@
  *  ROLES (from user_role enum)
  *  ─────────────────────────────────────────────────────────────
  *    SUPER_ADMIN, PLANT_MGR, ACCOUNTANT, LAB_TECH, BATCH_OPERATOR,
- *    SALES_REP, DRIVER, FINANCE, DISPATCHER, WORKSHOP_MGR,
- *    LAB_TECHNICIAN, WORKSHOP_MECHANIC
+ *    SALES_REP, DRIVER, RND_MANAGER, HR_OFFICER, FINANCE, DISPATCHER,
+ *    WORKSHOP_MGR, LAB_TECHNICIAN, WORKSHOP_MECHANIC
  * ============================================================
  */
 
@@ -51,6 +51,8 @@ const VALID_ROLES = [
   "BATCH_OPERATOR",
   "SALES_REP",
   "DRIVER",
+  "RND_MANAGER",
+  "HR_OFFICER",
   "FINANCE",
   "DISPATCHER",
   "WORKSHOP_MGR",

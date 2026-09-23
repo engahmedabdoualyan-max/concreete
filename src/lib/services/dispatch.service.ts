@@ -812,3 +812,71 @@ export async function updateTripCheckpoint(
     socketEvent: dryingRiskTriggered ? "CONCRETE_DRYING_RISK" : "trip:checkpoint_updated",
   };
 }
+
+// ─── Customer e-signature (sign-on-glass — Epic 3) ─────────────────────────────
+
+/** Maximum accepted signature payload (~350 KB data URL). */
+export const MAX_SIGNATURE_BYTES = 350_000;
+
+export interface SaveSignatureParams {
+  tripId: string;
+  tenantId: string;
+  /** PNG/JPEG data URL from the driver device signature pad */
+  signatureImage: string;
+  /** Printed name of the site person who signed */
+  signedBy: string;
+}
+
+export async function saveTripSignature(params: SaveSignatureParams) {
+  const { tripId, tenantId, signatureImage, signedBy } = params;
+
+  if (!/^data:image\/(png|jpeg);base64,[A-Za-z0-9+/=]+$/.test(signatureImage)) {
+    throw new Error("Signature must be a PNG/JPEG data URL");
+  }
+  if (signatureImage.length > MAX_SIGNATURE_BYTES) {
+    throw new Error("Signature image too large (max ~350 KB)");
+  }
+  if (!signedBy.trim()) {
+    throw new Error("Signer name is required");
+  }
+
+  const tripRows = await db
+    .select({ id: trips.id, isCancelled: trips.isCancelled })
+    .from(trips)
+    .where(and(eq(trips.id, tripId), eq(trips.tenantId, tenantId)))
+    .limit(1);
+  if (tripRows.length === 0) {
+    throw new Error("Trip not found");
+  }
+  if (tripRows[0].isCancelled) {
+    throw new Error("Cannot sign a cancelled trip");
+  }
+
+  const [updated] = await db
+    .update(trips)
+    .set({
+      signatureImage,
+      signedBy: signedBy.trim().slice(0, 120),
+      signedAt: new Date(),
+      updatedAt: new Date(),
+    })
+    .where(and(eq(trips.id, tripId), eq(trips.tenantId, tenantId)))
+    .returning({
+      id: trips.id,
+      tripNumber: trips.tripNumber,
+      signedBy: trips.signedBy,
+      signedAt: trips.signedAt,
+    });
+
+  // Audit trail — proof of delivery chain
+  await db.insert(auditLogs).values({
+    tenantId,
+    userId: null,
+    action: "TRIP_SIGNED",
+    entityType: "trip",
+    entityId: tripId,
+    newState: { signedBy: updated.signedBy, signedAt: updated.signedAt },
+  });
+
+  return updated;
+}

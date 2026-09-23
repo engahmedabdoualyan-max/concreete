@@ -4,12 +4,16 @@
  * Loads from the same Firestore `orders` collection as the website.
  */
 
-import { View, Text, ScrollView } from "react-native";
+import { View, Text, ScrollView, Alert, Linking } from "react-native";
+import { useState } from "react";
 import { useLocalSearchParams } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
 import { Card } from "@/components/ui/Card";
+import { Button } from "@/components/ui/Button";
 import { erp, dataUsername } from "@/lib/firestore";
 import { useAuthStore } from "@/store/auth-store";
+import { useT } from "@/lib/i18n";
+import { WHATSAPP_SHARE_BASE } from "@/types";
 import { ELEMENT_TYPES, BLOCK_PRODUCTS, INSULATION_TYPES, type SalesOrder } from "@/components/sales/BookingForm";
 
 const blockProductLabel = (v?: string) =>
@@ -49,9 +53,11 @@ function fmtTime(iso?: string): string {
 }
 
 export default function TrackOrderScreen() {
+  const { t } = useT();
   const { orderId } = useLocalSearchParams<{ orderId: string }>();
   const { user } = useAuthStore();
   const u = dataUsername(user);
+  const [sharing, setSharing] = useState(false);
 
   const { data: orders, isLoading } = useQuery<SalesOrder[]>({
     queryKey: ["sales-orders", u],
@@ -59,6 +65,30 @@ export default function TrackOrderScreen() {
   });
 
   const order = orders?.find((o) => o.id === orderId);
+
+  /** Share this order with the customer over WhatsApp (order snapshot). */
+  const shareWithCustomer = async (viaWhatsApp: boolean) => {
+    if (!order) return;
+    setSharing(true);
+    try {
+      const status = STATUS_STYLE[order.status] ?? STATUS_STYLE.pending;
+      const message =
+        `📦 ${t("sales.share.messagePrefix")} ${order.orderNo || order.id}\n` +
+        `👤 ${order.customerName ?? ""}\n` +
+        `🏗️ ${order.projectName ?? ""}\n` +
+        `📦 ${order.quantity ?? ""} ${order.orderType === "concrete" ? "م³" : "بلوك"}\n` +
+        `${status.emoji} ${status.label}`;
+      if (viaWhatsApp) {
+        await Linking.openURL(`${WHATSAPP_SHARE_BASE}${encodeURIComponent(message)}`);
+      } else {
+        Alert.alert("🔗", message);
+      }
+    } catch {
+      Alert.alert("⚠️", t("sales.share.failed"));
+    } finally {
+      setSharing(false);
+    }
+  };
 
   if (isLoading) {
     return (
@@ -81,6 +111,28 @@ export default function TrackOrderScreen() {
 
   return (
     <ScrollView className="flex-1 bg-slate-50" contentContainerStyle={{ padding: 20 }}>
+      {/* Share with customer (Epic 2 — magic tracking link) */}
+      <View className="flex-row gap-2 mb-4">
+        <View className="flex-1">
+          <Button
+            title={t("sales.share.whatsapp")}
+            onPress={() => shareWithCustomer(true)}
+            loading={sharing}
+            variant="success"
+            size="small"
+          />
+        </View>
+        <View className="flex-1">
+          <Button
+            title={t("sales.share.copyLink")}
+            onPress={() => shareWithCustomer(false)}
+            loading={sharing}
+            variant="secondary"
+            size="small"
+          />
+        </View>
+      </View>
+
       <Card variant="elevated" className="mb-4">
         <View className="flex-row justify-between items-start mb-4">
           <View className="flex-1">

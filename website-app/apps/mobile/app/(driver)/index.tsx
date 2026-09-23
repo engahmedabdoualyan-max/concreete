@@ -7,6 +7,7 @@
 
 import { View, Text, ScrollView, RefreshControl, Linking, Alert } from "react-native";
 import { useState, useEffect, useCallback } from "react";
+import { useRouter } from "expo-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { TripCard } from "@/components/driver/TripCard";
 import ReportBreakdownModal from "@/components/driver/ReportBreakdownModal";
@@ -24,6 +25,7 @@ import { CHECKPOINT_SEQUENCE, APK_DOWNLOAD_URL, IOS_DOWNLOAD_URL } from "@/types
 
 export default function DriverHomeScreen() {
   const queryClient = useQueryClient();
+  const router = useRouter();
   const { user } = useAuthStore();
   const { t } = useT();
   const [refreshing, setRefreshing] = useState(false);
@@ -40,6 +42,15 @@ export default function DriverHomeScreen() {
   });
 
   const assignedVehicleType = user?.vehicleType || "";
+
+  // Live drum telemetry + workability countdown while hauling (Epic 5)
+  const hauling = !!trip && !trip.isCompleted && trip.currentCheckpoint === "DEP_PLANT";
+  const { data: telemetry } = useQuery<any>({
+    queryKey: ["trip-telemetry", trip?.id],
+    queryFn: () => api.getTripTelemetry(trip!.id),
+    enabled: hauling,
+    refetchInterval: 30000,
+  });
 
   const updateCheckpointMutation = useMutation({
     mutationFn: async ({
@@ -123,6 +134,29 @@ export default function DriverHomeScreen() {
       geolocation.stopTracking().catch(console.error);
     };
   }, [trackingReady, trip?.id, trip?.isCompleted, user?.id]);
+
+  // Attendance ping (Epic 12b) — every 5 min while on duty, best-effort.
+  // First zone entry = check-in, last exit = check-out (server-derived).
+  useEffect(() => {
+    if (!trackingReady || !trip || trip.isCompleted) return;
+    let cancelled = false;
+    const sendPing = async () => {
+      try {
+        const loc = await geolocation.getCurrentLocation();
+        if (!cancelled && loc) {
+          await api.pingAttendance(loc.latitude, loc.longitude);
+        }
+      } catch {
+        // Attendance pings must never disturb the trip flow
+      }
+    };
+    void sendPing();
+    const timer = setInterval(sendPing, 5 * 60 * 1000);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [trackingReady, trip?.id, trip?.isCompleted]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -254,6 +288,34 @@ export default function DriverHomeScreen() {
         </View>
       </View>
 
+      {/* Drum workability banner (Epic 5) — live while hauling to site */}
+      {hauling && telemetry?.workability && telemetry.workability.status !== "UNKNOWN" && (
+        <View
+          className={`rounded-2xl p-3 mb-4 flex-row items-center ${
+            telemetry.workability.status === "EXPIRED"
+              ? "bg-red-100"
+              : telemetry.workability.status === "AGING"
+                ? "bg-amber-100"
+                : "bg-sky-100"
+          }`}
+        >
+          <Text className="text-lg mr-2">🥁</Text>
+          <Text
+            className={`font-semibold text-sm flex-1 ${
+              telemetry.workability.status === "EXPIRED"
+                ? "text-red-800"
+                : telemetry.workability.status === "AGING"
+                  ? "text-amber-800"
+                  : "text-sky-800"
+            }`}
+          >
+            {t("driver.telemetry.workability")}: {telemetry.workability.remainingMinutes}
+            {t("driver.telemetry.minLeft")}
+            {telemetry.aggregate?.avgRpm != null ? ` • ${telemetry.aggregate.avgRpm} RPM` : ""}
+          </Text>
+        </View>
+      )}
+
       <TripCard
         trip={trip}
         onCheckpointAction={handleCheckpointAction}
@@ -264,6 +326,35 @@ export default function DriverHomeScreen() {
         <Card variant="default" className="mt-4">
           <Text className="text-slate-600 text-sm mb-1">رقم تذكرة التسليم</Text>
           <Text className="text-xl font-bold text-slate-800">{trip.deliveryTicketNumber}</Text>
+        </Card>
+      )}
+
+      {/* Customer e-signature prompt (Epic 3) — after pour, before leaving site */}
+      {trip.currentCheckpoint === "DEP_SITE" && !trip.hasSignature && (
+        <Card variant="elevated" className="mt-4 bg-indigo-50 border border-indigo-200">
+          <Text className="text-4xl text-center mb-2">✍️</Text>
+          <Text className="text-lg font-bold text-indigo-900 text-center mb-1">
+            {t("driver.sign.promptTitle")}
+          </Text>
+          <Text className="text-indigo-700 text-sm text-center mb-3">
+            {t("driver.sign.promptHint")}
+          </Text>
+          <Button
+            title={t("driver.sign.openPad")}
+            onPress={() =>
+              router.push({ pathname: "/(driver)/sign", params: { tripId: trip.id } } as never)
+            }
+            variant="primary"
+            size="medium"
+          />
+        </Card>
+      )}
+
+      {trip.hasSignature && (
+        <Card variant="default" className="mt-4 bg-emerald-50">
+          <Text className="text-emerald-700 font-bold text-center">
+            ✍️ {t("driver.sign.done")} {trip.signedBy ? `— ${trip.signedBy}` : ""}
+          </Text>
         </Card>
       )}
 

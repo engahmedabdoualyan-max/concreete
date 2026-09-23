@@ -67,6 +67,10 @@ export const useAuthStore = create<AuthState>((set) => ({
       const user = await withPlantName(await withSubscription(auth.user));
       await setItem(STORAGE_KEYS.USER, JSON.stringify(user));
       set({ user, isAuthenticated: true, isLoading: false });
+      // Best-effort push enrolment (Epic 12) — never breaks login
+      void import("@/lib/push")
+        .then((m) => m.registerForPush())
+        .catch(() => {});
     } catch (apiError) {
       // Backend unreachable (or no such server account): fall back to the
       // owner's app-tree accounts (Firestore companyTrees).
@@ -154,6 +158,18 @@ export function isDashboardUser(user: AuthUser | null): boolean {
 
 export function isCompanyOwner(user: AuthUser | null): boolean {
   return user?.role === "SUPER_ADMIN";
+}
+
+export function isRndManager(user: AuthUser | null): boolean {
+  if (!user) return false;
+  // R&D Manager has access to R&D module on mobile
+  return user.role === "RND_MANAGER" || user.role === "SUPER_ADMIN";
+}
+
+export function isHrOfficer(user: AuthUser | null): boolean {
+  if (!user) return false;
+  // HR officers get the HR desk on mobile (requests inbox + broadcasts)
+  return user.role === "HR_OFFICER" || user.role === "SUPER_ADMIN";
 }
 
 export function isBatchOperator(user: AuthUser | null): boolean {

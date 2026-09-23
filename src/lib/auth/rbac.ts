@@ -1,15 +1,17 @@
 /**
  * ============================================================
  *  FIMTO SOFT — CONCRETE PLANT ERP
- *  Role-Based Access Control (RBAC) — 10-Role Permission Matrix
+ *  Role-Based Access Control (RBAC) — 12-Role Permission Matrix
  * ============================================================
  *
- *  4 PRIMARY ERP ROLES (web / mobile):
+ *  6 PRIMARY ERP ROLES (web / mobile):
  *  ─────────────────────────────────────────────────────────
  *   1. SUPER_ADMIN        Full unrestricted access
  *   2. FINANCE            Order approval, credit limit checks, invoice mgmt
  *   3. SALES_REP          Order creation, site geolocation
  *   4. DRIVER             Trip timeline, geofence, fuel logs
+ *   5. RND_MANAGER        Development plans, task distribution, follow-up
+ *   6. HR_OFFICER         Leave/advance review, broadcasts, payroll support
  *
  *  6 SUPPORTING SUB-ROLES (plant floor / workshop / lab):
  *  ─────────────────────────────────────────────────────────
@@ -116,6 +118,19 @@ export const PERMISSIONS = {
   USER_DELETE: "user:delete",
   USER_ROLE_ASSIGN: "user:role_assign",
 
+  // ── Research & Development (the factory brain) ──────────────
+  RND_READ: "rnd:read",                       // View plans, tasks, reports
+  RND_WRITE: "rnd:write",                     // Create/update plans, tasks, issues, evaluations
+  RND_APPROVE: "rnd:approve",                 // Approve plans & evaluations (RND Manager / Plant Mgr)
+  RND_FINANCE_APPROVE: "rnd:finance_approve", // Approve plan budgets (Finance / Accountant)
+
+  // ── Sales Quoting (Epic 8) ──────────────────────────────────
+  RFQ_APPROVE: "rfq:approve",                 // Approve quotes & commissions (Plant Mgr / GM)
+
+  // ── GCC Payroll (Epic 9) ────────────────────────────────────
+  HR_READ: "hr:read",                         // View employees, runs, payslips
+  HR_WRITE: "hr:write",                       // Manage employees & payroll runs
+
   // ── System / Admin ────────────────────────────────────────
   AUDIT_LOG_READ: "audit:read",
   SYSTEM_SETTINGS: "system:settings",
@@ -149,6 +164,10 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     PERMISSIONS.WORKSHOP_READ,
     PERMISSIONS.FUEL_LOG_READ,
     PERMISSIONS.AUDIT_LOG_READ,
+    PERMISSIONS.RND_READ,            // Review R&D plan budgets awaiting approval
+    PERMISSIONS.RND_FINANCE_APPROVE, // Approve / reject R&D plan budgets
+    PERMISSIONS.HR_READ,             // Payroll visibility for costing
+    PERMISSIONS.HR_WRITE,            // Run monthly payroll
   ],
 
   // Legacy alias: FINANCE behaves as ACCOUNTANT
@@ -168,6 +187,10 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     PERMISSIONS.WORKSHOP_READ,
     PERMISSIONS.FUEL_LOG_READ,
     PERMISSIONS.AUDIT_LOG_READ,
+    PERMISSIONS.RND_READ,
+    PERMISSIONS.RND_FINANCE_APPROVE,
+    PERMISSIONS.HR_READ,
+    PERMISSIONS.HR_WRITE,
   ],
 
   PLANT_MGR: [
@@ -189,6 +212,11 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     PERMISSIONS.FINANCE_READ,
     PERMISSIONS.SYSTEM_SETTINGS,
     PERMISSIONS.AUDIT_LOG_READ,
+    PERMISSIONS.RND_READ,     // Plant manager sees R&D plans & progress
+    PERMISSIONS.RND_APPROVE,  // Plant manager co-owns plan approval
+    PERMISSIONS.RFQ_APPROVE,  // Plant manager signs off quotes & commissions (GM)
+    PERMISSIONS.HR_READ,      // Plant manager sees payroll
+    PERMISSIONS.HR_WRITE,     // Plant manager approves payroll
   ],
 
   SALES_REP: [
@@ -303,6 +331,37 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     PERMISSIONS.INVENTORY_RECEIVE, // Spare-parts receipt
     PERMISSIONS.TRIP_READ,
   ],
+
+  // ── Primary role: R&D Manager (مدير البحث والتطوير) ─────────────────────
+  // Owns the factory brain: records the current state, creates development
+  // plans, distributes tasks to staff, tracks weekly progress, logs
+  // off-plan issues, and evaluates employees. Cannot approve budgets —
+  // that stays with FINANCE via RND_FINANCE_APPROVE.
+  RND_MANAGER: [
+    PERMISSIONS.RND_READ,
+    PERMISSIONS.RND_WRITE,
+    PERMISSIONS.RND_APPROVE,
+    PERMISSIONS.ORDER_READ,      // Read orders to split production targets across reps
+    PERMISSIONS.TRIP_READ,       // Read delivery reality for weekly follow-up
+    PERMISSIONS.FLEET_READ,
+    PERMISSIONS.INVENTORY_READ,
+    PERMISSIONS.LAB_READ,
+    PERMISSIONS.WORKSHOP_READ,
+    PERMISSIONS.FINANCE_READ,    // Read-only visibility of financial standing
+    PERMISSIONS.USER_READ,       // List staff for task assignment
+  ],
+
+  // ── Primary role: HR Officer (موظف الموارد البشرية) ─────────────────────
+  // Bridges every employee and HR: reviews leave/advance requests,
+  // broadcasts announcements, supports payroll. Cannot touch finance
+  // approvals, dispatch or production controls.
+  HR_OFFICER: [
+    PERMISSIONS.HR_READ,
+    PERMISSIONS.HR_WRITE,
+    PERMISSIONS.USER_READ,       // Staff directory for request context
+    PERMISSIONS.ORDER_READ,      // Read-only delivery context (no mutation)
+    PERMISSIONS.TRIP_READ,
+  ],
 };
 
 // ─── Permission Check Functions ───────────────────────────────────────────────
@@ -362,6 +421,8 @@ export function isValidRole(role: string): role is UserRole {
     "BATCH_OPERATOR",
     "SALES_REP",
     "DRIVER",
+    "RND_MANAGER",
+    "HR_OFFICER",
     "FINANCE",
     "DISPATCHER",
     "WORKSHOP_MGR",
@@ -400,6 +461,7 @@ export const MODULE_ACCESS_MAP: Record<string, Permission> = {
   workshop: PERMISSIONS.WORKSHOP_READ,
   finance: PERMISSIONS.FINANCE_READ,
   fleet: PERMISSIONS.FLEET_READ,
+  rnd: PERMISSIONS.RND_READ,
   users: PERMISSIONS.USER_READ,
   audit: PERMISSIONS.AUDIT_LOG_READ,
   settings: PERMISSIONS.SYSTEM_SETTINGS,
