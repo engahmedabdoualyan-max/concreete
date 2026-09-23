@@ -138,3 +138,8 @@
 - [x] 86. Built website-app (`vite build`, single-file) — verified bundle has rndMgr/hrOfficer + all new routes
 - [x] 87. Deployed `dist/` → `gh-pages` branch (GitHub Pages serves concrete.fimtosoft.com)
 - [x] 88. Backend auto-deploys on Vercel from main push (src/ changed)
+
+## Phase 22: OTA Updates + Read Receipts 📲
+- [x] 89. `expo-updates` + channels (development/preview/production) + runtimeVersion pin + `OTA_GUIDE.md`
+- [x] 90. In-app manual update check in ProfileScreen (guarded, 3 locales)
+- [x] 91. Broadcast read receipts: `GET /[id]/reads` + HR "sent" tab with 👁️ counts + author-visible targeting

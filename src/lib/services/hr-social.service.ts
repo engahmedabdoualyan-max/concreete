@@ -235,11 +235,13 @@ export async function listBroadcasts(tenantId: string, userId: string, userRole:
     );
   const readSet = new Set(reads.map((r) => r.broadcastId));
 
-  // Audience filter: empty = everyone; else must include the reader's role
+  // Audience filter: empty = everyone; targeted = role members + author
   return rows
     .filter((b) => {
       const aud = (b.audience ?? []) as string[];
-      return aud.length === 0 || aud.includes(userRole);
+      return (
+        aud.length === 0 || aud.includes(userRole) || b.createdById === userId
+      );
     })
     .map((b) => ({ ...b, read: readSet.has(b.id) }));
 }

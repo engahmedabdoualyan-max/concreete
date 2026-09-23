@@ -396,6 +396,8 @@ const en = {
   "hr.reason": "Details",
   "hr.send": "Send to HR",
   "hr.reviewNote": "Review note (optional)",
+  "hr.sentTab": "My Announcements",
+  "hr.reads": "reads",
   "hr.attendance": "Attendance",
   "hr.overtime": "Overtime",
   "hr.trips": "Trips",
@@ -430,6 +432,15 @@ const en = {
   "profile.deleteError": "Could not delete your account. Please try again or contact support.",
   "profile.webDeletionInfo": "Not logged in? You can request deletion from our website.",
   "profile.webDeletionLink": "Open web deletion form",
+
+  // OTA updates
+  "profile.checkUpdates": "Check for Updates",
+  "profile.updateAvailable": "Update Available",
+  "profile.updatePrompt": "A new version is ready. Restart now to apply it?",
+  "profile.updateNow": "Update Now",
+  "profile.updateLatest": "You already have the latest version.",
+  "profile.updateFailed": "Could not apply the update. Try again later.",
+  "profile.updateUnavailable": "Updates are not configured on this build yet.",
 
   // ── Background Location Disclosure (privacy compliance) ──────────────────
   "disclosure.title": "Background Location Notice",
@@ -760,6 +771,8 @@ const ar: Record<TranslationKey, string> = {
   "hr.reason": "التفاصيل",
   "hr.send": "إرسال إلى HR",
   "hr.reviewNote": "ملاحظة المراجعة (اختياري)",
+  "hr.sentTab": "إعلاناتي",
+  "hr.reads": "قراءة",
   "hr.attendance": "الحضور والانصراف",
   "hr.overtime": "الإضافي",
   "hr.trips": "الرحلات",
@@ -793,6 +806,15 @@ const ar: Record<TranslationKey, string> = {
   "profile.deleteError": "تعذر حذف الحساب. يرجى المحاولة مجدداً أو التواصل مع الدعم.",
   "profile.webDeletionInfo": "لست مسجلاً للدخول؟ يمكنك طلب الحذف من موقعنا الإلكتروني.",
   "profile.webDeletionLink": "فتح نموذج الحذف على الويب",
+
+  // التحديثات الهوائية
+  "profile.checkUpdates": "التحقق من التحديثات",
+  "profile.updateAvailable": "يوجد تحديث جديد",
+  "profile.updatePrompt": "نسخة جديدة جاهزة. إعادة التشغيل الآن لتطبيقها؟",
+  "profile.updateNow": "حدّث الآن",
+  "profile.updateLatest": "لديك أحدث نسخة بالفعل.",
+  "profile.updateFailed": "تعذر تطبيق التحديث. حاول لاحقاً.",
+  "profile.updateUnavailable": "التحديثات غير مفعّلة على هذه النسخة بعد.",
 
   "disclosure.title": "إشعار تتبع الموقع في الخلفية",
   "disclosure.body":
@@ -1112,6 +1134,8 @@ const ur: Record<TranslationKey, string> = {
   "hr.reason": "تفصیلات",
   "hr.send": "HR کو بھیجیں",
   "hr.reviewNote": "جائزہ نوٹ (اختیاری)",
+  "hr.sentTab": "میرے اعلانات",
+  "hr.reads": "پڑھا",
   "hr.attendance": "حاضری",
   "hr.overtime": "اوور ٹائم",
   "hr.trips": "ٹرپس",
@@ -1144,6 +1168,15 @@ const ur: Record<TranslationKey, string> = {
   "profile.deleteError": "اکاؤنٹ حذف نہیں ہو سکا۔ دوبارہ کوشش کریں یا سپورٹ سے رابطہ کریں۔",
   "profile.webDeletionInfo": "لاگ اِن نہیں ہیں؟ آپ ہماری ویب سائٹ سے حذف کی درخواست کر سکتے ہیں۔",
   "profile.webDeletionLink": "ویب ڈیلیٹ فارم کھولیں",
+
+  // OTA اپڈیٹس
+  "profile.checkUpdates": "اپڈیٹس چیک کریں",
+  "profile.updateAvailable": "نئی اپڈیٹ دستیاب ہے",
+  "profile.updatePrompt": "نئی نسخہ تیار ہے۔ ابھی ری اسٹارٹ کر کے لاگو کریں؟",
+  "profile.updateNow": "ابھی اپڈیٹ کریں",
+  "profile.updateLatest": "آپ کے پاس پہلے سے تازہ ترین نسخہ ہے۔",
+  "profile.updateFailed": "اپڈیٹ لاگو نہیں ہو سکی۔ بعد میں کوشش کریں۔",
+  "profile.updateUnavailable": "اس بلڈ پر اپڈیٹس ابھی فعال نہیں۔",
 
   "disclosure.title": "پس منظر مقام کی اطلاع",
   "disclosure.body":

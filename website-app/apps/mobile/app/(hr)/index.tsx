@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { api } from "@/lib/api";
 import { useT } from "@/lib/i18n";
+import { useAuthStore } from "@/store/auth-store";
 
 interface HrRequest {
   id: string;
@@ -35,7 +36,8 @@ const TYPE_META: Record<string, { emoji: string; key: "hr.type.leave" | "hr.type
 export default function HrHomeScreen() {
   const { t } = useT();
   const router = useRouter();
-  const [tab, setTab] = useState<"inbox" | "compose">("inbox");
+  const { user } = useAuthStore();
+  const [tab, setTab] = useState<"inbox" | "compose" | "sent">("inbox");
   const [filter, setFilter] = useState("PENDING");
   const [requests, setRequests] = useState<HrRequest[]>([]);
   const [loading, setLoading] = useState(false);
@@ -44,6 +46,28 @@ export default function HrHomeScreen() {
   const [bTitle, setBTitle] = useState("");
   const [bBody, setBBody] = useState("");
   const [sending, setSending] = useState(false);
+  const [sent, setSent] = useState<{ id: string; title: string; body: string; createdAt: string }[]>([]);
+  const [reads, setReads] = useState<Record<string, number>>({});
+
+  const loadSent = async () => {
+    try {
+      const res = await api.getBroadcasts();
+      const all = res.broadcasts ?? [];
+      const mine = all.filter((b: any) => !b.createdById || b.createdById === user?.id);
+      // Fallback: backend list is audience-filtered; HR sees everything
+      const list = mine.length > 0 ? mine : all;
+      setSent(list);
+      const counts: Record<string, number> = {};
+      await Promise.all(
+        list.slice(0, 20).map(async (b: any) => {
+          counts[b.id] = await api.getBroadcastReads(b.id);
+        })
+      );
+      setReads(counts);
+    } catch {
+      // Offline — keep last view
+    }
+  };
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -141,6 +165,17 @@ export default function HrHomeScreen() {
             📢 {t("hr.compose")}
           </Text>
         </TouchableOpacity>
+        <TouchableOpacity
+          onPress={() => {
+            setTab("sent");
+            void loadSent();
+          }}
+          className={`flex-1 py-2.5 rounded-xl items-center ${tab === "sent" ? "bg-teal-600" : "bg-white border border-slate-200"}`}
+        >
+          <Text className={`font-bold ${tab === "sent" ? "text-white" : "text-slate-600"}`}>
+            📨 {t("hr.sentTab")}
+          </Text>
+        </TouchableOpacity>
       </View>
 
       {tab === "inbox" ? (
@@ -224,7 +259,7 @@ export default function HrHomeScreen() {
             })
           )}
         </View>
-      ) : (
+      ) : tab === "compose" ? (
         <Card variant="elevated">
           <Text className="text-slate-800 font-bold mb-1">📢 {t("hr.compose")}</Text>
           <Text className="text-slate-500 text-xs mb-3">{t("hr.composeHint")}</Text>
@@ -238,6 +273,31 @@ export default function HrHomeScreen() {
           />
           <Button title={t("hr.publish")} onPress={publish} loading={sending} variant="primary" />
         </Card>
+      ) : (
+        <View>
+          {sent.length === 0 ? (
+            <Card variant="default">
+              <Text className="text-slate-500 text-center py-6">{t("rnd.common.noData")}</Text>
+            </Card>
+          ) : (
+            sent.map((b) => (
+              <Card key={b.id} variant="default" className="mb-2">
+                <Text className="text-slate-800 font-bold">{b.title}</Text>
+                <Text className="text-slate-500 text-sm mt-1" numberOfLines={2}>
+                  {b.body}
+                </Text>
+                <View className="flex-row items-center justify-between mt-2">
+                  <Text className="text-slate-400 text-xs">{b.createdAt.slice(0, 10)}</Text>
+                  <View className="bg-teal-100 rounded-full px-3 py-1">
+                    <Text className="text-teal-700 text-xs font-bold">
+                      👁️ {reads[b.id] ?? 0} {t("hr.reads")}
+                    </Text>
+                  </View>
+                </View>
+              </Card>
+            ))
+          )}
+        </View>
       )}
       <View className="h-8" />
     </ScrollView>

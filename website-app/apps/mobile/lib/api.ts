@@ -367,6 +367,15 @@ class ApiClient {
     await this.client.post(`/hr/broadcasts/${id}/read`);
   }
 
+  async getBroadcastReads(id: string): Promise<number> {
+    try {
+      const response = await this.client.get(`/hr/broadcasts/${id}/reads`);
+      return response.data.data?.reads ?? 0;
+    } catch {
+      return 0;
+    }
+  }
+
   async createBroadcast(data: { title: string; body: string; audience?: string[] }): Promise<any> {
     const response = await this.client.post("/hr/broadcasts", data);
     return response.data.data;

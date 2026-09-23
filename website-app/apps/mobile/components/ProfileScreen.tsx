@@ -86,6 +86,38 @@ export function ProfileScreen() {
     });
   };
 
+  // Manual OTA update check (EAS Update — guarded, never breaks profile)
+  const [checkingUpdate, setCheckingUpdate] = useState(false);
+  const checkForUpdates = async () => {
+    setCheckingUpdate(true);
+    try {
+      const Updates = await import("expo-updates");
+      const result = await Updates.checkForUpdateAsync();
+      if (result.isAvailable) {
+        Alert.alert(t("profile.updateAvailable"), t("profile.updatePrompt"), [
+          { text: t("common.cancel"), style: "cancel" },
+          {
+            text: t("profile.updateNow"),
+            onPress: async () => {
+              try {
+                await Updates.fetchUpdateAsync();
+                await Updates.reloadAsync();
+              } catch {
+                Alert.alert("⚠️", t("profile.updateFailed"));
+              }
+            },
+          },
+        ]);
+      } else {
+        Alert.alert("✅", t("profile.updateLatest"));
+      }
+    } catch {
+      Alert.alert("⚠️", t("profile.updateUnavailable"));
+    } finally {
+      setCheckingUpdate(false);
+    }
+  };
+
   return (
     <ScrollView className="flex-1 bg-slate-50" contentContainerStyle={{ padding: 20 }}>
       {/* User card */}
@@ -110,6 +142,19 @@ export function ProfileScreen() {
           {t("profile.appVersion")} {appVersion}
         </Text>
       </View>
+
+      {/* Check for updates (OTA) */}
+      <TouchableOpacity
+        onPress={checkForUpdates}
+        disabled={checkingUpdate}
+        activeOpacity={0.8}
+        className="bg-white rounded-2xl px-5 py-4 mb-4 flex-row items-center justify-between shadow-sm"
+      >
+        <Text className="text-slate-800 font-semibold text-base">
+          {checkingUpdate ? t("common.loading") : `🔄 ${t("profile.checkUpdates")}`}
+        </Text>
+        <Text className="text-lg">📲</Text>
+      </TouchableOpacity>
 
       {/* Sign out */}
       <TouchableOpacity
