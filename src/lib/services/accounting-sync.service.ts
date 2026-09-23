@@ -363,10 +363,10 @@ export async function pushInvoice(
   );
   if (!customerExternalId) {
     const cust = await pushCustomer(tenantId, connectionId, order.clientId);
-    if (!cust.ok || !cust.externalId) {
+    if (!cust || !cust.ok || !cust.externalId) {
       return {
         ok: false,
-        message: `Customer push failed first: ${cust.message}`,
+        message: `Customer push failed first: ${cust?.message ?? "connection not found"}`,
       };
     }
     customerExternalId = cust.externalId;

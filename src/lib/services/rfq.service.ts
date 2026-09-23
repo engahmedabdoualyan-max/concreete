@@ -426,6 +426,27 @@ export async function convertRfq(
   let seq = (count[0]?.count ?? 0) + 1;
   const year = new Date().getFullYear();
 
+  // RFQ may target the client generally — fall back to their first site
+  let siteId = full.deliverySiteId;
+  if (!siteId) {
+    const firstSite = await db
+      .select({ id: deliverySites.id })
+      .from(deliverySites)
+      .where(
+        and(
+          eq(deliverySites.tenantId, tenantId),
+          eq(deliverySites.clientId, full.clientId),
+          eq(deliverySites.isActive, true)
+        )
+      )
+      .orderBy(deliverySites.createdAt)
+      .limit(1);
+    if (!firstSite[0]) {
+      return { ok: false as const, error: "Client has no delivery site — add one first" };
+    }
+    siteId = firstSite[0].id;
+  }
+
   const created: { orderId: string; orderNumber: string; designCode: string }[] = [];
   for (const item of full.items) {
     const orderNumber = `ORD-${year}-${String(seq++).padStart(5, "0")}`;
@@ -437,7 +458,7 @@ export async function convertRfq(
         orderNumber,
         tenantId,
         clientId: full.clientId,
-        deliverySiteId: full.deliverySiteId,
+        deliverySiteId: siteId,
         mixDesignId: item.mixDesignId,
         totalVolumeM3: volume.toFixed(2),
         remainingVolumeM3: volume.toFixed(2),

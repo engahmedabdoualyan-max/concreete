@@ -88,35 +88,25 @@ export async function POST(req: NextRequest) {
     });
   }
 
-  const list: TelemetryReadingInput[] = Array.isArray(
-    (parsed.data as { readings?: unknown }).readings
-  )
-    ? ((parsed.data as { readings: TelemetryReadingInput[] }).readings as TelemetryReadingInput[]).map(
-        (r) => ({
-          truckId: r.truck_id,
-          drumRpm: r.drum_rpm,
-          concreteTempC: r.concrete_temp_c,
-          waterAddedL: r.water_added_l,
-          latitude: r.latitude,
-          longitude: r.longitude,
-          speedKmh: r.speed_kmh,
-          capturedAt: r.captured_at,
-          source: r.source,
-        })
-      )
-    : [
-        {
-          truckId: (parsed.data as TelemetryReadingInput & { truck_id: string }).truck_id,
-          drumRpm: (parsed.data as { drum_rpm?: number }).drum_rpm,
-          concreteTempC: (parsed.data as { concrete_temp_c?: number }).concrete_temp_c,
-          waterAddedL: (parsed.data as { water_added_l?: number }).water_added_l,
-          latitude: (parsed.data as { latitude?: number }).latitude,
-          longitude: (parsed.data as { longitude?: number }).longitude,
-          speedKmh: (parsed.data as { speed_kmh?: number }).speed_kmh,
-          capturedAt: (parsed.data as { captured_at?: string }).captured_at,
-          source: (parsed.data as { source?: TelemetryReadingInput["source"] }).source,
-        },
-      ];
+  type WireReading = z.infer<typeof ReadingSchema>;
+  type WireBatch = { readings: WireReading[] };
+
+  const toInput = (r: WireReading): TelemetryReadingInput => ({
+    truckId: r.truck_id,
+    drumRpm: r.drum_rpm,
+    concreteTempC: r.concrete_temp_c,
+    waterAddedL: r.water_added_l,
+    latitude: r.latitude,
+    longitude: r.longitude,
+    speedKmh: r.speed_kmh,
+    capturedAt: r.captured_at,
+    source: r.source,
+  });
+
+  const list: TelemetryReadingInput[] =
+    "readings" in parsed.data
+      ? (parsed.data as WireBatch).readings.map(toInput)
+      : [toInput(parsed.data as WireReading)];
 
   try {
     // Resolve tenants from vehicles (mirrors gps-webhook), group, ingest
