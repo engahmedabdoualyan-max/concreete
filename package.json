@@ -20,7 +20,7 @@
     "build:site": "npm run build --workspace website-app",
     "build:mobile": "npm run prebuild --workspace website-app/apps/mobile",
     "build:all": "npm run build && npm run build:site && npm run build:mobile",
-    "postinstall": "node scripts/link-mobile-tailwind.cjs",
+    "postinstall": "node scripts/link-mobile-tailwind.cjs && node scripts/apply-mobile-patches.cjs",
     "start": "next start",
     "typecheck": "tsc --noEmit",
     "typecheck:site": "npm run typecheck --workspace website-app",
