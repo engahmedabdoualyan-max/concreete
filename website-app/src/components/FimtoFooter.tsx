@@ -110,6 +110,9 @@ export default function FimtoFooter() {
                 </svg>
               </a>
             </div>
+            <p className="text-center text-[10px] text-slate-500 mt-2">
+              v1.3.0 • R&D 🧠 • HR 💬 • Portal 🔗 • ZATCA 🧾
+            </p>
           </div>
         </div>
       </div>
