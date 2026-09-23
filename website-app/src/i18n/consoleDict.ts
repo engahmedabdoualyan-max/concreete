@@ -90,6 +90,8 @@ const DICT: PageDict = {
   role_batchOp: { en: 'Batch Operator', ar: 'مشغل محطة', ru: 'Оператор станции', de: 'Anlagenbediener', it: 'Operatore impianto', hi: 'बैच ऑपरेटर', ur: 'بیچ آپریٹر', ja: 'バッチオペレーター', zh: '配料操作员' },
   role_labMgr: { en: 'Lab Manager', ar: 'مدير مختبر', ru: 'Менеджер лаборатории', de: 'Laborleiter', it: 'Responsabile laboratorio', hi: 'लैब प्रबंधक', ur: 'لیب منیجر', ja: 'ラボマネージャー', zh: '实验室经理' },
   role_labTech: { en: 'Lab Technician', ar: 'فني مختبر', ru: 'Лаборант', de: 'Laborant', it: 'Tecnico di laboratorio', hi: 'लैब तकनीशियन', ur: 'لیب ٹیکنیشن', ja: 'ラボ技術者', zh: '实验室技术员' },
+  role_rndMgr: { en: 'R&D Manager', ar: 'مدير البحث والتطوير', ru: 'Менеджер по НИОКР', de: 'F&E-Manager', it: 'Responsabile R&S', hi: 'आर&डी प्रबंधक', ur: 'آر اینڈ ڈی مینیجر', ja: '研究開発マネージャー', zh: '研发经理' },
+  role_hrOfficer: { en: 'HR Officer', ar: 'موظف الموارد البشرية', ru: 'Специалист по кадрам', de: 'Personalbeauftragter', it: 'Addetto risorse umane', hi: 'एचआर अधिकारी', ur: 'ایچ آر افیسر', ja: '人事担当者', zh: '人力资源专员' },
   stationTypeConcrete: { en: 'Ready-Mix Concrete', ar: 'خرسانة جاهزة', ru: 'Готовый бетон', de: 'Transportbeton', it: 'Cemento pronto', hi: 'रेडी-मिक्स कंक्रीट', ur: 'ریڈی مکس کنکریٹ', ja: 'レディーミックスコンクリート', zh: '预拌混凝土' },
   stationTypeBlocks: { en: 'Blocks', ar: 'بلك', ru: 'Блоки', de: 'Blöcke', it: 'Blocchi', hi: 'ब्लॉक्स', ur: 'بلاکس', ja: 'ブロック', zh: '砌块' },
   stationTypeBoth: { en: 'Both Together', ar: 'الاثنين معاً', ru: 'Оба вместе', de: 'Beides zusammen', it: 'Entrambi', hi: 'दोनों एक साथ', ur: 'دونوں اکٹھے', ja: '両方とも', zh: '两者兼具' },

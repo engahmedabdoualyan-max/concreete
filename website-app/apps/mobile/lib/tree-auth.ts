@@ -60,6 +60,8 @@ const TREE_ROLE_MAP: Record<string, UserRole> = {
   batchOp: "BATCH_OPERATOR",
   labMgr: "LAB_TECH",
   labTech: "LAB_TECHNICIAN",
+  rndMgr: "RND_MANAGER",
+  hrOfficer: "HR_OFFICER",
 };
 
 // Default module access per tree role (mirrors website treeRoles.ts TREE_ROLES mods).
@@ -81,6 +83,8 @@ const TREE_ROLE_MODS: Record<string, string[]> = {
   batchOp: ["production", "mixing"],
   labMgr: ["mixing", "evaluation", "rnd"],
   labTech: ["mixing", "evaluation", "rnd"],
+  rndMgr: ["rnd", "evaluation", "orders"],
+  hrOfficer: ["hr", "orders"],
 };
 
 function str(v: unknown): string {
