@@ -11,6 +11,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { resolvePortalToken } from "@/lib/services/portal.service";
+import { checkNextRateLimit, clientIpFromHeaders } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -32,6 +33,13 @@ export async function GET(
 ) {
   const { token } = await params;
   if (!token || token.length < 10 || token.length > 64) return notFound();
+  const rl = checkNextRateLimit(`portal:${clientIpFromHeaders(_req.headers)}`, 20);
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { success: false, errorCode: "RATE_LIMITED" },
+      { status: 429, headers: { "Retry-After": String(rl.retryAfterSeconds) } }
+    );
+  }
 
   try {
     const portal = await resolvePortalToken(token);
@@ -41,6 +49,11 @@ export async function GET(
       message: "OK",
       data: portal,
       timestamp: new Date().toISOString(),
+    }, {
+      headers: {
+        "Cache-Control": "private, no-store",
+        "X-Content-Type-Options": "nosniff",
+      },
     });
   } catch (err) {
     console.error("[GET /api/public/portal/:token]", err);

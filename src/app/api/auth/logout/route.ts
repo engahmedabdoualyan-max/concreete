@@ -6,7 +6,7 @@
 import { NextRequest } from "next/server";
 import { db } from "@/db";
 import { userSessions } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { requireAuth } from "@/lib/auth/middleware";
 import { errorResponse, successResponse } from "@/lib/auth/middleware";
 
@@ -19,7 +19,13 @@ export async function POST(req: NextRequest) {
   await db
     .update(userSessions)
     .set({ isRevoked: true })
-    .where(eq(userSessions.jti, auth.user.jti));
+    .where(
+      and(
+        eq(userSessions.jti, auth.user.jti),
+        eq(userSessions.userId, auth.user.sub),
+        eq(userSessions.tenantId, auth.user.tenantId)
+      )
+    );
 
   return successResponse(null, "Logged out successfully");
 }

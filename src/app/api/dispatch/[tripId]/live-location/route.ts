@@ -17,6 +17,15 @@
  */
 
 import { NextRequest } from "next/server";
+import { db } from "@/db";
+import {
+  deliverySites,
+  fleetVehicles,
+  orders,
+  trips,
+  users,
+} from "@/db/schema";
+import { and, eq } from "drizzle-orm";
 import { requirePermission } from "@/lib/auth/middleware";
 import { errorResponse, successResponse } from "@/lib/auth/middleware";
 import { PERMISSIONS } from "@/lib/auth/rbac";
@@ -68,6 +77,58 @@ export async function POST(
       "TRIP_MISMATCH",
       "tripId in body does not match URL param",
       400
+    );
+  }
+
+  const tripRows = await db
+    .select({ id: trips.id })
+    .from(trips)
+    .innerJoin(
+      orders,
+      and(eq(trips.orderId, orders.id), eq(orders.tenantId, auth.user.tenantId))
+    )
+    .innerJoin(
+      deliverySites,
+      and(
+        eq(orders.deliverySiteId, deliverySites.id),
+        eq(deliverySites.tenantId, auth.user.tenantId)
+      )
+    )
+    .where(
+      and(
+        eq(trips.id, tripId),
+        eq(trips.tenantId, auth.user.tenantId)
+      )
+    )
+    .limit(1);
+
+  if (tripRows.length === 0) {
+    return errorResponse("NOT_FOUND", "Trip not found", 404);
+  }
+
+  const resourceRows = await db
+    .select({ id: fleetVehicles.id })
+    .from(fleetVehicles)
+    .innerJoin(
+      users,
+      and(
+        eq(users.id, parsed.data.driverId),
+        eq(users.tenantId, auth.user.tenantId)
+      )
+    )
+    .where(
+      and(
+        eq(fleetVehicles.id, parsed.data.vehicleId),
+        eq(fleetVehicles.tenantId, auth.user.tenantId)
+      )
+    )
+    .limit(1);
+
+  if (resourceRows.length === 0) {
+    return errorResponse(
+      "NOT_FOUND",
+      "Vehicle or driver not found",
+      404
     );
   }
 

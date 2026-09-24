@@ -1,9 +1,10 @@
 const {
-  ok, fail, requireAuth, loadUserDataArr, saveUserDataArr, mapTrip,
+  ok, fail, assertLegacyApiEnabled, requireAuth, loadUserDataArr, saveUserDataArr, mapTrip,
 } = require('../_lib');
 
 // POST /api/dispatch/verify-ticket-qr
 module.exports = async function handler(req, res) {
+  if (!assertLegacyApiEnabled(res)) return;
   const method = req.method;
   try {
     const auth = requireAuth(req, res);

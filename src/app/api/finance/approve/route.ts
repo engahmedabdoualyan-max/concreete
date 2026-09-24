@@ -13,7 +13,7 @@
 import { NextRequest } from "next/server";
 import { db } from "@/db";
 import { orders, clients, financeActions, auditLogs } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { requirePermission } from "@/lib/auth/middleware";
 import { errorResponse, successResponse } from "@/lib/auth/middleware";
 import { PERMISSIONS } from "@/lib/auth/rbac";
@@ -60,7 +60,12 @@ export async function POST(req: NextRequest) {
       pricePerM3Sar: orders.pricePerM3Sar,
     })
     .from(orders)
-    .where(eq(orders.id, orderId))
+    .where(
+      and(
+        eq(orders.id, orderId),
+        eq(orders.tenantId, auth.user.tenantId)
+      )
+    )
     .limit(1);
 
   if (orderRows.length === 0) {
@@ -87,7 +92,12 @@ export async function POST(req: NextRequest) {
       isBlacklisted: clients.isBlacklisted,
     })
     .from(clients)
-    .where(eq(clients.id, order.clientId))
+    .where(
+      and(
+        eq(clients.id, order.clientId),
+        eq(clients.tenantId, auth.user.tenantId)
+      )
+    )
     .limit(1);
 
   if (clientRows.length === 0) {
@@ -145,7 +155,12 @@ export async function POST(req: NextRequest) {
       paperClearanceGranted: paperClearanceGranted ?? false,
       updatedAt: new Date(),
     })
-    .where(eq(orders.id, orderId));
+    .where(
+      and(
+        eq(orders.id, orderId),
+        eq(orders.tenantId, auth.user.tenantId)
+      )
+    );
 
   // 6. Log the finance action
   await db.insert(financeActions).values({

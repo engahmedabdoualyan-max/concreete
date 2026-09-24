@@ -1,9 +1,10 @@
 const {
-  ok, fail, requireAuth, loadUserDataArr, mapClient,
+  ok, fail, assertLegacyApiEnabled, requireAuth, loadUserDataArr, mapClient,
 } = require('../_lib');
 
 // api/clients/index.js → GET /api/clients
 module.exports = async function handler(req, res) {
+  if (!assertLegacyApiEnabled(res)) return;
   const method = req.method;
   try {
     const auth = requireAuth(req, res);

@@ -1,8 +1,9 @@
 const {
-  ok, fail, requireAuth, loadUserDataArr, saveUserDataArr, mapOrder, orderDerived,
+  ok, fail, assertLegacyApiEnabled, requireAuth, loadUserDataArr, saveUserDataArr, mapOrder, orderDerived,
 } = require('../_lib');
 // api/orders/index.js → GET/POST /api/orders
 module.exports = async function handler(req, res) {
+  if (!assertLegacyApiEnabled(res)) return;
   const method = req.method;
   try {
     const auth = requireAuth(req, res);

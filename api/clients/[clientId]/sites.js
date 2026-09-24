@@ -1,9 +1,10 @@
 const {
-  ok, fail, requireAuth, loadUserDataArr,
+  ok, fail, assertLegacyApiEnabled, requireAuth, loadUserDataArr,
 } = require('../../_lib');
 
 // api/clients/[clientId]/sites.js → GET /api/clients/:clientId/sites
 module.exports = async function handler(req, res) {
+  if (!assertLegacyApiEnabled(res)) return;
   const clientId = String(req.query.clientId || '');
   const method = req.method;
   try {

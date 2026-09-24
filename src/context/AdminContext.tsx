@@ -84,21 +84,7 @@ export function rolePermissions(role: UserRole): Record<ModuleKey, boolean> {
   }
 }
 
-const DEFAULT_USERS: ManagedUser[] = [
-  {
-    username: 'admin',
-    password: 'admin123',
-    name: 'Plant Owner',
-    email: '',
-    phone: '',
-    plantName: 'Concrete Plant',
-    country: 'Other',
-    city: 'Other',
-    role: 'owner',
-    isActive: true,
-    permissions: rolePermissions('owner'),
-  },
-];
+const DEFAULT_USERS: ManagedUser[] = [];
 
 interface AdminContextType {
   plant: PlantProfile;
@@ -125,7 +111,7 @@ function syncRegistered(user: ManagedUser, remove: boolean) {
     if (!remove) {
       filtered.push({
         username: user.username,
-        password: user.password,
+        ...(import.meta.env.DEV ? { password: user.password } : {}),
         country: user.country || 'Other',
         city: user.city || 'Other',
         plantName: user.plantName || user.name || 'Concrete Plant',
@@ -145,6 +131,10 @@ export function AdminProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    if (import.meta.env.PROD) {
+      // Legacy local account records may contain plaintext passwords.
+      try { localStorage.removeItem('registeredUsers'); } catch {}
+    }
     let cancelled = false;
     (async () => {
       // 1) Try Supabase (source of truth when configured)
@@ -224,7 +214,7 @@ export function AdminProvider({ children }: { children: ReactNode }) {
     try { localStorage.setItem(USERS_KEY, JSON.stringify(next)); } catch {}
     syncRegistered(u, false);
     saveAdminUserToSupabase({
-      username: u.username, password: u.password, name: u.name, email: u.email,
+      username: u.username, ...(import.meta.env.DEV ? { password: u.password } : {}), name: u.name, email: u.email,
       phone: u.phone, plant_name: u.plantName, country: u.country, city: u.city,
       role: u.role, is_active: u.isActive, permissions: u.permissions,
     }).catch(() => {});
@@ -237,7 +227,7 @@ export function AdminProvider({ children }: { children: ReactNode }) {
     try { localStorage.setItem(USERS_KEY, JSON.stringify(next)); } catch {}
     syncRegistered(u, false);
     saveAdminUserToSupabase({
-      username: u.username, password: u.password, name: u.name, email: u.email,
+      username: u.username, ...(import.meta.env.DEV ? { password: u.password } : {}), name: u.name, email: u.email,
       phone: u.phone, plant_name: u.plantName, country: u.country, city: u.city,
       role: u.role, is_active: u.isActive, permissions: u.permissions,
     }).catch(() => {});
@@ -254,17 +244,17 @@ export function AdminProvider({ children }: { children: ReactNode }) {
 
   const canAccess = (module: string): boolean => {
     if (!currentUser) return false;
-    if (currentUser.status === 'GUEST') return true;
+    if (currentUser.status === 'GUEST') return import.meta.env.DEV;
     const norm = (module === 'operation' ? 'operations' : module) as ModuleKey;
     if (currentUser.status === 'APP_ACCOUNT') {
       const role = String((currentUser as any).role || '');
-      if (role === 'sysadmin' || role === 'ptown') return true;
+      if (role === 'sysadmin' || role === 'ptown' || role === 'owner') return true;
       const mods = (currentUser as any).mods as string[] | undefined;
       const list = Array.isArray(mods) && mods.length ? mods : treeModsForRole(role);
       return list.includes(norm);
     }
     const u = users.find(x => x.username.toLowerCase() === currentUser.username.toLowerCase());
-    if (!u) return true;
+    if (!u) return false;
     if (!u.isActive) return false;
     if (u.role === 'owner' || u.role === 'manager') return true;
     return !!u.permissions[norm];
@@ -272,13 +262,13 @@ export function AdminProvider({ children }: { children: ReactNode }) {
 
   const canManageAdmin = (): boolean => {
     if (!currentUser) return false;
-    if (currentUser.status === 'GUEST') return true;
+    if (currentUser.status === 'GUEST') return import.meta.env.DEV;
     if (currentUser.status === 'APP_ACCOUNT') {
       const role = String((currentUser as any).role || '');
       return role === 'sysadmin' || role === 'owner' || role === 'manager';
     }
     const u = users.find(x => x.username.toLowerCase() === currentUser.username.toLowerCase());
-    if (!u) return true;
+    if (!u) return false;
     return u.isActive && (u.role === 'owner' || u.role === 'manager');
   };
 

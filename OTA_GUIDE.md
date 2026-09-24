@@ -73,7 +73,7 @@ eas build:view <BUILD_ID> --json
 - [ ] إضافة Task/permission إلى كل طبقات الصلاحيات، وليس UI فقط.
 - [ ] اختبارها على `preview` قبل production.
 - [ ] نشر `eas update` بعد نجاح الاختبار.
-- [ ] التأكد أن الموظف，不需要 reinstall، وأن local/remote data لم تتغير.
+- [ ] التأكد أن الموظف لا يحتاج reinstall، وأن local/remote data لم تتغير.
 - [ ] تسجيل أي استثناء Native في `BUILD_TROUBLESHOOTING.md`.
 
 لا يُعتبر أي Screen أو Role أو Task “مكتمل” إذا كان يعمل في الموقع لكنه لا يعمل في التطبيق، أو إذا كان الموظفون مطالبين بحذف التطبيق لتنزيله.

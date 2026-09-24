@@ -82,6 +82,7 @@ export async function POST(
   const tripRows = await db
     .select({
       id: trips.id,
+      tenantId: trips.tenantId,
       driverId: trips.driverId,
       currentCheckpoint: trips.currentCheckpoint,
       isCompleted: trips.isCompleted,
@@ -89,7 +90,12 @@ export async function POST(
       tripNumber: trips.tripNumber,
     })
     .from(trips)
-    .where(eq(trips.id, tripId))
+    .where(
+      and(
+        eq(trips.id, tripId),
+        eq(trips.tenantId, auth.user.tenantId)
+      )
+    )
     .limit(1);
 
   if (tripRows.length === 0) {
@@ -133,14 +139,24 @@ export async function POST(
     const updatedTripRows = await db
       .select()
       .from(trips)
-      .where(eq(trips.id, tripId))
+      .where(
+        and(
+          eq(trips.id, tripId),
+          eq(trips.tenantId, auth.user.tenantId)
+        )
+      )
       .limit(1);
 
     // Fetch all checkpoints for the timeline view
     const allCheckpoints = await db
       .select()
       .from(tripCheckpoints)
-      .where(eq(tripCheckpoints.tripId, tripId))
+      .where(
+        and(
+          eq(tripCheckpoints.tripId, tripId),
+          eq(tripCheckpoints.tenantId, auth.user.tenantId)
+        )
+      )
       .orderBy(tripCheckpoints.loggedAt);
 
     const isLastCheckpoint = parsed.data.checkpoint === "RETURN_PLANT";
@@ -193,7 +209,15 @@ export async function POST(
             .innerJoin(orders, eq(trips.orderId, orders.id))
             .innerJoin(clients, eq(orders.clientId, clients.id))
             .innerJoin(deliverySites, eq(orders.deliverySiteId, deliverySites.id))
-            .where(eq(trips.id, tripId))
+            .where(
+              and(
+                eq(trips.id, tripId),
+                eq(trips.tenantId, auth.user.tenantId),
+                eq(orders.tenantId, auth.user.tenantId),
+                eq(clients.tenantId, auth.user.tenantId),
+                eq(deliverySites.tenantId, auth.user.tenantId)
+              )
+            )
             .limit(1);
           const row = info[0];
           if (!row?.phone) return;
@@ -310,7 +334,12 @@ export async function GET(
   const tripRows = await db
     .select()
     .from(trips)
-    .where(eq(trips.id, tripId))
+    .where(
+      and(
+        eq(trips.id, tripId),
+        eq(trips.tenantId, auth.user.tenantId)
+      )
+    )
     .limit(1);
 
   if (tripRows.length === 0) {
@@ -320,7 +349,12 @@ export async function GET(
   const checkpoints = await db
     .select()
     .from(tripCheckpoints)
-    .where(eq(tripCheckpoints.tripId, tripId))
+    .where(
+      and(
+        eq(tripCheckpoints.tripId, tripId),
+        eq(tripCheckpoints.tenantId, auth.user.tenantId)
+      )
+    )
     .orderBy(tripCheckpoints.loggedAt);
 
   const trip = tripRows[0];

@@ -1,9 +1,10 @@
 const {
-  ok, fail, requireAuth, loadUserDataArr, mapOrder, orderDerived,
+  ok, fail, assertLegacyApiEnabled, requireAuth, loadUserDataArr, mapOrder, orderDerived,
 } = require('../_lib');
 
 // api/orders/[orderId].js → GET /api/orders/:orderId
 module.exports = async function handler(req, res) {
+  if (!assertLegacyApiEnabled(res)) return;
   const orderId = String(req.query.orderId || '');
   const method = req.method;
   try {

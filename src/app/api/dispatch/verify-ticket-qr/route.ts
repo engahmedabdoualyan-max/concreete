@@ -36,7 +36,7 @@ import {
   users,
   auditLogs,
 } from "@/db/schema";
-import { eq, sql } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 import { requireAnyPermission } from "@/lib/auth/middleware";
 import { errorResponse, successResponse } from "@/lib/auth/middleware";
 import { PERMISSIONS } from "@/lib/auth/rbac";
@@ -80,7 +80,12 @@ async function recordFailedScan(
     await db
       .update(trips)
       .set({ qrFailedScanCount: sql`${trips.qrFailedScanCount} + 1` })
-      .where(eq(trips.id, tripId));
+      .where(
+        and(
+          eq(trips.id, tripId),
+          eq(trips.tenantId, tenantId)
+        )
+      );
   }
   await db.insert(auditLogs).values({
     userId,
@@ -166,7 +171,18 @@ export async function POST(req: NextRequest) {
     .innerJoin(mixDesigns, eq(trips.mixDesignId, mixDesigns.id))
     .innerJoin(fleetVehicles, eq(trips.vehicleId, fleetVehicles.id))
     .innerJoin(users, eq(trips.driverId, users.id))
-    .where(eq(trips.id, decoded.tripId))
+    .where(
+      and(
+        eq(trips.id, decoded.tripId),
+        eq(trips.tenantId, auth.user.tenantId),
+        eq(orders.tenantId, auth.user.tenantId),
+        eq(clients.tenantId, auth.user.tenantId),
+        eq(deliverySites.tenantId, auth.user.tenantId),
+        eq(mixDesigns.tenantId, auth.user.tenantId),
+        eq(fleetVehicles.tenantId, auth.user.tenantId),
+        eq(users.tenantId, auth.user.tenantId)
+      )
+    )
     .limit(1);
 
   if (!row) {
@@ -192,7 +208,7 @@ export async function POST(req: NextRequest) {
   }
 
   // ── STEP 3: Replay guard — the stored token must match exactly ────────────
-  if (row.storedQrToken && row.storedQrToken !== qrToken) {
+  if (!row.storedQrToken || row.storedQrToken !== qrToken) {
     await recordFailedScan(row.tripId, auth.user.sub, row.tenantId, "TOKEN_SUPERSEDED", {
       tripNumber: row.tripNumber,
     });
@@ -228,7 +244,12 @@ export async function POST(req: NextRequest) {
     const [wrongSite] = await db
       .select({ siteName: deliverySites.siteName })
       .from(deliverySites)
-      .where(eq(deliverySites.id, scannedAtSiteId))
+      .where(
+        and(
+          eq(deliverySites.id, scannedAtSiteId),
+          eq(deliverySites.tenantId, auth.user.tenantId)
+        )
+      )
       .limit(1);
 
     await recordFailedScan(row.tripId, auth.user.sub, row.tenantId, "WRONG_SITE", {
@@ -377,7 +398,12 @@ export async function POST(req: NextRequest) {
   await db
     .update(trips)
     .set({ qrVerifiedAt: new Date(), qrVerifiedById: auth.user.sub, updatedAt: new Date() })
-    .where(eq(trips.id, row.tripId));
+    .where(
+      and(
+        eq(trips.id, row.tripId),
+        eq(trips.tenantId, auth.user.tenantId)
+      )
+    );
 
   await db.insert(auditLogs).values({
     userId: auth.user.sub,

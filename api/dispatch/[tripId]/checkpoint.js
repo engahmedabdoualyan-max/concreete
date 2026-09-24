@@ -1,10 +1,11 @@
 const {
-  ok, fail, requireAuth, loadUserDataArr, saveUserDataArr,
+  ok, fail, assertLegacyApiEnabled, requireAuth, loadUserDataArr, saveUserDataArr,
   orderDerived, computeCycleMinutes, nowHHMM,
 } = require('../../_lib');
 
 // POST /api/dispatch/:tripId/checkpoint
 module.exports = async function handler(req, res) {
+  if (!assertLegacyApiEnabled(res)) return;
   const tripId = String(req.query.tripId || '');
   const method = req.method;
   try {

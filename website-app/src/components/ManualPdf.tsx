@@ -4,6 +4,7 @@
  */
 import { jsPDF } from 'jspdf';
 import { toCanvas } from 'html-to-image';
+import html2canvas from 'html2canvas';
 import logoUrl from '../assets/logos/logo.png';
 
 const INK = '#0b111e';
@@ -232,7 +233,7 @@ function visualFor(no: string): string {
       </svg></div>`;
   }
   if (no === '10') {
-    const bars = [[62,'سبت'],[78,'أحد'],[55,'اثنين'],[92,'ثلاثاء'],[70,'أربعاء'],[84,'خميس']];
+    const bars: Array<[number, string]> = [[62,'سبت'],[78,'أحد'],[55,'اثنين'],[92,'ثلاثاء'],[70,'أربعاء'],[84,'خميس']];
     const bw = 34, gap = 14, base = 92, x0 = 18;
     return `<div style="margin-top:18px">${cap('توقع الطلب الأسبوعي (م³/يوم) — أعلى يوم: ثلاثاء')}
       <svg viewBox="0 0 340 110" preserveAspectRatio="none" style="width:100%;height:112px;background:#fff;border:1px solid ${BORDER};border-radius:12px">
@@ -517,7 +518,6 @@ export async function generateManualPdf(onProgress?: (done: number, total: numbe
     }
 
     /* ── 2) الفهرس بأرقام حقيقية ── */
-    const totalAll = contentPages.length + 5;
     const tocRows = MANUAL_SECTIONS.map(s => `
       <tr>
         <td style="padding:8px 6px;border-bottom:1px solid ${BORDER};width:52px"><span style="display:inline-flex;width:28px;height:28px;border-radius:8px;background:${INK};color:#fff;align-items:center;justify-content:center;font-weight:800;font-size:12px"><bdi>${s.no}</bdi></span></td>

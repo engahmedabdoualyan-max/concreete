@@ -1,5 +1,5 @@
 const {
-  ok, fail, requireAuth, loadUserDataArr, saveUserDataArr, mapTrip, mapOrder, nowHHMM,
+  ok, fail, assertLegacyApiEnabled, requireAuth, loadUserDataArr, saveUserDataArr, mapTrip, mapOrder, nowHHMM,
 } = require('../../_lib');
 
 // /api/dispatch/[tripId]/challan
@@ -7,6 +7,7 @@ const {
 // POST → save/overwrite the delivery challan (received-by, signature, slump,
 //        temperature, distance, QR content) captured by the driver at site.
 module.exports = async function handler(req, res) {
+  if (!assertLegacyApiEnabled(res)) return;
   const tripId = String(req.query.tripId || '');
   const method = req.method;
   try {

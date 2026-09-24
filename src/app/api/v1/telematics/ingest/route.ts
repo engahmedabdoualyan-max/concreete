@@ -29,13 +29,18 @@ import { z } from "zod";
 
 export const dynamic = "force-dynamic";
 
-const INGEST_KEY =
-  process.env.TELEMATICS_INGEST_KEY ?? "fimto-telematics-dev-key-change-me";
+function ingestKey(): string {
+  const configured = process.env.TELEMATICS_INGEST_KEY;
+  if (!configured && process.env.NODE_ENV === "production") {
+    throw new Error("TELEMATICS_INGEST_KEY must be configured in production");
+  }
+  return configured ?? "fimto-telematics-dev-key-change-me";
+}
 
 function keyMatches(provided: string | null): boolean {
   if (!provided) return false;
   const a = Buffer.from(provided);
-  const b = Buffer.from(INGEST_KEY);
+  const b = Buffer.from(ingestKey());
   if (a.length !== b.length) return false;
   return crypto.timingSafeEqual(a, b);
 }

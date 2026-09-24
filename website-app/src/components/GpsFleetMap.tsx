@@ -106,6 +106,7 @@ export default function GpsFleetMap({ onToast }: { onToast: (msg: string) => voi
       } catch (e: any) {
         setLiveState('error');
         setLiveMsg(e.message || 'Connection failed');
+        onToast(e.message || 'GPS connection failed');
       }
     };
     poll();
@@ -158,9 +159,11 @@ export default function GpsFleetMap({ onToast }: { onToast: (msg: string) => voi
       const dot = src === 'tracker' ? '<span class="gps-live"></span>' : src === 'driver' ? '<span class="gps-live gps-driver"></span>' : '';
       return L.divIcon({ className: '', html: `<div class="gps-pin">${emoji}${dot}</div>`, iconSize: [26, 26] });
     };
-    filtered.forEach(({ a, pos }) => {
-      const liveSpeed = live[a.gpsId] && live[a.gpsId].speed != null ? '· ' + Math.round(live[a.gpsId].speed) + ' ' + d('kmh') : '';
-      const srcLine = pos!.src === 'tracker' ? `<br/>${d('trackerLive')} ${liveSpeed}` : pos!.src === 'driver' ? `<br/>${d('driverGps')} ${pos!.speed != null ? '· ' + Math.round(pos!.speed) + ' ' + d('kmh') : ''}${pos!.who ? '<br/>' + pos!.who : ''}` : `<br/>${d('storedLoc')}`;
+     filtered.forEach(({ a, pos }) => {
+       const tracker = a.gpsId ? live[a.gpsId] : undefined;
+       const liveSpeed = tracker?.speed != null ? '· ' + Math.round(tracker.speed) + ' ' + d('kmh') : '';
+       const driverPos = pos!.src === 'driver' ? pos as { lat: number; lng: number; src: 'driver'; speed?: number; who: string } : null;
+       const srcLine = pos!.src === 'tracker' ? `<br/>${d('trackerLive')} ${liveSpeed}` : driverPos ? `<br/>${d('driverGps')} ${driverPos.speed != null ? '· ' + Math.round(driverPos.speed) + ' ' + d('kmh') : ''}${driverPos.who ? '<br/>' + driverPos.who : ''}` : `<br/>${d('storedLoc')}`;
       const pop = `<b>${a.id} (${a.plate || '—'})</b><br/>${a.type || ''}${a.gpsId ? `<br/>${d('trackerLabel')} ${a.gpsId}` : ''}${srcLine}<br/>${d('updatedLabel')} ${a.gpsUpdatedAt ? new Date(a.gpsUpdatedAt).toLocaleString() : '—'}`;
       markerLayer.current!.addLayer(L.marker([pos!.lat, pos!.lng], { icon: iconFor(a, pos!.src) }).bindPopup(pop));
     });
@@ -259,7 +262,7 @@ export default function GpsFleetMap({ onToast }: { onToast: (msg: string) => voi
     }
     if (!pts.length && currentUser && !viaServer) {
       const stored = await loadGpsHistory(currentUser.username).catch(() => []);
-      const found = (stored || []).find(e => e.vehicle === histVehicle && e.date === histDate);
+      const found = (stored || []).find((e: any) => e.vehicle === histVehicle && e.date === histDate);
       if (found && Array.isArray(found.points)) { setRoute(found.points); pts.push(...found.points); }
     }
     setHistMsg(pts.length

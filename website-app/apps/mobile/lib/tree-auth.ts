@@ -8,11 +8,17 @@
  *
  * Firestore rules are public-read, so this uses the plain REST API via
  * `fetch` — no extra native dependencies and no Firebase SDK needed.
+ * This path is disabled in production unless explicitly enabled while the
+ * server-side tree login is being rolled out.
  */
 
 import type { AuthUser, UserRole } from "@/types";
 import { authHeaders } from "./fb-auth";
 import { hashPassword } from "./pw";
+
+const TREE_FALLBACK_ENABLED =
+  (typeof __DEV__ !== 'undefined' && __DEV__)
+  || process.env.EXPO_PUBLIC_ALLOW_TREE_FALLBACK === 'true';
 
 const FIREBASE_PROJECT = "concrete-erb";
 const FIREBASE_API_KEY = "AIzaSyBbK2e2saN8Olu7O6vjHP23MkTsUgyN2iE";
@@ -24,6 +30,7 @@ const FIRESTORE_LIST =
 export interface TreeAccount {
   email: string;
   password: string;
+  passwordHash?: string;
   role: string;
   roleAr: string;
   permissions: string[];
@@ -98,6 +105,7 @@ function mapAccount(fields: any): TreeAccount {
   return {
     email: str(fields.email),
     password: str(fields.password),
+    passwordHash: str(fields.passwordHash),
     role: str(fields.role),
     roleAr: str(fields.roleAr),
     phone: str(fields.phone),
@@ -117,6 +125,9 @@ export async function findTreeAccount(
   phone: string,
   password: string
 ): Promise<TreeAccountResult | null> {
+  if (!TREE_FALLBACK_ENABLED) {
+    throw new Error('TREE_FALLBACK_DISABLED');
+  }
   const p = (phone || "").trim().toLowerCase();
   const pw = password || "";
   if (!p || !pw) return null;

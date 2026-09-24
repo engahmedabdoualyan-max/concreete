@@ -40,21 +40,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [emailSending, setEmailSending] = useState(false);
 
   useEffect(() => {
-    emailjs.init(EMAILJS_PUBLIC_KEY);
-    // Try restore session
+    if (import.meta.env.DEV) emailjs.init(EMAILJS_PUBLIC_KEY);
+    if (import.meta.env.PROD) {
+      localStorage.removeItem('currentUserSession');
+      localStorage.removeItem('registeredUsers');
+      return;
+    }
     try {
       const saved = localStorage.getItem('currentUserSession');
       if (saved) setCurrentUser(JSON.parse(saved));
     } catch {}
   }, []);
 
+  const stripSecrets = (user: UserSession): UserSession => {
+    const { password: _password, ...safe } = user;
+    return safe as UserSession;
+  };
+
   const login = async (username: string, password: string): Promise<boolean> => {
+    if (import.meta.env.PROD) return false;
     // Try Firebase first
     try {
       const user = await getUser(username);
       if (user && user.password === password) {
-        setCurrentUser(user as UserSession);
-        localStorage.setItem('currentUserSession', JSON.stringify(user));
+        const session = user as unknown as UserSession;
+        setCurrentUser(session);
+        localStorage.setItem('currentUserSession', JSON.stringify(stripSecrets(session)));
         return true;
       }
     } catch (e) {
@@ -67,7 +78,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const user = users.find(u => u.username.toLowerCase() === username.toLowerCase() && u.password === password);
       if (user) {
         setCurrentUser(user);
-        localStorage.setItem('currentUserSession', JSON.stringify(user));
+        localStorage.setItem('currentUserSession', JSON.stringify(stripSecrets(user)));
         return true;
       }
     } catch {}
@@ -75,6 +86,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const register = async (user: UserSession): Promise<{ success: boolean; code: string; emailSent: boolean }> => {
+    if (import.meta.env.PROD) return { success: false, code: '', emailSent: false };
     // Check duplicate
     try {
       const existing = await getUser(user.username);
@@ -104,6 +116,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const verifyAndActivate = async (code: string): Promise<boolean> => {
+    if (import.meta.env.PROD) return false;
     if (code !== generatedCode || !tempUser) return false;
     const newUser = { ...tempUser, username: tempUser.username.toLowerCase() };
     
@@ -123,7 +136,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch {}
     
     setCurrentUser(newUser);
-    localStorage.setItem('currentUserSession', JSON.stringify(newUser));
+    localStorage.setItem('currentUserSession', JSON.stringify(stripSecrets(newUser)));
     setTempUser(null);
     setGeneratedCode('');
     return true;
@@ -135,6 +148,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const loginAsGuest = () => {
+    if (import.meta.env.PROD) return;
     const guest: UserSession = {
       username: 'guest',
       password: '',
@@ -146,7 +160,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       status: 'GUEST',
     };
     setCurrentUser(guest);
-    localStorage.setItem('currentUserSession', JSON.stringify(guest));
+    localStorage.setItem('currentUserSession', JSON.stringify(stripSecrets(guest)));
   };
 
   return (

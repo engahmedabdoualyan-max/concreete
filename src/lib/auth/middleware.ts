@@ -41,6 +41,7 @@ import {
   type Permission,
 } from "./rbac";
 import type { UserRole } from "@/db/schema";
+import { assertTenantId } from "@/lib/tenant";
 
 // ─── Auth Context ─────────────────────────────────────────────────────────────
 
@@ -108,6 +109,15 @@ export async function requireAuth(
     return unauthorizedResponse("TOKEN_INVALID", "Token verification failed");
   }
 
+  // A valid signature alone is not enough: every ERP request must carry a
+  // syntactically valid tenant boundary. Route handlers still must apply it to
+  // each query/mutation; this guard prevents unscoped tokens from entering.
+  try {
+    assertTenantId(payload.tenantId);
+  } catch {
+    return unauthorizedResponse("TENANT_CONTEXT_REQUIRED", "A valid tenant context is required");
+  }
+
   // 3. Check session revocation in database (prevents forced-logout bypass)
   try {
     const sessionRows = await db
@@ -116,7 +126,8 @@ export async function requireAuth(
       .where(
         and(
           eq(userSessions.jti, payload.jti),
-          eq(userSessions.userId, payload.sub)
+          eq(userSessions.userId, payload.sub),
+          eq(userSessions.tenantId, payload.tenantId)
         )
       )
       .limit(1);
@@ -138,7 +149,12 @@ export async function requireAuth(
     const userRows = await db
       .select({ isActive: users.isActive })
       .from(users)
-      .where(eq(users.id, payload.sub))
+      .where(
+        and(
+          eq(users.id, payload.sub),
+          eq(users.tenantId, payload.tenantId)
+        )
+      )
       .limit(1);
 
     if (userRows.length === 0 || !userRows[0].isActive) {

@@ -1,4 +1,5 @@
 import { useState, useEffect, type FormEvent } from 'react';
+import dynamic from 'next/dynamic';
 import { useAuth } from '../context/AuthContext';
 import { useAdmin, rolePermissions, ROLE_KEYS, MODULE_KEYS, type UserRole } from '../context/AdminContext';
 import { useLang } from '../context/LangContext';
@@ -9,7 +10,11 @@ import { loadPlantGPS, savePlantGPS, getAllPlantsSummary, loadPlantLogo, savePla
 import FactoryData from '../components/FactoryData';
 import PlantsManager from '../components/PlantsManager';
 import GpsPanel from '../components/GpsPanel';
-import GpsFleetMap from '../components/GpsFleetMap';
+
+const GpsFleetMap = dynamic(() => import('../components/GpsFleetMap'), {
+  ssr: false,
+  loading: () => <div className="p-8 text-center text-slate-400">Loading map…</div>,
+});
 
 type Tab = 'overview' | 'plant' | 'plants' | 'users' | 'sections' | 'gps';
 type FactorySub = 'profile' | 'fleet' | 'stock' | 'config' | 'trackers';

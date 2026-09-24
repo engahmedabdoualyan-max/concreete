@@ -126,7 +126,11 @@ function makeMinimalPdf(lines: string[]): Buffer {
 }
 
 function signPayload(payload: unknown): string {
-  const secret = process.env.WEBHOOK_SIGNING_SECRET ?? "fimto-dev-webhook-secret";
+  const configured = process.env.WEBHOOK_SIGNING_SECRET;
+  if (!configured && process.env.NODE_ENV === "production") {
+    throw new Error("WEBHOOK_SIGNING_SECRET must be configured in production");
+  }
+  const secret = configured ?? "fimto-dev-webhook-secret";
   return crypto.createHmac("sha256", secret).update(JSON.stringify(payload)).digest("hex");
 }
 
@@ -181,13 +185,36 @@ export async function collectReportData(ctx: TenantContext, filters: ReportFilte
   return { fleet: fleet.rows, fuel: fuel.rows, silos: silos.rows };
 }
 
+const MAX_REPORT_ROWS = 10_000;
+const MAX_REPORT_CELL_LENGTH = 2_000;
+
+function safeReportRows(value: unknown): Record<string, unknown>[] {
+  if (!Array.isArray(value)) return [];
+  return value.slice(0, MAX_REPORT_ROWS).map((row) => {
+    if (!row || typeof row !== "object") return { value: safeReportCell(row) };
+    const out: Record<string, unknown> = Object.create(null) as Record<string, unknown>;
+    for (const [key, cell] of Object.entries(row as Record<string, unknown>).slice(0, 200)) {
+      if (key === "__proto__" || key === "constructor" || key === "prototype") continue;
+      out[key] = safeReportCell(cell);
+    }
+    return out;
+  });
+}
+
+function safeReportCell(value: unknown): unknown {
+  if (typeof value === "string") return value.slice(0, MAX_REPORT_CELL_LENGTH);
+  if (typeof value === "number" || typeof value === "boolean" || value === null) return value;
+  if (value instanceof Date) return value.toISOString();
+  return String(value).slice(0, MAX_REPORT_CELL_LENGTH);
+}
+
 export async function generateExcelReport(ctx: TenantContext, filters: ReportFilters): Promise<GeneratedReport> {
   const tenantId = enforceTenantAnalytics(ctx) ?? filters.tenantId;
   const data = await collectReportData(ctx, { ...filters, tenantId });
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(data.fleet as object[]), "Fleet Operations");
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(data.fuel as object[]), "Fuel Metrics");
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(data.silos as object[]), "Material Silos");
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(safeReportRows(data.fleet)), "Fleet Operations");
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(safeReportRows(data.fuel)), "Fuel Metrics");
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(safeReportRows(data.silos)), "Material Silos");
   const buffer = XLSX.write(wb, { type: "buffer", bookType: "xlsx" }) as Buffer;
   return wrapReport("FLEET", tenantId, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "fimto-operations.xlsx", buffer);
 }

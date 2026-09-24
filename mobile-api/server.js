@@ -18,10 +18,26 @@ const QRCode = require('qrcode');
 
 const app = express();
 app.use(express.json({ limit: '1mb' }));
-app.use(require('cors')());
+const allowedOrigins = new Set(
+  (process.env.CORS_ORIGINS || 'http://localhost:5173')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean),
+);
+app.use(require('cors')({ origin: (origin, callback) => {
+  if (!origin || allowedOrigins.has(origin)) return callback(null, true);
+  return callback(new Error('Origin not allowed'));
+} }));
 
 const PORT = process.env.PORT || 8080;
-const ADMIN_TOKEN = process.env.ADMIN_TOKEN || 'dev-secret-change-me';
+const ADMIN_TOKEN = (() => {
+  const configured = process.env.ADMIN_TOKEN;
+  if (!configured && process.env.NODE_ENV === 'production') {
+    throw new Error('ADMIN_TOKEN must be configured in production');
+  }
+  return configured || 'dev-secret-change-me';
+})();
+const LEGACY_ENABLED = process.env.LEGACY_MOBILE_API_ENABLED === 'true';
 
 // ---------- Data layer: Firestore (or in-memory fallback) ----------
 let db = null;
@@ -29,6 +45,9 @@ let memory = { trips: [], orders: [], locations: {} };
 
 function initDb() {
   if (!process.env.GOOGLE_APPLICATION_CREDENTIALS) {
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('GOOGLE_APPLICATION_CREDENTIALS is required in production');
+    }
     console.warn('[api] No service account — running in demo (in-memory) mode');
     return;
   }
@@ -74,8 +93,11 @@ function encodeTLV(parts) {
 }
 
 // ---------- Simple bearer auth ----------
-app.get('/api/health', (_req, res) => res.json({ ok: true, db: db ? 'firestore' : 'memory' }));
+app.get('/api/health', (_req, res) => res.json({ ok: true }));
 app.use('/api', (req, res, next) => {
+  if (process.env.NODE_ENV === 'production' && !LEGACY_ENABLED) {
+    return res.status(410).json({ error: 'Legacy mobile API is disabled' });
+  }
   const auth = req.headers.authorization || '';
   if (auth === `Bearer ${ADMIN_TOKEN}`) return next();
   return res.status(401).json({ error: 'Unauthorized' });

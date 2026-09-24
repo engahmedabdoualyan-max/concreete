@@ -1,9 +1,10 @@
 const {
-  ok, fail, requireAuth, loadUserDataArr, mapMixDesign,
+  ok, fail, assertLegacyApiEnabled, requireAuth, loadUserDataArr, mapMixDesign,
 } = require('../_lib');
 
 // api/mix-designs/index.js → GET /api/mix-designs
 module.exports = async function handler(req, res) {
+  if (!assertLegacyApiEnabled(res)) return;
   const method = req.method;
   try {
     const auth = requireAuth(req, res);

@@ -53,11 +53,23 @@ export async function GET(req: NextRequest) {
         count: sql<number>`COUNT(*)::int`,
       })
       .from(fleetVehicles)
-      .where(eq(fleetVehicles.isActive, true))
+      .where(
+        and(
+          eq(fleetVehicles.isActive, true),
+          eq(fleetVehicles.tenantId, auth.user.tenantId)
+        )
+      )
       .groupBy(fleetVehicles.currentStatus);
 
     // ── Active Trips (not completed or cancelled) ────────────────────────────
-    const conditions = [eq(trips.isCompleted, false), eq(trips.isCancelled, false)];
+    const conditions = [
+      eq(trips.isCompleted, false),
+      eq(trips.isCancelled, false),
+      eq(trips.tenantId, auth.user.tenantId),
+      eq(fleetVehicles.tenantId, auth.user.tenantId),
+      eq(users.tenantId, auth.user.tenantId),
+      eq(orders.tenantId, auth.user.tenantId),
+    ];
 
     if (driverFilter) {
       conditions.push(eq(trips.driverId, driverFilter));

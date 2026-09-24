@@ -44,14 +44,25 @@ import crypto from "crypto";
 
 // ─── Key Derivation ───────────────────────────────────────────────────────────
 
-const QR_SECRET =
-  process.env.QR_SECRET ?? "fimto-qr-dev-secret-change-in-production-please";
-
 /** Static salt — rotating this invalidates every previously minted QR. */
 const KEY_SALT = "fimto-qr-ticket-v1";
 
-/** Derived once per process (scrypt is deliberately expensive). */
-const ENCRYPTION_KEY: Buffer = crypto.scryptSync(QR_SECRET, KEY_SALT, 32);
+let encryptionKey: Buffer | undefined;
+
+/** Resolve lazily so `next build` can collect pages without runtime secrets. */
+function getEncryptionKey(): Buffer {
+  if (encryptionKey) return encryptionKey;
+  const configured = process.env.QR_SECRET;
+  if (!configured && process.env.NODE_ENV === "production") {
+    throw new Error("QR_SECRET must be configured in production");
+  }
+  encryptionKey = crypto.scryptSync(
+    configured ?? "fimto-qr-dev-secret-change-in-production-please",
+    KEY_SALT,
+    32,
+  );
+  return encryptionKey;
+}
 
 const ALGORITHM = "aes-256-gcm";
 const IV_LENGTH = 12;   // GCM standard nonce length
@@ -153,7 +164,7 @@ export function mintTicketQr(input: {
   };
 
   const iv = crypto.randomBytes(IV_LENGTH);
-  const cipher = crypto.createCipheriv(ALGORITHM, ENCRYPTION_KEY, iv);
+  const cipher = crypto.createCipheriv(ALGORITHM, getEncryptionKey(), iv);
 
   const plaintext = Buffer.from(JSON.stringify(payload), "utf8");
   const ciphertext = Buffer.concat([cipher.update(plaintext), cipher.final()]);
@@ -183,7 +194,7 @@ export function mintWeighbridgeQr(input: {
   };
 
   const iv = crypto.randomBytes(IV_LENGTH);
-  const cipher = crypto.createCipheriv(ALGORITHM, ENCRYPTION_KEY, iv);
+  const cipher = crypto.createCipheriv(ALGORITHM, getEncryptionKey(), iv);
   const ciphertext = Buffer.concat([
     cipher.update(Buffer.from(JSON.stringify(payload), "utf8")),
     cipher.final(),
@@ -209,7 +220,7 @@ export function mintSiloQr(input: { siloId: string; siloCode: string }): string 
     .digest()
     .subarray(0, IV_LENGTH);
 
-  const cipher = crypto.createCipheriv(ALGORITHM, ENCRYPTION_KEY, iv);
+  const cipher = crypto.createCipheriv(ALGORITHM, getEncryptionKey(), iv);
   const ciphertext = Buffer.concat([
     cipher.update(Buffer.from(JSON.stringify(payload), "utf8")),
     cipher.final(),
@@ -262,7 +273,7 @@ export function verifyTicketQr(
       throw new Error("bad iv/tag length");
     }
 
-    const decipher = crypto.createDecipheriv(ALGORITHM, ENCRYPTION_KEY, iv);
+    const decipher = crypto.createDecipheriv(ALGORITHM, getEncryptionKey(), iv);
     decipher.setAuthTag(authTag);
     const plaintext = Buffer.concat([decipher.update(ciphertext), decipher.final()]);
     payload = JSON.parse(plaintext.toString("utf8")) as QrTicketPayload;
@@ -313,7 +324,7 @@ export function verifySiloQr(token: string): { siloId: string; siloCode: string 
   try {
     const decipher = crypto.createDecipheriv(
       ALGORITHM,
-      ENCRYPTION_KEY,
+      getEncryptionKey(),
       fromB64url(parts[1])
     );
     decipher.setAuthTag(fromB64url(parts[2]));

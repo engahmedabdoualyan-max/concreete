@@ -1,20 +1,53 @@
 rules_version = '2';
 
+// Keep this file aligned with the repository production ruleset.
+// The website must use the server API; it must not authenticate or read
+// companyTrees directly with anonymous Firebase Auth.
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Users collection: app-level auth (login stored in DB, not Firebase Auth)
+    function signedIn() {
+      return request.auth != null
+        && request.auth.token.firebase.sign_in_provider != 'anonymous';
+    }
+
+    function hasRole(role) {
+      return signedIn() && request.auth.token.role == role;
+    }
+
+    function isAdmin() {
+      return hasRole('SUPER_ADMIN') || hasRole('OWNER') || hasRole('ADMIN');
+    }
+
+    function sameTenant(tenantId) {
+      return signedIn() && request.auth.token.tenantId == tenantId;
+    }
+
     match /users/{username} {
-      allow read, write: if true;
+      // User documents contain credential material; no browser may read them.
+      allow read, write: if isAdmin();
     }
 
-    // Per-user data documents: userData/{userId}/{collectionName}/data
-    match /userData/{userId}/{collectionName}/data {
-      allow read, write: if true;
-    }
-
-    // Top-level per-user document (storage quota / usage tracking)
+    // Operational caches are server-only; the legacy userId path cannot be
+    // safely mapped to a tenant UUID from the browser.
     match /userData/{userId} {
-      allow read, write: if true;
+      allow read, write: if isAdmin();
+
+      match /{collectionName}/data {
+        allow read, write: if isAdmin();
+      }
+    }
+
+    match /companyTrees/{companyUsername} {
+      allow read, write: if isAdmin();
+    }
+
+    match /siteConfig/{docId} {
+      allow read, write: if isAdmin();
+    }
+
+    // Media is server/admin-only until a public asset policy is designed.
+    match /media/{mediaId} {
+      allow read, write: if isAdmin();
     }
   }
 }

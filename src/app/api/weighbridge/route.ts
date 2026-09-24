@@ -14,15 +14,11 @@
 import { NextRequest } from "next/server";
 import { db } from "@/db";
 import { weighbridgeTransactions, trips, fleetVehicles, users } from "@/db/schema";
-import { eq, desc } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { requirePermission } from "@/lib/auth/middleware";
 import { errorResponse, successResponse } from "@/lib/auth/middleware";
 import { PERMISSIONS } from "@/lib/auth/rbac";
-import {
-  logWeighbridgeTransaction,
-  getTripWeighbridgeHistory,
-  getWeighbridgeStats,
-} from "@/lib/weighbridge";
+import { logWeighbridgeTransaction } from "@/lib/weighbridge";
 import { z } from "zod";
 
 export const dynamic = "force-dynamic";
@@ -37,11 +33,30 @@ export async function GET(req: NextRequest) {
   const tripId = url.searchParams.get("tripId");
 
   if (tripId) {
-    const history = await getTripWeighbridgeHistory(tripId);
+    const tripRows = await db
+      .select({ id: trips.id })
+      .from(trips)
+      .where(and(eq(trips.id, tripId), eq(trips.tenantId, auth.user.tenantId)))
+      .limit(1);
+
+    if (tripRows.length === 0) {
+      return errorResponse("NOT_FOUND", "Trip not found", 404);
+    }
+
+    const history = await db
+      .select()
+      .from(weighbridgeTransactions)
+      .where(
+        and(
+          eq(weighbridgeTransactions.tripId, tripId),
+          eq(weighbridgeTransactions.tenantId, auth.user.tenantId)
+        )
+      )
+      .orderBy(weighbridgeTransactions.sequenceNumber);
     return successResponse({ transactions: history });
   }
 
-  // Recent transactions across all trips
+  // Recent transactions across all trips in this tenant
   const recentTransactions = await db
     .select({
       id: weighbridgeTransactions.id,
@@ -59,13 +74,49 @@ export async function GET(req: NextRequest) {
       operatorName: users.fullName,
     })
     .from(weighbridgeTransactions)
-    .innerJoin(trips, eq(weighbridgeTransactions.tripId, trips.id))
-    .innerJoin(fleetVehicles, eq(trips.vehicleId, fleetVehicles.id))
-    .innerJoin(users, eq(weighbridgeTransactions.operatorId, users.id))
+    .innerJoin(
+      trips,
+      and(
+        eq(weighbridgeTransactions.tripId, trips.id),
+        eq(trips.tenantId, auth.user.tenantId)
+      )
+    )
+    .innerJoin(
+      fleetVehicles,
+      and(
+        eq(trips.vehicleId, fleetVehicles.id),
+        eq(fleetVehicles.tenantId, auth.user.tenantId)
+      )
+    )
+    .innerJoin(
+      users,
+      and(
+        eq(weighbridgeTransactions.operatorId, users.id),
+        eq(users.tenantId, auth.user.tenantId)
+      )
+    )
+    .where(eq(weighbridgeTransactions.tenantId, auth.user.tenantId))
     .orderBy(desc(weighbridgeTransactions.sequenceNumber))
     .limit(50);
 
-  const stats = await getWeighbridgeStats();
+  const [statsRow] = await db
+    .select({
+      totalTransactions: sql<number>`COUNT(*)::int`,
+      totalNetWeightKg: sql<string>`COALESCE(SUM(CAST(net_weight_kg AS DECIMAL)), 0)::text`,
+      loadOutCount: sql<number>`COALESCE(SUM(CASE WHEN transaction_type = 'LOAD_OUT' THEN 1 ELSE 0 END), 0)::int`,
+      returnInCount: sql<number>`COALESCE(SUM(CASE WHEN transaction_type = 'RETURN_IN' THEN 1 ELSE 0 END), 0)::int`,
+      chainTipSequence: sql<number>`COALESCE(MAX(sequence_number), 0)::int`,
+    })
+    .from(weighbridgeTransactions)
+    .where(eq(weighbridgeTransactions.tenantId, auth.user.tenantId));
+
+  const stats = {
+    totalTransactions: statsRow.totalTransactions,
+    totalNetWeightKg: parseFloat(statsRow.totalNetWeightKg ?? "0"),
+    loadOutCount: statsRow.loadOutCount,
+    returnInCount: statsRow.returnInCount,
+    chainTipSequence: statsRow.chainTipSequence,
+  };
 
   return successResponse({
     recentTransactions,
@@ -102,6 +153,28 @@ export async function POST(req: NextRequest) {
     return errorResponse("VALIDATION_ERROR", "Invalid weighbridge entry data", 400, {
       fields: parsed.error.flatten().fieldErrors,
     });
+  }
+
+  const tripRows = await db
+    .select({ id: trips.id })
+    .from(trips)
+    .innerJoin(
+      fleetVehicles,
+      and(
+        eq(trips.vehicleId, fleetVehicles.id),
+        eq(fleetVehicles.tenantId, auth.user.tenantId)
+      )
+    )
+    .where(
+      and(
+        eq(trips.id, parsed.data.tripId),
+        eq(trips.tenantId, auth.user.tenantId)
+      )
+    )
+    .limit(1);
+
+  if (tripRows.length === 0) {
+    return errorResponse("NOT_FOUND", "Trip or vehicle not found", 404);
   }
 
   try {

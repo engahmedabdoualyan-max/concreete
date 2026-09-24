@@ -1,9 +1,10 @@
 const {
-  ok, fail, requireAuth, loadUserDataArr, mapTrip,
+  ok, fail, assertLegacyApiEnabled, requireAuth, loadUserDataArr, mapTrip,
 } = require('../_lib');
 
 // GET /api/dispatch/my-active
 module.exports = async function handler(req, res) {
+  if (!assertLegacyApiEnabled(res)) return;
   const method = req.method;
   try {
     const auth = requireAuth(req, res);

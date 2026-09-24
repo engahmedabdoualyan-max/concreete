@@ -7,7 +7,7 @@
 import { NextRequest } from "next/server";
 import { db } from "@/db";
 import { mixDesigns } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { requirePermission } from "@/lib/auth/middleware";
 import { errorResponse, successResponse } from "@/lib/auth/middleware";
 import { PERMISSIONS } from "@/lib/auth/rbac";
@@ -45,7 +45,12 @@ export async function POST(req: NextRequest) {
   const mixRows = await db
     .select()
     .from(mixDesigns)
-    .where(eq(mixDesigns.id, parsed.data.mixDesignId))
+    .where(
+      and(
+        eq(mixDesigns.id, parsed.data.mixDesignId),
+        eq(mixDesigns.tenantId, auth.user.tenantId)
+      )
+    )
     .limit(1);
 
   if (mixRows.length === 0) {

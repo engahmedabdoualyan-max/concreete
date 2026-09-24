@@ -107,6 +107,16 @@ class ConsoleErrorBoundary extends Component<{ children: ReactNode }, { hasError
 
 const inputCls = "w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-slate-100 text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)] transition placeholder:text-slate-500";
 
+function escapeHtml(value: unknown): string {
+  return String(value ?? '').replace(/[&<>"']/g, (char) => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;',
+  })[char] || char);
+}
+
 interface TreeAccount {
   email: string;
   password: string;
@@ -218,7 +228,7 @@ const [companies, setCompanies] = useState<any[]>([]);
   const [customMedia, setCustomMedia] = useState({ image: '', bgImage: '' });
 
   useEffect(() => {
-    if (localStorage.getItem(SESSION_KEY) === '1') {
+    if (import.meta.env.DEV && localStorage.getItem(SESSION_KEY) === '1') {
       setStep('panel');
     }
   }, []);
@@ -386,9 +396,13 @@ const [companies, setCompanies] = useState<any[]>([]);
       if (!res.ok || json?.success === false) {
         // Credentials were verified server-side; only the OTP email failed → allow direct entry
         if (json?.errorCode === 'EMAIL_FAILED') {
-          localStorage.setItem(SESSION_KEY, '1');
-          setStep('panel');
-          setError(t('loginNoOtpMsg'));
+          if (import.meta.env.DEV) {
+            localStorage.setItem(SESSION_KEY, '1');
+            setStep('panel');
+            setError(t('loginNoOtpMsg'));
+          } else {
+            setError(t('serverUnreachable'));
+          }
           setSending(false);
           return;
         }
@@ -423,8 +437,13 @@ const [companies, setCompanies] = useState<any[]>([]);
         setSending(false);
         return;
       }
-      localStorage.setItem(SESSION_KEY, '1');
-      setStep('panel');
+      if (import.meta.env.PROD) {
+        setError(t('serverUnreachable'));
+        setStep('login');
+      } else {
+        localStorage.setItem(SESSION_KEY, '1');
+        setStep('panel');
+      }
     } catch (err: any) {
       setError(t('serverUnreachable'));
     }
@@ -636,11 +655,24 @@ const [companies, setCompanies] = useState<any[]>([]);
 
   const exportCsv = (username: string) => {
     const rows = trees[username] || [];
-    const head = [t('csvEmailHead'), t('csvRoleHead'), t('csvTruckHead'), 'GPS', t('csvPhoneHead'), t('csvPasswordHead'), t('csvPermsHead')];
-    const lines = [head.join(',')];
+    // Never export passwords or hashes. Credentials are delivered once via a
+    // controlled channel and are not part of an operational report.
+    const csvCell = (value: unknown) => {
+      let text = value === null || value === undefined ? '' : String(value);
+      if (/^[=+\-@]/.test(text)) text = `'${text}`;
+      return /[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+    };
+    const head = [t('csvEmailHead'), t('csvRoleHead'), t('csvTruckHead'), 'GPS', t('csvPhoneHead'), t('csvPermsHead')];
+    const lines = [head.map(csvCell).join(',')];
     rows.forEach(r => {
-      const perms = '"' + (r.permissions || []).join(' | ') + '"';
-      lines.push([r.email, r.roleAr, r.truck || '', r.gps || '', r.phone || '', r.password || '', perms].join(','));
+      lines.push([
+        r.email,
+        r.roleAr,
+        r.truck || '',
+        r.gps || '',
+        r.phone || '',
+        (r.permissions || []).join(' | '),
+      ].map(csvCell).join(','));
     });
     const blob = new Blob(['\uFEFF' + lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
     const a = document.createElement('a');
@@ -656,7 +688,9 @@ const [companies, setCompanies] = useState<any[]>([]);
     const company = companies.find(c => c.username?.toLowerCase() === username);
     const w = window.open('', '_blank');
     if (!w) { setError(t('popupHint')); return; }
-    w.document.write(`<!DOCTYPE html><html dir="rtl"><head><meta charset="utf-8"><title>${t('pdfTitlePrefix')}${company?.plantName || username}</title>
+    const safeCompany = escapeHtml(company?.plantName || username);
+    const safeTitle = escapeHtml(t('pdfTitlePrefix'));
+    w.document.write(`<!DOCTYPE html><html dir="rtl"><head><meta charset="utf-8"><title>${safeTitle}${safeCompany}</title>
       <style>
         * { font-family: 'Segoe UI', Tahoma, Arial, sans-serif; }
         body { padding: 24px; color: #111; }
@@ -669,12 +703,12 @@ const [companies, setCompanies] = useState<any[]>([]);
         .badge { display: inline-block; background: #e0f2fe; color: #0369a1; border-radius: 4px; padding: 1px 6px; font-size: 10px; margin-left: 4px; }
         @media print { body { padding: 8px; } }
       </style></head><body>
-      <h1>${t('pdfH1Prefix')}${company?.plantName || username}</h1>
+      <h1>${escapeHtml(t('pdfH1Prefix'))}${safeCompany}</h1>
       <h2>${t('pdfTotalPrefix')}${rows.length} · ${new Date().toLocaleDateString('ar-EG')}</h2>
       <table>
-        <thead><tr><th>#</th><th>${t('pdfEmailHead')}</th><th>${t('csvRoleHead')}</th><th>${t('csvTruckHead')}</th><th>GPS</th><th>${t('csvPhoneHead')}</th><th>${t('csvPasswordHead')}</th><th>${t('csvPermsHead')}</th></tr></thead>
+        <thead><tr><th>#</th><th>${t('pdfEmailHead')}</th><th>${t('csvRoleHead')}</th><th>${t('csvTruckHead')}</th><th>GPS</th><th>${t('csvPhoneHead')}</th><th>${t('csvPermsHead')}</th></tr></thead>
         <tbody>
-          ${rows.map((r, i) => `<tr><td>${i + 1}</td><td dir="ltr">${r.email}</td><td>${r.roleAr}</td><td>${r.truck || '—'}</td><td>${r.gps || '—'}</td><td dir="ltr">${r.phone || '—'}</td><td dir="ltr">${r.password || '—'}</td><td>${(r.permissions || []).map(p => `<span class="badge">${p}</span>`).join('')}</td></tr>`).join('')}
+          ${rows.map((r, i) => `<tr><td>${i + 1}</td><td dir="ltr">${escapeHtml(r.email)}</td><td>${escapeHtml(r.roleAr)}</td><td>${escapeHtml(r.truck || '—')}</td><td>${escapeHtml(r.gps || '—')}</td><td dir="ltr">${escapeHtml(r.phone || '—')}</td><td>${(r.permissions || []).map(p => `<span class="badge">${escapeHtml(p)}</span>`).join('')}</td></tr>`).join('')}
         </tbody>
       </table>
       <script>window.onload = () => { window.print(); };<\/script>

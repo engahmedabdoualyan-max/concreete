@@ -34,7 +34,13 @@ const jwt = { sign: jwtSign, verify: jwtVerify };
 const PROJECT_ID = 'concrete-erb';
 const API_KEY = process.env.FIREBASE_WEB_API_KEY || 'AIzaSyBbK2e2saN8Olu7O6vjHP23MkTsUgyN2iE';
 const FIRESTORE_BASE = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/(default)/documents`;
-const JWT_SECRET = process.env.JWT_SECRET || 'fimto-mobile-jwt-secret-v1-change-me';
+function getJwtSecret() {
+  const configured = process.env.JWT_SECRET;
+  if (!configured && process.env.NODE_ENV === 'production') {
+    throw new Error('JWT_SECRET must be configured in production');
+  }
+  return configured || 'fimto-mobile-jwt-secret-v1-change-me';
+}
 const ACCESS_TOKEN_TTL = '12h';
 const REFRESH_TOKEN_TTL = '30d';
 
@@ -54,7 +60,19 @@ function fail(res, status, message, errorCode) {
   });
 }
 
-// ─── Firestore REST (rules allow public read/write) ───────────────────────────
+// The /api JavaScript backend is a legacy compatibility layer. Keep it usable
+// in local development, but fail closed in production unless explicitly opted in.
+function legacyApiEnabled() {
+  return process.env.NODE_ENV !== 'production' || process.env.LEGACY_API_ENABLED === 'true';
+}
+
+function assertLegacyApiEnabled(res) {
+  if (legacyApiEnabled()) return true;
+  fail(res, 410, 'Legacy API is disabled', 'LEGACY_API_DISABLED');
+  return false;
+}
+
+// ─── Legacy Firestore REST (kept for local compatibility only) ────────────────
 
 function enc(part) {
   return encodeURIComponent(String(part));
@@ -199,7 +217,7 @@ async function findUserByUid(uid) {
   return doc ? fromFirestore(doc) : null;
 }
 
-// Tree roles (web) → mobile roles. Unknown/legacy roles fall back to SUPER_ADMIN.
+// Tree roles (web) → mobile roles. Unknown/legacy roles are denied elevated access.
 const ROLE_MAP = {
   sysadmin: 'SUPER_ADMIN',
   ptown: 'SUPER_ADMIN',
@@ -221,7 +239,7 @@ const ROLE_MAP = {
 };
 
 function mapRole(treeRole) {
-  return ROLE_MAP[treeRole] || 'SUPER_ADMIN';
+  return ROLE_MAP[treeRole] || 'VIEWER';
 }
 
 function buildAuthUser(u) {
@@ -236,9 +254,9 @@ function buildAuthUser(u) {
 }
 
 function signTokens(u) {
-  const payload = { uid: u.username, email: u.email || '', role: mapRole(u.role) };
-  const accessToken = jwt.sign(payload, JWT_SECRET, { expiresIn: ACCESS_TOKEN_TTL });
-  const refreshToken = jwt.sign({ ...payload, type: 'refresh' }, JWT_SECRET, {
+  const payload = { uid: u.username, email: u.email || '', role: mapRole(u.role), type: 'access' };
+  const accessToken = jwt.sign(payload, getJwtSecret(), { expiresIn: ACCESS_TOKEN_TTL });
+  const refreshToken = jwt.sign({ ...payload, type: 'refresh' }, getJwtSecret(), {
     expiresIn: REFRESH_TOKEN_TTL,
   });
   return {
@@ -257,8 +275,8 @@ function requireAuth(req, res) {
     return null;
   }
   try {
-    const payload = jwt.verify(token, JWT_SECRET);
-    if (!payload.uid) throw new Error('missing uid');
+    const payload = jwt.verify(token, getJwtSecret());
+    if (!payload.uid || payload.type !== 'access') throw new Error('invalid token type');
     return payload;
   } catch (e) {
     fail(res, 401, 'انتهت الجلسة، سجل الدخول مرة أخرى', 'TOKEN_EXPIRED');
@@ -428,9 +446,12 @@ module.exports = {
   PROJECT_ID,
   API_KEY,
   FIRESTORE_BASE,
-  JWT_SECRET,
+  getJwtSecret,
+  jwt,
   ok,
   fail,
+  legacyApiEnabled,
+  assertLegacyApiEnabled,
   enc,
   fsGet,
   fsPatch,

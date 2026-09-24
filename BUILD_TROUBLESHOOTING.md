@@ -126,7 +126,7 @@ cd website-app/apps/mobile
 node ../../../node_modules/expo/bin/cli config --json --full --type public
 ```
 
-يجب أن ينتهي الأمر بدون error. لعرض أخطاء的配置:
+يجب أن ينتهي الأمر بدون error. لعرض أخطاء الإعدادات:
 
 ```bash
 EXPO_DEBUG=1 node ../../../node_modules/expo/bin/cli config --json --full --type public
@@ -145,10 +145,14 @@ node -e "console.log(require('./node_modules/ajv/package.json').version)" # 8.x
 
 ## 4) EAS Android build
 
+For a public release, use the `production` profile. The `preview` profile is
+internal and the release script refuses to publish it to the public site unless
+`FIMTO_ALLOW_PREVIEW_PUBLIC=1` is explicitly set for a temporary staging release.
+
 ```bash
 cd website-app/apps/mobile
 export EXPO_TOKEN="<token from your secret manager>"
-eas build -p android --profile preview --non-interactive
+eas build -p android --profile production --non-interactive
 ```
 
 ### Download the APK
@@ -207,6 +211,7 @@ curl -sL https://concrete.fimtosoft.com/ -o /tmp/fimto-live.html
 grep -c "hrOfficer" /tmp/fimto-live.html   # المتوقع: > 0
 grep -c "rndMgr" /tmp/fimto-live.html      # المتوقع: > 0
 curl -sI https://concrete.fimtosoft.com/downloads/fimto-android.apk
+curl -sI https://concrete.fimtosoft.com/ | grep -iE 'x-content-type-options|x-frame-options|referrer-policy'
 ```
 
 يجب أن يرجع APK:
@@ -232,7 +237,7 @@ Content-Length: nonzero
 | `PermissionsService.kt:166` nullable error | bug Kotlin معروف في `expo-modules-core 1.12.26` | patch في `website-app/apps/mobile/patches/` وتطبيقه عبر `scripts/apply-mobile-patches.cjs` |
 | `expo config` يخرج بدون رسالة | استدعاء plugin فاشل | `getConfig` من `@expo/config` لإظهار stack trace |
 | الأدوار ظاهرة في source لكنها لا تظهر في الموقع | الموقع الحي ما زال deployment قديم | build + Vercel production deploy ثم Ctrl+F5 |
-| الأدوار ظاهرة，但没有 حسابات | `TREE_ROLES` ليست accounts | Console → Tree → Generate → Save، أو migration/backfill لـ `companyTrees` |
+| الأدوار ظاهرة، لكن لا توجد حسابات | `TREE_ROLES` ليست accounts | Console → Tree → Generate → Save، أو migration/backfill لـ `companyTrees` |
 | حساب جديد يدخل كـ Driver | `tree-auth.ts` لا يعرف role key | mapping `rndMgr` و`hrOfficer` يجب أن يطابق role المخزن في Firestore |
 | حفظ الشجرة يجعل login يفشل | hashed accounts كانت تُقرأ بلا `passwordHash` | `Console.tsx` يحفظ `passwordHash` ولا يعيد hash لكلمة فارغة |
 | `vercel deploy` يقول unknown option | استخدام `--timeout` | نفّذ `vercel deploy --prod --yes` فقط |
@@ -270,7 +275,47 @@ AJV:            8.x
 
 ---
 
-## 8) Current successful release
+## 8) Root Next/API build boundary
+
+The active Website is still `website-app/` (Vite). The repository also contains the
+older/customized `src/pages` UI, so Next discovers those files as Pages Router
+routes even though the App Router contains the ERP API.
+
+Run the full static gates from the repository root:
+
+```bash
+npm run typecheck:all
+npm run build:site
+npm run build
+npm run security:audit
+npm run security:rules
+npm run security:tenancy
+npm run security:legacy
+npm run security:tenant-report
+```
+
+The legacy Pages Router is wrapped in `src/pages/_app.tsx` and rendered only in
+the browser. This prevents Leaflet/`document`/`localStorage` SSR failures while
+preserving the Dashboard layout and does not make the legacy Firebase auth path
+production-safe.
+
+For the Android manifest security change, rebuild the APK and verify:
+
+```bash
+npx expo config --type public --json
+# android.allowBackup === false
+# expo-build-properties android.usesCleartextTraffic === false
+```
+
+A JS OTA cannot change native permissions or `allowBackup`; publish a new APK
+before treating the Android hardening as active.
+
+- `scripts/release-apk.sh` now defaults to `FIMTO_EAS_PROFILE=production` and refuses to publish a preview/internal APK unless `FIMTO_ALLOW_PREVIEW_PUBLIC=1` is explicitly set.
+- Each release writes `fimto-android.apk.sha256`; archive it with the build evidence.
+
+---
+
+## 9) Current successful release
 
 - Android EAS build: `FINISHED`
 - App version: `1.3.0 (13)`
@@ -285,7 +330,7 @@ AJV:            8.x
 
 ---
 
-## 9) OTA updates — no reinstall for JS changes
+## 10) OTA updates — no reinstall for JS changes
 
 The current APK contains `expo-updates` and the app checks on launch and whenever it returns to the foreground. When an update is available, it is fetched and the app reloads automatically.
 
@@ -315,7 +360,7 @@ OTA updates preserve the installed app and its local AsyncStorage. Firestore/Sup
 
 ---
 
-## 10) iOS status
+## 11) iOS status
 
 iOS كان متوقفًا بناءً على طلب مالك المشروع. قبل تشغيله:
 

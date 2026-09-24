@@ -45,7 +45,14 @@ export async function GET(req: NextRequest) {
   const limit = Math.min(100, parseInt(url.searchParams.get("limit") ?? "25"));
   const offset = (page - 1) * limit;
 
-  const conditions = [];
+  // Tenant scope is mandatory on every read, even when a resource ID is known.
+  const conditions = [
+    eq(orders.tenantId, auth.user.tenantId),
+    eq(clients.tenantId, auth.user.tenantId),
+    eq(deliverySites.tenantId, auth.user.tenantId),
+    eq(mixDesigns.tenantId, auth.user.tenantId),
+    eq(users.tenantId, auth.user.tenantId),
+  ];
 
   // Sales reps can only see their own orders
   if (auth.user.role === "SALES_REP") {
@@ -93,12 +100,7 @@ export async function GET(req: NextRequest) {
     .limit(limit)
     .offset(offset);
 
-  if (conditions.length > 0) {
-    const result = await query.where(and(...conditions));
-    return successResponse({ orders: result, page, limit });
-  }
-
-  const result = await query;
+  const result = await query.where(and(...conditions));
   return successResponse({ orders: result, page, limit });
 }
 
@@ -155,7 +157,12 @@ export async function POST(req: NextRequest) {
       companyName: clients.companyName,
     })
     .from(clients)
-    .where(eq(clients.id, parsed.data.clientId))
+    .where(
+      and(
+        eq(clients.id, parsed.data.clientId),
+        eq(clients.tenantId, auth.user.tenantId)
+      )
+    )
     .limit(1);
 
   if (clientRows.length === 0) {
@@ -181,7 +188,8 @@ export async function POST(req: NextRequest) {
     .where(
       and(
         eq(deliverySites.id, parsed.data.deliverySiteId),
-        eq(deliverySites.clientId, parsed.data.clientId)
+        eq(deliverySites.clientId, parsed.data.clientId),
+        eq(deliverySites.tenantId, auth.user.tenantId)
       )
     )
     .limit(1);
@@ -194,7 +202,12 @@ export async function POST(req: NextRequest) {
   const mixRows = await db
     .select({ id: mixDesigns.id, isActive: mixDesigns.isActive })
     .from(mixDesigns)
-    .where(eq(mixDesigns.id, parsed.data.mixDesignId))
+    .where(
+      and(
+        eq(mixDesigns.id, parsed.data.mixDesignId),
+        eq(mixDesigns.tenantId, auth.user.tenantId)
+      )
+    )
     .limit(1);
 
   if (mixRows.length === 0 || !mixRows[0].isActive) {

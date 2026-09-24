@@ -18,6 +18,9 @@
  */
 
 import { NextRequest } from "next/server";
+import { db } from "@/db";
+import { clients, orders } from "@/db/schema";
+import { and, eq } from "drizzle-orm";
 import { requirePermission } from "@/lib/auth/middleware";
 import { errorResponse, successResponse } from "@/lib/auth/middleware";
 import { PERMISSIONS } from "@/lib/auth/rbac";
@@ -54,6 +57,28 @@ export async function POST(
     return errorResponse("VALIDATION_ERROR", "Invalid override data", 400, {
       fields: parsed.error.flatten().fieldErrors,
     });
+  }
+
+  const orderRows = await db
+    .select({ id: orders.id, clientId: orders.clientId })
+    .from(orders)
+    .innerJoin(
+      clients,
+      and(
+        eq(clients.id, orders.clientId),
+        eq(clients.tenantId, auth.user.tenantId)
+      )
+    )
+    .where(
+      and(
+        eq(orders.id, orderId),
+        eq(orders.tenantId, auth.user.tenantId)
+      )
+    )
+    .limit(1);
+
+  if (orderRows.length === 0) {
+    return errorResponse("NOT_FOUND", "Order not found", 404);
   }
 
   try {

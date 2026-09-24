@@ -76,7 +76,12 @@ function cryptoKey(): Buffer {
   if (hex && /^[0-9a-fA-F]{64}$/.test(hex)) {
     return Buffer.from(hex, "hex");
   }
-  // Dev fallback — production MUST set INTEGRATION_CRYPTO_KEY (see .env.example)
+  if (process.env.NODE_ENV === "production") {
+    throw new Error(
+      "INTEGRATION_CRYPTO_KEY must be configured as 64 hex characters in production",
+    );
+  }
+  // Development-only fallback. Never use this value in production.
   return crypto.scryptSync("fimto-integration-dev-only", "fimto-salt", 32);
 }
 

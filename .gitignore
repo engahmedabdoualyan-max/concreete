@@ -26,9 +26,17 @@ website-app/apps/*/ios/
 # Local database dumps / source archives (contain real data, keep local)
 backups/
 
+# Generated migration snapshots/reports (may contain passwords, PII, QR images)
+scripts/migrate-firebase/inspect-out/
+scripts/migrate-firebase/*-report*.json
+scripts/migrate-firebase/migration-report*.json
+scripts/migrate-firebase/migration-credentials.local.json
+
 # Generated mobile builds served from the site (rebuild from apps/mobile)
 public/downloads/*.apk
 public/downloads/*.ipa
+public/downloads/*.sha256
+website-app/public/downloads/*.sha256
 
 # Logs
 *.log

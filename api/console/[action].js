@@ -7,7 +7,7 @@
  *   → verify protection password (lock/unlock companies, protected deletes)
  */
 const crypto = require('crypto');
-const { ok, fail, fsGet, fsPatch, enc } = require('../_lib');
+const { ok, fail, assertLegacyApiEnabled, fsGet, fsPatch, enc } = require('../_lib');
 
 const EMAILJS_SERVICE = process.env.EMAILJS_SERVICE_ID || 'service_mdtxmv8';
 const EMAILJS_TEMPLATE = process.env.EMAILJS_TEMPLATE_ID || 'template_ablqhm3';
@@ -59,6 +59,7 @@ async function sendOtpEmail(to, code) {
 }
 
 module.exports = async function handler(req, res) {
+  if (!assertLegacyApiEnabled(res)) return;
   if (req.method !== 'POST') return fail(res, 405, 'Method not allowed', 'BAD_METHOD');
   const action = String(req.query.action || '');
   try {

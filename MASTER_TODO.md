@@ -1,6 +1,6 @@
 # 📋 MASTER TODO — كل المهام المتبقية (لا تتوقف)
 
-> خارطة الطريق الاستراتيجية: `COMPETITIVE_ROADMAP.md` · خطة R&D: `RND_PMP_PLAN.md`
+> خارطة الطريق الاستراتيجية: `COMPETITIVE_ROADMAP.md` · خطة R&D: `RND_PMP_PLAN.md` · خطة الأمن والإنتاج: `SECURITY_AND_PRODUCTION_TODO.md`
 > قاعدة العمل لكل بند: سكيما + migration + خدمة + API + موبايل/ويب + ترجمة EN/AR/UR + فحص + توثيق
 
 ## ✅ المنجز (لا يعاد)

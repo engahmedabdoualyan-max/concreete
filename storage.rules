@@ -1,13 +1,28 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
-    // Admin console uploads (module & section images)
-    match /console/{allPaths=**} {
-      allow read, write: if true;
+    function signedIn() {
+      return request.auth != null
+        && request.auth.token.firebase.sign_in_provider != 'anonymous';
     }
-    // Existing public user-data files remain accessible
+
+    function isAdmin() {
+      return signedIn()
+        && (request.auth.token.role == 'SUPER_ADMIN'
+          || request.auth.token.role == 'OWNER'
+          || request.auth.token.role == 'ADMIN');
+    }
+
+    // Console images are visible to authenticated app users, never anonymously.
+    match /console/{allPaths=**} {
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
+
+    // User data paths are server-only until a verified userId↔tenant mapping
+    // is implemented. Do not grant browser access based on an unverified path.
     match /userData/{userId}/{allPaths=**} {
-      allow read, write: if true;
+      allow read, write: if isAdmin();
     }
   }
 }

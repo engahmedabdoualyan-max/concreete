@@ -27,7 +27,7 @@
 import { NextRequest } from "next/server";
 import { db } from "@/db";
 import { users, userSessions } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { requireAuth } from "@/lib/auth/middleware";
 import { errorResponse, successResponse } from "@/lib/auth/middleware";
 import { z } from "zod";
@@ -69,14 +69,24 @@ export async function POST(req: NextRequest) {
       // 1. Hard-delete every session (all access + refresh tokens revoked)
       const removedSessions = await tx
         .delete(userSessions)
-        .where(eq(userSessions.userId, userId))
+        .where(
+          and(
+            eq(userSessions.userId, userId),
+            eq(userSessions.tenantId, auth.user.tenantId)
+          )
+        )
         .returning({ id: userSessions.id });
 
       // 2. Attempt a full hard delete of the user row
       try {
         const deleted = await tx
           .delete(users)
-          .where(eq(users.id, userId))
+          .where(
+          and(
+            eq(users.id, userId),
+            eq(users.tenantId, auth.user.tenantId)
+          )
+        )
           .returning({ id: users.id });
 
         if (deleted.length > 0) {
@@ -107,7 +117,12 @@ export async function POST(req: NextRequest) {
             isActive: false,
             updatedAt: new Date(),
           })
-          .where(eq(users.id, userId));
+          .where(
+          and(
+            eq(users.id, userId),
+            eq(users.tenantId, auth.user.tenantId)
+          )
+        );
 
         return {
           mode: "ANONYMISED" as const,

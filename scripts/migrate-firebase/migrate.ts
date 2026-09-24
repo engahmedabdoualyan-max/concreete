@@ -130,6 +130,36 @@ function toIso(v: any): string | null {
 // ─── Report ───────────────────────────────────────────────────────────────────
 
 const report: Record<string, any> = {};
+const credentials: Record<string, unknown> = {};
+const CREDENTIALS_FILE = path.join(__dirname, "migration-credentials.local.json");
+const SENSITIVE_REPORT_KEYS = new Set([
+  "password",
+  "passwordHash",
+  "accessToken",
+  "refreshToken",
+  "token",
+  "authorization",
+  "dataUrl",
+  "qrCodeToken",
+  "signatureImage",
+  "phone",
+  "email",
+]);
+
+function redactForReport(value: unknown, depth = 0): unknown {
+  if (depth > 8) return "[TRUNCATED]";
+  if (Array.isArray(value)) return value.map((item) => redactForReport(item, depth + 1));
+  if (!value || typeof value !== "object") return value;
+  const out: Record<string, unknown> = {};
+  for (const [key, item] of Object.entries(value as Record<string, unknown>)) {
+    if (SENSITIVE_REPORT_KEYS.has(key)) {
+      out[key] = "[REDACTED]";
+    } else {
+      out[key] = redactForReport(item, depth + 1);
+    }
+  }
+  return out;
+}
 
 async function main() {
   const pool = new Pool({ connectionString: process.env.DATABASE_URL });
@@ -150,7 +180,7 @@ async function main() {
           const data = await readUserDoc(username, col);
           counts[col] = Array.isArray(data) ? data.length : data ? 1 : 0;
         }
-        report[username] = { fields, counts };
+        report[username] = { fields: redactForReport(fields), counts };
         console.log(`• ${username}: ${JSON.stringify(counts)}`);
       }
       fs.writeFileSync(
@@ -259,8 +289,11 @@ async function main() {
           continue;
         }
       }
-      userReport.admin = { employeeCode: adminCode, phone, email, password: plainPassword };
-      console.log(`  admin: ${adminCode} (${phone})`);
+      // Keep credentials out of the migration report. The one-time local
+      // handoff file is ignored by Git and written with mode 0600 below.
+      credentials[username] = { employeeCode: adminCode, phone, email, password: plainPassword };
+      userReport.admin = { employeeCode: adminCode, credentialFile: path.basename(CREDENTIALS_FILE) };
+      console.log(`  admin: ${adminCode} (credentials stored in the local handoff file)`);
 
       // 3) plantProfile name + workshopConfig budgets → tenant settings
       const settingsPatch: Record<string, unknown> = {};
@@ -627,8 +660,18 @@ async function main() {
 
     fs.writeFileSync(
       path.join(__dirname, "migration-report.json"),
-      JSON.stringify(report, null, 2)
+      JSON.stringify(redactForReport(report), null, 2),
+      { mode: 0o600 }
     );
+    if (Object.keys(credentials).length > 0) {
+      fs.writeFileSync(
+        CREDENTIALS_FILE,
+        JSON.stringify(credentials, null, 2),
+        { mode: 0o600 }
+      );
+      fs.chmodSync(CREDENTIALS_FILE, 0o600);
+      console.log(`\n⚠ One-time credentials handoff: ${CREDENTIALS_FILE}`);
+    }
     console.log("\nMigration complete. Report: scripts/migrate-firebase/migration-report.json");
   } finally {
     await pool.end();

@@ -28,7 +28,7 @@ import {
   fuelLogs,
   auditLogs,
 } from "@/db/schema";
-import { eq, and, inArray, desc, sql, ne } from "drizzle-orm";
+import { eq, and, inArray, desc, sql } from "drizzle-orm";
 import { requirePermission } from "@/lib/auth/middleware";
 import { errorResponse, successResponse } from "@/lib/auth/middleware";
 import { PERMISSIONS } from "@/lib/auth/rbac";
@@ -66,14 +66,24 @@ export async function GET(req: NextRequest) {
       })
       .from(maintenanceOrders)
       .innerJoin(fleetVehicles, eq(maintenanceOrders.vehicleId, fleetVehicles.id))
-      .leftJoin(users, eq(maintenanceOrders.assignedMechanicId, users.id))
+      .leftJoin(
+        users,
+        and(
+          eq(maintenanceOrders.assignedMechanicId, users.id),
+          eq(users.tenantId, auth.user.tenantId)
+        )
+      )
       .where(
-        inArray(maintenanceOrders.status, [
-          "OPEN",
-          "IN_PROGRESS",
-          "AWAITING_PARTS",
-          "ESCALATED",
-        ])
+        and(
+          eq(maintenanceOrders.tenantId, auth.user.tenantId),
+          eq(fleetVehicles.tenantId, auth.user.tenantId),
+          inArray(maintenanceOrders.status, [
+            "OPEN",
+            "IN_PROGRESS",
+            "AWAITING_PARTS",
+            "ESCALATED",
+          ])
+        )
       )
       .orderBy(maintenanceOrders.priority, desc(maintenanceOrders.createdAt));
 
@@ -85,7 +95,12 @@ export async function GET(req: NextRequest) {
         count: sql<number>`COUNT(*)::int`,
       })
       .from(fleetVehicles)
-      .where(eq(fleetVehicles.isActive, true))
+      .where(
+        and(
+          eq(fleetVehicles.isActive, true),
+          eq(fleetVehicles.tenantId, auth.user.tenantId)
+        )
+      )
       .groupBy(fleetVehicles.currentStatus, fleetVehicles.vehicleType);
 
     // ── Vehicles Currently in Workshop (excluded from dispatch) ───────────────
@@ -100,6 +115,7 @@ export async function GET(req: NextRequest) {
       .where(
         and(
           eq(fleetVehicles.isActive, true),
+          eq(fleetVehicles.tenantId, auth.user.tenantId),
           inArray(fleetVehicles.currentStatus, ["IN_WORKSHOP", "MAJOR_BREAKDOWN"])
         )
       );
@@ -118,7 +134,13 @@ export async function GET(req: NextRequest) {
       })
       .from(fuelLogs)
       .innerJoin(fleetVehicles, eq(fuelLogs.vehicleId, fleetVehicles.id))
-      .where(eq(fuelLogs.isAnomaly, true))
+      .where(
+        and(
+          eq(fuelLogs.tenantId, auth.user.tenantId),
+          eq(fleetVehicles.tenantId, auth.user.tenantId),
+          eq(fuelLogs.isAnomaly, true)
+        )
+      )
       .orderBy(desc(fuelLogs.loggedAt))
       .limit(10);
 
@@ -131,6 +153,7 @@ export async function GET(req: NextRequest) {
       .from(maintenanceOrders)
       .where(
         and(
+          eq(maintenanceOrders.tenantId, auth.user.tenantId),
           eq(maintenanceOrders.status, "COMPLETED"),
           sql`completed_at >= date_trunc('month', NOW())`
         )
@@ -202,7 +225,12 @@ export async function POST(req: NextRequest) {
       currentStatus: fleetVehicles.currentStatus,
     })
     .from(fleetVehicles)
-    .where(eq(fleetVehicles.id, parsed.data.vehicleId))
+    .where(
+      and(
+        eq(fleetVehicles.id, parsed.data.vehicleId),
+        eq(fleetVehicles.tenantId, auth.user.tenantId)
+      )
+    )
     .limit(1);
 
   if (vehicleRows.length === 0) {
@@ -212,8 +240,28 @@ export async function POST(req: NextRequest) {
   const vehicle = vehicleRows[0];
   const previousStatus = vehicle.currentStatus;
 
+  if (parsed.data.assignedMechanicId) {
+    const [mechanic] = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(
+        and(
+          eq(users.id, parsed.data.assignedMechanicId),
+          eq(users.tenantId, auth.user.tenantId)
+        )
+      )
+      .limit(1);
+
+    if (!mechanic) {
+      return errorResponse("MECHANIC_NOT_FOUND", "Assigned mechanic not found", 404);
+    }
+  }
+
   // Generate work order number
-  const woCount = await db.select({ count: sql<number>`COUNT(*)::int` }).from(maintenanceOrders);
+  const woCount = await db
+    .select({ count: sql<number>`COUNT(*)::int` })
+    .from(maintenanceOrders)
+    .where(eq(maintenanceOrders.tenantId, auth.user.tenantId));
   const woSeq = (woCount[0].count + 1).toString().padStart(4, "0");
   const year = new Date().getFullYear();
   const workOrderNumber = `WO-${year}-${woSeq}`;
@@ -259,7 +307,12 @@ export async function POST(req: NextRequest) {
       currentStatus: newVehicleStatus,
       updatedAt: new Date(),
     })
-    .where(eq(fleetVehicles.id, parsed.data.vehicleId));
+    .where(
+      and(
+        eq(fleetVehicles.id, parsed.data.vehicleId),
+        eq(fleetVehicles.tenantId, auth.user.tenantId)
+      )
+    );
 
   // Audit log
   await db.insert(auditLogs).values({

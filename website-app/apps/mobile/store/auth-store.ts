@@ -74,7 +74,12 @@ export const useAuthStore = create<AuthState>((set) => ({
     } catch (apiError) {
       // Backend unreachable (or no such server account): fall back to the
       // owner's app-tree accounts (Firestore companyTrees).
-      const tree = await findTreeAccount(phone, password);
+      let tree: Awaited<ReturnType<typeof findTreeAccount>> = null;
+      try {
+        tree = await findTreeAccount(phone, password);
+      } catch {
+        // Production intentionally disables the client-side tree fallback.
+      }
       if (!tree) {
         set({
           error: "بيانات الدخول غير صحيحة",

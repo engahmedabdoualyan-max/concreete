@@ -80,10 +80,47 @@ export async function POST(req: NextRequest) {
       externalVendorName: fleetVehicles.externalVendorName,
     })
     .from(fleetVehicles)
-    .where(eq(fleetVehicles.id, parsed.data.pumpVehicleId))
+    .where(
+      and(
+        eq(fleetVehicles.id, parsed.data.pumpVehicleId),
+        eq(fleetVehicles.tenantId, auth.user.tenantId)
+      )
+    )
     .limit(1);
 
   if (!pump) return errorResponse("NOT_FOUND", "Pump vehicle not found", 404);
+
+  const [deliverySite] = await db
+    .select({ id: deliverySites.id })
+    .from(deliverySites)
+    .where(
+      and(
+        eq(deliverySites.id, parsed.data.deliverySiteId),
+        eq(deliverySites.tenantId, auth.user.tenantId)
+      )
+    )
+    .limit(1);
+
+  if (!deliverySite) {
+    return errorResponse("DELIVERY_SITE_NOT_FOUND", "Delivery site not found", 404);
+  }
+
+  if (parsed.data.orderId) {
+    const [order] = await db
+      .select({ id: orders.id })
+      .from(orders)
+      .where(
+        and(
+          eq(orders.id, parsed.data.orderId),
+          eq(orders.tenantId, auth.user.tenantId)
+        )
+      )
+      .limit(1);
+
+    if (!order) {
+      return errorResponse("ORDER_NOT_FOUND", "Order not found", 404);
+    }
+  }
 
   // ── CLASS GUARD: only PUMP class runs static operating sessions ──────────
   try {
@@ -155,7 +192,12 @@ export async function POST(req: NextRequest) {
   await db
     .update(fleetVehicles)
     .set({ currentStatus: "IN_TRANSIT", updatedAt: now })
-    .where(eq(fleetVehicles.id, pump.id));
+    .where(
+      and(
+        eq(fleetVehicles.id, pump.id),
+        eq(fleetVehicles.tenantId, auth.user.tenantId)
+      )
+    );
 
   await db.insert(auditLogs).values({
     userId: auth.user.sub,
@@ -236,7 +278,12 @@ export async function PATCH(req: NextRequest) {
   const [session] = await db
     .select()
     .from(pumpOperationLogs)
-    .where(eq(pumpOperationLogs.id, parsed.data.sessionId))
+    .where(
+      and(
+        eq(pumpOperationLogs.id, parsed.data.sessionId),
+        eq(pumpOperationLogs.tenantId, auth.user.tenantId)
+      )
+    )
     .limit(1);
 
   if (!session) return errorResponse("NOT_FOUND", "Pump session not found", 404);
@@ -328,27 +375,47 @@ export async function PATCH(req: NextRequest) {
     await db
       .update(fleetVehicles)
       .set({ currentStatus: "AVAILABLE", updatedAt: now })
-      .where(eq(fleetVehicles.id, session.pumpVehicleId));
+      .where(
+        and(
+          eq(fleetVehicles.id, session.pumpVehicleId),
+          eq(fleetVehicles.tenantId, auth.user.tenantId)
+        )
+      );
   } else if (parsed.data.status === "PUMPING") {
     await db
       .update(fleetVehicles)
       .set({ currentStatus: "POURING", updatedAt: now })
-      .where(eq(fleetVehicles.id, session.pumpVehicleId));
+      .where(
+        and(
+          eq(fleetVehicles.id, session.pumpVehicleId),
+          eq(fleetVehicles.tenantId, auth.user.tenantId)
+        )
+      );
   } else if (parsed.data.status === "CANCELLED") {
     await db
       .update(fleetVehicles)
       .set({ currentStatus: "AVAILABLE", updatedAt: now })
-      .where(eq(fleetVehicles.id, session.pumpVehicleId));
+      .where(
+        and(
+          eq(fleetVehicles.id, session.pumpVehicleId),
+          eq(fleetVehicles.tenantId, auth.user.tenantId)
+        )
+      );
   }
 
   await db
     .update(pumpOperationLogs)
     .set(update)
-    .where(eq(pumpOperationLogs.id, session.id));
+    .where(
+      and(
+        eq(pumpOperationLogs.id, session.id),
+        eq(pumpOperationLogs.tenantId, auth.user.tenantId)
+      )
+    );
 
   await db.insert(auditLogs).values({
     userId: auth.user.sub,
-    tenantId: session.tenantId,
+    tenantId: auth.user.tenantId,
     action: `PUMP_SESSION_${parsed.data.status}`,
     entityType: "pump_operation_logs",
     entityId: session.id,
@@ -385,6 +452,9 @@ export async function GET(req: NextRequest) {
   const conditions = [
     gte(pumpOperationLogs.createdAt, since),
     eq(pumpOperationLogs.tenantId, auth.user.tenantId),
+    eq(fleetVehicles.tenantId, auth.user.tenantId),
+    eq(deliverySites.tenantId, auth.user.tenantId),
+    eq(users.tenantId, auth.user.tenantId),
   ];
   if (externalOnly) conditions.push(eq(pumpOperationLogs.wasExternal, true));
 

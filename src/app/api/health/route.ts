@@ -7,6 +7,12 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   try {
     await db.execute(sql`SELECT 1`);
+    if (process.env.NODE_ENV === "production") {
+      return NextResponse.json(
+        { status: "ok" },
+        { headers: { "Cache-Control": "no-store" } }
+      );
+    }
     return NextResponse.json({
       status: "healthy",
       service: "Fimto Soft Concrete Plant ERP",

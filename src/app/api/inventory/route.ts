@@ -32,7 +32,12 @@ export async function GET(req: NextRequest) {
   const silos = await db
     .select()
     .from(inventorySilos)
-    .where(eq(inventorySilos.isActive, true))
+    .where(
+      and(
+        eq(inventorySilos.isActive, true),
+        eq(inventorySilos.tenantId, auth.user.tenantId)
+      )
+    )
     .orderBy(inventorySilos.materialCategory);
 
   const enrichedSilos = silos.map((silo) => {
@@ -71,7 +76,19 @@ export async function GET(req: NextRequest) {
     })
     .from(inventoryTransactions)
     .innerJoin(inventorySilos, eq(inventoryTransactions.siloId, inventorySilos.id))
-    .leftJoin(users, eq(inventoryTransactions.performedById, users.id))
+    .leftJoin(
+      users,
+      and(
+        eq(inventoryTransactions.performedById, users.id),
+        eq(users.tenantId, auth.user.tenantId)
+      )
+    )
+    .where(
+      and(
+        eq(inventoryTransactions.tenantId, auth.user.tenantId),
+        eq(inventorySilos.tenantId, auth.user.tenantId)
+      )
+    )
     .orderBy(desc(inventoryTransactions.createdAt))
     .limit(30);
 
@@ -116,7 +133,12 @@ export async function POST(req: NextRequest) {
   const siloRows = await db
     .select()
     .from(inventorySilos)
-    .where(eq(inventorySilos.id, parsed.data.siloId))
+    .where(
+      and(
+        eq(inventorySilos.id, parsed.data.siloId),
+        eq(inventorySilos.tenantId, auth.user.tenantId)
+      )
+    )
     .limit(1);
 
   if (siloRows.length === 0) return errorResponse("NOT_FOUND", "Silo not found", 404);
@@ -137,7 +159,12 @@ export async function POST(req: NextRequest) {
   await db
     .update(inventorySilos)
     .set({ currentStockKg: newStock.toFixed(3), updatedAt: new Date() })
-    .where(eq(inventorySilos.id, parsed.data.siloId));
+    .where(
+      and(
+        eq(inventorySilos.id, parsed.data.siloId),
+        eq(inventorySilos.tenantId, auth.user.tenantId)
+      )
+    );
 
   await db.insert(inventoryTransactions).values({
     siloId: parsed.data.siloId,

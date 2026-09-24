@@ -38,8 +38,14 @@ function resolveSecret(envName: string, devFallback: string): string {
   return devFallback;
 }
 
-const JWT_SECRET = resolveSecret("JWT_SECRET", devAccessFallback);
-const JWT_REFRESH_SECRET = resolveSecret("JWT_REFRESH_SECRET", devRefreshFallback);
+function accessSecret(): string {
+  return resolveSecret("JWT_SECRET", devAccessFallback);
+}
+
+function refreshSecret(): string {
+  return resolveSecret("JWT_REFRESH_SECRET", devRefreshFallback);
+}
+
 const ACCESS_TOKEN_EXPIRY = "15m";
 const REFRESH_TOKEN_EXPIRY = "7d";
 
@@ -91,13 +97,13 @@ export function issueTokenPair(
 
   const accessToken = jwt.sign(
     { ...basePayload, tokenType: "ACCESS" } satisfies TokenPayload,
-    JWT_SECRET,
+    accessSecret(),
     { expiresIn: ACCESS_TOKEN_EXPIRY, algorithm: "HS256" } as SignOptions
   );
 
   const refreshToken = jwt.sign(
     { ...basePayload, tokenType: "REFRESH" } satisfies TokenPayload,
-    JWT_REFRESH_SECRET,
+    refreshSecret(),
     { expiresIn: REFRESH_TOKEN_EXPIRY, algorithm: "HS256" } as SignOptions
   );
 
@@ -119,7 +125,7 @@ export function issueTokenPair(
  */
 export function verifyAccessToken(token: string): TokenPayload {
   try {
-    const decoded = jwt.verify(token, JWT_SECRET, {
+    const decoded = jwt.verify(token, accessSecret(), {
       algorithms: ["HS256"],
     }) as JwtPayload & TokenPayload;
 
@@ -145,7 +151,7 @@ export function verifyAccessToken(token: string): TokenPayload {
  */
 export function verifyRefreshToken(token: string): TokenPayload {
   try {
-    const decoded = jwt.verify(token, JWT_REFRESH_SECRET, {
+    const decoded = jwt.verify(token, refreshSecret(), {
       algorithms: ["HS256"],
     }) as JwtPayload & TokenPayload;
 

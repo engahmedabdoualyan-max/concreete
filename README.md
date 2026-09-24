@@ -6,7 +6,7 @@ A comprehensive ERP system for concrete and asphalt plants with multi-language s
 
 Before building Android, changing the app-account tree, or deploying the website, read **[BUILD_TROUBLESHOOTING.md](BUILD_TROUBLESHOOTING.md)**. It documents the EAS/monorepo fixes, Firebase tree data flow, password-hash handling, deployment checks, and the exact R&D/HR role workflow.
 
-For the current competitor comparison, production gaps, and prioritized development plan, read **[COMPETITIVE_ANALYSIS_2026.md](COMPETITIVE_ANALYSIS_2026.md)**.
+For the current competitor comparison, production gaps, and prioritized development plan, read **[COMPETITIVE_ANALYSIS_2026.md](COMPETITIVE_ANALYSIS_2026.md)**. For the executable security and production backlog, read **[SECURITY_AND_PRODUCTION_TODO.md](SECURITY_AND_PRODUCTION_TODO.md)**. For the threat model and security findings, read **[SECURITY.md](SECURITY.md)**. For the required negative tests before deploying Firebase Rules, read **[FIRESTORE_RULES_TEST_PLAN.md](FIRESTORE_RULES_TEST_PLAN.md)**. For Supabase RLS verification, read **[SUPABASE_RLS_TEST_PLAN.md](SUPABASE_RLS_TEST_PLAN.md)**.
 
 **Important:** the app-account tree is stored in Firebase Firestore (`concrete-erb/companyTrees`), not in the website Supabase database.
 
@@ -35,7 +35,7 @@ For the current competitor comparison, production gaps, and prioritized developm
 ## Installation & Setup
 
 ### Prerequisites
-- Node.js 18 or higher
+- Node.js 20.9 or higher (required by the current Next.js toolchain)
 - npm or yarn
 
 ### Installation Steps
@@ -53,9 +53,29 @@ npm run dev
 # Build for production
 npm run build
 
-# Preview the built application
-npm run preview
+# Run the active website build locally
+npm run build:site
+npm run dev:site
 ```
+
+## Quality and security gates
+
+Run these before a release:
+
+```bash
+npm run security:audit
+npm run security:rules
+npm run security:tenancy
+npm run security:legacy
+npm run security:tenant-report
+npm run typecheck:all
+npm run build
+npm run build:site
+```
+
+The Firebase and Supabase policy checks are static until the emulator/RLS
+negative tests in `FIRESTORE_RULES_TEST_PLAN.md` and
+`SUPABASE_RLS_TEST_PLAN.md` are run against a staging project.
 
 ## Project Structure
 

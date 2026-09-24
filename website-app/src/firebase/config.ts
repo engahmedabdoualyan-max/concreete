@@ -17,12 +17,15 @@ export const db = getFirestore(app);
 export const auth = getAuth(app);
 
 /**
- * Anonymous sign-in — required once Firestore rules start enforcing
- * `request.auth != null`. Fully transparent to the end user.
- * Resolves with the anonymous user, or null if Anonymous provider
- * is not enabled yet in the Firebase console (rules stay permissive then).
+ * Anonymous Auth is a local-development compatibility path only. Production
+ * must use a server-issued Firebase identity with tenant claims; silently
+ * creating anonymous users would defeat the production Rules boundary.
  */
 export async function ensureFirebaseAuth(): Promise<User | null> {
+  if (import.meta.env.PROD) {
+    console.warn('[auth] Firebase anonymous access is disabled in production');
+    return null;
+  }
   try {
     if (auth.currentUser) return auth.currentUser;
     const cred = await signInAnonymously(auth);

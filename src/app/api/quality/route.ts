@@ -75,6 +75,9 @@ export async function GET(req: NextRequest) {
     .where(
       and(
         eq(labTestResults.tenantId, auth.user.tenantId),
+        eq(labTestSamples.tenantId, auth.user.tenantId),
+        eq(orders.tenantId, auth.user.tenantId),
+        eq(mixDesigns.tenantId, auth.user.tenantId),
         eq(labTestResults.result, "PENDING")
       )
     )
@@ -102,6 +105,9 @@ export async function GET(req: NextRequest) {
     .where(
       and(
         eq(labTestResults.tenantId, auth.user.tenantId),
+        eq(labTestSamples.tenantId, auth.user.tenantId),
+        eq(orders.tenantId, auth.user.tenantId),
+        eq(mixDesigns.tenantId, auth.user.tenantId),
         inArray(labTestResults.result, ["FAIL", "MARGINAL"])
       )
     )
@@ -183,7 +189,12 @@ export async function POST(req: NextRequest) {
       tripNumber: trips.tripNumber,
     })
     .from(trips)
-    .where(eq(trips.id, parsed.data.tripId))
+    .where(
+      and(
+        eq(trips.id, parsed.data.tripId),
+        eq(trips.tenantId, auth.user.tenantId)
+      )
+    )
     .limit(1);
 
   if (tripRows.length === 0) {
@@ -192,11 +203,31 @@ export async function POST(req: NextRequest) {
 
   const trip = tripRows[0];
 
+  const [order] = await db
+    .select({ id: orders.id })
+    .from(orders)
+    .where(
+      and(
+        eq(orders.id, trip.orderId),
+        eq(orders.tenantId, auth.user.tenantId)
+      )
+    )
+    .limit(1);
+
+  if (!order) {
+    return errorResponse("ORDER_NOT_FOUND", "Order not found", 404);
+  }
+
   // Fetch mix design for targets
   const mixRows = await db
     .select()
     .from(mixDesigns)
-    .where(eq(mixDesigns.id, trip.mixDesignId))
+    .where(
+      and(
+        eq(mixDesigns.id, trip.mixDesignId),
+        eq(mixDesigns.tenantId, auth.user.tenantId)
+      )
+    )
     .limit(1);
 
   if (mixRows.length === 0) {

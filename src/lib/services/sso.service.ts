@@ -46,8 +46,14 @@ interface StoredProvider extends Omit<SsoProviderConfig, "clientSecret"> {
 }
 
 function stateSecret(): Buffer {
-  const s = process.env.JWT_SECRET ?? "fimto-sso-dev-state-secret";
-  return crypto.createHash("sha256").update(s).digest();
+  const s = process.env.JWT_SECRET;
+  if (!s && process.env.NODE_ENV === "production") {
+    throw new Error("JWT_SECRET must be configured before SSO is enabled in production");
+  }
+  return crypto
+    .createHash("sha256")
+    .update(s ?? "fimto-sso-dev-state-secret")
+    .digest();
 }
 
 // ─── Tenant SSO config ────────────────────────────────────────────────────────

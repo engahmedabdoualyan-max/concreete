@@ -16,8 +16,8 @@
 
 import { NextRequest } from "next/server";
 import { db } from "@/db";
-import { trips } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { batchPlants, mixDesigns, trips } from "@/db/schema";
+import { and, eq } from "drizzle-orm";
 import { requirePermission, requireAnyPermission } from "@/lib/auth/middleware";
 import { errorResponse, successResponse } from "@/lib/auth/middleware";
 import { PERMISSIONS } from "@/lib/auth/rbac";
@@ -81,7 +81,12 @@ export async function POST(req: NextRequest) {
       isCancelled: trips.isCancelled,
     })
     .from(trips)
-    .where(eq(trips.id, parsed.data.tripId))
+    .where(
+      and(
+        eq(trips.id, parsed.data.tripId),
+        eq(trips.tenantId, auth.user.tenantId)
+      )
+    )
     .limit(1);
 
   if (tripRows.length === 0) {
@@ -111,6 +116,38 @@ export async function POST(req: NextRequest) {
 
   if (!(requestedM3 > 0)) {
     return errorResponse("INVALID_VOLUME", "Trip has no loaded volume set.", 422);
+  }
+
+  const [mixDesign] = await db
+    .select({ id: mixDesigns.id })
+    .from(mixDesigns)
+    .where(
+      and(
+        eq(mixDesigns.id, trip.mixDesignId),
+        eq(mixDesigns.tenantId, auth.user.tenantId)
+      )
+    )
+    .limit(1);
+
+  if (!mixDesign) {
+    return errorResponse("MIX_DESIGN_NOT_FOUND", "Mix design not found", 404);
+  }
+
+  if (parsed.data.batchPlantId) {
+    const [batchPlant] = await db
+      .select({ id: batchPlants.id })
+      .from(batchPlants)
+      .where(
+        and(
+          eq(batchPlants.id, parsed.data.batchPlantId),
+          eq(batchPlants.tenantId, auth.user.tenantId)
+        )
+      )
+      .limit(1);
+
+    if (!batchPlant) {
+      return errorResponse("BATCH_PLANT_NOT_FOUND", "Batch plant not found", 404);
+    }
   }
 
   // ── Execute ────────────────────────────────────────────────────────────────

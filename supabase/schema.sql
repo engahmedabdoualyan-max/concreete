@@ -52,22 +52,18 @@ create table if not exists public.gps_locations (
   unique (username, label)
 );
 
--- Enable Row Level Security (open to app-level auth)
+-- Enable Row Level Security. The legacy app-level username is NOT an identity
+-- provider; direct browser CRUD is intentionally not allowed anymore.
 alter table public.plant_profiles enable row level security;
 alter table public.admin_users enable row level security;
 alter table public.gps_locations enable row level security;
 
--- Policies: allow app-level login (username stored in DB) to read/write.
+-- Remove the historical public policies. With no replacement policy, anon and
+-- ordinary authenticated clients are denied; the server API/service role must
+-- perform tenant-scoped access after it is deployed.
 drop policy if exists "public access" on public.plant_profiles;
-create policy "public access" on public.plant_profiles for all using (true) with check (true);
-
 drop policy if exists "public access" on public.admin_users;
-create policy "public access" on public.admin_users for all using (true) with check (true);
-
 drop policy if exists "public access" on public.gps_locations;
-create policy "public access" on public.gps_locations for all using (true) with check (true);
 
--- Initial admin row (matches the app's default admin account)
-insert into public.admin_users (username, password, name, role, is_active, permissions)
-values ('admin', 'admin123', 'Plant Owner', 'owner', true, '{"operations":true,"production":true,"workshop":true,"mixing":true,"schedule":true,"orders":true,"evaluation":true,"rnd":true}')
-on conflict (username) do nothing;
+-- Do not seed a default password. Provision the first owner through the secure
+-- server-side account flow after identity/tenant claims are configured.

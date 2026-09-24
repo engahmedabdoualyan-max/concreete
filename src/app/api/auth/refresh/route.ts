@@ -46,7 +46,11 @@ export async function POST(req: NextRequest) {
     .select()
     .from(userSessions)
     .where(
-      and(eq(userSessions.jti, payload.jti), eq(userSessions.userId, payload.sub))
+      and(
+        eq(userSessions.jti, payload.jti),
+        eq(userSessions.userId, payload.sub),
+        eq(userSessions.tenantId, payload.tenantId)
+      )
     )
     .limit(1);
 
@@ -58,7 +62,12 @@ export async function POST(req: NextRequest) {
   const userRows = await db
     .select()
     .from(users)
-    .where(eq(users.id, payload.sub))
+    .where(
+      and(
+        eq(users.id, payload.sub),
+        eq(users.tenantId, payload.tenantId)
+      )
+    )
     .limit(1);
 
   if (userRows.length === 0 || !userRows[0].isActive) {
@@ -71,7 +80,12 @@ export async function POST(req: NextRequest) {
   await db
     .update(userSessions)
     .set({ isRevoked: true })
-    .where(eq(userSessions.jti, payload.jti));
+    .where(
+      and(
+        eq(userSessions.jti, payload.jti),
+        eq(userSessions.tenantId, payload.tenantId)
+      )
+    );
 
   // Issue new token pair
   const newTokenPair = issueTokenPair({

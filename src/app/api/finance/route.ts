@@ -95,7 +95,16 @@ export async function GET(req: NextRequest) {
       .innerJoin(users, eq(orders.createdByRepId, users.id))
       .innerJoin(deliverySites, eq(orders.deliverySiteId, deliverySites.id))
       .innerJoin(mixDesigns, eq(orders.mixDesignId, mixDesigns.id))
-      .where(eq(orders.status, filterStatus as never))
+      .where(
+        and(
+          eq(orders.status, filterStatus as never),
+          eq(orders.tenantId, auth.user.tenantId),
+          eq(clients.tenantId, auth.user.tenantId),
+          eq(users.tenantId, auth.user.tenantId),
+          eq(deliverySites.tenantId, auth.user.tenantId),
+          eq(mixDesigns.tenantId, auth.user.tenantId)
+        )
+      )
       .orderBy(desc(orders.createdAt))
       .limit(limit)
       .offset(offset);
@@ -110,7 +119,12 @@ export async function GET(req: NextRequest) {
         overLimitCount: sql<number>`SUM(CASE WHEN outstanding_balance_sar > credit_limit_sar THEN 1 ELSE 0 END)::int`,
       })
       .from(clients)
-      .where(eq(clients.isActive, true));
+      .where(
+        and(
+          eq(clients.isActive, true),
+          eq(clients.tenantId, auth.user.tenantId)
+        )
+      );
 
     // ── Pipeline Status Counts ─────────────────────────────────────────────────
     const pipelineCounts = await db
@@ -120,6 +134,7 @@ export async function GET(req: NextRequest) {
         totalVolume: sql<number>`SUM(CAST(total_volume_m3 AS DECIMAL))::decimal`,
       })
       .from(orders)
+      .where(eq(orders.tenantId, auth.user.tenantId))
       .groupBy(orders.status);
 
     return successResponse({

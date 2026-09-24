@@ -13,6 +13,7 @@ const LangContext = createContext<LangContextType | undefined>(undefined);
 
 export function LangProvider({ children }: { children: ReactNode }) {
   const [lang, setLang] = useState<Lang>(() => {
+    if (typeof window === 'undefined') return 'en';
     const stored = localStorage.getItem('fimtosoft_lang') as Lang | null;
     return stored && stored in translations ? stored : 'en';
   });

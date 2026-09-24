@@ -21,6 +21,25 @@ export const TOKEN_KEY = "fimto_access_token";
 export const REFRESH_KEY = "fimto_refresh_token";
 export const SESSION_KEY = "fimto_user_session";
 
+/**
+ * Keep web tokens out of persistent localStorage in production. This is not a
+ * replacement for HttpOnly cookies, but it reduces the lifetime of a token
+ * stolen by a later XSS/extension issue. Mobile uses SecureStore separately.
+ */
+function webStorage(): Storage {
+  if (typeof window === 'undefined') {
+    throw new Error('Web storage is unavailable during SSR');
+  }
+  return import.meta.env.PROD ? window.sessionStorage : window.localStorage;
+}
+
+function removeLegacyPersistentTokens(): void {
+  if (typeof window === 'undefined' || !import.meta.env.PROD) return;
+  for (const key of [TOKEN_KEY, REFRESH_KEY, SESSION_KEY]) {
+    window.localStorage.removeItem(key);
+  }
+}
+
 export interface SessionUser {
   id: string;
   tenantId: string;
@@ -33,30 +52,39 @@ export interface SessionUser {
 }
 
 export function getToken(): string | null {
-  return localStorage.getItem(TOKEN_KEY);
+  removeLegacyPersistentTokens();
+  return webStorage().getItem(TOKEN_KEY);
 }
 export function setTokens(access: string, refresh: string): void {
-  localStorage.setItem(TOKEN_KEY, access);
-  localStorage.setItem(REFRESH_KEY, refresh);
+  removeLegacyPersistentTokens();
+  webStorage().setItem(TOKEN_KEY, access);
+  webStorage().setItem(REFRESH_KEY, refresh);
 }
 export function getRefreshToken(): string | null {
-  return localStorage.getItem(REFRESH_KEY);
+  return webStorage().getItem(REFRESH_KEY);
 }
 export function saveSession(user: SessionUser): void {
-  localStorage.setItem(SESSION_KEY, JSON.stringify(user));
+  removeLegacyPersistentTokens();
+  webStorage().setItem(SESSION_KEY, JSON.stringify(user));
 }
 export function loadSession(): SessionUser | null {
   try {
-    const raw = localStorage.getItem(SESSION_KEY);
+    const raw = webStorage().getItem(SESSION_KEY);
     return raw ? (JSON.parse(raw) as SessionUser) : null;
   } catch {
     return null;
   }
 }
 export function clearSession(): void {
-  localStorage.removeItem(TOKEN_KEY);
-  localStorage.removeItem(REFRESH_KEY);
-  localStorage.removeItem(SESSION_KEY);
+  if (typeof window !== 'undefined') {
+    const storage = webStorage();
+    storage.removeItem(TOKEN_KEY);
+    storage.removeItem(REFRESH_KEY);
+    storage.removeItem(SESSION_KEY);
+    window.localStorage.removeItem(TOKEN_KEY);
+    window.localStorage.removeItem(REFRESH_KEY);
+    window.localStorage.removeItem(SESSION_KEY);
+  }
 }
 
 export class ApiError extends Error {

@@ -2,7 +2,7 @@
 
 **تاريخ المراجعة:** 24 سبتمبر 2026  
 **النطاق:** Android + Website + Next.js ERP backend + Firestore/SQL data planes  
-**المرجع البرمجي:** commit `2787c64` ونتائج الفحص المباشر بتاريخ 24 سبتمبر 2026
+**المرجع البرمجي:** working tree الحالي ونتائج الفحص المباشر بتاريخ 24 سبتمبر 2026
 
 > هذا التقرير يفرّق بين **وجود الكود/الواجهة** و**جاهزية production فعلية**. مزايا المنافسين مبنية على صفحات الشركات الرسمية، وهي claims عامة للتسويق وليست اختباراً مستقلاً للأداء أو السعر.
 
@@ -18,7 +18,7 @@ Fimto يملك اليوم **نطاقاً واسعاً** في الـERP: فروع
 - **الضعف الحاسم:** الـERP backend غير منشور على النطاق الحي؛ `/api/*` يرجع `404`.
 - **الضعف الثاني:** وجود مصدرين للبيانات (Firestore + PostgreSQL) مع syncebo best-effort، ما قد ينتج اختلافاً بين شاشة وأخرى.
 - **الضعف الثالث:** مصادقة شجرة الحسابات تعتمد على Firebase Anonymous Auth ومقارنة hash داخل العميل؛ أي anonymous user قد يقرأ بيانات الشجر.
-- **الضعف الرابع:** build/typecheck/test gates ليست خضراء بعد.
+- **الضعف الرابع:** root legacy build وtypechecks أصبحت خضراء، لكن لا يوجد automated test/e2e suite، وproduction API ما زال غير منشور.
 
 ### القاعدة التجارية المقترحة
 
@@ -123,7 +123,7 @@ https://concrete.fimtosoft.com/api/rnd/plans    -> 404
 
 ### P0.2 — Firebase Authentication authorization غير كافٍ
 
-في `firestore.rules`، paths مثل `companyTrees` و`users` و`userData` تسمح لأي `request.auth != null`. الموقع وMobile يطلبان Firebase Anonymous Auth، وتم اختبار anonymous read لـ`companyTrees` بنجاح.
+في live project، paths مثل `companyTrees` و`users` ما زالت تسمح لـAnonymous Auth بالقراءة (تم اختبار anonymous read بنجاح). checked-in `firestore.rules` أصبح fail-closed ويتوقع custom claims، لكنه لم يُنشر بعد.
 
 المشكلة ليست فقط anonymous auth؛ التصميم الحالي يقوم بـ:
 
@@ -135,35 +135,32 @@ https://concrete.fimtosoft.com/api/rnd/plans    -> 404
 
 **الإجراء:**
 
-1. تعطيل anonymous auth كـ production identity، أو تقييد القواعد إلى server-only.
-2. نقل tree login إلى `/api/auth/login` server-side مع bcrypt/Argon2.
-3. إضافة `companyId/tenantId` إلى token وFirebase custom claims، والتحقق منها في كل route.
-4. إزالة plaintext password من documents؛ تشغيل migration للـlegacy accounts.
-5. إضافة session revocation وaudit log حقيقي.
-6. اختبار rule tests: user A لا يقرأ user B أو company B.
+1. **مكتمل في source:** production browser paths لم تعد تنشئ anonymous identity، وRules fail-closed. **متبقي:** نشر Rules بعد اختبار custom claims.
+2. **مكتمل للـPG website accounts:** `/api/auth/login` + `/api/auth/me`; **متبقي:** server-side tree login/Argon2id/bcrypt.
+3. **جزئي:** JWT tenant validation وrepresentative route predicates; **متبقي:** Firebase custom-claim issuance and all-route audit.
+4. **متبقي:** إزالة plaintext password من documents؛ routes reports/export حُمّيت، لكن migration لا يزال مطلوباً.
+5. **جزئي:** session JWT revocation موجود في Next backend; **متبقي:** legacy session migration/revocation.
+6. **متبقي:** Firebase Emulator/RLS two-tenant negative tests.
 
-### P0.3 — Build وtypecheck ليست release gates صالحة
+### P0.3 — Root legacy build وrelease tests
 
-نتائج المراجعة الحالية:
+نتائج المراجعة بعد الإصلاحات:
 
 ```text
-npm run build              -> FAIL: window is not defined (leaflet during Next page data)
+npm run build              -> PASS (Next 16.3.6)
 npm run build:site         -> PASS (Vite build)
-npm run typecheck:site     -> FAIL: 25 TypeScript errors
-npm run typecheck:mobile   -> FAIL: dynamic imports require module flag
+npm run typecheck:site     -> PASS (0 errors)
+npm run typecheck:mobile   -> PASS (0 errors)
 ```
 
-كما لم أجد automated test/e2e suite في repository.
-
-**الأثر:** build قد ينجح مؤقتاً لكن يكسر feature، أو ينشر SPA لا يستطيع تشغيل API/Next بسلاسة.
+تم إصلاح Leaflet SSR، eager database initialization، website/mobile typechecks، وجعل legacy Pages Router wrapper client-only حتى لا يغير تصميم Dashboard ولا ينفذ browser APIs أثناء prerender.
 
 **الإجراء:**
 
-- عزل Leaflet/Map imports خلف client-only boundary أو dynamic import.
-- إصلاح أخطاء TypeScript الـ25، ثم إضافة `typecheck:all` إلى CI.
-- تعديل mobile typecheck script ليشمل `--module esnext --moduleResolution bundler` أو tsconfig صحيح.
-- إضافة اختبارات smoke للـAPI، auth/RBAC، order lifecycle، trip checkpoints، OTA manifest، وtenant isolation.
-- منع deploy إذا فشل أي gate.
+- **إبقاء legacy Pages Router client-only** بدون تغيير تصميم Dashboard.
+- **إضافة اختبارات smoke للـAPI، auth/RBAC, order lifecycle, trip checkpoints, OTA manifest, وtenant isolation.**
+- **إضافة `npm run security:audit` و`typecheck:all` و`build` إلى CI/release.**
+- **منع deploy إذا فشل أي gate.**
 
 ### P0.4 — مصدران للبيانات بدون conflict policy
 

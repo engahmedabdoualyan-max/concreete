@@ -982,6 +982,9 @@ export async function getAllPlantsSummary(): Promise<PlantSummary[]> {
  * Returns matching orders across all plants.
  */
 export async function loadAllOrdersForCustomer(identifier: string): Promise<any[]> {
+  if (import.meta.env.PROD) {
+    throw new Error('Customer lookup must use the tenant-scoped server portal endpoint');
+  }
   const q = identifier.trim().toLowerCase();
   const usersSnap = await getDocs(collection(db, 'users'));
   const results: any[] = [];
@@ -1008,6 +1011,9 @@ export async function loadAllOrdersForCustomer(identifier: string): Promise<any[
  * Returns matching payments across all plants.
  */
 export async function loadAllInvoicesForCustomer(identifier: string): Promise<any[]> {
+  if (import.meta.env.PROD) {
+    throw new Error('Customer lookup must use the tenant-scoped server portal endpoint');
+  }
   const q = identifier.trim().toLowerCase();
   const usersSnap = await getDocs(collection(db, 'users'));
   const results: any[] = [];

@@ -114,7 +114,12 @@ export default function CustomerPortal() {
       setBusy(false);
       return;
     } catch {
-      // Server path unavailable → fall back to browser-side EmailJS so the portal keeps working
+      if (!import.meta.env.DEV) {
+        setError(t('errGeneric'));
+        setBusy(false);
+        return;
+      }
+      // Development-only fallback; never accept a browser-generated OTP in production.
     }
     const code = generateOTP();
     setGeneratedOtp(code);

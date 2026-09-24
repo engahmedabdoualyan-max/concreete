@@ -1,7 +1,15 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
 import emailjs from '@emailjs/browser';
-import { saveUser, getUser, reportPresence, clearPresence } from '../firebase/firestore';
+import { saveUser, getUser, clearPresence } from '../firebase/firestore';
 import { hashPassword } from '../lib/passwords';
+import {
+  api,
+  clearSession,
+  getToken,
+  saveSession,
+  setTokens,
+  type SessionUser,
+} from '../api/client';
 
 const EMAILJS_PUBLIC_KEY = 'UPIUNYeckrEK-z_xz';
 const EMAILJS_SERVICE_ID = 'service_mdtxmv8';
@@ -18,6 +26,9 @@ export interface UserSession {
   status: string;
   role?: string;
   fullName?: string;
+  tenantId?: string;
+  employeeCode?: string;
+  mods?: string[];
 }
 
 interface AuthContextType {
@@ -35,6 +46,23 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
+function sessionUserToUserSession(user: SessionUser, fallbackUsername = ''): UserSession {
+  return {
+    username: user.email || user.employeeCode || fallbackUsername,
+    password: '',
+    country: '',
+    city: '',
+    plantName: '',
+    phone: user.phoneNumber || '',
+    email: user.email || '',
+    status: 'APP_ACCOUNT',
+    role: user.role,
+    fullName: user.fullName,
+    tenantId: user.tenantId,
+    employeeCode: user.employeeCode,
+  };
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [currentUser, setCurrentUser] = useState<UserSession | null>(null);
   const [registeredUsers] = useState<UserSession[]>([]);
@@ -43,8 +71,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [emailSending, setEmailSending] = useState(false);
 
   useEffect(() => {
-    emailjs.init(EMAILJS_PUBLIC_KEY);
-    // Try restore session
+    if (import.meta.env.DEV) emailjs.init(EMAILJS_PUBLIC_KEY);
+    // Browser sessions are a development fallback only. Production must be
+    // restored from a server-issued, revocable session and revalidated.
+    if (import.meta.env.PROD) {
+      localStorage.removeItem('currentUserSession');
+      if (!getToken()) {
+        clearSession();
+        return;
+      }
+      void api.get<{ user: SessionUser }>('/api/auth/me')
+        .then(({ user }) => {
+          saveSession(user);
+          setCurrentUser(sessionUserToUserSession(user));
+        })
+        .catch(() => clearSession());
+      return;
+    }
     try {
       const saved = localStorage.getItem('currentUserSession');
       if (saved) setCurrentUser(JSON.parse(saved));
@@ -58,7 +101,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const login = async (username: string, password: string): Promise<boolean> => {
-    // Try Firebase first
+    if (import.meta.env.PROD) {
+      try {
+        const result = await api.post<{
+          accessToken: string;
+          refreshToken: string;
+          user: SessionUser;
+        }>('/api/auth/login', { identifier: username, password });
+        setTokens(result.accessToken, result.refreshToken);
+        saveSession(result.user);
+        setCurrentUser(sessionUserToUserSession(result.user, username));
+        return true;
+      } catch (error) {
+        console.warn('Server login failed', error);
+        return false;
+      }
+    }
+
+    // Development-only Firebase/local fallback.
     try {
       const user = await getUser(username) as any;
       if (user) {
@@ -79,27 +139,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (e) {
       console.warn('Firebase fetch failed, trying localStorage backup', e);
     }
-    // Fallback to localStorage (match by username or email)
-    try {
-      const saved = localStorage.getItem('registeredUsers');
-      const users: any[] = saved ? JSON.parse(saved) : [];
-      let user: any = null;
-      for (const u of users) {
-        const nameMatch = u.username?.toLowerCase() === username.toLowerCase() || u.email?.toLowerCase() === username.toLowerCase();
-        if (!nameMatch) continue;
-        const hash = await hashPassword(u.username, password);
-        if ((u.passwordHash || '') === hash || u.password === password) { user = u; break; }
-      }
-      if (user) {
-        setCurrentUser(user);
-        localStorage.setItem('currentUserSession', JSON.stringify(stripSecrets(user)));
-        return true;
-      }
-    } catch {}
+    // Local browser accounts are a development-only fallback.
+    if (import.meta.env.DEV) {
+      try {
+        const saved = localStorage.getItem('registeredUsers');
+        const users: any[] = saved ? JSON.parse(saved) : [];
+        let user: any = null;
+        for (const u of users) {
+          const nameMatch = u.username?.toLowerCase() === username.toLowerCase() || u.email?.toLowerCase() === username.toLowerCase();
+          if (!nameMatch) continue;
+          const hash = await hashPassword(u.username, password);
+          if ((u.passwordHash || '') === hash || u.password === password) { user = u; break; }
+        }
+        if (user) {
+          setCurrentUser(user);
+          localStorage.setItem('currentUserSession', JSON.stringify(stripSecrets(user)));
+          return true;
+        }
+      } catch {}
+    }
     return false;
   };
 
   const register = async (user: UserSession): Promise<{ success: boolean; code: string; emailSent: boolean }> => {
+    if (import.meta.env.PROD) {
+      return { success: false, code: '', emailSent: false };
+    }
     // Check duplicate
     try {
       const existing = await getUser(user.username);
@@ -166,12 +231,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = () => {
     const uname = currentUser?.username;
+    if (import.meta.env.PROD) {
+      void api.post('/api/auth/logout').catch(() => {});
+      clearSession();
+    } else {
+      localStorage.removeItem('currentUserSession');
+    }
     setCurrentUser(null);
-    localStorage.removeItem('currentUserSession');
-    if (uname) { try { clearPresence(uname); } catch {} }
+    if (uname && import.meta.env.DEV) { try { clearPresence(uname); } catch {} }
   };
 
   const loginAsGuest = async (guestPassword?: string): Promise<void> => {
+    if (import.meta.env.PROD && import.meta.env.VITE_ALLOW_GUEST !== 'true') {
+      throw new Error('Guest access is disabled in production');
+    }
     if (guestPassword) {
       // Owner-issued guest password: try an app account login
       const ok = await login('guest@migrated.fimtosoft.com', guestPassword);
@@ -186,6 +259,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const setGuest = () => {
+    if (import.meta.env.PROD && import.meta.env.VITE_ALLOW_GUEST !== 'true') {
+      throw new Error('Guest access is disabled in production');
+    }
     const guest: UserSession = {
       username: 'guest',
       password: '',

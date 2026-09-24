@@ -27,6 +27,17 @@ export const dynamic = "force-dynamic";
 
 const MAX_BLOB_BYTES = 20 * 1024 * 1024; // 20 MB per collection
 
+const ADMIN_ONLY_COLLECTIONS = new Set(["adminUsers"]);
+const PLANT_ADMIN_COLLECTIONS = new Set(["adminPlantProfile"]);
+
+function canManageCollection(role: string, collection: string): boolean {
+  if (ADMIN_ONLY_COLLECTIONS.has(collection)) return role === "SUPER_ADMIN";
+  if (PLANT_ADMIN_COLLECTIONS.has(collection)) {
+    return role === "SUPER_ADMIN" || role === "PLANT_MGR";
+  }
+  return true;
+}
+
 const ALLOWED_COLLECTIONS = new Set([
   "trips",
   "oeeLogs",
@@ -93,6 +104,9 @@ export async function GET(req: NextRequest, ctx: Ctx) {
   if (!ALLOWED_COLLECTIONS.has(collection)) {
     return errorResponse("INVALID_COLLECTION", `Collection '${collection}' is not allowed.`, 400);
   }
+  if (!canManageCollection(auth.user.role, collection)) {
+    return errorResponse("FORBIDDEN", "You cannot manage this workspace collection.", 403);
+  }
 
   await ensureTable();
   const rows = await db.execute(sql`
@@ -117,6 +131,9 @@ export async function PUT(req: NextRequest, ctx: Ctx) {
   if (!parsed.success) return errorResponse("INVALID_COLLECTION", "Invalid collection name.", 400);
   if (!ALLOWED_COLLECTIONS.has(collection)) {
     return errorResponse("INVALID_COLLECTION", `Collection '${collection}' is not allowed.`, 400);
+  }
+  if (!canManageCollection(auth.user.role, collection)) {
+    return errorResponse("FORBIDDEN", "You cannot manage this workspace collection.", 403);
   }
 
   let body: unknown;
@@ -151,6 +168,9 @@ export async function DELETE(req: NextRequest, ctx: Ctx) {
   if (!parsed.success) return errorResponse("INVALID_COLLECTION", "Invalid collection name.", 400);
   if (!ALLOWED_COLLECTIONS.has(collection)) {
     return errorResponse("INVALID_COLLECTION", `Collection '${collection}' is not allowed.`, 400);
+  }
+  if (!canManageCollection(auth.user.role, collection)) {
+    return errorResponse("FORBIDDEN", "You cannot manage this workspace collection.", 403);
   }
 
   await ensureTable();

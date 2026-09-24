@@ -39,12 +39,16 @@ export async function GET(req: NextRequest) {
   const includeHistory = url.searchParams.get("history") === "true";
 
   try {
-    const evaluation = await evaluatePlantPerformance(windowHours, false);
+    const evaluation = await evaluatePlantPerformance(
+      windowHours,
+      false,
+      auth.user.tenantId
+    );
 
     const payload: Record<string, unknown> = { evaluation };
 
     if (includeHistory) {
-      payload.history = await getEvaluationHistory(30);
+      payload.history = await getEvaluationHistory(30, auth.user.tenantId);
     }
 
     return successResponse(
@@ -77,7 +81,11 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const evaluation = await evaluatePlantPerformance(windowHours, true);
+    const evaluation = await evaluatePlantPerformance(
+      windowHours,
+      true,
+      auth.user.tenantId
+    );
 
     return successResponse(
       {

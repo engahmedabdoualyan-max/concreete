@@ -26,13 +26,18 @@ import { z } from "zod";
 
 export const dynamic = "force-dynamic";
 
-const SYNC_KEY =
-  process.env.TREE_SYNC_KEY ?? "fimto-tree-sync-dev-key-change-me";
+function syncKey(): string {
+  const configured = process.env.TREE_SYNC_KEY;
+  if (!configured && process.env.NODE_ENV === "production") {
+    throw new Error("TREE_SYNC_KEY must be configured in production");
+  }
+  return configured ?? "fimto-tree-sync-dev-key-change-me";
+}
 
 function keyMatches(provided: string | null): boolean {
   if (!provided) return false;
   const a = Buffer.from(provided);
-  const b = Buffer.from(SYNC_KEY);
+  const b = Buffer.from(syncKey());
   if (a.length !== b.length) return false;
   return crypto.timingSafeEqual(a, b);
 }

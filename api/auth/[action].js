@@ -1,8 +1,8 @@
 // uses shared zero-dep jwt from _lib
 const crypto = require('crypto');
 const {
-  ok, fail, findUser, findUserByUid, buildAuthUser, signTokens,
-  requireAuth, fsDelete, fsPatch, enc, JWT_SECRET,
+  ok, fail, assertLegacyApiEnabled, findUser, findUserByUid, buildAuthUser, signTokens,
+  requireAuth, fsDelete, fsPatch, enc, jwt, getJwtSecret,
 } = require('../_lib');
 
 // Same password spec as website (src/lib/passwords.ts) and mobile (lib/pw.ts)
@@ -12,6 +12,7 @@ const hashPassword = (username, password) =>
 
 // api/auth/[action].js → /api/auth/login|refresh|logout|delete-account
 module.exports = async function handler(req, res) {
+  if (!assertLegacyApiEnabled(res)) return;
   const action = String(req.query.action || '');
   const method = req.method;
 
@@ -51,7 +52,7 @@ module.exports = async function handler(req, res) {
       const { refreshToken } = req.body || {};
       if (!refreshToken) return fail(res, 400, 'Refresh token مفقود', 'MISSING_REFRESH_TOKEN');
       let payload;
-      try { payload = jwt.verify(refreshToken, JWT_SECRET); } catch (e) { return fail(res, 401, 'انتهت الجلسة', 'INVALID_REFRESH_TOKEN'); }
+      try { payload = jwt.verify(refreshToken, getJwtSecret()); } catch (e) { return fail(res, 401, 'انتهت الجلسة', 'INVALID_REFRESH_TOKEN'); }
       if (payload.type !== 'refresh' || !payload.uid) return fail(res, 401, 'Token غير صالح', 'INVALID_REFRESH_TOKEN');
       const user = await findUserByUid(payload.uid);
       if (!user) return fail(res, 401, 'الحساب غير موجود', 'USER_NOT_FOUND');

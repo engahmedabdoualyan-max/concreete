@@ -9,7 +9,7 @@
  * - Rate limits: 45s resend cooldown, max 3 sends / 10 min per identifier.
  */
 const crypto = require('crypto');
-const { ok, fail, enc, fsGet, fsPatch, fsDelete } = require('../_lib');
+const { ok, fail, assertLegacyApiEnabled, enc, fsGet, fsPatch, fsDelete } = require('../_lib');
 
 const EMAILJS_SERVICE = process.env.EMAILJS_SERVICE_ID || 'service_mdtxmv8';
 const EMAILJS_TEMPLATE = process.env.EMAILJS_TEMPLATE_ID || 'template_ablqhm3';
@@ -65,6 +65,7 @@ async function sendEmail(to, code, isAdmin) {
 }
 
 module.exports = async function handler(req, res) {
+  if (!assertLegacyApiEnabled(res)) return;
   if (req.method !== 'POST') return fail(res, 405, 'Method not allowed', 'BAD_METHOD');
   const action = String(req.query.action || '');
   try {

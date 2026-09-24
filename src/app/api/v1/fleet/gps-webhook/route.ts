@@ -32,14 +32,19 @@ import { z } from "zod";
 
 export const dynamic = "force-dynamic";
 
-const WEBHOOK_KEY =
-  process.env.FLEET_GPS_WEBHOOK_KEY ?? "fimto-gps-vendor-dev-key-change-me";
+function webhookKey(): string {
+  const configured = process.env.FLEET_GPS_WEBHOOK_KEY;
+  if (!configured && process.env.NODE_ENV === "production") {
+    throw new Error("FLEET_GPS_WEBHOOK_KEY must be configured in production");
+  }
+  return configured ?? "fimto-gps-vendor-dev-key-change-me";
+}
 
 /** Constant-time comparison to prevent timing attacks on the shared key. */
 function keyMatches(provided: string | null): boolean {
   if (!provided) return false;
   const a = Buffer.from(provided);
-  const b = Buffer.from(WEBHOOK_KEY);
+  const b = Buffer.from(webhookKey());
   if (a.length !== b.length) return false;
   return crypto.timingSafeEqual(a, b);
 }

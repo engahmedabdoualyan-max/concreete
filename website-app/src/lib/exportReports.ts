@@ -9,12 +9,18 @@ import * as XLSX from 'xlsx';
 export type ExportColumn = { header: string; key: string };
 export type ExportRow = Record<string, string | number | null | undefined>;
 
+const MAX_EXPORT_ROWS = 10_000;
+const MAX_CELL_LENGTH = 2_000;
+
+function safeCell(value: unknown): string {
+  return value === null || value === undefined ? '' : String(value).slice(0, MAX_CELL_LENGTH);
+}
+
 function toRows(columns: ExportColumn[], rows: ExportRow[]): Record<string, string | number>[] {
-  return rows.map((r) => {
+  return rows.slice(0, MAX_EXPORT_ROWS).map((r) => {
     const out: Record<string, string | number> = {};
     for (const c of columns) {
-      const v = r[c.key];
-      out[c.header] = v === null || v === undefined ? '' : String(v);
+      out[c.header.slice(0, 200)] = safeCell(r[c.key]);
     }
     return out;
   });
@@ -23,10 +29,10 @@ function toRows(columns: ExportColumn[], rows: ExportRow[]): Record<string, stri
 /** Excel via SheetJS (.xlsx) — full fidelity, multi-sheet optional */
 export function downloadExcel(filename: string, sheets: { name: string; columns: ExportColumn[]; rows: ExportRow[] }[]) {
   const wb = XLSX.utils.book_new();
-  for (const sheet of sheets) {
+  for (const sheet of sheets.slice(0, 20)) {
     const ws = XLSX.utils.json_to_sheet(toRows(sheet.columns, sheet.rows));
-    ws['!cols'] = sheet.columns.map((c) => ({ wch: Math.max(10, c.header.length + 4) }));
-    XLSX.utils.book_append_sheet(wb, ws, sheet.name.slice(0, 31));
+    ws['!cols'] = sheet.columns.slice(0, 200).map((c) => ({ wch: Math.min(80, Math.max(10, c.header.length + 4)) }));
+    XLSX.utils.book_append_sheet(wb, ws, sheet.name.replace(/[\\/*?:[\]]/g, '_').slice(0, 31) || 'Sheet');
   }
   XLSX.writeFile(wb, `${filename}.xlsx`);
 }

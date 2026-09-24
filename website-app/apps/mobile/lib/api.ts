@@ -149,9 +149,19 @@ class ApiClient {
   }
 
   async getCurrentUser(): Promise<AuthUser | null> {
-    const userJson = await getItem(STORAGE_KEYS.USER);
-    if (!userJson) return null;
-    return JSON.parse(userJson);
+    // Never trust a locally persisted tree/profile object as an authenticated
+    // session. Validate the access token against the server on app startup.
+    const accessToken = await getItem(STORAGE_KEYS.ACCESS_TOKEN);
+    if (!accessToken) return null;
+    try {
+      const response = await this.client.get<ApiResponse<{ user: AuthUser }>>("/auth/me");
+      const user = response.data.data.user;
+      await setItem(STORAGE_KEYS.USER, JSON.stringify(user));
+      return user;
+    } catch {
+      await this.logout();
+      return null;
+    }
   }
 
   /**

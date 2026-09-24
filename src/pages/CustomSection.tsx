@@ -7,6 +7,7 @@ export default function CustomSection() {
   const navigate = useNavigate();
   const [info, setInfo] = useState<{ en?: string; ar?: string; image?: string }>(() => {
     try {
+      if (typeof window === 'undefined') return {};
       const cfg = JSON.parse(localStorage.getItem('fimto_module_config') || '{}');
       return (cfg.custom || []).find((c: any) => c.id === id) || {};
     } catch { return {}; }

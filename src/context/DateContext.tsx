@@ -12,6 +12,7 @@ const DateContext = createContext<DateContextType | undefined>(undefined);
 
 export function DateProvider({ children }: { children: ReactNode }) {
   const [calendarType, setCalendarType] = useState<CalendarType>(() => {
+    if (typeof window === 'undefined') return 'gregorian';
     return (localStorage.getItem('calendarType') as CalendarType) || 'gregorian';
   });
 

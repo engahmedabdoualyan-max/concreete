@@ -78,6 +78,22 @@ function decodeFields(fields: any): any {
   return decode({ mapValue: { fields: fields ?? {} } });
 }
 
+const SENSITIVE_KEYS = new Set([
+  "password", "passwordHash", "accessToken", "refreshToken", "token",
+  "authorization", "dataUrl", "qrCodeToken", "signatureImage", "phone", "email",
+]);
+
+function redact(value: any, depth = 0): any {
+  if (depth > 8) return "[TRUNCATED]";
+  if (Array.isArray(value)) return value.map((item) => redact(item, depth + 1));
+  if (!value || typeof value !== "object") return value;
+  const out: Record<string, any> = {};
+  for (const [key, item] of Object.entries(value)) {
+    out[key] = SENSITIVE_KEYS.has(key) ? "[REDACTED]" : redact(item, depth + 1);
+  }
+  return out;
+}
+
 function summarize(v: any, depth = 0): string {
   if (v === null || v === undefined) return "null";
   if (Array.isArray(v)) {
@@ -120,7 +136,7 @@ async function main() {
 
   for (const doc of usersDocs) {
     const userId = doc.name.split("/").pop();
-    const userFields = decodeFields(doc.fields);
+    const userFields = redact(decodeFields(doc.fields));
     console.log(`\n=== User: ${userId} ===`);
     console.log(`  fields: ${JSON.stringify(userFields).slice(0, 400)}`);
 
@@ -140,7 +156,7 @@ async function main() {
             list[0]
           ).slice(0, 320)}`
         );
-        detail[col] = { count: list.length, sample: list.slice(0, 3) };
+        detail[col] = { count: list.length, sample: redact(list.slice(0, 3)) };
       } catch (e) {
         console.log(`  ${col}: 0`);
       }

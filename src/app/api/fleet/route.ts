@@ -35,7 +35,10 @@ export async function GET(req: NextRequest) {
   const statusFilter = url.searchParams.get("status");
   const availableOnly = url.searchParams.get("availableOnly") === "true";
 
-  const conditions = [eq(fleetVehicles.isActive, true)];
+  const conditions = [
+    eq(fleetVehicles.isActive, true),
+    eq(fleetVehicles.tenantId, auth.user.tenantId),
+  ];
 
   if (typeFilter) conditions.push(eq(fleetVehicles.vehicleType, typeFilter as never));
   if (statusFilter) conditions.push(eq(fleetVehicles.currentStatus, statusFilter as never));
@@ -68,7 +71,13 @@ export async function GET(req: NextRequest) {
       driverEmployeeCode: users.employeeCode,
     })
     .from(fleetVehicles)
-    .leftJoin(users, eq(fleetVehicles.assignedDriverId, users.id))
+    .leftJoin(
+      users,
+      and(
+        eq(fleetVehicles.assignedDriverId, users.id),
+        eq(users.tenantId, auth.user.tenantId)
+      )
+    )
     .where(and(...conditions))
     .orderBy(fleetVehicles.vehicleCode);
 
@@ -146,6 +155,23 @@ export async function POST(req: NextRequest) {
     return errorResponse("VALIDATION_ERROR", "Invalid vehicle data", 400, {
       fields: parsed.error.flatten().fieldErrors,
     });
+  }
+
+  if (parsed.data.assignedDriverId) {
+    const driverRows = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(
+        and(
+          eq(users.id, parsed.data.assignedDriverId),
+          eq(users.tenantId, auth.user.tenantId),
+          eq(users.isActive, true)
+        )
+      )
+      .limit(1);
+    if (driverRows.length === 0) {
+      return errorResponse("DRIVER_NOT_FOUND", "Assigned driver not found in this tenant", 404);
+    }
   }
 
   const [newVehicle] = await db

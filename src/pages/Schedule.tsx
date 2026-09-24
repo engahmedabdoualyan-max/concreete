@@ -7,7 +7,7 @@ import QuickJump from '../components/QuickJump';
 import LangSelector from '../components/LangSelector';
 import BrandLogo from '../components/BrandLogo';
 import PlantLogo from '../components/PlantLogo';
-import L from 'leaflet';
+import type * as Leaflet from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
 interface Customer {
@@ -39,10 +39,12 @@ interface Route {
 export default function Schedule() {
   const { currentUser } = useAuth();
   const { t } = useLang();
-  const mapRef = useRef<L.Map | null>(null);
+  const mapRef = useRef<Leaflet.Map | null>(null);
   const mapContainerRef = useRef<HTMLDivElement>(null);
-  const markersRef = useRef<L.Marker[]>([]);
-  const polylinesRef = useRef<L.Polyline[]>([]);
+  const markersRef = useRef<Leaflet.Marker[]>([]);
+  const polylinesRef = useRef<Leaflet.Polyline[]>([]);
+  const leafletRef = useRef<typeof import('leaflet') | null>(null);
+  const [leafletReady, setLeafletReady] = useState(false);
 
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [mode, setMode] = useState<'manual' | 'auto'>('manual');
@@ -86,76 +88,86 @@ export default function Schedule() {
     setTimeout(() => setShowToast(null), 3000);
   };
 
-  // Initialize map
+  // Initialize map only in the browser. Leaflet reads `window` at module
+  // evaluation time, so it must never be imported during Next SSR.
   useEffect(() => {
     if (!mapContainerRef.current || mapRef.current) return;
+    let cancelled = false;
 
-    // Parse initial plant location
-    const [lat, lng] = plantGeo.split(',').map(Number);
+    void import('leaflet').then((L) => {
+      if (cancelled || !mapContainerRef.current || mapRef.current) return;
+      leafletRef.current = L;
 
-    // Initialize Leaflet map
-    const map = L.map(mapContainerRef.current).setView([lat, lng], 13);
+      // Parse initial plant location
+      const [lat, lng] = plantGeo.split(',').map(Number);
 
-    // Add OpenStreetMap tiles
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '© OpenStreetMap contributors',
-      maxZoom: 19,
-    }).addTo(map);
+      // Initialize Leaflet map
+      const map = L.map(mapContainerRef.current).setView([lat, lng], 13);
 
-    mapRef.current = map;
+      // Add OpenStreetMap tiles
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors',
+        maxZoom: 19,
+      }).addTo(map);
 
-    // Add plant marker
-    const plantIcon = L.divIcon({
-      html: '<div style="background: #ef4444; width: 30px; height: 30px; border-radius: 50%; border: 3px solid white; display: flex; align-items: center; justify-content: center; font-size: 16px;">🏭</div>',
-      className: 'plant-marker',
-      iconSize: [30, 30],
-      iconAnchor: [15, 15],
-    });
+      mapRef.current = map;
 
-    L.marker([lat, lng], { icon: plantIcon })
-      .addTo(map)
-      .bindPopup(t('plantLocation'));
+      // Add plant marker
+      const plantIcon = L.divIcon({
+        html: '<div style="background: #ef4444; width: 30px; height: 30px; border-radius: 50%; border: 3px solid white; display: flex; align-items: center; justify-content: center; font-size: 16px;">🏭</div>',
+        className: 'plant-marker',
+        iconSize: [30, 30],
+        iconAnchor: [15, 15],
+      });
 
-    // Click handler for selecting location
-    map.on('click', (e: L.LeafletMouseEvent) => {
-      if (isSelectingLocation) {
-        const { lat, lng } = e.latlng;
-        const geoStr = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+      L.marker([lat, lng], { icon: plantIcon })
+        .addTo(map)
+        .bindPopup(t('plantLocation'));
 
-        if (activeGeoField === 'plant') {
-          setPlantGeo(geoStr);
-          // Reverse geocode to get address
-          fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`)
-            .then(res => res.json())
-            .then(data => {
-              if (data.display_name) {
-                setPlantAddress(data.display_name);
-              }
-            })
-            .catch(() => {});
-        } else {
-          setForm(prev => ({ ...prev, geo: geoStr }));
-          // Reverse geocode
-          fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`)
-            .then(res => res.json())
-            .then(data => {
-              if (data.display_name) {
-                setForm(prev => ({ ...prev, locationName: data.display_name }));
-              }
-            })
-            .catch(() => {});
+      // Click handler for selecting location
+      map.on('click', (e: Leaflet.LeafletMouseEvent) => {
+        if (isSelectingLocation) {
+          const { lat, lng } = e.latlng;
+          const geoStr = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+
+          if (activeGeoField === 'plant') {
+            setPlantGeo(geoStr);
+            // Reverse geocode to get address
+            fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`)
+              .then(res => res.json())
+              .then(data => {
+                if (data.display_name) {
+                  setPlantAddress(data.display_name);
+                }
+              })
+              .catch(() => {});
+          } else {
+            setForm(prev => ({ ...prev, geo: geoStr }));
+            // Reverse geocode
+            fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`)
+              .then(res => res.json())
+              .then(data => {
+                if (data.display_name) {
+                  setForm(prev => ({ ...prev, locationName: data.display_name }));
+                }
+              })
+              .catch(() => {});
+          }
+
+          setIsSelectingLocation(false);
+          setActiveGeoField('plant');
         }
-
-        setIsSelectingLocation(false);
-        setActiveGeoField('plant');
-      }
+      });
+      setLeafletReady(true);
     });
 
     return () => {
+      cancelled = true;
       if (mapRef.current) {
         mapRef.current.remove();
         mapRef.current = null;
       }
+      setLeafletReady(false);
     };
   }, [plantGeo, isSelectingLocation]);
 
@@ -199,7 +211,8 @@ export default function Schedule() {
 
   // Update map markers when customers change
   useEffect(() => {
-    if (!mapRef.current) return;
+    const L = leafletRef.current;
+    if (!L || !mapRef.current) return;
 
     // Remove old markers and polylines
     markersRef.current.forEach(marker => marker.remove());
@@ -209,13 +222,13 @@ export default function Schedule() {
 
     // Parse plant location
     const [plantLat, plantLng] = plantGeo.split(',').map(Number);
-    const plantLatLng: L.LatLngExpression = [plantLat, plantLng];
+    const plantLatLng: Leaflet.LatLngExpression = [plantLat, plantLng];
 
     // Add customer markers
     customers.forEach((customer, index) => {
       if (customer.geo) {
         const [lat, lng] = customer.geo.split(',').map(Number);
-        const customerLatLng: L.LatLngExpression = [lat, lng];
+        const customerLatLng: Leaflet.LatLngExpression = [lat, lng];
 
         const customerIcon = L.divIcon({
           html: `<div style="background: ${
@@ -264,7 +277,7 @@ export default function Schedule() {
         });
       }
     });
-  }, [customers, plantGeo]);
+  }, [customers, plantGeo, leafletReady]);
 
   // Calculate distance between two points (Haversine formula)
   const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {

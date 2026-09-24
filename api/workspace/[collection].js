@@ -7,7 +7,7 @@
  * userData/{uid}/{collection}/data — same store the rest of the ERP uses.
  */
 const {
-  ok, fail, requireAuth, loadUserDataArr, saveUserDataArr,
+  ok, fail, assertLegacyApiEnabled, requireAuth, loadUserDataArr, saveUserDataArr,
 } = require('../_lib');
 
 const ALLOWED = new Set([
@@ -15,6 +15,7 @@ const ALLOWED = new Set([
 ]);
 
 module.exports = async function handler(req, res) {
+  if (!assertLegacyApiEnabled(res)) return;
   const collection = String(req.query.collection || '');
 
   if (!ALLOWED.has(collection)) {

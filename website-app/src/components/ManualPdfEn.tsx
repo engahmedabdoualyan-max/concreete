@@ -232,7 +232,7 @@ function visualFor(no: string): string {
       </svg></div>`;
   }
   if (no === '10') {
-    const bars = [[62,'Sat'],[78,'Sun'],[55,'Mon'],[92,'Tue'],[70,'Wed'],[84,'Thu']];
+    const bars: Array<[number, string]> = [[62,'Sat'],[78,'Sun'],[55,'Mon'],[92,'Tue'],[70,'Wed'],[84,'Thu']];
     const bw = 34, gap = 14, base = 92, x0 = 18;
     return `<div style="margin-top:18px">${cap('Weekly demand forecast (m³/day) — peak day: Tuesday')}
       <svg viewBox="0 0 340 110" preserveAspectRatio="none" style="width:100%;height:112px;background:#fff;border:1px solid ${BORDER};border-radius:12px">

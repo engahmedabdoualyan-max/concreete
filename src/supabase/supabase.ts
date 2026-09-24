@@ -50,7 +50,7 @@ export async function loadPlantProfileFromSupabase(username: string): Promise<Pl
 // ====================== Admin / Managed Users ======================
 export interface AdminUserRow {
   username: string;
-  password: string;
+  password?: string;
   name: string;
   email: string;
   phone: string;

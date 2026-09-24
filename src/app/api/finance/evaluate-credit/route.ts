@@ -6,6 +6,9 @@
  */
 
 import { NextRequest } from "next/server";
+import { db } from "@/db";
+import { clients } from "@/db/schema";
+import { and, eq } from "drizzle-orm";
 import { requirePermission } from "@/lib/auth/middleware";
 import { errorResponse, successResponse } from "@/lib/auth/middleware";
 import { PERMISSIONS } from "@/lib/auth/rbac";
@@ -35,6 +38,21 @@ export async function POST(req: NextRequest) {
     return errorResponse("VALIDATION_ERROR", "Invalid evaluation data", 400, {
       fields: parsed.error.flatten().fieldErrors,
     });
+  }
+
+  const clientRows = await db
+    .select({ id: clients.id })
+    .from(clients)
+    .where(
+      and(
+        eq(clients.id, parsed.data.clientId),
+        eq(clients.tenantId, auth.user.tenantId)
+      )
+    )
+    .limit(1);
+
+  if (clientRows.length === 0) {
+    return errorResponse("NOT_FOUND", "Client not found", 404);
   }
 
   try {

@@ -51,8 +51,17 @@ async function refreshWithToken(): Promise<void> {
   expiresAt = Date.now() + (Number(json.expires_in) || 3600) * 1000 - 60_000;
 }
 
-/** Ensure a valid Firebase ID token; resolves silently to no-op when unavailable. */
+/** Anonymous Firebase access is allowed only in local development. */
+function anonymousAccessAllowed(): boolean {
+  return (typeof __DEV__ !== 'undefined' && __DEV__)
+    || process.env.EXPO_PUBLIC_ALLOW_ANONYMOUS_FIREBASE === 'true';
+}
+
+/** Ensure a valid Firebase ID token; production must use server-issued auth. */
 export async function ensureAuth(): Promise<void> {
+  if (!anonymousAccessAllowed()) {
+    throw new Error('ANONYMOUS_FIREBASE_DISABLED');
+  }
   if (idToken && Date.now() < expiresAt) return;
   if (inflight) return inflight;
   inflight = (async () => {
