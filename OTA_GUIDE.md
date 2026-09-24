@@ -64,6 +64,20 @@ eas update:list --branch preview --json --non-interactive
 eas build:view <BUILD_ID> --json
 ```
 
+## قاعدة اعتماد لا تُكسر
+
+قبل أي feature جديدة، يجب تطبيق هذه القائمة:
+
+- [ ] تصنيف التغيير: JS/UI/business logic → OTA؛ Native/permissions/SDK → APK.
+- [ ] إضافة Role/Job title إلى Website + Mobile mapping + RBAC + translations + routing.
+- [ ] إضافة Task/permission إلى كل طبقات الصلاحيات، وليس UI فقط.
+- [ ] اختبارها على `preview` قبل production.
+- [ ] نشر `eas update` بعد نجاح الاختبار.
+- [ ] التأكد أن الموظف，不需要 reinstall، وأن local/remote data لم تتغير.
+- [ ] تسجيل أي استثناء Native في `BUILD_TROUBLESHOOTING.md`.
+
+لا يُعتبر أي Screen أو Role أو Task “مكتمل” إذا كان يعمل في الموقع لكنه لا يعمل في التطبيق، أو إذا كان الموظفون مطالبين بحذف التطبيق لتنزيله.
+
 ## ملاحظات
 
 - القنوات في `eas.json`: `development` / `preview` / `production`.
