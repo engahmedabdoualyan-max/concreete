@@ -308,7 +308,7 @@ The first OTA update is already published:
 
 ```text
 message: Initialize automatic OTA updates
-manifest: https://u.expo.dev/update/01a0d0c0-70e2-7ecd-b5dd-0a77b44d2131
+manifest: https://u.expo.dev/update/01a0d0c3-1340-7ada-a157-7255dacfd94b
 ```
 
 OTA updates preserve the installed app and its local AsyncStorage. Firestore/Supabase data is remote and is not touched by the update. A new APK is required only for native changes, permissions, SDK/Gradle changes, or a new runtime/versionCode.

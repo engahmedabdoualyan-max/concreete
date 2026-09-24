@@ -10,7 +10,7 @@
 - APK الحالي: إصدار `1.3.0` / build `13`
 - القناة: `preview`
 - أول OTA منشور: `Initialize automatic OTA updates`
-- Manifest: https://u.expo.dev/update/01a0d0c0-70e2-7ecd-b5dd-0a77b44d2131
+- Manifest: https://u.expo.dev/update/01a0d0c3-1340-7ada-a157-7255dacfd94b
 
 ## الإعداد لمرة واحدة (5 دقائق من جهازك)
 
