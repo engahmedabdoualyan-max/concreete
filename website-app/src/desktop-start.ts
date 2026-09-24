@@ -8,7 +8,10 @@ import { loadSession } from "./api/client";
  */
 function isTauriRuntime(): boolean {
   try {
-    return typeof window !== "undefined" && "__TAURI__" in window;
+    if (typeof window === "undefined") return false;
+    // Tauri v2 does not guarantee window.__TAURI__ (withGlobalTauri defaults
+    // to false); __TAURI_INTERNALS__ is always injected by the WebView bridge.
+    return "__TAURI__" in window || "__TAURI_INTERNALS__" in window;
   } catch {
     return false;
   }
