@@ -56,7 +56,11 @@
 - [x] Add a repository secret scanner and wire it into the release script.
 - [x] Add a ZATCA gap review and port plan for `invoice-sandpoint`: `ZATCA_GAP_REVIEW.md` and `ZATCA_PORT_PLAN.md`.
 - [ ] Define and implement the Fimto ↔ `invoice-sandpoint` service contract with idempotency/replay and tenant-scoped credentials (`ZATCA_ADAPTER_CONTRACT.md`).
-- [x] Add ZATCA basic validation smoke, Fatoora timeout handling, returned-QR capture, tenant joins, audit events, and a prepared counter uniqueness migration.
+- [x] Add ZATCA basic validation smoke, Fatoora timeout handling, returned-QR capture, tenant joins, audit events, and prepared counter/artifact/idempotency migrations.
+- [x] Block production ZATCA issuance for clearly ineligible order states and zero delivered quantity; approve the final POD/partial policy.
+- [ ] Make the idempotency key mandatory at the public issuance boundary after confirming the one-invoice/partial-invoice policy.
+- [x] Disable local fake tax-invoice previews in production and gate accounting push/export on accepted ZATCA status.
+- [x] Fix dispatch ownership checks and make the optional RLS policy fail closed when tenant claims are missing.
 - [ ] Decide whether the external `invoice-sandpoint` engine is the certified EGS boundary or port its pure compliance modules into Fimto.
 - [ ] Remove/protect the external `/api/zatca/debug-csid` endpoint and remove production secret fallbacks before reuse.
 - [ ] Run a ZATCA sandbox contract test with CSID, returned cleared artifact, and replay evidence.

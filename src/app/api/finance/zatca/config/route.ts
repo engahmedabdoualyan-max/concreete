@@ -42,7 +42,8 @@ const ConfigSchema = z.object({
   street: z.string().max(200).optional(),
   city: z.string().max(100).optional(),
   branchName: z.string().max(100).optional(),
-  env: z.enum(["simulation", "production"]).optional(),
+  env: z.enum(["sandbox", "simulation", "production"]).optional(),
+  confirmProduction: z.boolean().optional(),
   // Secrets: only overwritten when explicitly provided
   binaryToken: z.string().max(2000).optional(),
   secret: z.string().max(2000).optional(),
@@ -73,6 +74,16 @@ export async function POST(req: NextRequest) {
     return errorResponse("VALIDATION_ERROR", "Invalid config payload", 400, {
       fields: parsed.error.flatten().fieldErrors,
     });
+  }
+
+  const currentConfig = await getZatcaConfig(auth.user.tenantId);
+  const targetEnv = parsed.data.env ?? currentConfig.env;
+  if (targetEnv === "production" && parsed.data.confirmProduction !== true) {
+    return errorResponse(
+      "PRODUCTION_CONFIRMATION_REQUIRED",
+      "Explicit production confirmation is required before saving this environment",
+      409
+    );
   }
 
   try {

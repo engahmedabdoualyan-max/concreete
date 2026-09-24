@@ -55,7 +55,7 @@ END $$;
 
 -- 4) Optional Supabase RLS baseline. The app still enforces tenant_id in code;
 --    this adds a second DB-level safety net for clients using Supabase JWTs.
---    Assumes JWT contains claim: tenant_id.
+--    Assumes JWT contains claim: tenant_id. Missing/empty claims fail closed.
 DO $$
 DECLARE r record;
 BEGIN
@@ -69,7 +69,7 @@ BEGIN
     EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', r.table_name);
     EXECUTE format('DROP POLICY IF EXISTS fimto_tenant_isolation ON %I', r.table_name);
     EXECUTE format(
-      'CREATE POLICY fimto_tenant_isolation ON %I USING (tenant_id::text = COALESCE(current_setting(''request.jwt.claims'', true)::jsonb->>''tenant_id'', tenant_id::text)) WITH CHECK (tenant_id::text = COALESCE(current_setting(''request.jwt.claims'', true)::jsonb->>''tenant_id'', tenant_id::text))',
+      'CREATE POLICY fimto_tenant_isolation ON %I USING (tenant_id::text = NULLIF(current_setting(''request.jwt.claims'', true)::jsonb->>''tenant_id'', '''')) WITH CHECK (tenant_id::text = NULLIF(current_setting(''request.jwt.claims'', true)::jsonb->>''tenant_id'', ''''))',
       r.table_name
     );
   END LOOP;

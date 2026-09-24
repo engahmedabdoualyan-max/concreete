@@ -49,6 +49,10 @@ export default function EInvoice(props: InvoiceProps) {
   const total = totalExVat + vatAmount;
 
   useEffect(() => {
+    if (import.meta.env.PROD) {
+      setQr('');
+      return;
+    }
     const payload = encodeTLV([
       { tag: 1, value: sellerName },
       { tag: 2, value: sellerVatNo },
@@ -62,6 +66,18 @@ export default function EInvoice(props: InvoiceProps) {
   }, [totalExVat, vatAmount]);
 
   const fmt = (n: number) => n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  if (import.meta.env.PROD) {
+    return (
+      <div className="fixed inset-0 z-[100] bg-black/70 flex items-center justify-center p-4" onClick={props.onClose}>
+        <div className="bg-white text-black rounded-xl max-w-md p-6 text-center" onClick={(e) => e.stopPropagation()}>
+          <h2 className="text-lg font-black">ZATCA clearance required</h2>
+          <p className="text-sm mt-2">Local preview invoices are disabled in production. Use the accepted ZATCA artifact.</p>
+          <button onClick={props.onClose} className="mt-4 bg-gray-300 rounded-lg px-4 py-2 font-bold">Close</button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 z-[100] bg-black/70 flex items-start justify-center overflow-y-auto p-4" onClick={props.onClose}>

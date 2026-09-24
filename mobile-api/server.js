@@ -193,6 +193,9 @@ app.post('/api/client/orders', async (req, res) => {
 
 // E-invoice with ZATCA QR for a completed order
 app.get('/api/client/orders/:id/invoice', async (req, res) => {
+  if (process.env.NODE_ENV === 'production') {
+    return res.status(410).json({ error: 'Local invoice preview disabled; use accepted ZATCA artifact' });
+  }
   const orders = await loadCollection('orders');
   const order = orders.find(o => String(o.id) === String(req.params.id));
   if (!order) return res.status(404).json({ error: 'Order not found' });

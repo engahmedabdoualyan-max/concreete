@@ -42,6 +42,7 @@ import {
 export const ZATCA_VAT_RATE = 0.15;
 
 const GW = {
+  sandbox: "https://gw-fatoora.zatca.gov.sa/e-invoicing/developer-portal",
   simulation: "https://gw-fatoora.zatca.gov.sa/e-invoicing/simulation",
   production: "https://gw-fatoora.zatca.gov.sa/e-invoicing/core",
 };
@@ -52,7 +53,7 @@ export interface ZatcaConfig {
   street?: string;
   city?: string;
   branchName?: string;
-  env: "simulation" | "production";
+  env: "sandbox" | "simulation" | "production";
   binaryToken?: string;
   secret?: string;
 }
@@ -66,8 +67,12 @@ function escXml(s: string): string {
     .replace(/'/g, "&apos;");
 }
 
+function round2(n: number): number {
+  return Math.round((n + Number.EPSILON) * 100) / 100;
+}
+
 function fmt(n: number): string {
-  return (Math.round(n * 100) / 100).toFixed(2);
+  return round2(n).toFixed(2);
 }
 
 // ─── Taxpayer config (tenant.settings.zatca) ──────────────────────────────────
@@ -85,15 +90,20 @@ async function readSettings(tenantId: string): Promise<TenantSettings> {
 
 export async function getZatcaConfig(
   tenantId: string
-): Promise<Omit<ZatcaConfig, "binaryToken" | "secret"> & { configured: boolean }> {
+): Promise<Omit<ZatcaConfig, "binaryToken" | "secret"> & {
+  configured: boolean;
+  credentialStatus: "UNCONFIGURED" | "INCOMPLETE" | "CONFIGURED" | "CORRUPTED";
+}> {
   const settings = await readSettings(tenantId);
   const z = (settings.zatca ?? {}) as Record<string, unknown>;
   let secrets: Record<string, string> = {};
+  let credentialStatus: "UNCONFIGURED" | "INCOMPLETE" | "CONFIGURED" | "CORRUPTED" = "UNCONFIGURED";
   if (typeof z.credentialsEnc === "string" && z.credentialsEnc) {
     try {
       secrets = decryptSecrets(z.credentialsEnc);
+      credentialStatus = secrets.binaryToken && secrets.secret ? "CONFIGURED" : "INCOMPLETE";
     } catch {
-      secrets = {};
+      credentialStatus = "CORRUPTED";
     }
   }
   return {
@@ -102,8 +112,9 @@ export async function getZatcaConfig(
     street: z.street as string | undefined,
     city: z.city as string | undefined,
     branchName: z.branchName as string | undefined,
-    env: z.env === "production" ? "production" : "simulation",
-    configured: !!(secrets.binaryToken && secrets.secret && z.sellerName && z.vatNumber),
+    env: z.env === "production" ? "production" : z.env === "sandbox" ? "sandbox" : "simulation",
+    configured: credentialStatus === "CONFIGURED" && !!(z.sellerName && z.vatNumber),
+    credentialStatus,
   };
 }
 
@@ -199,11 +210,11 @@ async function loadSecrets(tenantId: string): Promise<{ binaryToken: string; sec
     if (s.binaryToken && s.secret) return { binaryToken: s.binaryToken, secret: s.secret };
     return null;
   } catch {
-    return null;
+    throw new Error("ZATCA_CREDENTIALS_CORRUPTED: unable to decrypt stored credentials");
   }
 }
 
-// ─── TLV QR (Phase-1-compatible, always generated) ────────────────────────────
+// ─── TLV QR fallback (five tags; replace with returned Phase-2 QR) ─────────────
 
 export function buildTlvBase64(
   sellerName: string,
@@ -229,7 +240,7 @@ export function buildTlvBase64(
   return Buffer.from(chunks).toString("base64");
 }
 
-// ─── Minimal UBL 2.1 tax invoice ──────────────────────────────────────────────
+// ─── Legacy UBL fallback (not a Phase-2 certification engine) ─────────────────
 
 export interface UblInput {
   invoiceNumber: string;
@@ -245,14 +256,14 @@ export interface UblInput {
 
 export function buildUblXml(input: UblInput): string {
   const currency = input.currency ?? "SAR";
-  const exVat = input.lines.reduce((s, l) => s + l.quantity * l.unitPrice, 0);
-  const vat = exVat * ZATCA_VAT_RATE;
-  const withVat = exVat + vat;
+  const exVat = round2(input.lines.reduce((s, l) => s + l.quantity * l.unitPrice, 0));
+  const vat = round2(exVat * ZATCA_VAT_RATE);
+  const withVat = round2(exVat + vat);
 
   const linesXml = input.lines
     .map((l, i) => {
-      const lineEx = l.quantity * l.unitPrice;
-      const lineVat = lineEx * ZATCA_VAT_RATE;
+      const lineEx = round2(l.quantity * l.unitPrice);
+      const lineVat = round2(lineEx * ZATCA_VAT_RATE);
       return `    <cac:InvoiceLine>
       <cbc:ID>${i + 1}</cbc:ID>
       <cbc:InvoicedQuantity unitCode="M3">${fmt(l.quantity)}</cbc:InvoicedQuantity>
@@ -359,15 +370,29 @@ function genesisHash(): string {
   return sha256Base64("0");
 }
 
+async function findIdempotentDocument(tenantId: string, idempotencyKey: string) {
+  const rows = await db
+    .select()
+    .from(zatcaDocuments)
+    .where(
+      and(
+        eq(zatcaDocuments.tenantId, tenantId),
+        eq(zatcaDocuments.idempotencyKey, idempotencyKey)
+      )
+    )
+    .limit(1);
+  return rows[0] ?? null;
+}
+
 // ─── Fatoora API client ───────────────────────────────────────────────────────
 
 async function fatooraPost(
-  env: "simulation" | "production",
+  env: "sandbox" | "simulation" | "production",
   path: "/invoices/clearance/single" | "/invoices/reporting/single",
   binaryToken: string,
   secret: string,
   payload: { invoiceHash: string; uuid: string; invoice: string }
-): Promise<{ ok: boolean; body: Record<string, unknown> }> {
+): Promise<{ ok: boolean; statusCode: number; body: Record<string, unknown> }> {
   const res = await fetch(`${GW[env]}${path}`, {
     method: "POST",
     headers: {
@@ -381,7 +406,7 @@ async function fatooraPost(
     signal: AbortSignal.timeout(30_000),
   });
   const body = (await res.json().catch(() => ({}))) as Record<string, unknown>;
-  return { ok: res.ok, body };
+  return { ok: res.ok, statusCode: res.status, body };
 }
 
 // ─── Issue flow ───────────────────────────────────────────────────────────────
@@ -392,12 +417,30 @@ export async function issueInvoice(
   tenantId: string,
   userId: string,
   orderId: string,
-  type: ZatcaIssueType = "STANDARD"
+  type: ZatcaIssueType = "STANDARD",
+  idempotencyKey?: string
 ) {
+  const normalizedIdempotencyKey = idempotencyKey?.trim() || null;
+  if (normalizedIdempotencyKey) {
+    const existing = await findIdempotentDocument(tenantId, normalizedIdempotencyKey);
+    if (existing) {
+      if (existing.orderId !== orderId || existing.invoiceType !== type) {
+        throw new Error("ZATCA_IDEMPOTENCY_KEY_REUSED: key belongs to another invoice request");
+      }
+      const existingStatus = existing.status;
+      return {
+        ...existing,
+        submitted: existingStatus === "CLEARED" || existingStatus === "REPORTED",
+        message: `Replayed idempotent ZATCA request (${existingStatus})`,
+      };
+    }
+  }
+
   const o = await db
     .select({
       id: orders.id,
       orderNumber: orders.orderNumber,
+      status: orders.status,
       totalVolumeM3: orders.totalVolumeM3,
       remainingVolumeM3: orders.remainingVolumeM3,
       pricePerM3Cents: orders.pricePerM3Sar,
@@ -426,6 +469,9 @@ export async function issueInvoice(
     .limit(1);
   const order = o[0];
   if (!order) throw new Error("Order not found");
+  if (["DRAFT", "PENDING_FINANCE", "CREDIT_HOLD", "FINANCE_REJECTED", "CANCELLED", "ON_HOLD"].includes(order.status)) {
+    throw new Error(`ORDER_NOT_ELIGIBLE_FOR_ZATCA: ${order.status}`);
+  }
 
   const cfg = await getZatcaConfig(tenantId);
   if (!cfg.sellerName || !cfg.vatNumber) {
@@ -447,6 +493,9 @@ export async function issueInvoice(
 
   const totalM3 = Number(order.totalVolumeM3 ?? 0);
   const deliveredM3 = Math.max(0, totalM3 - Number(order.remainingVolumeM3 ?? 0));
+  if (process.env.NODE_ENV === "production" && deliveredM3 <= 0) {
+    throw new Error("DELIVERY_EVIDENCE_REQUIRED: ZATCA invoice requires delivered quantity");
+  }
   const billM3 = deliveredM3 > 0 ? deliveredM3 : totalM3;
   const rateSar = (order.pricePerM3Cents ?? 0) / 100;
 
@@ -470,6 +519,9 @@ export async function issueInvoice(
     throw new Error(
       `Invoice validation failed: ${blockingIssues.map((issue) => issue.code).join(", ")}`
     );
+  }
+  if (process.env.NODE_ENV === "production" && type === "STANDARD" && !order.vatNumber) {
+    throw new Error("STANDARD_BUYER_VAT_REQUIRED: B2B invoice requires a VAT-registered buyer");
   }
   for (const warning of validationIssues.filter((issue) => issue.level === "WARNING")) {
     console.warn(`[ZATCA] ${warning.code}: ${warning.message}`);
@@ -507,8 +559,8 @@ export async function issueInvoice(
     ],
   });
   const hash = sha256Base64(xml);
-  const exVat = billM3 * rateSar;
-  const vatAmount = exVat * ZATCA_VAT_RATE;
+  const exVat = round2(billM3 * rateSar);
+  const vatAmount = round2(exVat * ZATCA_VAT_RATE);
   const qr = buildTlvBase64(
     cfg.sellerName,
     cfg.vatNumber,
@@ -517,52 +569,72 @@ export async function issueInvoice(
     vatAmount
   );
 
-  const [doc] = await db.transaction(async (tx) => {
-    // Serialize counter allocation per tenant. The re-read detects a stale
-    // request instead of allowing two invoices to claim the same ICV/PIH.
-    await tx.execute(sql`SET LOCAL lock_timeout = '5s'`);
-    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${tenantId}))`);
-    const current = await tx
-      .select({
-        counterValue: zatcaDocuments.counterValue,
-        invoiceHash: zatcaDocuments.invoiceHash,
-      })
-      .from(zatcaDocuments)
-      .where(eq(zatcaDocuments.tenantId, tenantId))
-      .orderBy(desc(zatcaDocuments.counterValue))
-      .limit(1);
-    const currentCounter = current[0]?.counterValue ?? 0;
-    const expectedCounter = last[0]?.counterValue ?? 0;
-    if (
-      currentCounter !== expectedCounter ||
-      (current[0]?.invoiceHash ?? null) !== (last[0]?.invoiceHash ?? null)
-    ) {
-      throw new Error("ZATCA_COUNTER_CHANGED: retry invoice creation");
-    }
+  const [doc] = await (async () => {
+    try {
+      return await db.transaction(async (tx) => {
+        // Serialize counter allocation per tenant. The re-read detects a stale
+        // request instead of allowing two invoices to claim the same ICV/PIH.
+        await tx.execute(sql`SET LOCAL lock_timeout = '5s'`);
+        await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${tenantId}))`);
+        const current = await tx
+          .select({
+            counterValue: zatcaDocuments.counterValue,
+            invoiceHash: zatcaDocuments.invoiceHash,
+          })
+          .from(zatcaDocuments)
+          .where(eq(zatcaDocuments.tenantId, tenantId))
+          .orderBy(desc(zatcaDocuments.counterValue))
+          .limit(1);
+        const currentCounter = current[0]?.counterValue ?? 0;
+        const expectedCounter = last[0]?.counterValue ?? 0;
+        if (
+          currentCounter !== expectedCounter ||
+          (current[0]?.invoiceHash ?? null) !== (last[0]?.invoiceHash ?? null)
+        ) {
+          throw new Error("ZATCA_COUNTER_CHANGED: retry invoice creation");
+        }
 
-    return tx
-      .insert(zatcaDocuments)
-      .values({
-        tenantId,
-        orderId,
-        invoiceNumber,
-        invoiceUuid: uuid,
-        invoiceType: type,
-        status: "DRAFT",
-        counterValue: counter,
-        invoiceHash: hash,
-        previousHash,
-        qrTlvBase64: qr,
-        totals: {
-          exVat: Math.round(exVat * 100) / 100,
-          vatAmount: Math.round(vatAmount * 100) / 100,
-          total: Math.round((exVat + vatAmount) * 100) / 100,
-          currency: "SAR",
-        },
-        createdById: userId,
-      })
-      .returning();
-  });
+        return tx
+          .insert(zatcaDocuments)
+          .values({
+            tenantId,
+            orderId,
+            invoiceNumber,
+            idempotencyKey: normalizedIdempotencyKey,
+            invoiceUuid: uuid,
+            invoiceType: type,
+            status: "DRAFT",
+            counterValue: counter,
+            invoiceHash: hash,
+            previousHash,
+            qrTlvBase64: qr,
+            totals: {
+              exVat: round2(exVat),
+              vatAmount: round2(vatAmount),
+              total: round2(exVat + vatAmount),
+              currency: "SAR",
+            },
+            createdById: userId,
+          })
+          .returning();
+      });
+    } catch (error) {
+      if (
+        normalizedIdempotencyKey &&
+        error instanceof Error &&
+        error.message.startsWith("ZATCA_COUNTER_CHANGED")
+      ) {
+        const existing = await findIdempotentDocument(tenantId, normalizedIdempotencyKey);
+        if (existing) {
+          if (existing.orderId !== orderId || existing.invoiceType !== type) {
+            throw new Error("ZATCA_IDEMPOTENCY_KEY_REUSED: key belongs to another invoice request");
+          }
+          return [existing];
+        }
+      }
+      throw error;
+    }
+  })();
 
   await recordZatcaAudit({
     tenantId,
@@ -607,7 +679,7 @@ export async function issueInvoice(
   const path =
     type === "STANDARD" ? "/invoices/clearance/single" : "/invoices/reporting/single";
 
-  let submission: { ok: boolean; body: Record<string, unknown> };
+  let submission: { ok: boolean; statusCode: number; body: Record<string, unknown> };
   try {
     submission = await fatooraPost(cfg.env, path, secrets.binaryToken, secrets.secret, {
       invoiceHash: hash,
@@ -649,7 +721,7 @@ export async function issueInvoice(
     };
   }
 
-  const { ok, body } = submission;
+  const { ok, statusCode, body } = submission;
   const vr = body.validationResults as
     | { status?: string; errorMessages?: { message: string }[] }
     | undefined;
@@ -659,16 +731,29 @@ export async function issueInvoice(
       : (body.reportingStatus as string) === "REPORTED";
   const cleared =
     ok && (explicitStatus || (!body.clearanceStatus && !body.reportingStatus && vr?.status === "PASS"));
+  const businessRejection =
+    !cleared &&
+    statusCode >= 400 &&
+    statusCode < 500 &&
+    statusCode !== 401 &&
+    statusCode !== 403 &&
+    statusCode !== 429;
   const returnedQr =
     (typeof body.qrCode === "string" && body.qrCode) ||
     (typeof body.qr_code === "string" && body.qr_code) ||
     null;
-  const finalStatus = cleared ? (type === "STANDARD" ? "CLEARED" : "REPORTED") : "REJECTED";
+  const finalStatus = cleared
+    ? (type === "STANDARD" ? "CLEARED" : "REPORTED")
+    : businessRejection
+      ? "REJECTED"
+      : "PENDING";
   const rejection =
     !cleared
       ? vr?.errorMessages?.map((e) => e.message).join("; ") ??
         (body.message as string) ??
-        `Fatoora rejected the invoice`
+        (businessRejection
+          ? `Fatoora rejected the invoice (HTTP ${statusCode})`
+          : `Fatoora submission remains pending (HTTP ${statusCode})`)
       : null;
 
   const [final] = await db
@@ -676,7 +761,7 @@ export async function issueInvoice(
     .set({
       status: finalStatus,
       qrTlvBase64: returnedQr ?? qr,
-      fatooraResponse: { ...body, submittedXml: xml },
+      fatooraResponse: { ...body, httpStatus: statusCode, submittedXml: xml },
       rejectionReason: rejection,
       clearedAt: cleared ? new Date() : null,
     })
@@ -686,9 +771,13 @@ export async function issueInvoice(
   await recordZatcaAudit({
     tenantId,
     userId,
-    action: cleared ? "ZATCA_INVOICE_CLEARED" : "ZATCA_INVOICE_REJECTED",
+    action: cleared
+      ? "ZATCA_INVOICE_CLEARED"
+      : finalStatus === "REJECTED"
+        ? "ZATCA_INVOICE_REJECTED"
+        : "ZATCA_SUBMISSION_PENDING",
     entityId: doc.id,
-    newState: { status: finalStatus, hasReturnedQr: Boolean(returnedQr) },
+    newState: { status: finalStatus, hasReturnedQr: Boolean(returnedQr), httpStatus: statusCode },
   });
 
   return {
@@ -696,7 +785,9 @@ export async function issueInvoice(
     submitted: true,
     message: cleared
       ? `Invoice ${finalStatus.toLowerCase()} by ZATCA`
-      : `Rejected: ${rejection}`,
+      : finalStatus === "REJECTED"
+        ? `Rejected: ${rejection}`
+        : `Submission pending: ${rejection}`,
   };
 }
 

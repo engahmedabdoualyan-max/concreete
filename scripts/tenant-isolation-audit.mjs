@@ -4,6 +4,8 @@ import { readFileSync } from 'node:fs';
 
 const files = [
   'src/lib/auth/middleware.ts',
+  'src/lib/services/dispatch.service.ts',
+  'src/lib/services/accounting-sync.service.ts',
   'src/app/api/auth/refresh/route.ts',
   'src/app/api/auth/logout/route.ts',
   'src/app/api/auth/delete-account/route.ts',
@@ -35,10 +37,18 @@ for (const file of files) {
   const source = readFileSync(file, 'utf8');
   const hasTenantBoundary = (file.endsWith('middleware.ts') || file.endsWith('auth/refresh/route.ts'))
     ? source.includes('payload.tenantId') && source.includes('userSessions.tenantId')
-    : source.includes('auth.user.tenantId');
+    : file.endsWith('dispatch.service.ts')
+      ? source.includes('params.tenantId')
+      : file.endsWith('accounting-sync.service.ts')
+        ? source.includes('eq(orders.tenantId, tenantId)') && source.includes('zatcaDocuments')
+        : source.includes('auth.user.tenantId');
   if (!hasTenantBoundary) {
     failures.push(`${file}: no auth.user.tenantId guard found`);
   }
+}
+const rlsSql = readFileSync('src/db/tenant-triggers.sql', 'utf8');
+if (rlsSql.includes('COALESCE(current_setting') || !rlsSql.includes('NULLIF(current_setting')) {
+  failures.push('src/db/tenant-triggers.sql: RLS claim handling is not fail-closed');
 }
 if (failures.length) {
   failures.forEach((failure) => console.error(`FAIL ${failure}`));

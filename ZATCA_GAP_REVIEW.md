@@ -4,7 +4,7 @@
 **النطاق:** `src/lib/services/zatca.service.ts`، مسارات API، `drizzle/0007_zatca_documents.sql`، وواجهة `/zatca`.
 **قرار النطاق:** لا نضيف Accounting/GL/party ledger الآن. المطلوب هو secure invoice + reliable Fatoora boundary + evidence/operations.
 
-> هذا التقرير يصف الكود الموجود في هذا المستودع. إذا كان المشروع المرتبط بـZATCA الذي يعمل حالياً مشروعاً خارجياً أو ملفاً آخر، يجب مراجعة ذلك المستودع/العقد قبل تعديلالعقد.
+> هذا التقرير يصف الكود الموجود في هذا المستودع. إذا كان المشروع المرتبط بـZATCA الذي يعمل حالياً مشروعاً خارجياً أو ملفاً آخر، يجب مراجعة ذلك المستودع/العقد قبل تعديل العقد.
 
 ## الخلاصة
 
@@ -38,12 +38,12 @@
 
 ### ZATCA-02 — Duplicate invoices وidempotency
 
-`issueInvoice()` في Fimto الآن يستخدم PostgreSQL advisory lock around counter allocation، وmigration `0015_zatca_counter_guard.sql` جاهز لإضافة unique `(tenant_id, counter_value)` بعد فحص duplicates. ومع ذلك ما زالت مطلوبة:
+`issueInvoice()` في Fimto الآن يستخدم PostgreSQL advisory lock، prepared unique migrations للـcounter/UUID/invoice number، وoptional caller-provided `idempotencyKey` مع replay. ومع ذلك ما زالت مطلوبة:
 
-- idempotency key.
+- جعل المفتاح إلزامياً بعد تثبيت billing policy.
 - منع تكرار فاتورة واحدة للـorder دون قرار واضح.
 - policy للـpartial invoices/credit notes.
-- replay path بنفس UUID/hash.
+- replay/reconciliation worker يعتمد على نفس UUID/hash.
 
 **خطر:** ضغط زر Issue مرتين أو request timeout بعد قبول Fatoora قد ينتج duplicate invoice أو document غير قابل للمطابقة.
 
@@ -77,12 +77,12 @@ mixDesigns.tenantId = tenantId
 
 ### ZATCA-05 — Fatoora timeout/retry/outbox
 
-`fatooraPost()` أصبح له `AbortSignal.timeout(30_000)`، ويحوّل timeout/network failure إلى `PENDING` مع `SUBMISSION_UNKNOWN`. ما زالت ناقصة:
+`fatooraPost()` أصبح له `AbortSignal.timeout(30_000)`، ويحوّل timeout/network failure إلى `PENDING` مع `SUBMISSION_UNKNOWN`. أضيف optional idempotency replay، وما زالت ناقصة:
 
 - retry policy منضبطة.
-- idempotent replay.
 - outbox/worker.
 - recovery/reconciliation job.
+- endpoint/worker لإعادة الإرسال بنفس UUID/hash.
 
 لا المفروض retry عشوائي لـPOST بعد timeout، لأن Fatoora قد يكون قد قبل الفاتورة أصلاً. الإصلاح المتبقي هو persistent state + same UUID/hash replay + controlled retry.
 
@@ -92,7 +92,7 @@ mixDesigns.tenantId = tenantId
 
 ### ZATCA-07 — Production safety gate
 
-الـUI يسمح باختيار `production` مباشرة (`website-app/src/pages/ZatcaCompliance.tsx:169-172`). قبل production submission مطلوب:
+أضيف gate على server وUI يتطلب `confirmProduction` قبل حفظ production. ما زال مطلوب sandbox evidence فعلي وrole segregation/alerting قبل production submission:
 
 - explicit confirmation.
 - role segregation بين config operator وinvoice issuer.
@@ -103,26 +103,36 @@ mixDesigns.tenantId = tenantId
 
 ## P1 — تحسينات قبل pilot
 
-### ZATCA-08 — Invoice eligibility
+### ZATCA-08 — Status mapping وHTTP semantics
 
-أضيف validation أساسي seller/VAT/quantity/rate. ما زال يتعين قرار واضح ومطبق لـ:
+أضيف `httpStatus` إلى نتيجة Fatoora، ولم تعد 401/403/429/5xx أو response غير مفهومة تتحول تلقائياً إلى business `REJECTED`. API يعيد 201 للقبول، 202 للـpending، و422 للـbusiness rejection، والـUI يعرض state marker.
 
-- minimum order status.
-- approval/finance gate.
-- delivered quantity أو remaining quantity semantics.
+ما زال ناقصاً:
+
+- request ID من Fatoora.
+- latency/attempt metrics.
+- status vocabulary دائم مثل `RETRYABLE` و`AUTH_ERROR` و`RATE_LIMITED` في reporting/UI.
+- polling/reconciliation endpoint.
+
+### ZATCA-09 — Invoice eligibility
+
+أضيف validation أساسي seller/VAT/quantity/rate، وفي production يمنع issue للطلبات `DRAFT/PENDING_FINANCE/CREDIT_HOLD/FINANCE_REJECTED/CANCELLED/ON_HOLD` أو عند عدم وجود delivered quantity. ما زال يتعين قرار واضح ومطبق لـ:
+
+- اعتماد الـfinance/approval policy النهائية.
+- delivered quantity أو approved POD semantics.
 - partial invoice policy.
 - one invoice per order أو أكثر.
 - credit/debit note policy.
 
-لا أغير هذه Business Rules من افتراضي؛ تحتاج قرار المالك.
+لا أغير سياسة partial/one-invoice من افتراضي؛ تحتاج قرار المالك.
 
-### ZATCA-09 — B2B/B2C selection
+### ZATCA-10 — B2B/B2C selection
 
-`type` يرسله المستخدم (`STANDARD` أو `SIMPLIFIED`) دون ربطه تلقائياً بوجود VAT number للعميل. يفضل validation يمنع STANDARD لعميل غير VAT-registered، ويمنع SIMPLIFIED لعميل B2B إذا كان النظام يفرض ذلك.
+`type` يرسله المستخدم (`STANDARD` أو `SIMPLIFIED`). أضيف blocking في production STANDARD لعميل بلا VAT (`STANDARD_BUYER_VAT_REQUIRED`)، لكن binding التلقائي لـB2B/B2C في SIMPLIFIED ما زال قرار سياسة.
 
-### ZATCA-10 — Money precision
+### ZATCA-11 — Money precision
 
-`fmt()` وVAT يحسبان بأرقام JavaScript floating point. يجب تخزين الحسابات في integer minor units أو decimal library، ومطابقة:
+أضيف `round2()` لتوحيد التقريب إلى منزلتين في الحسابات، لكن الأفضل استخدام integer minor units أو decimal library ومطابقة:
 
 - line extension.
 - taxable amount.
@@ -131,16 +141,16 @@ mixDesigns.tenantId = tenantId
 - QR totals.
 - ZATCA validation result.
 
-### ZATCA-11 — Configuration validation
+### ZATCA-12 — Configuration validation
 
-أضيف regex validation للـSaudi VAT number في config route، وما زال مطلوب:
+أضيف regex validation للـSaudi VAT number، production confirmation gate، و`credentialStatus` يميز `UNCONFIGURED/INCOMPLETE/CONFIGURED/CORRUPTED`. ما زال مطلوب:
 
 - required seller fields.
 - branch/building data.
 - explicit test-connection state.
-- distinguish `UNCONFIGURED` من `CORRUPTED_CREDENTIALS` بدل تحويل decrypt failure إلى configured=false بصمت.
+- certificate/credential rotation runbook.
 
-### ZATCA-12 — Observability
+### ZATCA-13 — Observability
 
 مطلوب dashboard/alert for:
 
@@ -152,7 +162,7 @@ mixDesigns.tenantId = tenantId
 - missing QR/cryptographic stamp.
 - last successful sandbox/production smoke test.
 
-### ZATCA-13 — Tests
+### ZATCA-14 — Tests
 
 أضيف `npm run test:zatca` كـbasic validation smoke. ما زال يجب إضافة:
 
@@ -218,6 +228,7 @@ Fimto يجب أن ينسق **invoice lifecycle**، لا أن ينشئ accounting
 - لا أنسخ Prisma/SQLite/UI/Accounting؛ سأحوّلها إلى Drizzle/PostgreSQL multi-tenant.
 - points to fix before reuse: `debug-csid` unprotected, production secret fallbacks, private key/OTP response exposure, sensitive logging, arbitrary `zatcaBaseUrl`, no tenant scope, no replay/outbox, validation module currently not called.
 - Source build/typecheck passes, but `npm audit --omit=dev` reports 1 critical (`xmldom`) and 3 high (`prisma`/`deepmerge-ts`).
+- في Fimto source تم تعطيل local fake tax-invoice previews في production، ومنع accounting push/export قبل `CLEARED/REPORTED`، وإضافة optional idempotency replay، وإحكام dispatch/RLS boundaries. هذه الضوابط لا تعني certification.
 
 ## الخلاصة التنفيذية
 

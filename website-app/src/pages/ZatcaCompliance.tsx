@@ -20,8 +20,9 @@ interface ZatcaConfig {
   street?: string;
   city?: string;
   branchName?: string;
-  env: 'simulation' | 'production';
+  env: 'sandbox' | 'simulation' | 'production';
   configured: boolean;
+  credentialStatus?: 'UNCONFIGURED' | 'INCOMPLETE' | 'CONFIGURED' | 'CORRUPTED';
 }
 
 interface ZatcaDoc {
@@ -64,7 +65,7 @@ export default function ZatcaCompliance() {
   const [msg, setMsg] = useState('');
   const [busy, setBusy] = useState(false);
 
-  const [form, setForm] = useState({ sellerName: '', vatNumber: '', street: '', city: '', branchName: '', env: 'simulation' as 'simulation' | 'production', binaryToken: '', secret: '' });
+  const [form, setForm] = useState({ sellerName: '', vatNumber: '', street: '', city: '', branchName: '', env: 'sandbox' as 'sandbox' | 'simulation' | 'production', binaryToken: '', secret: '' });
   const [issueOrderId, setIssueOrderId] = useState('');
   const [issueType, setIssueType] = useState<'STANDARD' | 'SIMPLIFIED'>('STANDARD');
 
@@ -95,12 +96,17 @@ export default function ZatcaCompliance() {
     if (!form.sellerName.trim() || !form.vatNumber.trim()) { setMsg('⚠️ Seller name + VAT number are required.'); return; }
     setBusy(true);
     try {
-      const payload: Record<string, string> = {
+      const payload: Record<string, string | boolean> = {
         sellerName: form.sellerName.trim(), vatNumber: form.vatNumber.trim(), env: form.env,
       };
       if (form.street.trim()) payload.street = form.street.trim();
       if (form.city.trim()) payload.city = form.city.trim();
       if (form.branchName.trim()) payload.branchName = form.branchName.trim();
+      const confirmProduction = form.env !== 'production' || window.confirm(
+        'Confirm production ZATCA environment. This must only be enabled after sandbox verification.'
+      );
+      if (!confirmProduction) { setBusy(false); return; }
+      payload.confirmProduction = form.env === 'production';
       if (form.binaryToken.trim()) payload.binaryToken = form.binaryToken.trim();
       if (form.secret.trim()) payload.secret = form.secret.trim();
       await api.post('/api/finance/zatca/config', payload);
@@ -117,8 +123,14 @@ export default function ZatcaCompliance() {
     try {
       const res = await api.post<{ data: { invoiceNumber: string; status: string }; message: string }>(
         '/api/finance/zatca/issue', { orderId: issueOrderId.trim(), type: issueType });
-      setMsg(`✅ ${res.message} (${res.data.invoiceNumber})`);
-      setIssueOrderId('');
+      const state = res.data.status;
+      const marker = state === 'CLEARED' || state === 'REPORTED'
+        ? '✅'
+        : state === 'PENDING'
+          ? '⏳'
+          : '⚠️';
+      setMsg(`${marker} ${res.message} (${res.data.invoiceNumber})`);
+      if (state === 'CLEARED' || state === 'REPORTED' || state === 'PENDING') setIssueOrderId('');
       await load();
     } catch (e: any) { setMsg(`⚠️ ${e?.message || 'Issue failed.'}`); }
     setBusy(false);
@@ -139,7 +151,15 @@ export default function ZatcaCompliance() {
         </div>
         {config && (
           <span className={`text-xs px-3 py-1.5 rounded-lg font-bold border ${config.configured ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30' : 'bg-amber-500/15 text-amber-400 border-amber-500/30'}`}>
-            {config.configured ? `🟢 Live (${config.env})` : '🟡 QR-only mode — tokens missing'}
+            {config.configured
+              ? config.env === 'production'
+                ? '🟢 Production configured'
+                : config.env === 'sandbox'
+                  ? '🧪 Sandbox configured'
+                  : '🧪 Simulation configured'
+              : config.credentialStatus === 'CORRUPTED'
+                ? '🔴 Stored credentials are corrupted'
+                : '🟡 Credentials missing — documents remain PENDING'}
           </span>
         )}
       </div>
@@ -166,7 +186,8 @@ export default function ZatcaCompliance() {
             <input value={form.street} onChange={e => setForm({ ...form, street: e.target.value })} placeholder="Street" className={inputCls} />
             <input value={form.city} onChange={e => setForm({ ...form, city: e.target.value })} placeholder="City" className={inputCls} />
             <input value={form.branchName} onChange={e => setForm({ ...form, branchName: e.target.value })} placeholder="Branch (optional)" className={inputCls} />
-            <select value={form.env} onChange={e => setForm({ ...form, env: e.target.value as 'simulation' | 'production' })} className={inputCls}>
+            <select value={form.env} onChange={e => setForm({ ...form, env: e.target.value as 'sandbox' | 'simulation' | 'production' })} className={inputCls}>
+              <option value="sandbox">🧪 Sandbox (Developer Portal)</option>
               <option value="simulation">🧪 Simulation (TQA)</option>
               <option value="production">🚀 Production</option>
             </select>

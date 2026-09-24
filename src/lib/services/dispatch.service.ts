@@ -182,7 +182,7 @@ export async function createTrip(params: CreateTripParams) {
       deliverySiteId: orders.deliverySiteId,
     })
     .from(orders)
-    .where(eq(orders.id, params.orderId))
+    .where(and(eq(orders.id, params.orderId), eq(orders.tenantId, params.tenantId)))
     .limit(1);
 
   if (orderRows.length === 0) throw new Error("Order not found");
@@ -199,6 +199,20 @@ export async function createTrip(params: CreateTripParams) {
       `Load volume (${params.loadedVolumeM3}m³) exceeds remaining order volume (${remainingVol}m³)`
     );
   }
+
+  // 1a. Verify the driver belongs to the same tenant and is active.
+  const driverRows = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(
+      and(
+        eq(users.id, params.driverId),
+        eq(users.tenantId, params.tenantId),
+        eq(users.isActive, true)
+      )
+    )
+    .limit(1);
+  if (driverRows.length === 0) throw new Error("Driver not found in this tenant");
 
   // 1b. Curfew check — block dispatch during municipality heavy-vehicle curfew windows
   const { checkCurfewRestrictions } = await import("@/lib/middleware/curfew-guard");
@@ -220,7 +234,12 @@ export async function createTrip(params: CreateTripParams) {
       vehicleCode: fleetVehicles.vehicleCode,
     })
     .from(fleetVehicles)
-    .where(eq(fleetVehicles.id, params.vehicleId))
+    .where(
+      and(
+        eq(fleetVehicles.id, params.vehicleId),
+        eq(fleetVehicles.tenantId, params.tenantId)
+      )
+    )
     .limit(1);
 
   if (vehicleRows.length === 0) throw new Error("Vehicle not found");
@@ -230,11 +249,31 @@ export async function createTrip(params: CreateTripParams) {
     );
   }
 
+  if (params.pumpVehicleId) {
+    const pumpRows = await db
+      .select({ id: fleetVehicles.id })
+      .from(fleetVehicles)
+      .where(
+        and(
+          eq(fleetVehicles.id, params.pumpVehicleId),
+          eq(fleetVehicles.tenantId, params.tenantId),
+          eq(fleetVehicles.isActive, true)
+        )
+      )
+      .limit(1);
+    if (pumpRows.length === 0) throw new Error("Pump vehicle not found in this tenant");
+  }
+
   // 3. Get mix design and compute environment compensation
   const mixDesignRows = await db
     .select()
     .from(mixDesigns)
-    .where(eq(mixDesigns.id, params.mixDesignId))
+    .where(
+      and(
+        eq(mixDesigns.id, params.mixDesignId),
+        eq(mixDesigns.tenantId, params.tenantId)
+      )
+    )
     .limit(1);
 
   if (mixDesignRows.length === 0) throw new Error("Mix design not found");
@@ -278,7 +317,12 @@ export async function createTrip(params: CreateTripParams) {
   await db
     .update(fleetVehicles)
     .set({ currentStatus: "LOADING", updatedAt: new Date() })
-    .where(eq(fleetVehicles.id, params.vehicleId));
+    .where(
+      and(
+        eq(fleetVehicles.id, params.vehicleId),
+        eq(fleetVehicles.tenantId, params.tenantId)
+      )
+    );
 
   // 7. Update order status to IN_PRODUCTION and reduce remaining volume
   await db
@@ -288,7 +332,12 @@ export async function createTrip(params: CreateTripParams) {
       remainingVolumeM3: (remainingVol - params.loadedVolumeM3).toFixed(2),
       updatedAt: new Date(),
     })
-    .where(eq(orders.id, params.orderId));
+    .where(
+      and(
+        eq(orders.id, params.orderId),
+        eq(orders.tenantId, params.tenantId)
+      )
+    );
 
   // 8. Deduct raw materials from inventory (fire-and-forget — log failures, don't block)
   await deductInventoryForBatch(newTrip.id, batchQty, params.dispatchedById, params.tenantId);

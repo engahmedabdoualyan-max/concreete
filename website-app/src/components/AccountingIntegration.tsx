@@ -258,6 +258,7 @@ export default function AccountingIntegration({ onClose }: AccountingIntegration
 
   /* ---- simulate OAuth connect ---- */
   const connectPlatform = useCallback((platform: Platform) => {
+    if (import.meta.env.PROD) return;
     setSyncStatus(p => ({ ...p, [platform]: 'syncing' }));
     setTimeout(() => {
       setSyncStatus(p => ({ ...p, [platform]: 'connected' }));
@@ -282,6 +283,7 @@ export default function AccountingIntegration({ onClose }: AccountingIntegration
 
   /* ---- manual sync ---- */
   const runSync = useCallback(async (platform: Platform) => {
+    if (import.meta.env.PROD) return;
     if (syncStatus[platform] !== 'connected') return;
     setSyncStatus(p => ({ ...p, [platform]: 'syncing' }));
     setSyncProgress(0);
@@ -305,6 +307,7 @@ export default function AccountingIntegration({ onClose }: AccountingIntegration
 
   /* ---- export ---- */
   const handleExport = useCallback((format: ExportFormat) => {
+    if (import.meta.env.PROD) return;
     const ts = new Date().toISOString().slice(0, 10);
     const includedTypes = settings.dataTypes;
 

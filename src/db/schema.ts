@@ -3284,6 +3284,8 @@ export const zatcaDocuments = pgTable(
     orderId: uuid("order_id").references(() => orders.id, { onDelete: "set null" }),
     /** Our sequential invoice number, e.g. INV-2026-000123 */
     invoiceNumber: varchar("invoice_number", { length: 40 }).notNull(),
+    /** Stable client retry key; nullable until a caller opts into idempotent retries */
+    idempotencyKey: varchar("idempotency_key", { length: 200 }),
     /** ZATCA invoice UUID (we generate) */
     invoiceUuid: varchar("invoice_uuid", { length: 64 }).notNull(),
     /** STANDARD (B2B clearance) | SIMPLIFIED (B2C reporting) */
@@ -3296,7 +3298,7 @@ export const zatcaDocuments = pgTable(
     invoiceHash: varchar("invoice_hash", { length: 128 }),
     /** Previous invoice hash (base64 PIH chain) */
     previousHash: varchar("previous_hash", { length: 128 }),
-    /** Base64 TLV QR (Phase-1-compatible, always generated) */
+    /** Local fallback QR; the Fatoora-returned QR is stored here when supplied */
     qrTlvBase64: text("qr_tlv_base64"),
     /** Money snapshot {exVat, vatAmount, total, currency} */
     totals: jsonb("totals").$type<Record<string, number | string>>(),
@@ -3312,6 +3314,9 @@ export const zatcaDocuments = pgTable(
     index("idx_zt_doc_order").on(t.orderId),
     index("idx_zt_doc_status").on(t.status),
     index("idx_zt_doc_number").on(t.invoiceNumber),
+    unique("zatca_documents_tenant_invoice_number_unique").on(t.tenantId, t.invoiceNumber),
+    unique("zatca_documents_tenant_idempotency_unique").on(t.tenantId, t.idempotencyKey),
+    unique("zatca_documents_invoice_uuid_unique").on(t.invoiceUuid),
     unique("zatca_documents_tenant_counter_unique").on(t.tenantId, t.counterValue),
   ]
 );

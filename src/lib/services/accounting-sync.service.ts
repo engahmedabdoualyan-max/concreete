@@ -21,8 +21,9 @@ import {
   orders,
   deliverySites,
   mixDesigns,
+  zatcaDocuments,
 } from "@/db/schema";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import {
   decryptSecrets,
   encryptSecrets,
@@ -200,6 +201,38 @@ export async function getConnectionLogs(tenantId: string, connectionId: string) 
     .limit(100);
 }
 
+async function requireAcceptedZatcaDocument(tenantId: string, orderId: string) {
+  const rows = await db
+    .select({ id: zatcaDocuments.id, status: zatcaDocuments.status })
+    .from(zatcaDocuments)
+    .where(
+      and(
+        eq(zatcaDocuments.tenantId, tenantId),
+        eq(zatcaDocuments.orderId, orderId),
+        inArray(zatcaDocuments.status, ["CLEARED", "REPORTED"])
+      )
+    )
+    .orderBy(desc(zatcaDocuments.createdAt))
+    .limit(1);
+  if (rows.length === 0) {
+    throw new Error("ZATCA_ACCEPTANCE_REQUIRED: invoice must be CLEARED or REPORTED before accounting export");
+  }
+  return rows[0];
+}
+
+async function acceptedZatcaOrderIds(tenantId: string): Promise<string[]> {
+  const rows = await db
+    .select({ orderId: zatcaDocuments.orderId })
+    .from(zatcaDocuments)
+    .where(
+      and(
+        eq(zatcaDocuments.tenantId, tenantId),
+        inArray(zatcaDocuments.status, ["CLEARED", "REPORTED"])
+      )
+    );
+  return [...new Set(rows.map((row) => row.orderId).filter((id): id is string => Boolean(id)))];
+}
+
 // ─── Test ─────────────────────────────────────────────────────────────────────
 
 export async function testConnection(tenantId: string, connectionId: string) {
@@ -340,13 +373,26 @@ export async function pushInvoice(
       designCode: mixDesigns.designCode,
     })
     .from(orders)
-    .innerJoin(clients, eq(orders.clientId, clients.id))
-    .innerJoin(deliverySites, eq(orders.deliverySiteId, deliverySites.id))
-    .innerJoin(mixDesigns, eq(orders.mixDesignId, mixDesigns.id))
+    .innerJoin(
+      clients,
+      and(eq(orders.clientId, clients.id), eq(clients.tenantId, tenantId))
+    )
+    .innerJoin(
+      deliverySites,
+      and(
+        eq(orders.deliverySiteId, deliverySites.id),
+        eq(deliverySites.tenantId, tenantId)
+      )
+    )
+    .innerJoin(
+      mixDesigns,
+      and(eq(orders.mixDesignId, mixDesigns.id), eq(mixDesigns.tenantId, tenantId))
+    )
     .where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId)))
     .limit(1);
   const order = o[0];
   if (!order) throw new Error("Order not found");
+  await requireAcceptedZatcaDocument(tenantId, orderId);
 
   const totalM3 = Number(order.totalVolumeM3 ?? 0);
   const deliveredM3 = Math.max(0, totalM3 - Number(order.remainingVolumeM3 ?? 0));
@@ -440,21 +486,36 @@ export async function exportCsv(
     );
     filename = `fimto-customers-${new Date().toISOString().slice(0, 10)}.csv`;
   } else {
-    const rows = await db
-      .select({
-        orderNumber: orders.orderNumber,
-        companyName: clients.companyName,
-        siteName: deliverySites.siteName,
-        designCode: mixDesigns.designCode,
-        totalVolumeM3: orders.totalVolumeM3,
-        remainingVolumeM3: orders.remainingVolumeM3,
-        pricePerM3Cents: orders.pricePerM3Sar,
-      })
-      .from(orders)
-      .innerJoin(clients, eq(orders.clientId, clients.id))
-      .innerJoin(deliverySites, eq(orders.deliverySiteId, deliverySites.id))
-      .innerJoin(mixDesigns, eq(orders.mixDesignId, mixDesigns.id))
-      .where(eq(orders.tenantId, tenantId));
+    const acceptedOrderIds = await acceptedZatcaOrderIds(tenantId);
+    const rows = acceptedOrderIds.length
+      ? await db
+          .select({
+            orderNumber: orders.orderNumber,
+            companyName: clients.companyName,
+            siteName: deliverySites.siteName,
+            designCode: mixDesigns.designCode,
+            totalVolumeM3: orders.totalVolumeM3,
+            remainingVolumeM3: orders.remainingVolumeM3,
+            pricePerM3Cents: orders.pricePerM3Sar,
+          })
+          .from(orders)
+          .innerJoin(
+            clients,
+            and(eq(orders.clientId, clients.id), eq(clients.tenantId, tenantId))
+          )
+          .innerJoin(
+            deliverySites,
+            and(
+              eq(orders.deliverySiteId, deliverySites.id),
+              eq(deliverySites.tenantId, tenantId)
+            )
+          )
+          .innerJoin(
+            mixDesigns,
+            and(eq(orders.mixDesignId, mixDesigns.id), eq(mixDesigns.tenantId, tenantId))
+          )
+          .where(and(eq(orders.tenantId, tenantId), inArray(orders.id, acceptedOrderIds)))
+      : [];
     content = exportInvoicesCsv(
       rows.map((o) => {
         const totalM3 = Number(o.totalVolumeM3 ?? 0);

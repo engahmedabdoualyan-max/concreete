@@ -375,6 +375,13 @@ export default function AccountantHomeScreen() {
 
   // ===== Share invoice via WhatsApp / messages =====
   const shareInvoice = async (o: SalesOrder) => {
+    if (!__DEV__) {
+      Alert.alert(
+        "غير متاح",
+        "لا يتم مشاركة فاتورة محلية في production. يجب إرسال مستند ZATCA accepted فقط."
+      );
+      return;
+    }
     const price = unitPriceFor(o);
     const qty = Number(o.quantity) || 0;
     const totalExVat = price * qty;
