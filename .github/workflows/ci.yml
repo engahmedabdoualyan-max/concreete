@@ -40,6 +40,8 @@ jobs:
         run: npm run security:tenant-report
       - name: Mobile release config audit
         run: npm run security:mobile
+      - name: APK integrity audit
+        run: npm run security:apk
       - name: Typecheck all workspaces
         run: npm run typecheck:all
       - name: Build active website

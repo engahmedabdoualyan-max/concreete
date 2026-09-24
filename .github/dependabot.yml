@@ -1,0 +1,56 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      security-patches:
+        applies-to: version-updates
+        update-types:
+          - patch
+          - minor
+    ignore:
+      - dependency-name: "expo"
+        versions: [">= 57"]
+      - dependency-name: "react-native"
+        versions: [">= 0.87"]
+      - dependency-name: "expo-router"
+        versions: [">= 57"]
+
+  - package-ecosystem: npm
+    directory: "/website-app"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      security-patches:
+        applies-to: version-updates
+        update-types:
+          - patch
+          - minor
+
+  - package-ecosystem: npm
+    directory: "/website-app/apps/mobile"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      security-patches:
+        applies-to: version-updates
+        update-types:
+          - patch
+          - minor
+    ignore:
+      - dependency-name: "expo"
+        versions: [">= 57"]
+      - dependency-name: "react-native"
+        versions: [">= 0.87"]
+      - dependency-name: "expo-router"
+        versions: [">= 57"]
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: monthly

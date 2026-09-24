@@ -68,6 +68,7 @@
 - [x] Add a representative tenant-isolation regression audit (`npm run security:tenancy`).
 - [x] Add a production guard smoke test for all legacy `/api` handlers (`npm run security:legacy`).
 - [x] Restrict local `.env.local` file permissions to `0600` and add a scanner check for group/world-readable secret files.
+- [x] Add APK SHA-256/ZIP integrity audit (`npm run security:apk`); manifest/signing inspection still requires EAS/aapt evidence.
 - [ ] Verify Git history and APK metadata contain no secrets (scanner covers tracked files; APK review is manual).
 - [x] Make legacy OTP/console salts fail closed in production and keep the legacy guard regression-tested.
 - [x] Prepare secret rotation runbook: `SECRET_ROTATION_RUNBOOK.md`; execution remains deployment/owner controlled.
@@ -93,7 +94,7 @@
 - [x] تحديث Next.js وPostCSS المتأثرين بإصدارات متوافقة بعد typecheck/build.
 - [ ] استبدال/عزل `xlsx` بعد مراجعة بديل آمن؛ لا يوجد npm fix للثغرات الحالية.
 - [ ] ترقية Expo/React Native في staging فقط، لا force-upgrade على production.
-- [ ] إضافة Dependabot/Renovate أو تاريخ دوري للupdates.
+- [x] Add Dependabot weekly patch/minor monitoring for root, website and mobile lockfiles; Expo/RN major upgrades remain staging-only.
 - [ ] تثبيت EAS code signing/rollout قبل production OTA.
 - [ ] التحقق من signing certificates وAPK SHA-256 في كل release.
 

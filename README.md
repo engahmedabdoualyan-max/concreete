@@ -70,6 +70,7 @@ npm run security:legacy
 npm run security:zatca
 npm run security:tenant-report
 npm run security:mobile
+npm run security:apk
 npm run test:security
 npm run test:zatca
 npm run typecheck:all
