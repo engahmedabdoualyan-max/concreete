@@ -621,10 +621,10 @@ export default function AdminPanel() {
                     if (!plantGps) { setGpsMsg(d('enterCoordsFirst')); return; }
                     try {
                       await savePlantGPS(currentUser!.username, plantGps.lat, plantGps.lng);
-                      const { saveGpsLocationToSupabase, loadGpsLocationsFromSupabase } = await import('../supabase/supabase');
+                      const { saveGpsLocationToSupabase } = await import('../supabase/supabase');
                       await saveGpsLocationToSupabase({ username: currentUser!.username, label: 'plant', lat: plantGps.lat, lng: plantGps.lng });
-                      const rows = await loadGpsLocationsFromSupabase();
-                      setSupaGps(rows.map(r => ({ username: r.username, label: r.label, lat: r.lat, lng: r.lng })));
+
+
                       setGpsMsg(`✅ ${d('gpsSavedMsg').replace('{lat}', plantGps.lat.toFixed(5)).replace('{lng}', plantGps.lng.toFixed(5))}`);
                     } catch { setGpsMsg(d('gpsSaveFailed')); }
                   }}

@@ -88,6 +88,7 @@ export async function getUser(username: string) {
 export interface AppAccount {
   email: string;
   password: string;
+  passwordHash?: string;
   role: string;
   roleAr: string;
   permissions: string[];

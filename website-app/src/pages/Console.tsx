@@ -1,6 +1,6 @@
 import { useState, useEffect, type FormEvent, type ReactNode, Component } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { saveUser, getAllUsers, saveCompanyTree, saveCompanySubscription, deleteCompany, uploadConsoleImage, saveSiteConfig, loadSiteConfig, getStorageStatus, loadPlantProfile, savePlantProfile, savePlantLogo, isOnline, type CompanyTree, type SiteConfig } from '../firebase/firestore';
+import { saveUser, getAllUsers, saveCompanyTree, saveCompanySubscription, deleteCompany, uploadConsoleImage, saveSiteConfig, loadSiteConfig, getStorageStatus, loadPlantProfile, savePlantProfile, savePlantLogo, isOnline, type CompanyTree } from '../firebase/firestore';
 import BrandLogo from '../components/BrandLogo';
 import type { UserSession } from '../context/AuthContext';
 import { TREE_ROLES, treeModsForRole } from '../lib/treeRoles';
@@ -110,6 +110,7 @@ const inputCls = "w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5
 interface TreeAccount {
   email: string;
   password: string;
+  passwordHash?: string;
   phone: string;
   role: string;
   roleAr: string;
@@ -137,7 +138,6 @@ export default function Console() {
 function ConsoleInner() {
   const navigate = useNavigate();
   const t = useConsoleDict();
-  const [authed, setAuthed] = useState(false);
   const [step, setStep] = useState<'login' | 'otp' | 'panel'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -219,7 +219,6 @@ const [companies, setCompanies] = useState<any[]>([]);
 
   useEffect(() => {
     if (localStorage.getItem(SESSION_KEY) === '1') {
-      setAuthed(true);
       setStep('panel');
     }
   }, []);
@@ -302,14 +301,14 @@ const [companies, setCompanies] = useState<any[]>([]);
     return () => { mounted = false; };
   }, [step]);
 
-  const input2 = (v: string) => v === undefined ? '' : v;
-
   // Hash account passwords at persistence time — plaintext is shown once in the draft/print only.
   const hashTreeRows = async (rows: TreeAccount[]): Promise<TreeAccount[]> => {
     const out: TreeAccount[] = [];
     for (const a of rows) {
       const loginId = String(a.email || a.phone || '').trim().toLowerCase();
-      const passwordHash = await hashPassword(loginId, a.password || '');
+      const passwordHash = a.password
+        ? await hashPassword(loginId, a.password)
+        : a.passwordHash || '';
       out.push({ ...a, email: loginId, passwordHash, password: '' });
     }
     return out;
@@ -388,7 +387,6 @@ const [companies, setCompanies] = useState<any[]>([]);
         // Credentials were verified server-side; only the OTP email failed → allow direct entry
         if (json?.errorCode === 'EMAIL_FAILED') {
           localStorage.setItem(SESSION_KEY, '1');
-          setAuthed(true);
           setStep('panel');
           setError(t('loginNoOtpMsg'));
           setSending(false);
@@ -426,7 +424,6 @@ const [companies, setCompanies] = useState<any[]>([]);
         return;
       }
       localStorage.setItem(SESSION_KEY, '1');
-      setAuthed(true);
       setStep('panel');
     } catch (err: any) {
       setError(t('serverUnreachable'));
@@ -506,6 +503,7 @@ const [companies, setCompanies] = useState<any[]>([]);
     const accs = t?.accounts?.map(a => ({
       email: a.email || '',
       password: a.password || '',
+      passwordHash: a.passwordHash || '',
       phone: a.phone || '',
       role: a.role || '',
       roleAr: a.roleAr || '',
@@ -602,6 +600,8 @@ const [companies, setCompanies] = useState<any[]>([]);
     ];
 
     // أسطول الورشة + إعداداتها مخزنة بمفاتيح ديناميكية fms_assets_<plant> / fms_cfg_<plant>
+    const done: string[] = [];
+    let failed = 0;
     const plantAssets = Object.keys(localStorage).filter((k) => k.startsWith('fms_assets_'));
     for (const k of plantAssets) {
       const v = read(k);
@@ -615,8 +615,6 @@ const [companies, setCompanies] = useState<any[]>([]);
       try { await fs.saveWorkshopConfig(username, v); done.push(t('migWorkshopCfg') + k.replace('fms_cfg_', '') + t('migNameEnd')); } catch (e) { console.error('migrate cfg', e); failed++; }
     }
 
-    const done: string[] = [];
-    let failed = 0;
     for (const [label, keys, saveFn] of MAP) {
       let v: any = null;
       for (const k of keys) { v = read(k); if (hasData(v)) break; }
@@ -638,7 +636,6 @@ const [companies, setCompanies] = useState<any[]>([]);
 
   const exportCsv = (username: string) => {
     const rows = trees[username] || [];
-    const company = companies.find(c => c.username?.toLowerCase() === username);
     const head = [t('csvEmailHead'), t('csvRoleHead'), t('csvTruckHead'), 'GPS', t('csvPhoneHead'), t('csvPasswordHead'), t('csvPermsHead')];
     const lines = [head.join(',')];
     rows.forEach(r => {
@@ -717,7 +714,6 @@ const [companies, setCompanies] = useState<any[]>([]);
   const saveTree = async () => {
     if (!treeOpen) return;
     setTreeSaving(true);
-    const role = ROLES.find(r => r.key === treeRole)!;
     const company = companies.find(c => c.username?.toLowerCase() === treeOpen) || {} as UserSession;
     const rows = [...(trees[treeOpen] || []), ...treeDraft];
     try {
@@ -1086,7 +1082,6 @@ const [companies, setCompanies] = useState<any[]>([]);
 
   const logout = () => {
     localStorage.removeItem(SESSION_KEY);
-    setAuthed(false);
     setStep('login');
   };
 
