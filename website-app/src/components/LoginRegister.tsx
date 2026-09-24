@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useLoginRegisterDict } from '../i18n/loginRegisterDict';
 import BrandLogo from './BrandLogo';
+import ServerSettings from './ServerSettings';
 
 export default function LoginRegister() {
   const t = useLoginRegisterDict();
@@ -103,6 +104,8 @@ export default function LoginRegister() {
           <div className="text-center text-xs text-slate-400">
             {t('accountsNote')}
           </div>
+
+          <ServerSettings />
         </form>
       </div>
     </div>

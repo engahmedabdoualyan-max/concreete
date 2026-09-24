@@ -37,6 +37,11 @@ public/downloads/*.apk
 public/downloads/*.ipa
 public/downloads/*.sha256
 website-app/public/downloads/*.sha256
+# Generated desktop builds served from the site (rebuild via desktop-app-exe)
+public/downloads/*.exe
+public/downloads/*.AppImage
+public/downloads/*.deb
+public/downloads/*.dmg
 
 # Logs
 *.log

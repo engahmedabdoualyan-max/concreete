@@ -109,6 +109,24 @@ export default function FimtoFooter() {
                   <path d="M18.71 19.5C17.88 20.74 17 21.95 15.66 21.97C14.32 22 13.89 21.18 12.37 21.18C10.84 21.18 10.37 21.95 9.1 22C7.79 22.05 6.8 20.68 5.96 19.48C4.25 17 2.94 12.45 4.7 9.39C5.57 7.87 7.14 6.9 8.82 6.88C10.1 6.86 11.32 7.75 12.11 7.75C12.89 7.75 14.37 6.68 15.92 6.84C16.57 6.87 18.39 7.1 19.56 8.82C19.47 8.88 17.39 10.1 17.41 12.63C17.44 15.65 20.06 16.66 20.1 16.67C20.08 16.74 19.67 18.11 18.71 19.5ZM15.97 4.17C16.63 3.37 17.07 2.28 16.95 1C16 1.04 14.9 1.6 14.24 2.38C13.68 3.04 13.19 4.14 13.34 5.39C14.39 5.47 15.4 4.88 15.97 4.17Z"/>
                 </svg>
               </a>
+              <a
+                href="https://concrete.fimtosoft.com/downloads/fimto-concrete-setup.exe"
+                download
+                aria-label="Download Windows desktop app"
+                title="نسخة الكمبيوتر — Windows"
+                className="inline-flex items-center justify-center w-10 h-10 rounded-lg bg-white/10 hover:bg-white/20 transition-colors text-white text-xl"
+              >
+                🪟
+              </a>
+              <a
+                href="https://concrete.fimtosoft.com/downloads/fimto-concrete.AppImage"
+                download
+                aria-label="Download Linux desktop app"
+                title="نسخة الكمبيوتر — Linux"
+                className="inline-flex items-center justify-center w-10 h-10 rounded-lg bg-white/10 hover:bg-white/20 transition-colors text-white text-xl"
+              >
+                🐧
+              </a>
             </div>
             <p className="text-center text-[10px] text-slate-500 mt-2">
               v1.3.0 • R&D 🧠 • HR 💬 • Portal 🔗 • ZATCA 🧾

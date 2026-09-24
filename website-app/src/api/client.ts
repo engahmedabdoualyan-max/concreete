@@ -17,6 +17,47 @@ export const API_BASE: string =
   (import.meta.env?.VITE_API_URL as string) ||
   (import.meta.env?.DEV ? DEV_API : PROD_API);
 
+/**
+ * Runtime server-URL override (desktop app + private servers).
+ * Stored in localStorage (a plain URL is not a secret) and read on every
+ * request, so each plant can point the app at its own server without a
+ * rebuild. Changing it wipes the session (tokens belong to the old server).
+ */
+export const SERVER_URL_KEY = "fimto_server_url";
+
+export function resolveApiBase(): string {
+  try {
+    const saved = window.localStorage.getItem(SERVER_URL_KEY);
+    if (saved && /^https?:\/\//i.test(saved)) return saved.replace(/\/+$/, "");
+  } catch {
+    /* storage unavailable — fall through to default */
+  }
+  return API_BASE;
+}
+
+export function getServerUrl(): string | null {
+  try {
+    return window.localStorage.getItem(SERVER_URL_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export function setServerUrl(url: string): void {
+  const clean = url.trim().replace(/\/+$/, "");
+  if (!/^https?:\/\/[^/]+/i.test(clean)) throw new Error("رابط غير صالح");
+  window.localStorage.setItem(SERVER_URL_KEY, clean);
+  clearSession();
+}
+
+export function clearServerUrl(): void {
+  try {
+    window.localStorage.removeItem(SERVER_URL_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
 export const TOKEN_KEY = "fimto_access_token";
 export const REFRESH_KEY = "fimto_refresh_token";
 export const SESSION_KEY = "fimto_user_session";
@@ -111,7 +152,7 @@ async function request<T>(path: string, opts: RequestOptions = {}): Promise<T> {
 
   let res: Response;
   try {
-    res = await fetch(`${API_BASE}${path}`, {
+    res = await fetch(`${resolveApiBase()}${path}`, {
       method,
       headers,
       body: body === undefined ? undefined : JSON.stringify(body),
@@ -154,7 +195,7 @@ async function tryRefresh(): Promise<boolean> {
   if (!refreshToken) return false;
   try {
     // Raw fetch (not `request`) so a 401 here cannot re-enter the refresh logic.
-    const res = await fetch(`${API_BASE}/api/auth/refresh`, {
+    const res = await fetch(`${resolveApiBase()}/api/auth/refresh`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ refreshToken }),

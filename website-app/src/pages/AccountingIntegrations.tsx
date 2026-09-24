@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { api, API_BASE, getToken } from '../api/client';
+import { api, resolveApiBase, getToken } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import BrandLogo from '../components/BrandLogo';
 import LangSelector from '../components/LangSelector';
@@ -139,7 +139,7 @@ export default function AccountingIntegrations() {
     setBusy(true);
     try {
       const res = await fetch(
-        `${API_BASE}/api/integrations/accounting/export?type=${type}&connectionId=${selectedId}`,
+        `${resolveApiBase()}/api/integrations/accounting/export?type=${type}&connectionId=${selectedId}`,
         { headers: getToken() ? { Authorization: `Bearer ${getToken()}` } : {} }
       );
       if (!res.ok) throw new Error(`Export failed (${res.status})`);

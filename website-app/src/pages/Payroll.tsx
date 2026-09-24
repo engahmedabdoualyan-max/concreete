@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { api, API_BASE, getToken } from '../api/client';
+import { api, resolveApiBase, getToken } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import BrandLogo from '../components/BrandLogo';
 import LangSelector from '../components/LangSelector';
@@ -134,7 +134,7 @@ export default function Payroll() {
     if (!selected) return;
     setBusy(true);
     try {
-      const res = await fetch(`${API_BASE}/api/hr/payroll/export?runId=${selected.id}`, {
+      const res = await fetch(`${resolveApiBase()}/api/hr/payroll/export?runId=${selected.id}`, {
         headers: getToken() ? { Authorization: `Bearer ${getToken()}` } : {},
       });
       if (!res.ok) throw new Error(`Export failed (${res.status})`);

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { API_BASE } from '../api/client';
+import { resolveApiBase } from '../api/client';
 import BrandLogo from '../components/BrandLogo';
 
 /**
@@ -106,7 +106,7 @@ export default function TrackOrder() {
 
   useEffect(() => {
     if (!token) { setError(true); setLoading(false); return; }
-    fetch(`${API_BASE}/api/public/portal/${encodeURIComponent(token)}`)
+    fetch(`${resolveApiBase()}/api/public/portal/${encodeURIComponent(token)}`)
       .then(async r => {
         if (!r.ok) throw new Error('not found');
         const j = await r.json();
