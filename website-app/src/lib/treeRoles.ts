@@ -13,6 +13,7 @@ export const TREE_ROLES: TreeRole[] = [
   { key: 'driver', ar: 'سائق', perms: ['تسليم الطلبات', 'متابعة الشحنات', 'GPS الحظيرة'], mods: ['operations', 'orders'] },
   { key: 'sales', ar: 'مندوب مبيعات', perms: ['إنشاء الطلبات', 'العملاء', 'المشاريع'], mods: ['orders', 'operations'] },
   { key: 'accountant', ar: 'محاسب', perms: ['الفواتير', 'المدفوعات', 'التقارير المالية'], mods: ['orders', 'evaluation', 'finance'] },
+  { key: 'financeMgr', ar: 'مدير مالي', perms: ['اعتماد المدفوعات', 'حدود الائتمان', 'الميزان والمرتجعات', 'التقارير المالية'], mods: ['orders', 'evaluation', 'finance', 'governance'] },
   { key: 'scheduleMgr', ar: 'مسئول الجدول', perms: ['اعتماد الجدول', 'إعادة الترتيب', 'تبكير وتأخير الصب'], mods: ['schedule', 'orders'] },
   { key: 'opsMgr', ar: 'مدير تشغيل', perms: ['التشغيل', 'الجدول', 'الطلبات'], mods: ['operations', 'schedule', 'orders', 'multiplant'] },
   { key: 'repsMgr', ar: 'مدير مناديب', perms: ['تتبع خط سير المناديب', 'إسناد المهام اليومية', 'متابعة الإنجاز'], mods: ['orders'] },

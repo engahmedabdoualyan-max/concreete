@@ -28,6 +28,7 @@ const ROLE_HOME_GROUPS = [
   "rnd",
   "hr",
   "dashboard",
+  "governance",
 ];
 
 const queryClient = new QueryClient({

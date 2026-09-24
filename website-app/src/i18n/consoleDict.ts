@@ -79,6 +79,7 @@ const DICT: PageDict = {
   role_driver: { en: 'Driver', ar: 'سائق', ru: 'Водитель', de: 'Fahrer', it: 'Autista', hi: 'ड्राइवर', ur: 'ڈرائیور', ja: 'ドライバー', zh: '司机' },
   role_sales: { en: 'Sales Representative', ar: 'مندوب مبيعات', ru: 'Торговый представитель', de: 'Vertriebsmitarbeiter', it: 'Agente di vendita', hi: 'सेल्स प्रतिनिधि', ur: 'سیلز نمائندہ', ja: '営業担当者', zh: '销售代表' },
   role_accountant: { en: 'Accountant', ar: 'محاسب', ru: 'Бухгалтер', de: 'Buchhalter', it: 'Contabile', hi: 'लेखाकार', ur: 'اکاؤنٹنٹ', ja: '会計士', zh: '会计' },
+  role_financeMgr: { en: 'Financial Manager', ar: 'مدير مالي', ru: 'Финансовый менеджер', de: 'Finanzmanager', it: 'Direttore finanziario', hi: 'वित्तीय प्रबंधक', ur: 'فنانشل منیجر', ja: '財務マネージャー', zh: '财务经理' },
   role_scheduleMgr: { en: 'Schedule Manager', ar: 'مسئول الجدول', ru: 'Менеджер расписания', de: 'Zeitplan-Manager', it: 'Responsabile programma', hi: 'शेड्यूल प्रबंधक', ur: 'شیڈول منیجر', ja: 'スケジュール管理者', zh: '排程主管' },
   role_opsMgr: { en: 'Operations Manager', ar: 'مدير تشغيل', ru: 'Менеджер по операциям', de: 'Betriebsleiter', it: 'Responsabile operazioni', hi: 'संचालन प्रबंधक', ur: 'آپریشنز منیجر', ja: 'オペレーション管理者', zh: '运营经理' },
   role_repsMgr: { en: 'Representatives Manager', ar: 'مدير مناديب', ru: 'Менеджер представителей', de: 'Vertriebsleiter', it: 'Responsabile rappresentanti', hi: 'प्रतिनिधि प्रबंधक', ur: 'نمائندوں کا منیجر', ja: '営業担当管理者', zh: '代表主管' },

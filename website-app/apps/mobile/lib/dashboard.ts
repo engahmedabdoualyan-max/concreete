@@ -28,6 +28,7 @@ export const MODULES: DashboardModule[] = [
   { key: "rnd", en: "R & D", ar: "البحث والتطوير", desc: "Innovation & training", icon: "⚗️", color: "#60A5FA", path: "/(dashboard)/rnd" },
   { key: "owner", en: "Owner Monitor", ar: "شاشة التقييم", desc: "مراقبة شاملة: تقييم كل الأقسام + خريطة المعدات", icon: "👁️", color: "#FBBF24", path: "/(dashboard)/owner", adminOnly: true },
   { key: "admin", en: "Admin", ar: "الإدارة", desc: "Users, roles & permissions", icon: "🛠️", color: "#E2E8F0", path: "/(dashboard)/admin", adminOnly: true },
+  { key: "governance", en: "Governance", ar: "الحوكمة", desc: "الميزان والمرتجعات بسلسلة هاش", icon: "⚖️", color: "#F472B6", path: "/(governance)", adminOnly: true },
 ];
 
 export interface DashboardStats {
@@ -91,6 +92,7 @@ export function moduleStat(m: DashboardModule, s: DashboardStats): string {
     case "owner": return "تقييم الأقسام · خريطة المعدات";
     case "rnd": return "ابتكار وتدريب";
     case "admin": return "مستخدمين وصلاحيات";
+    case "governance": return "ميزان ومرتجعات موثقة";
     default: return "";
   }
 }
