@@ -51,10 +51,9 @@ async function refreshWithToken(): Promise<void> {
   expiresAt = Date.now() + (Number(json.expires_in) || 3600) * 1000 - 60_000;
 }
 
-/** Anonymous Firebase access is allowed only in local development. */
+/** Anonymous Firebase access backs the tree-account fallback (same as Android production). Disable only when the ERP backend is live: EXPO_PUBLIC_DISABLE_ANONYMOUS_FIREBASE=true. */
 function anonymousAccessAllowed(): boolean {
-  return (typeof __DEV__ !== 'undefined' && __DEV__)
-    || process.env.EXPO_PUBLIC_ALLOW_ANONYMOUS_FIREBASE === 'true';
+  return process.env.EXPO_PUBLIC_DISABLE_ANONYMOUS_FIREBASE !== 'true';
 }
 
 /** Ensure a valid Firebase ID token; production must use server-issued auth. */

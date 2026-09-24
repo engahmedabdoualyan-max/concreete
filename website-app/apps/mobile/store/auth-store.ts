@@ -5,7 +5,7 @@
 
 import { create } from "zustand";
 import { api } from "@/lib/api";
-import { setItem, removeItem, STORAGE_KEYS } from "@/lib/storage";
+import { getItem, setItem, removeItem, STORAGE_KEYS } from "@/lib/storage";
 import { findTreeAccount, treeAccountToUser } from "@/lib/tree-auth";
 import { erp } from "@/lib/firestore";
 import type { AuthUser, UserRole } from "@/types";
@@ -119,12 +119,25 @@ export const useAuthStore = create<AuthState>((set) => ({
         user = await withPlantName(await withSubscription(user));
         if (user) await setItem(STORAGE_KEYS.USER, JSON.stringify(user));
         set({ user, isAuthenticated: true, isLoading: false });
-      } else {
-        set({ user: null, isAuthenticated: false, isLoading: false });
+        return;
       }
-    } catch (error) {
-      set({ user: null, isAuthenticated: false, isLoading: false });
+    } catch {
+      // Server unreachable (ERP backend not deployed): fall through to the
+      // persisted tree session instead of dropping the login on every restart.
     }
+    try {
+      const raw = await getItem(STORAGE_KEYS.USER);
+      if (raw) {
+        const saved = JSON.parse(raw) as AuthUser;
+        if (saved && typeof saved === "object" && (saved as AuthUser).role) {
+          set({ user: saved as AuthUser, isAuthenticated: true, isLoading: false });
+          return;
+        }
+      }
+    } catch {
+      /* corrupted cache — stay logged out */
+    }
+    set({ user: null, isAuthenticated: false, isLoading: false });
   },
 
   clearError: () => set({ error: null }),

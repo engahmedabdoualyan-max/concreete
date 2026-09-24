@@ -8,10 +8,27 @@ import { useEffect, type ReactElement } from "react";
 import { ActivityIndicator, AppState, View, Text } from "react-native";
 import * as Updates from "expo-updates";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { useAuthStore, isDriver, isSalesRep, isOperationsMgr, isProductionMgr, isStationTech, isAccountant, isScheduleMgr, isLabTech, isWorkshopManager, isRepsManager, isRndManager, isHrOfficer } from "@/store/auth-store";
+import { useAuthStore, isDriver, isSalesRep, isOperationsMgr, isProductionMgr, isStationTech, isAccountant, isScheduleMgr, isLabTech, isWorkshopManager, isRepsManager, isRndManager, isHrOfficer, isBatchOperator } from "@/store/auth-store";
 import { isSubscriptionExpired } from "@/lib/tree-auth";
 import { reportPresence } from "@/lib/firestore";
 import "../global.css";
+
+/** Route groups that belong to a specific role (used by the cross-group guard). */
+const ROLE_HOME_GROUPS = [
+  "driver",
+  "sales",
+  "accountant",
+  "schedule",
+  "stationtech",
+  "opsmgr",
+  "prodmgr",
+  "lab",
+  "workshop",
+  "repsmgr",
+  "rnd",
+  "hr",
+  "dashboard",
+];
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -101,7 +118,7 @@ export default function RootLayout() {
                 ? "/(stationtech)"
                 : isOperationsMgr(user)
                   ? "/(opsmgr)"
-                  : isProductionMgr(user)
+                  : isProductionMgr(user) || isBatchOperator(user)
                     ? "/(prodmgr)"
                 : isLabTech(user)
                   ? "/(lab)"
@@ -115,6 +132,15 @@ export default function RootLayout() {
                           ? "/(hr)"
                           : "/(dashboard)";
         if (segments[0] === "(auth)" || segments[0] === undefined) {
+          redirect = <Redirect href={home as any} />;
+        } else if (
+          user.role !== "SUPER_ADMIN" &&
+          segments[0] !== "(subscription)" &&
+          ROLE_HOME_GROUPS.includes(segments[0] as string) &&
+          segments[0] !== home.slice(2, -1)
+        ) {
+          // Authenticated non-owners stay inside their own role group —
+          // deep links into other roles bounce back to the role home.
           redirect = <Redirect href={home as any} />;
         }
       }

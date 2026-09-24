@@ -16,9 +16,8 @@ import type { AuthUser, UserRole } from "@/types";
 import { authHeaders } from "./fb-auth";
 import { hashPassword } from "./pw";
 
-const TREE_FALLBACK_ENABLED =
-  (typeof __DEV__ !== 'undefined' && __DEV__)
-  || process.env.EXPO_PUBLIC_ALLOW_TREE_FALLBACK === 'true';
+const TREE_FALLBACK_DISABLED =
+  process.env.EXPO_PUBLIC_DISABLE_TREE_FALLBACK === 'true';
 
 const FIREBASE_PROJECT = "concrete-erb";
 const FIREBASE_API_KEY = "AIzaSyBbK2e2saN8Olu7O6vjHP23MkTsUgyN2iE";
@@ -125,7 +124,7 @@ export async function findTreeAccount(
   phone: string,
   password: string
 ): Promise<TreeAccountResult | null> {
-  if (!TREE_FALLBACK_ENABLED) {
+  if (TREE_FALLBACK_DISABLED) {
     throw new Error('TREE_FALLBACK_DISABLED');
   }
   const p = (phone || "").trim().toLowerCase();
