@@ -30,7 +30,9 @@
     "security:rules": "node scripts/firestore-rules-audit.mjs",
     "security:tenancy": "node scripts/tenant-isolation-audit.mjs",
     "security:legacy": "node scripts/legacy-api-guard-test.mjs",
+    "security:zatca": "node scripts/zatca-static-audit.mjs",
     "security:tenant-report": "node scripts/tenant-route-report.mjs",
+    "test:zatca": "tsx scripts/zatca-validation-smoke.ts",
     "security:audit:deps": "npm audit --omit=dev --audit-level=high",
     "lint": "eslint ."
   },

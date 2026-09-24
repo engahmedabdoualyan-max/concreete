@@ -54,6 +54,12 @@
 
 - [x] Implement fail-closed behavior in production for JWT, integration crypto, SSO state, and tree-sync key.
 - [x] Add a repository secret scanner and wire it into the release script.
+- [x] Add a ZATCA gap review and port plan for `invoice-sandpoint`: `ZATCA_GAP_REVIEW.md` and `ZATCA_PORT_PLAN.md`.
+- [ ] Define and implement the Fimto ↔ `invoice-sandpoint` service contract with idempotency/replay and tenant-scoped credentials (`ZATCA_ADAPTER_CONTRACT.md`).
+- [x] Add ZATCA basic validation smoke, Fatoora timeout handling, returned-QR capture, tenant joins, audit events, and a prepared counter uniqueness migration.
+- [ ] Decide whether the external `invoice-sandpoint` engine is the certified EGS boundary or port its pure compliance modules into Fimto.
+- [ ] Remove/protect the external `/api/zatca/debug-csid` endpoint and remove production secret fallbacks before reuse.
+- [ ] Run a ZATCA sandbox contract test with CSID, returned cleared artifact, and replay evidence.
 - [x] Add a static Firestore/Supabase rules audit (`npm run security:rules`).
 - [x] Add a representative tenant-isolation regression audit (`npm run security:tenancy`).
 - [x] Add a production guard smoke test for all legacy `/api` handlers (`npm run security:legacy`).
@@ -70,7 +76,7 @@
 - [x] Fix Leaflet SSR for `/Schedule` and client-only-load the Admin GPS map.
 - [x] إصلاح website-app TypeScript errors (25 → 0).
 - [x] تصحيح mobile typecheck configuration (0 diagnostics).
-- [x] إضافة `typecheck:all`, `security:audit`, `security:rules`, `security:tenancy`, `security:legacy` إلى CI/release script.
+- [x] إضافة `typecheck:all`, `security:audit`, `security:rules`, `security:tenancy`, `security:legacy`, `test:zatca` إلى CI/release script.
 - [x] Root Next build يمر بعد إصلاح Leaflet/DB وclient-only legacy app wrapper.
 - [ ] إضافة unit tests للـauth/RBAC, QR validation, dispatch transitions, OTP/rate limits.
 - [ ] إضافة API smoke tests محلياً وفي staging.

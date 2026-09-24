@@ -11,6 +11,7 @@ import { NextRequest } from "next/server";
 import { requirePermission, errorResponse, successResponse } from "@/lib/auth/middleware";
 import { PERMISSIONS } from "@/lib/auth/rbac";
 import { getZatcaConfig, saveZatcaConfig } from "@/lib/services/zatca.service";
+import { checkNextRateLimit, clientIpFromHeaders } from "@/lib/rate-limit";
 import { z } from "zod";
 
 export const dynamic = "force-dynamic";
@@ -30,7 +31,14 @@ export async function GET(req: NextRequest) {
 
 const ConfigSchema = z.object({
   sellerName: z.string().max(200).optional(),
-  vatNumber: z.string().max(50).optional(),
+  vatNumber: z
+    .string()
+    .trim()
+    .max(50)
+    .refine((value) => value === "" || /^3\d{13}3$/.test(value), {
+      message: "VAT number must be 15 digits starting and ending with 3",
+    })
+    .optional(),
   street: z.string().max(200).optional(),
   city: z.string().max(100).optional(),
   branchName: z.string().max(100).optional(),
@@ -43,6 +51,15 @@ const ConfigSchema = z.object({
 export async function POST(req: NextRequest) {
   const auth = await requirePermission(req, PERMISSIONS.FINANCE_INVOICE_MANAGE);
   if ("status" in auth) return auth;
+  const rate = checkNextRateLimit(
+    `zatca-config:${auth.user.tenantId}:${clientIpFromHeaders(req.headers)}`,
+    20
+  );
+  if (!rate.allowed) {
+    return errorResponse("RATE_LIMITED", "Too many ZATCA configuration requests", 429, {
+      retryAfterSeconds: rate.retryAfterSeconds,
+    });
+  }
 
   let body: unknown;
   try {
@@ -59,7 +76,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    await saveZatcaConfig(auth.user.tenantId, parsed.data);
+    await saveZatcaConfig(auth.user.tenantId, parsed.data, auth.user.sub);
     const config = await getZatcaConfig(auth.user.tenantId);
     return successResponse({ config }, "ZATCA config saved");
   } catch (err) {

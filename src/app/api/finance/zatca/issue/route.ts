@@ -14,6 +14,7 @@ import { NextRequest } from "next/server";
 import { requirePermission, errorResponse, successResponse } from "@/lib/auth/middleware";
 import { PERMISSIONS } from "@/lib/auth/rbac";
 import { issueInvoice } from "@/lib/services/zatca.service";
+import { checkNextRateLimit, clientIpFromHeaders } from "@/lib/rate-limit";
 import { z } from "zod";
 
 export const dynamic = "force-dynamic";
@@ -26,6 +27,15 @@ const IssueSchema = z.object({
 export async function POST(req: NextRequest) {
   const auth = await requirePermission(req, PERMISSIONS.FINANCE_INVOICE_MANAGE);
   if ("status" in auth) return auth;
+  const rate = checkNextRateLimit(
+    `zatca-issue:${auth.user.tenantId}:${clientIpFromHeaders(req.headers)}`,
+    10
+  );
+  if (!rate.allowed) {
+    return errorResponse("RATE_LIMITED", "Too many ZATCA invoice requests", 429, {
+      retryAfterSeconds: rate.retryAfterSeconds,
+    });
+  }
 
   let body: unknown;
   try {

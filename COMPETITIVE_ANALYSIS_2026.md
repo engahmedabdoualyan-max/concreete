@@ -142,6 +142,12 @@ https://concrete.fimtosoft.com/api/rnd/plans    -> 404
 5. **جزئي:** session JWT revocation موجود في Next backend; **متبقي:** legacy session migration/revocation.
 6. **متبقي:** Firebase Emulator/RLS two-tenant negative tests.
 
+### P0.2a — ZATCA boundary من `invoice-sandpoint`
+
+المشروع الخارجي `invoice-sandpoint` يحتوي ZATCA engine أقوى (full UBL, canonical hash, 9-tag QR, XAdES/CSID، protected counter). سنأخذ منه الـcompliance boundary فقط، مع تحويله إلى Drizzle/PostgreSQL multi-tenant، بينما يبقى برنامج Accounting المتخصص هو ledger system. لن ننسخ Prisma/SQLite أو accounting UI، ولن نغير Dashboard.
+
+راجع `ZATCA_GAP_REVIEW.md` و`ZATCA_PORT_PLAN.md`، ومتبقي idempotency/replay/outbox/sandbox evidence.
+
 ### P0.3 — Root legacy build وrelease tests
 
 نتائج المراجعة بعد الإصلاحات:

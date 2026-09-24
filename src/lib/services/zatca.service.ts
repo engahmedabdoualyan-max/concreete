@@ -7,13 +7,12 @@
  *  Full Fatoora flow (iCeipts / ERPGulf parity):
  *   1. Taxpayer config lives in tenants.settings.zatca
  *      (secrets AES-encrypted via the accounting crypto helpers)
- *   2. issueInvoice builds a minimal-but-valid UBL 2.1 tax invoice
- *      from the order (delivered m³ × price + 15% VAT), chains it
- *      (counter + previous SHA-256 per ZATCA anti-gap rules), and
- *      mints the Phase-1-compatible TLV QR.
+ *   2. issueInvoice builds the current UBL/QR fallback, chains counters,
+ *      and submits through Fatoora. The returned Fatoora QR/status is
+ *      preferred; local QR generation alone is not Phase-2 certification.
  *   3. STANDARD (B2B) → clearance API · SIMPLIFIED (B2C) → reporting API.
  *      Without configured production tokens the document is stored as
- *      PENDING (valid QR, submittable later) instead of failing.
+ *      PENDING (submittable later) instead of failing.
  *
  *  Fatoora developer portal: https://gw-fatoora.zatca.gov.sa
  * ============================================================
@@ -28,12 +27,17 @@ import {
   clients,
   deliverySites,
   mixDesigns,
+  auditLogs,
 } from "@/db/schema";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import {
   decryptSecrets,
   encryptSecrets,
 } from "../integrations/accounting/connector";
+import {
+  validateZatcaInvoiceInput,
+  zatcaBlockingIssues,
+} from "@/lib/zatca/validation";
 
 export const ZATCA_VAT_RATE = 0.15;
 
@@ -105,7 +109,8 @@ export async function getZatcaConfig(
 
 export async function saveZatcaConfig(
   tenantId: string,
-  input: Partial<ZatcaConfig>
+  input: Partial<ZatcaConfig>,
+  actorUserId?: string
 ): Promise<void> {
   const settings = await readSettings(tenantId);
   const z = ((settings.zatca ?? {}) as Record<string, unknown>) ?? {};
@@ -140,6 +145,49 @@ export async function saveZatcaConfig(
     .update(tenants)
     .set({ settings: { ...settings, zatca: next }, updatedAt: new Date() })
     .where(eq(tenants.id, tenantId));
+
+  if (actorUserId) {
+    try {
+      await db.insert(auditLogs).values({
+        tenantId,
+        userId: actorUserId,
+        action: "ZATCA_CONFIG_UPDATED",
+        entityType: "tenant_settings",
+        entityId: null,
+        newState: {
+          sellerName: next.sellerName,
+          vatNumber: next.vatNumber,
+          env: next.env,
+          street: next.street,
+          city: next.city,
+          branchName: next.branchName,
+        },
+      });
+    } catch (error) {
+      console.error("[ZATCA] config audit write failed", error);
+    }
+  }
+}
+
+async function recordZatcaAudit(input: {
+  tenantId: string;
+  userId: string;
+  action: string;
+  entityId?: string;
+  newState: Record<string, unknown>;
+}): Promise<void> {
+  try {
+    await db.insert(auditLogs).values({
+      tenantId: input.tenantId,
+      userId: input.userId,
+      action: input.action,
+      entityType: "zatca_documents",
+      entityId: input.entityId ?? null,
+      newState: input.newState,
+    });
+  } catch (error) {
+    console.error("[ZATCA] audit write failed", error);
+  }
 }
 
 async function loadSecrets(tenantId: string): Promise<{ binaryToken: string; secret: string } | null> {
@@ -294,8 +342,21 @@ ${linesXml}
 </Invoice>`;
 }
 
-export function sha256Hex(input: string): string {
-  return crypto.createHash("sha256").update(input, "utf8").digest("hex");
+export function sha256Base64(input: string): string {
+  return crypto.createHash("sha256").update(input, "utf8").digest("base64");
+}
+
+/** Normalize legacy hex hashes before using them in the base64 PIH chain. */
+function normalizeStoredHash(value: string | null | undefined): string | null {
+  if (!value) return null;
+  if (/^[0-9a-fA-F]{64}$/.test(value)) {
+    return Buffer.from(value, "hex").toString("base64");
+  }
+  return value;
+}
+
+function genesisHash(): string {
+  return sha256Base64("0");
 }
 
 // ─── Fatoora API client ───────────────────────────────────────────────────────
@@ -317,6 +378,7 @@ async function fatooraPost(
       Authorization: `Basic ${Buffer.from(`${binaryToken}:${secret}`).toString("base64")}`,
     },
     body: JSON.stringify(payload),
+    signal: AbortSignal.timeout(30_000),
   });
   const body = (await res.json().catch(() => ({}))) as Record<string, unknown>;
   return { ok: res.ok, body };
@@ -345,9 +407,21 @@ export async function issueInvoice(
       designCode: mixDesigns.designCode,
     })
     .from(orders)
-    .innerJoin(clients, eq(orders.clientId, clients.id))
-    .innerJoin(deliverySites, eq(orders.deliverySiteId, deliverySites.id))
-    .innerJoin(mixDesigns, eq(orders.mixDesignId, mixDesigns.id))
+    .innerJoin(
+      clients,
+      and(eq(orders.clientId, clients.id), eq(clients.tenantId, tenantId))
+    )
+    .innerJoin(
+      deliverySites,
+      and(
+        eq(orders.deliverySiteId, deliverySites.id),
+        eq(deliverySites.tenantId, tenantId)
+      )
+    )
+    .innerJoin(
+      mixDesigns,
+      and(eq(orders.mixDesignId, mixDesigns.id), eq(mixDesigns.tenantId, tenantId))
+    )
     .where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId)))
     .limit(1);
   const order = o[0];
@@ -369,12 +443,37 @@ export async function issueInvoice(
     .orderBy(desc(zatcaDocuments.counterValue))
     .limit(1);
   const counter = (last[0]?.counterValue ?? 0) + 1;
-  const previousHash = last[0]?.invoiceHash ?? "0".repeat(64);
+  const previousHash = normalizeStoredHash(last[0]?.invoiceHash) ?? genesisHash();
 
   const totalM3 = Number(order.totalVolumeM3 ?? 0);
   const deliveredM3 = Math.max(0, totalM3 - Number(order.remainingVolumeM3 ?? 0));
   const billM3 = deliveredM3 > 0 ? deliveredM3 : totalM3;
   const rateSar = (order.pricePerM3Cents ?? 0) / 100;
+
+  const validationIssues = validateZatcaInvoiceInput({
+    sellerName: cfg.sellerName,
+    sellerVatNumber: cfg.vatNumber,
+    buyerVatNumber: order.vatNumber,
+    quantity: billM3,
+    unitPriceSar: rateSar,
+    kind: type,
+  });
+  const blockingIssues = zatcaBlockingIssues({
+    sellerName: cfg.sellerName,
+    sellerVatNumber: cfg.vatNumber,
+    buyerVatNumber: order.vatNumber,
+    quantity: billM3,
+    unitPriceSar: rateSar,
+    kind: type,
+  });
+  if (blockingIssues.length > 0) {
+    throw new Error(
+      `Invoice validation failed: ${blockingIssues.map((issue) => issue.code).join(", ")}`
+    );
+  }
+  for (const warning of validationIssues.filter((issue) => issue.level === "WARNING")) {
+    console.warn(`[ZATCA] ${warning.code}: ${warning.message}`);
+  }
 
   const now = new Date();
   const issueDate = now.toISOString().slice(0, 10);
@@ -407,7 +506,7 @@ export async function issueInvoice(
       },
     ],
   });
-  const hash = sha256Hex(xml);
+  const hash = sha256Base64(xml);
   const exVat = billM3 * rateSar;
   const vatAmount = exVat * ZATCA_VAT_RATE;
   const qr = buildTlvBase64(
@@ -418,36 +517,84 @@ export async function issueInvoice(
     vatAmount
   );
 
-  const [doc] = await db
-    .insert(zatcaDocuments)
-    .values({
-      tenantId,
+  const [doc] = await db.transaction(async (tx) => {
+    // Serialize counter allocation per tenant. The re-read detects a stale
+    // request instead of allowing two invoices to claim the same ICV/PIH.
+    await tx.execute(sql`SET LOCAL lock_timeout = '5s'`);
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${tenantId}))`);
+    const current = await tx
+      .select({
+        counterValue: zatcaDocuments.counterValue,
+        invoiceHash: zatcaDocuments.invoiceHash,
+      })
+      .from(zatcaDocuments)
+      .where(eq(zatcaDocuments.tenantId, tenantId))
+      .orderBy(desc(zatcaDocuments.counterValue))
+      .limit(1);
+    const currentCounter = current[0]?.counterValue ?? 0;
+    const expectedCounter = last[0]?.counterValue ?? 0;
+    if (
+      currentCounter !== expectedCounter ||
+      (current[0]?.invoiceHash ?? null) !== (last[0]?.invoiceHash ?? null)
+    ) {
+      throw new Error("ZATCA_COUNTER_CHANGED: retry invoice creation");
+    }
+
+    return tx
+      .insert(zatcaDocuments)
+      .values({
+        tenantId,
+        orderId,
+        invoiceNumber,
+        invoiceUuid: uuid,
+        invoiceType: type,
+        status: "DRAFT",
+        counterValue: counter,
+        invoiceHash: hash,
+        previousHash,
+        qrTlvBase64: qr,
+        totals: {
+          exVat: Math.round(exVat * 100) / 100,
+          vatAmount: Math.round(vatAmount * 100) / 100,
+          total: Math.round((exVat + vatAmount) * 100) / 100,
+          currency: "SAR",
+        },
+        createdById: userId,
+      })
+      .returning();
+  });
+
+  await recordZatcaAudit({
+    tenantId,
+    userId,
+    action: "ZATCA_INVOICE_CREATED",
+    entityId: doc.id,
+    newState: {
       orderId,
       invoiceNumber,
-      invoiceUuid: uuid,
       invoiceType: type,
-      status: "DRAFT",
       counterValue: counter,
-      invoiceHash: hash,
-      previousHash,
-      qrTlvBase64: qr,
-      totals: {
-        exVat: Math.round(exVat * 100) / 100,
-        vatAmount: Math.round(vatAmount * 100) / 100,
-        total: Math.round((exVat + vatAmount) * 100) / 100,
-        currency: "SAR",
-      },
-      createdById: userId,
-    })
-    .returning();
+      status: "DRAFT",
+    },
+  });
 
   // Attempt live submission only when production tokens exist
   const secrets = await loadSecrets(tenantId);
   if (!secrets) {
     await db
       .update(zatcaDocuments)
-      .set({ status: "PENDING" })
+      .set({
+        status: "PENDING",
+        fatooraResponse: { submittedXml: xml, state: "NOT_SUBMITTED" },
+      })
       .where(eq(zatcaDocuments.id, doc.id));
+    await recordZatcaAudit({
+      tenantId,
+      userId,
+      action: "ZATCA_INVOICE_PENDING",
+      entityId: doc.id,
+      newState: { status: "PENDING", reason: "credentials_not_configured" },
+    });
     return {
       ...doc,
       status: "PENDING",
@@ -459,21 +606,63 @@ export async function issueInvoice(
 
   const path =
     type === "STANDARD" ? "/invoices/clearance/single" : "/invoices/reporting/single";
-  const { ok, body } = await fatooraPost(cfg.env, path, secrets.binaryToken, secrets.secret, {
-    invoiceHash: hash,
-    uuid,
-    invoice: Buffer.from(xml, "utf8").toString("base64"),
-  });
 
+  let submission: { ok: boolean; body: Record<string, unknown> };
+  try {
+    submission = await fatooraPost(cfg.env, path, secrets.binaryToken, secrets.secret, {
+      invoiceHash: hash,
+      uuid,
+      invoice: Buffer.from(xml, "utf8").toString("base64"),
+    });
+  } catch (error) {
+    // A timeout is unknown: Fatoora may have accepted the request. Keep the
+    // document and replay the same UUID/hash later instead of creating a new one.
+    const reason =
+      error instanceof Error && error.name === "TimeoutError"
+        ? "Fatoora request timed out; submission state is unknown"
+        : "Fatoora request failed; submission state requires reconciliation";
+    await db
+      .update(zatcaDocuments)
+      .set({
+        status: "PENDING",
+        rejectionReason: reason,
+        fatooraResponse: {
+          error: "SUBMISSION_UNKNOWN",
+          submittedXml: xml,
+          at: new Date().toISOString(),
+        },
+      })
+      .where(eq(zatcaDocuments.id, doc.id));
+    await recordZatcaAudit({
+      tenantId,
+      userId,
+      action: "ZATCA_SUBMISSION_UNKNOWN",
+      entityId: doc.id,
+      newState: { status: "PENDING", reason: "gateway_timeout_or_network_error" },
+    });
+    return {
+      ...doc,
+      status: "PENDING",
+      submitted: false,
+      message: reason,
+      qrTlvBase64: qr,
+    };
+  }
+
+  const { ok, body } = submission;
   const vr = body.validationResults as
     | { status?: string; errorMessages?: { message: string }[] }
     | undefined;
+  const explicitStatus =
+    type === "STANDARD"
+      ? (body.clearanceStatus as string) === "CLEARED"
+      : (body.reportingStatus as string) === "REPORTED";
   const cleared =
-    ok &&
-    ((body.clearanceStatus as string) === "CLEARED" ||
-      (body.reportingStatus as string) === "REPORTED" ||
-      vr?.status === "PASS");
-
+    ok && (explicitStatus || (!body.clearanceStatus && !body.reportingStatus && vr?.status === "PASS"));
+  const returnedQr =
+    (typeof body.qrCode === "string" && body.qrCode) ||
+    (typeof body.qr_code === "string" && body.qr_code) ||
+    null;
   const finalStatus = cleared ? (type === "STANDARD" ? "CLEARED" : "REPORTED") : "REJECTED";
   const rejection =
     !cleared
@@ -486,12 +675,21 @@ export async function issueInvoice(
     .update(zatcaDocuments)
     .set({
       status: finalStatus,
-      fatooraResponse: body,
+      qrTlvBase64: returnedQr ?? qr,
+      fatooraResponse: { ...body, submittedXml: xml },
       rejectionReason: rejection,
       clearedAt: cleared ? new Date() : null,
     })
     .where(eq(zatcaDocuments.id, doc.id))
     .returning();
+
+  await recordZatcaAudit({
+    tenantId,
+    userId,
+    action: cleared ? "ZATCA_INVOICE_CLEARED" : "ZATCA_INVOICE_REJECTED",
+    entityId: doc.id,
+    newState: { status: finalStatus, hasReturnedQr: Boolean(returnedQr) },
+  });
 
   return {
     ...final,

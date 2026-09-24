@@ -30,6 +30,10 @@ jobs:
         run: npm run security:tenancy
       - name: Legacy API production guard
         run: npm run security:legacy
+      - name: ZATCA validation smoke
+        run: npm run test:zatca
+      - name: ZATCA static audit
+        run: npm run security:zatca
       - name: Tenant route review report
         run: npm run security:tenant-report
       - name: Typecheck all workspaces

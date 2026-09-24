@@ -3292,9 +3292,9 @@ export const zatcaDocuments = pgTable(
     status: varchar("status", { length: 16 }).notNull().default("DRAFT"),
     /** Sequential counter per ZATCA anti-gap rules */
     counterValue: integer("counter_value").notNull(),
-    /** SHA-256 of the submitted UBL XML (hex) */
+    /** SHA-256 of the submitted UBL XML (base64) */
     invoiceHash: varchar("invoice_hash", { length: 128 }),
-    /** Previous invoice hash (chain) */
+    /** Previous invoice hash (base64 PIH chain) */
     previousHash: varchar("previous_hash", { length: 128 }),
     /** Base64 TLV QR (Phase-1-compatible, always generated) */
     qrTlvBase64: text("qr_tlv_base64"),
@@ -3312,6 +3312,7 @@ export const zatcaDocuments = pgTable(
     index("idx_zt_doc_order").on(t.orderId),
     index("idx_zt_doc_status").on(t.status),
     index("idx_zt_doc_number").on(t.invoiceNumber),
+    unique("zatca_documents_tenant_counter_unique").on(t.tenantId, t.counterValue),
   ]
 );
 

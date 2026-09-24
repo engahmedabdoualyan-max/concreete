@@ -197,6 +197,7 @@ npm run security:audit
 npm run security:rules
 npm run security:tenancy
 npm run security:legacy
+npm run security:zatca
 npm run security:tenant-report
 npm run security:audit:deps
 npm run typecheck:all
@@ -214,3 +215,6 @@ npm run build:site
 - `FIRESTORE_RULES_TEST_PLAN.md`
 - `SUPABASE_RLS_TEST_PLAN.md`
 - `DEPLOY_MECHANISM.md`
+- `ZATCA_GAP_REVIEW.md`
+- `ZATCA_PORT_PLAN.md`
+- `ZATCA_ADAPTER_CONTRACT.md`
