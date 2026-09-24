@@ -182,9 +182,21 @@ async function getOrderPortal(tenantId: string, orderId: string) {
       gradeDescription: mixDesigns.gradeDescription,
     })
     .from(orders)
-    .innerJoin(clients, eq(orders.clientId, clients.id))
-    .innerJoin(deliverySites, eq(orders.deliverySiteId, deliverySites.id))
-    .innerJoin(mixDesigns, eq(orders.mixDesignId, mixDesigns.id))
+    .innerJoin(
+      clients,
+      and(eq(orders.clientId, clients.id), eq(clients.tenantId, tenantId))
+    )
+    .innerJoin(
+      deliverySites,
+      and(
+        eq(orders.deliverySiteId, deliverySites.id),
+        eq(deliverySites.tenantId, tenantId)
+      )
+    )
+    .innerJoin(
+      mixDesigns,
+      and(eq(orders.mixDesignId, mixDesigns.id), eq(mixDesigns.tenantId, tenantId))
+    )
     .where(and(eq(orders.id, orderId), eq(orders.tenantId, tenantId)))
     .limit(1);
   const order = o[0];
@@ -332,8 +344,17 @@ async function getClientPortal(tenantId: string, clientId: string) {
       designCode: mixDesigns.designCode,
     })
     .from(orders)
-    .innerJoin(deliverySites, eq(orders.deliverySiteId, deliverySites.id))
-    .innerJoin(mixDesigns, eq(orders.mixDesignId, mixDesigns.id))
+    .innerJoin(
+      deliverySites,
+      and(
+        eq(orders.deliverySiteId, deliverySites.id),
+        eq(deliverySites.tenantId, tenantId)
+      )
+    )
+    .innerJoin(
+      mixDesigns,
+      and(eq(orders.mixDesignId, mixDesigns.id), eq(mixDesigns.tenantId, tenantId))
+    )
     .where(and(eq(orders.clientId, clientId), eq(orders.tenantId, tenantId)))
     .orderBy(desc(orders.createdAt))
     .limit(50);

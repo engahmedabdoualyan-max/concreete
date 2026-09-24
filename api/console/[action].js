@@ -12,8 +12,21 @@ const { ok, fail, assertLegacyApiEnabled, fsGet, fsPatch, enc } = require('../_l
 const EMAILJS_SERVICE = process.env.EMAILJS_SERVICE_ID || 'service_mdtxmv8';
 const EMAILJS_TEMPLATE = process.env.EMAILJS_TEMPLATE_ID || 'template_ablqhm3';
 const EMAILJS_PUBLIC_KEY = process.env.EMAILJS_PUBLIC_KEY || 'UPIUNYeckrEK-z_xz';
-const OTP_SALT = process.env.OTP_SALT || 'fimto-otp-salt-v1';
-const CREDS_SALT = process.env.CONSOLE_CREDS_SALT || 'fimto-console-salt-v1';
+function otpSalt() {
+  const value = process.env.OTP_SALT;
+  if (!value && process.env.NODE_ENV === 'production') {
+    throw new Error('OTP_SALT must be configured in production');
+  }
+  return value || 'fimto-otp-salt-v1';
+}
+
+function credsSalt() {
+  const value = process.env.CONSOLE_CREDS_SALT;
+  if (!value && process.env.NODE_ENV === 'production') {
+    throw new Error('CONSOLE_CREDS_SALT must be configured in production');
+  }
+  return value || 'fimto-console-salt-v1';
+}
 
 const sha256 = (s) => crypto.createHash('sha256').update(String(s)).digest('hex');
 
@@ -78,7 +91,7 @@ module.exports = async function handler(req, res) {
       } else {
         const fb = await getFallbackCreds();
         if (fb && fb.emailHash && fb.passwordHash) {
-          valid = hashEq(sha256(e + CREDS_SALT), fb.emailHash) && hashEq(sha256(p + CREDS_SALT), fb.passwordHash);
+          valid = hashEq(sha256(e + credsSalt()), fb.emailHash) && hashEq(sha256(p + credsSalt()), fb.passwordHash);
         }
       }
       if (!valid) return fail(res, 401, 'بيانات الدخول غير صحيحة', 'INVALID_CREDENTIALS');
@@ -86,7 +99,7 @@ module.exports = async function handler(req, res) {
       // 2FA step: server-side OTP → emailed → verified through /api/otp/verify
       const code = String(crypto.randomInt(100000, 999999));
       await fsPatch(`siteConfig/otp_${sha256('id:' + e)}`, {
-        codeHash: { stringValue: sha256(code + OTP_SALT) },
+        codeHash: { stringValue: sha256(code + otpSalt()) },
         expiresAt: { integerValue: String(Date.now() + 5 * 60 * 1000) },
         attempts: { integerValue: '0' },
         lastSentAt: { stringValue: String(Date.now()) },
@@ -111,7 +124,7 @@ module.exports = async function handler(req, res) {
         valid = p === envPass;
       } else {
         const fb = await getFallbackCreds();
-        if (fb && fb.protectionHash) valid = hashEq(sha256(p + CREDS_SALT), fb.protectionHash);
+        if (fb && fb.protectionHash) valid = hashEq(sha256(p + credsSalt()), fb.protectionHash);
       }
       if (!valid) return fail(res, 401, 'كلمة الحماية غير صحيحة', 'INVALID_PROTECTION');
       return ok(res, { verified: true }, 'تم التحقق');

@@ -6,6 +6,8 @@ const files = [
   'src/lib/auth/middleware.ts',
   'src/lib/services/dispatch.service.ts',
   'src/lib/services/accounting-sync.service.ts',
+  'src/lib/services/portal.service.ts',
+  'src/lib/services/batch-control.service.ts',
   'src/app/api/auth/refresh/route.ts',
   'src/app/api/auth/logout/route.ts',
   'src/app/api/auth/delete-account/route.ts',
@@ -41,7 +43,11 @@ for (const file of files) {
       ? source.includes('params.tenantId')
       : file.endsWith('accounting-sync.service.ts')
         ? source.includes('eq(orders.tenantId, tenantId)') && source.includes('zatcaDocuments')
-        : source.includes('auth.user.tenantId');
+        : file.endsWith('portal.service.ts')
+          ? source.includes('eq(clients.tenantId, tenantId)') && source.includes('eq(deliverySites.tenantId, tenantId)')
+          : file.endsWith('batch-control.service.ts')
+            ? source.includes('eq(batchControllers.tenantId, tenantId)') && source.includes('eq(batchPlants.tenantId, tenantId)')
+            : source.includes('auth.user.tenantId');
   if (!hasTenantBoundary) {
     failures.push(`${file}: no auth.user.tenantId guard found`);
   }

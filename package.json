@@ -32,7 +32,9 @@
     "security:legacy": "node scripts/legacy-api-guard-test.mjs",
     "security:zatca": "node scripts/zatca-static-audit.mjs",
     "security:tenant-report": "node scripts/tenant-route-report.mjs",
+    "security:mobile": "node scripts/mobile-config-audit.mjs",
     "test:zatca": "tsx scripts/zatca-validation-smoke.ts",
+    "test:security": "tsx scripts/security-unit-smoke.ts",
     "security:audit:deps": "npm audit --omit=dev --audit-level=high",
     "lint": "eslint ."
   },

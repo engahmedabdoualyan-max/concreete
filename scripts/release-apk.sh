@@ -39,6 +39,9 @@ npm run security:audit
 npm run security:rules
 npm run security:tenancy
 npm run security:legacy
+npm run security:tenant-report
+npm run security:mobile
+npm run test:security
 npm run test:zatca
 npm run security:zatca
 npm run typecheck:all

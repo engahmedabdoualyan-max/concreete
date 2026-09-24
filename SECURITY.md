@@ -87,7 +87,7 @@ These results are why the checked-in rule/RLS hardening is not considered a live
 5. **Root API tenant isolation — source-confirmed, deployment-dependent**
    - بعض routes تقرأ أو تعدّل resources by ID من دون `tenantId` predicate.
    - API غير منشور على النطاق الحالي، لذلك لا يمكن اعتباره production-safe قبل deployment واختبارات two-tenant negative tests.
-   - Representative route patches are in place; `npm run security:tenant-report` now lists 11 route files for explicit review (health/SSO/delegated handlers and public token routes remain).
+   - Representative route patches are in place; `npm run security:tenant-report` now classifies explicit, delegated, middleware and public/token-scoped routes, and fails on unresolved routes.
    - Report-share downloads now have rate limiting, ID validation, no-store, and sandbox headers; durable signed tenant-scoped share tokens remain pending.
    - المطلوب: tenant check لكل read/mutation + resource ownership + database defense-in-depth.
 
@@ -199,6 +199,8 @@ npm run security:tenancy
 npm run security:legacy
 npm run security:zatca
 npm run security:tenant-report
+npm run security:mobile
+npm run test:security
 npm run security:audit:deps
 npm run typecheck:all
 npm run build
@@ -218,3 +220,4 @@ npm run build:site
 - `ZATCA_GAP_REVIEW.md`
 - `ZATCA_PORT_PLAN.md`
 - `ZATCA_ADAPTER_CONTRACT.md`
+- `SECRET_ROTATION_RUNBOOK.md`

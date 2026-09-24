@@ -6,7 +6,7 @@ A comprehensive ERP system for concrete and asphalt plants with multi-language s
 
 Before building Android, changing the app-account tree, or deploying the website, read **[BUILD_TROUBLESHOOTING.md](BUILD_TROUBLESHOOTING.md)**. It documents the EAS/monorepo fixes, Firebase tree data flow, password-hash handling, deployment checks, and the exact R&D/HR role workflow.
 
-For the current competitor comparison, production gaps, and prioritized development plan, read **[COMPETITIVE_ANALYSIS_2026.md](COMPETITIVE_ANALYSIS_2026.md)**. For the executable security and production backlog, read **[SECURITY_AND_PRODUCTION_TODO.md](SECURITY_AND_PRODUCTION_TODO.md)**. For the threat model and security findings, read **[SECURITY.md](SECURITY.md)**. For the required negative tests before deploying Firebase Rules, read **[FIRESTORE_RULES_TEST_PLAN.md](FIRESTORE_RULES_TEST_PLAN.md)**. For Supabase RLS verification, read **[SUPABASE_RLS_TEST_PLAN.md](SUPABASE_RLS_TEST_PLAN.md)**. For the ZATCA-specific gap review and the boundary with the external accounting program, read **[ZATCA_GAP_REVIEW.md](ZATCA_GAP_REVIEW.md)**. For the port plan from `invoice-sandpoint`, read **[ZATCA_PORT_PLAN.md](ZATCA_PORT_PLAN.md)**. For the proposed service-to-service boundary, read **[ZATCA_ADAPTER_CONTRACT.md](ZATCA_ADAPTER_CONTRACT.md)**.
+For the current competitor comparison, production gaps, and prioritized development plan, read **[COMPETITIVE_ANALYSIS_2026.md](COMPETITIVE_ANALYSIS_2026.md)**. For the executable security and production backlog, read **[SECURITY_AND_PRODUCTION_TODO.md](SECURITY_AND_PRODUCTION_TODO.md)**. For the threat model and security findings, read **[SECURITY.md](SECURITY.md)**. For the required negative tests before deploying Firebase Rules, read **[FIRESTORE_RULES_TEST_PLAN.md](FIRESTORE_RULES_TEST_PLAN.md)**. For Supabase RLS verification, read **[SUPABASE_RLS_TEST_PLAN.md](SUPABASE_RLS_TEST_PLAN.md)**. For the ZATCA-specific gap review and the boundary with the external accounting program, read **[ZATCA_GAP_REVIEW.md](ZATCA_GAP_REVIEW.md)**. For the port plan from `invoice-sandpoint`, read **[ZATCA_PORT_PLAN.md](ZATCA_PORT_PLAN.md)**. For the proposed service-to-service boundary, read **[ZATCA_ADAPTER_CONTRACT.md](ZATCA_ADAPTER_CONTRACT.md)**. For credential rotation, read **[SECRET_ROTATION_RUNBOOK.md](SECRET_ROTATION_RUNBOOK.md)**.
 
 **Important:** the app-account tree is stored in Firebase Firestore (`concrete-erb/companyTrees`), not in the website Supabase database.
 
@@ -69,6 +69,8 @@ npm run security:tenancy
 npm run security:legacy
 npm run security:zatca
 npm run security:tenant-report
+npm run security:mobile
+npm run test:security
 npm run test:zatca
 npm run typecheck:all
 npm run build

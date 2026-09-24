@@ -13,7 +13,8 @@
  *  Both protect the Supabase backend from mobile-device request floods.
  */
 
-import rateLimit from "express-rate-limit";
+import { isIP } from "node:net";
+import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 
 // ─── Express layer ────────────────────────────────────────────────────────────
 
@@ -31,12 +32,9 @@ export const apiRateLimiter = rateLimit({
     errorCode: "RATE_LIMITED",
     message: "Too many requests. Limit is 100 requests per minute per IP.",
   },
-  // Trust the left-most X-Forwarded-For entry (behind the load balancer)
-  keyGenerator: (req) => {
-    const fwd = req.headers["x-forwarded-for"];
-    if (typeof fwd === "string") return fwd.split(",")[0].trim();
-    return req.ip ?? "unknown";
-  },
+  // Normalize IPv4/IPv6 addresses so different textual forms of one IPv6
+  // client cannot bypass the per-IP budget.
+  keyGenerator: (req) => ipKeyGenerator(req.ip ?? "unknown"),
 });
 
 /** A stricter limiter for auth handshakes (login / delete-account). */
@@ -100,9 +98,11 @@ export function checkNextRateLimit(
 
 /** Extracts the client IP from a Next.js request's headers. */
 export function clientIpFromHeaders(headers: Headers): string {
-  const fwd = headers.get("x-forwarded-for");
-  if (fwd) return fwd.split(",")[0].trim();
-  return headers.get("x-real-ip") ?? "unknown";
+  const forwarded = headers.get("x-forwarded-for")?.split(",")[0]?.trim();
+  if (forwarded && isIP(forwarded)) return forwarded;
+  const realIp = headers.get("x-real-ip")?.trim();
+  if (realIp && isIP(realIp)) return realIp;
+  return "unknown";
 }
 
 /** Periodically purge idle buckets to bound memory. */

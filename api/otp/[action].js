@@ -16,12 +16,19 @@ const EMAILJS_TEMPLATE = process.env.EMAILJS_TEMPLATE_ID || 'template_ablqhm3';
 const EMAILJS_PUBLIC_KEY = process.env.EMAILJS_PUBLIC_KEY || 'UPIUNYeckrEK-z_xz';
 const EMAILJS_PRIVATE_KEY = process.env.EMAILJS_PRIVATE_KEY || '';
 
-const SALT = process.env.OTP_SALT || 'fimto-otp-salt-v1';
 const CODE_TTL_MS = 5 * 60 * 1000;
 const MAX_ATTEMPTS = 5;
 const SEND_COOLDOWN_MS = 45 * 1000;
 const MAX_SENDS_WINDOW_MS = 10 * 60 * 1000;
 const MAX_SENDS = 3;
+
+function otpSalt() {
+  const value = process.env.OTP_SALT;
+  if (!value && process.env.NODE_ENV === 'production') {
+    throw new Error('OTP_SALT must be configured in production');
+  }
+  return value || 'fimto-otp-salt-v1';
+}
 
 const sha256 = (s) => crypto.createHash('sha256').update(s).digest('hex');
 const normId = (id) => String(id || '').trim().toLowerCase();
@@ -89,7 +96,7 @@ module.exports = async function handler(req, res) {
 
       const code = String(crypto.randomInt(100000, 999999));
       await fsPatch(docIdFor(id), {
-        codeHash: { stringValue: sha256(code + SALT) },
+        codeHash: { stringValue: sha256(code + otpSalt()) },
         expiresAt: { integerValue: String(now + CODE_TTL_MS) },
         attempts: { integerValue: '0' },
         lastSentAt: { stringValue: String(now) },
@@ -124,12 +131,12 @@ module.exports = async function handler(req, res) {
         return fail(res, 429, 'تم تجاوز عدد المحاولات — اطلب رمزاً جديداً', 'TOO_MANY_ATTEMPTS');
       }
 
-      const given = Buffer.from(sha256(c + SALT));
+      const given = Buffer.from(sha256(c + otpSalt()));
       const stored = Buffer.from(rec.codeHash);
       const match = given.length === stored.length && crypto.timingSafeEqual(given, stored);
 
       if (!match) {
-        fsPatch(docIdFor(id), { attempts: { integerValue: String(rec.attempts + 1) } }, ['attempts']).catch(() => {});
+        await fsPatch(docIdFor(id), { attempts: { integerValue: String(rec.attempts + 1) } }, ['attempts']).catch(() => {});
         return fail(res, 401, 'الرمز غير صحيح', 'WRONG_CODE');
       }
 

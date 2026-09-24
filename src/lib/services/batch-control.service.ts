@@ -61,7 +61,10 @@ export async function listControllers(tenantId: string) {
       createdAt: batchControllers.createdAt,
     })
     .from(batchControllers)
-    .leftJoin(batchPlants, eq(batchControllers.batchPlantId, batchPlants.id))
+    .leftJoin(
+      batchPlants,
+      and(eq(batchControllers.batchPlantId, batchPlants.id), eq(batchPlants.tenantId, tenantId))
+    )
     .where(eq(batchControllers.tenantId, tenantId))
     .orderBy(batchControllers.createdAt);
 
@@ -124,6 +127,15 @@ export async function updateController(
     .limit(1);
   if (!current[0]) return null;
 
+  if (input.batchPlantId) {
+    const plant = await db
+      .select({ id: batchPlants.id })
+      .from(batchPlants)
+      .where(and(eq(batchPlants.id, input.batchPlantId), eq(batchPlants.tenantId, tenantId)))
+      .limit(1);
+    if (!plant[0]) return null;
+  }
+
   const patch: Record<string, unknown> = { updatedAt: new Date() };
   if (input.name !== undefined) patch.name = input.name;
   if (input.isActive !== undefined) patch.isActive = input.isActive;
@@ -138,7 +150,9 @@ export async function updateController(
   const [updated] = await db
     .update(batchControllers)
     .set(patch)
-    .where(eq(batchControllers.id, controllerId))
+    .where(
+      and(eq(batchControllers.id, controllerId), eq(batchControllers.tenantId, tenantId))
+    )
     .returning();
   return { ...updated, settings: sanitizedSettings(updated.settings) };
 }
@@ -185,7 +199,9 @@ export async function testController(tenantId: string, controllerId: string) {
       lastSeenAt: res.ok ? new Date() : undefined,
       updatedAt: new Date(),
     })
-    .where(eq(batchControllers.id, controllerId));
+    .where(
+      and(eq(batchControllers.id, controllerId), eq(batchControllers.tenantId, tenantId))
+    );
   return res;
 }
 
@@ -204,7 +220,9 @@ export async function readControllerStatus(tenantId: string, controllerId: strin
       lastSeenAt: status.online ? new Date() : undefined,
       updatedAt: new Date(),
     })
-    .where(eq(batchControllers.id, controllerId));
+    .where(
+      and(eq(batchControllers.id, controllerId), eq(batchControllers.tenantId, tenantId))
+    );
   return status;
 }
 

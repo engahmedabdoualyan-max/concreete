@@ -32,10 +32,14 @@ jobs:
         run: npm run security:legacy
       - name: ZATCA validation smoke
         run: npm run test:zatca
+      - name: Security unit smoke
+        run: npm run test:security
       - name: ZATCA static audit
         run: npm run security:zatca
       - name: Tenant route review report
         run: npm run security:tenant-report
+      - name: Mobile release config audit
+        run: npm run security:mobile
       - name: Typecheck all workspaces
         run: npm run typecheck:all
       - name: Build active website

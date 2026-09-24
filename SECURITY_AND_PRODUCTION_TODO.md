@@ -39,7 +39,7 @@
 - [x] Add tenant predicates/ownership checks to representative orders, finance, dispatch, fleet, inventory, quality, workshop, batching, QR, and workspace routes.
 - [x] Add rate limiting, ID validation, no-store, and sandbox headers to public report-share downloads; still migrate them to durable signed tenant-scoped tokens.
 - [x] Add rate limiting and no-store headers to the public portal token route; verify portal token scope/expiry/revocation end-to-end.
-- [ ] Review the remaining 11 route files reported by `npm run security:tenant-report`; classify public/token-scoped routes vs tenant-scoped routes, then add negative tests.
+- [x] Review/classify the remaining route files: `npm run security:tenant-report` now distinguishes explicit, delegated, middleware and public/token-scoped boundaries and fails on unresolved routes.
 - [x] Write fail-closed Firestore Rules based on custom claims/tenant boundaries (source only; not deployed).
 - [x] Deny anonymous browser access to `companyTrees`, `users`, and sensitive `userData` in the checked-in rules (source only; not deployed).
 - [ ] Add Firebase Emulator/Rules tests: user A cannot reach company B (local Java runtime is currently unavailable).
@@ -69,9 +69,10 @@
 - [x] Add a production guard smoke test for all legacy `/api` handlers (`npm run security:legacy`).
 - [x] Restrict local `.env.local` file permissions to `0600` and add a scanner check for group/world-readable secret files.
 - [ ] Verify Git history and APK metadata contain no secrets (scanner covers tracked files; APK review is manual).
-- [ ] إعداد secret rotation runbook.
+- [x] Make legacy OTP/console salts fail closed in production and keep the legacy guard regression-tested.
+- [x] Prepare secret rotation runbook: `SECRET_ROTATION_RUNBOOK.md`; execution remains deployment/owner controlled.
 - [x] Add baseline Next.js security headers.
-- [x] Add Android release hardening: `allowBackup=false`, cleartext traffic disabled, and block unnecessary storage/overlay permissions.
+- [x] Add Android release hardening and static config audit (`npm run security:mobile`): `allowBackup=false`, cleartext traffic disabled, blocked overlay/storage permissions, OTA runtime/channel checks.
 - [ ] Build and publish a new APK after the Android config change; current APK still has the old manifest.
 
 ### 0.4 Build, typecheck and tests
@@ -80,11 +81,11 @@
 - [x] Fix Leaflet SSR for `/Schedule` and client-only-load the Admin GPS map.
 - [x] إصلاح website-app TypeScript errors (25 → 0).
 - [x] تصحيح mobile typecheck configuration (0 diagnostics).
-- [x] إضافة `typecheck:all`, `security:audit`, `security:rules`, `security:tenancy`, `security:legacy`, `test:zatca` إلى CI/release script.
+- [x] إضافة `typecheck:all`, `security:audit`, `security:rules`, `security:tenancy`, `security:legacy`, `security:tenant-report`, `test:security`, `test:zatca` إلى CI/release script.
 - [x] Root Next build يمر بعد إصلاح Leaflet/DB وclient-only legacy app wrapper.
-- [ ] إضافة unit tests للـauth/RBAC, QR validation, dispatch transitions, OTP/rate limits.
+- [~] Add unit smoke tests for auth/RBAC, tenant context, dispatch transitions, QR tamper/expiry and rate limits (`npm run test:security`); OTP tests remain.
 - [ ] إضافة API smoke tests محلياً وفي staging.
-- [ ] إضافة EAS/OTA smoke test: runtime + channel + manifest.
+- [~] Add static EAS/OTA config smoke (`npm run security:mobile`); actual EAS build/runtime/rollout evidence remains.
 
 ### 0.5 Dependency and supply-chain security
 

@@ -26,4 +26,15 @@ for (const file of handlers) {
     throw new Error(`${file}: production guard failed`);
   }
 }
+const sensitiveLegacySources = [
+  'api/otp/[action].js',
+  'api/console/[action].js',
+].map((file) => fs.readFileSync(file, 'utf8')).join('\n');
+if (
+  sensitiveLegacySources.includes("process.env.OTP_SALT ||") ||
+  sensitiveLegacySources.includes("process.env.CONSOLE_CREDS_SALT ||")
+) {
+  throw new Error('legacy OTP/console salt fallback must remain dev-only');
+}
+
 console.log(`Legacy API production guard passed (${handlers.length} handlers).`);
