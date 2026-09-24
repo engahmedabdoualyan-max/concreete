@@ -2,6 +2,12 @@
 
 A comprehensive ERP system for concrete and asphalt plants with multi-language support and real-time operations management.
 
+## ⚠️ Runbook before mobile/release work
+
+Before building Android, changing the app-account tree, or deploying the website, read **[BUILD_TROUBLESHOOTING.md](BUILD_TROUBLESHOOTING.md)**. It documents the EAS/monorepo fixes, Firebase tree data flow, password-hash handling, deployment checks, and the exact R&D/HR role workflow.
+
+**Important:** the app-account tree is stored in Firebase Firestore (`concrete-erb/companyTrees`), not in the website Supabase database.
+
 ## Features
 
 ### 🎯 Core Functionality

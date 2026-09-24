@@ -5,7 +5,8 @@
 
 import { Stack, Redirect, useSegments } from "expo-router";
 import { useEffect, type ReactElement } from "react";
-import { ActivityIndicator, View, Text } from "react-native";
+import { ActivityIndicator, AppState, View, Text } from "react-native";
+import * as Updates from "expo-updates";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useAuthStore, isDriver, isSalesRep, isOperationsMgr, isProductionMgr, isStationTech, isAccountant, isScheduleMgr, isLabTech, isWorkshopManager, isRepsManager, isRndManager, isHrOfficer } from "@/store/auth-store";
 import { isSubscriptionExpired } from "@/lib/tree-auth";
@@ -27,6 +28,39 @@ export default function RootLayout() {
 
   useEffect(() => {
     initialize();
+  }, []);
+
+  // OTA: check on launch and whenever the app returns to the foreground.
+  // JS/assets update in place; local storage and remote Firestore data stay intact.
+  useEffect(() => {
+    let cancelled = false;
+    let checking = false;
+
+    const checkForOtaUpdate = async () => {
+      if (checking || cancelled) return;
+      checking = true;
+      try {
+        const result = await Updates.checkForUpdateAsync();
+        if (result.isAvailable && !cancelled) {
+          await Updates.fetchUpdateAsync();
+          if (!cancelled) await Updates.reloadAsync();
+        }
+      } catch {
+        // Offline/stale update checks must never block normal app startup.
+      } finally {
+        checking = false;
+      }
+    };
+
+    const subscription = AppState.addEventListener("change", (state) => {
+      if (state === "active") void checkForOtaUpdate();
+    });
+    void checkForOtaUpdate();
+
+    return () => {
+      cancelled = true;
+      subscription.remove();
+    };
   }, []);
 
   // Online presence heartbeat — mirrors the website PresenceTracker so mobile
