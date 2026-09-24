@@ -1,5 +1,7 @@
 # 🏆 خطة التفوق العالمي — استيعاب كل خواص المنافسين
 
+> **تقرير المقارنة الحالي (24 سبتمبر 2026):** [COMPETITIVE_ANALYSIS_2026.md](COMPETITIVE_ANALYSIS_2026.md) — يقارن Fimto مع Command Alkon وSysdyne وJonel وBCMI/XBE، ويفصل بين features الموجودة في source وبين ما هو جاهز في production.
+
 > **الهدف:** أن يكون Fimto أعلى من أي منتج في العالم.
 > **المنهج:** ملاحم (Epics) مرتبة بالأثر/التكلفة — كل ملحمة تُسلَّم كاملة (باك إند + موبايل + ترجمة + migration).
 
