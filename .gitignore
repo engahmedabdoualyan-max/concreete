@@ -15,6 +15,7 @@ out/
 
 # Vite site build
 website-app/dist/
+website-app/dist-desktop/
 website-app/apps/*/dist/
 
 # Expo (mobile app lives at website-app/apps/mobile)
