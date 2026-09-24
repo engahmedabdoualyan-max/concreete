@@ -16,9 +16,23 @@ function isTauriRuntime(): boolean {
 
 function hasSavedSession(): boolean {
   try {
+    // Real ERP login — stays where it is.
     if (loadSession()) return true;
-    if (window.localStorage.getItem("currentUserSession")) return true;
-    return !!window.sessionStorage.getItem("currentUserSession");
+    // Website AuthContext sessions: a persisted GUEST session does NOT count —
+    // otherwise the desktop app would reopen in guest mode forever instead of
+    // showing the login screen (the exact bug reported from the AppImage).
+    for (const store of [window.localStorage, window.sessionStorage]) {
+      const raw = store.getItem("currentUserSession");
+      if (!raw) continue;
+      try {
+        const s = JSON.parse(raw) as { username?: string; status?: string; role?: string };
+        const tag = `${s.username ?? ""} ${s.status ?? ""} ${s.role ?? ""}`.toLowerCase();
+        if (!tag.includes("guest")) return true;
+      } catch {
+        return true; // unreadable blob — assume a real session, don't redirect
+      }
+    }
+    return false;
   } catch {
     return false;
   }
