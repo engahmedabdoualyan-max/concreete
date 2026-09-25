@@ -5,7 +5,7 @@
 
 import { Stack, Redirect, useSegments } from "expo-router";
 import { useEffect, type ReactElement } from "react";
-import { ActivityIndicator, AppState, View, Text } from "react-native";
+import { ActivityIndicator, AppState, View, Text, Platform } from "react-native";
 import * as Updates from "expo-updates";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useAuthStore, isDriver, isSalesRep, isOperationsMgr, isProductionMgr, isStationTech, isAccountant, isScheduleMgr, isLabTech, isWorkshopManager, isRepsManager, isRndManager, isHrOfficer, isBatchOperator } from "@/store/auth-store";
@@ -152,6 +152,22 @@ export default function RootLayout() {
 
   return (
     <QueryClientProvider client={queryClient}>
+      <View style={{ flex: 1, alignItems: "center", backgroundColor: "#0B111E" }}>
+      <View
+        style={
+          Platform.OS === "web"
+            ? {
+                flex: 1,
+                width: "100%",
+                maxWidth: 640,
+                backgroundColor: "#F8FAFC",
+                borderLeftWidth: 1,
+                borderRightWidth: 1,
+                borderColor: "rgba(255,255,255,0.08)",
+              }
+            : { flex: 1 }
+        }
+      >
       <Stack
         screenOptions={{
           headerShown: false,
@@ -181,6 +197,8 @@ export default function RootLayout() {
           <Text className="mt-4 text-slate-600 text-lg">جارِ التحميل...</Text>
         </View>
       )}
+      </View>
+      </View>
     </QueryClientProvider>
   );
 }
