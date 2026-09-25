@@ -43,11 +43,11 @@ const queryClient = new QueryClient({
 export default function RootLayout() {
   const { isAuthenticated, isLoading, user, initialize } = useAuthStore();
   const segments = useSegments();
-  // Desktop/web: the mobile UI always renders inside one centred phone-width
-  // column. Stretching it to fill a desktop window makes every screen look
-  // misaligned, so the window size never changes the layout — only the amount
-  // of dark gutter around the column.
-  const frameMaxWidth = 480;
+  // Desktop/web: the mobile UI always renders inside one centred tablet-width
+  // column. A phone column looked lost on a desktop screen, and stretching the
+  // UI to the full window made every card look misaligned — so the window size
+  // never changes the layout, only the gutter around the column.
+  const frameMaxWidth = 820;
 
   useEffect(() => {
     initialize();
@@ -161,7 +161,7 @@ export default function RootLayout() {
         style={{
           flex: 1,
           alignItems: "center",
-          backgroundColor: "#0B111E",
+          backgroundColor: "#E2E8F0",
         }}
       >
       <View
@@ -175,7 +175,11 @@ export default function RootLayout() {
                 backgroundColor: "#F8FAFC",
                 borderLeftWidth: 1,
                 borderRightWidth: 1,
-                borderColor: "rgba(255,255,255,0.12)",
+                borderColor: "#CBD5E1",
+                shadowColor: "#0F172A",
+                shadowOpacity: 0.1,
+                shadowRadius: 18,
+                elevation: 4,
               }
             : { flex: 1 }
         }
