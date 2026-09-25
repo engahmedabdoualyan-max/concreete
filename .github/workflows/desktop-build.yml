@@ -54,7 +54,21 @@ jobs:
           projectPath: desktop-app-exe/src-tauri
           tagName: desktop-v__VERSION__
           releaseName: "Fimto Concrete Desktop v__VERSION__"
-          releaseBody: "Windows setup.exe · Linux AppImage/deb · macOS dmg"
+          releaseBody: "ERP desktop (setup.exe · AppImage/deb · dmg) + App field flavor"
+          releaseDraft: true
+          prerelease: false
+          args: "--bundles ${{ matrix.bundles }} ${{ matrix.extra-target }}"
+
+      - name: Build app-flavor installers (Tauri, mobile UI)
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VITE_API_URL: ${{ vars.VITE_API_URL }}
+        with:
+          projectPath: desktop-app-mobile/src-tauri
+          tagName: desktop-v__VERSION__
+          releaseName: "Fimto Concrete Desktop v__VERSION__"
+          releaseBody: "ERP desktop (setup.exe · AppImage/deb · dmg) + App field flavor"
           releaseDraft: true
           prerelease: false
           args: "--bundles ${{ matrix.bundles }} ${{ matrix.extra-target }}"
