@@ -28,11 +28,17 @@ export default function FieldHome() {
 
   const name = currentUser?.fullName || currentUser?.username || "—";
   const plant = currentUser?.plantName || "";
+  const roleKey = (currentUser?.role || "").toLowerCase();
+  const isOwner = ["ptown", "sysadmin", "owner", "manager"].includes(roleKey);
+  const canRnd = isOwner || ["rndmgr", "rnd_manager", "labmgr", "lab_mgr"].includes(roleKey) ||
+    (currentUser?.mods || []).includes("rnd");
 
   const cards = [
     { to: "/field/work", icon: "📋", title: "شغلي", desc: "رحلاتي / طلباتي / عملائي حسب دوري" },
     { to: "/field/tracking", icon: "🛰️", title: "المتابعة الحية", desc: "مواقع الشاحنات والمحطة على الخريطة" },
     { to: "/field/notifications", icon: "🔔", title: "التنبيهات", desc: "كل جديد أولاً بأول", badge: unread },
+    ...(canRnd ? [{ to: "/field/rnd", icon: "🧪", title: "البحث والتطوير", desc: "مشاريع وأفكار وتدريب" }] : []),
+    ...(isOwner ? [{ to: "/field/team", icon: "👥", title: "فريقي", desc: "حسابات الشجرة وإضافة أعضاء" }] : []),
   ];
 
   return (

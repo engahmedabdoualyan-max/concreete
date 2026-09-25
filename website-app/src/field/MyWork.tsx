@@ -122,6 +122,7 @@ export default function MyWork() {
             { to: "/production", icon: "🏭", label: "الإنتاج" },
             { to: "/workshop", icon: "🔧", label: "الورشة" },
             { to: "/finance", icon: "💰", label: "المالية" },
+            { to: "/field/rnd", icon: "🧪", label: "البحث والتطوير" },
             { to: "/field/tracking", icon: "🛰️", label: "المتابعة" },
           ].map((l) => (
             <Link key={l.to} to={l.to} className="border border-white/10 bg-white/[0.03] hover:bg-white/[0.06] rounded-xl px-4 py-4 text-center">

@@ -37,6 +37,9 @@ import FieldHome from './field/FieldHome';
 import MyWork from './field/MyWork';
 import Tracking from './field/Tracking';
 import NotificationsCenter from './field/NotificationsCenter';
+import FieldRnd from './field/FieldRnd';
+import FieldTeam from './field/FieldTeam';
+import FieldBackButton from './field/FieldBackButton';
 
 export default function App() {
   return (
@@ -67,6 +70,8 @@ export default function App() {
           <Route path="/field/work" element={<MyWork />} />
           <Route path="/field/tracking" element={<Tracking />} />
           <Route path="/field/notifications" element={<NotificationsCenter />} />
+          <Route path="/field/rnd" element={<FieldRnd />} />
+          <Route path="/field/team" element={<FieldTeam />} />
           <Route path="/" element={<Dashboard />} />
           <Route path="/operation" element={<Operations />} />
           <Route path="/operations" element={<Operations />} />
@@ -84,6 +89,7 @@ export default function App() {
           <Route path="/multiplant" element={<MultiPlant />} />
         </Routes>
         <FloatingActions />
+        <FieldBackButton />
         <FimtoFooter />
       </HashRouter>
     </AdminProvider>
