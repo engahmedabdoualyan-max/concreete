@@ -5,7 +5,7 @@
 
 import { Stack, Redirect, useSegments } from "expo-router";
 import { useEffect, type ReactElement } from "react";
-import { ActivityIndicator, AppState, View, Text, Platform } from "react-native";
+import { ActivityIndicator, AppState, View, Text, Platform, useWindowDimensions } from "react-native";
 import * as Updates from "expo-updates";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useAuthStore, isDriver, isSalesRep, isOperationsMgr, isProductionMgr, isStationTech, isAccountant, isScheduleMgr, isLabTech, isWorkshopManager, isRepsManager, isRndManager, isHrOfficer, isBatchOperator } from "@/store/auth-store";
@@ -43,6 +43,13 @@ const queryClient = new QueryClient({
 export default function RootLayout() {
   const { isAuthenticated, isLoading, user, initialize } = useAuthStore();
   const segments = useSegments();
+  // Desktop/web: portrait (phone column) vs landscape (wide) mode.
+  // Landscape engages on wide landscape windows so the screen fills
+  // naturally instead of stretching the phone column.
+  const { width, height } = useWindowDimensions();
+  const isLandscapeFrame =
+    Platform.OS === "web" && width >= 1100 && width > height;
+  const frameMaxWidth = isLandscapeFrame ? 1000 : 430;
 
   useEffect(() => {
     initialize();
@@ -160,7 +167,7 @@ export default function RootLayout() {
                 flex: 1,
                 alignSelf: "center",
                 width: "100%",
-                maxWidth: 430,
+                maxWidth: frameMaxWidth,
                 backgroundColor: "#F8FAFC",
                 borderLeftWidth: 1,
                 borderRightWidth: 1,
