@@ -8,10 +8,10 @@
 
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use tauri::Manager;
+use tauri::{Manager, RunEvent};
 
 fn main() {
-    tauri::Builder::default()
+    let app = tauri::Builder::default()
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
@@ -19,6 +19,18 @@ fn main() {
                 let _ = window.set_focus();
             }
         }))
-        .run(tauri::generate_context!())
-        .expect("failed to run Fimto Concrete desktop app");
+        .build(tauri::generate_context!())
+        .expect("failed to build Fimto Concrete desktop app");
+
+    app.run(|app_handle, event| {
+        // `maximized: true` in tauri.conf.json is applied before the window is
+        // mapped, and GTK/Wayland drops geometry hints that early — so the
+        // window used to open phone-sized wherever the compositor felt like.
+        // Re-apply once the window is actually on screen.
+        if let RunEvent::Ready = event {
+            if let Some(window) = app_handle.get_webview_window("main") {
+                let _ = window.maximize();
+            }
+        }
+    });
 }

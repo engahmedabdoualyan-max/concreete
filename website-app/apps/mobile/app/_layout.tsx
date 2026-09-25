@@ -5,7 +5,7 @@
 
 import { Stack, Redirect, useSegments } from "expo-router";
 import { useEffect, type ReactElement } from "react";
-import { ActivityIndicator, AppState, View, Text, Platform, useWindowDimensions } from "react-native";
+import { ActivityIndicator, AppState, View, Text, Platform } from "react-native";
 import * as Updates from "expo-updates";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useAuthStore, isDriver, isSalesRep, isOperationsMgr, isProductionMgr, isStationTech, isAccountant, isScheduleMgr, isLabTech, isWorkshopManager, isRepsManager, isRndManager, isHrOfficer, isBatchOperator } from "@/store/auth-store";
@@ -43,13 +43,11 @@ const queryClient = new QueryClient({
 export default function RootLayout() {
   const { isAuthenticated, isLoading, user, initialize } = useAuthStore();
   const segments = useSegments();
-  // Desktop/web: portrait (phone column) vs landscape (wide) mode.
-  // Landscape engages on wide landscape windows so the screen fills
-  // naturally instead of stretching the phone column.
-  const { width, height } = useWindowDimensions();
-  const isLandscapeFrame =
-    Platform.OS === "web" && width >= 1100 && width > height;
-  const frameMaxWidth = isLandscapeFrame ? 1000 : 430;
+  // Desktop/web: the mobile UI always renders inside one centred phone-width
+  // column. Stretching it to fill a desktop window makes every screen look
+  // misaligned, so the window size never changes the layout — only the amount
+  // of dark gutter around the column.
+  const frameMaxWidth = 480;
 
   useEffect(() => {
     initialize();
@@ -163,26 +161,22 @@ export default function RootLayout() {
         style={{
           flex: 1,
           alignItems: "center",
-          // Wide/landscape windows go full-bleed (no phone frame, no dark
-          // gutters) so the desktop layout fills the window edge to edge.
-          backgroundColor: isLandscapeFrame ? "#F8FAFC" : "#0B111E",
+          backgroundColor: "#0B111E",
         }}
       >
       <View
         style={
           Platform.OS === "web"
-            ? isLandscapeFrame
-              ? { flex: 1, width: "100%", backgroundColor: "#F8FAFC" }
-              : {
-                  flex: 1,
-                  alignSelf: "center",
-                  width: "100%",
-                  maxWidth: frameMaxWidth,
-                  backgroundColor: "#F8FAFC",
-                  borderLeftWidth: 1,
-                  borderRightWidth: 1,
-                  borderColor: "rgba(255,255,255,0.12)",
-                }
+            ? {
+                flex: 1,
+                alignSelf: "center",
+                width: "100%",
+                maxWidth: frameMaxWidth,
+                backgroundColor: "#F8FAFC",
+                borderLeftWidth: 1,
+                borderRightWidth: 1,
+                borderColor: "rgba(255,255,255,0.12)",
+              }
             : { flex: 1 }
         }
       >
