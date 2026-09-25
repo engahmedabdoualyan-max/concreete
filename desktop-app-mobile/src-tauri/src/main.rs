@@ -12,15 +12,18 @@ use tauri::{Manager, RunEvent};
 
 // WebKitGTK on Wayland never resizes its surface when the compositor resizes
 // the window: the page keeps painting at the size the webview was created with,
-// so a maximised/fullscreen window shows the UI shrunk into one corner and
+// so a resized/maximised window shows the UI shrunk into one corner and
 // scrolling breaks. Running the same WebKitGTK build through XWayland resizes
-// correctly, so the desktop flavour pins the X11 backend before GTK is
-// initialised. (Android/phone builds are unaffected — native only.)
+// correctly, so the desktop flavour pins the X11 backend before GTK starts —
+// the GNOME session exports GDK_BACKEND=wayland, so it is overridden here.
+// Set FIMTO_GDK_BACKEND=wayland to opt out. (Phone builds are native only.)
 #[cfg(target_os = "linux")]
 fn pin_x11_backend() {
-    if std::env::var_os("GDK_BACKEND").is_none() {
-        std::env::set_var("GDK_BACKEND", "x11");
+    if let Ok(choice) = std::env::var("FIMTO_GDK_BACKEND") {
+        std::env::set_var("GDK_BACKEND", choice);
+        return;
     }
+    std::env::set_var("GDK_BACKEND", "x11");
 }
 
 fn main() {
