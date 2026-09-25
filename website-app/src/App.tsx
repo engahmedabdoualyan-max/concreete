@@ -40,6 +40,14 @@ import NotificationsCenter from './field/NotificationsCenter';
 import FieldRnd from './field/FieldRnd';
 import FieldTeam from './field/FieldTeam';
 import FieldBackButton from './field/FieldBackButton';
+import { useLocation } from 'react-router-dom';
+
+/** Field screens are app-like (no footer) — website pages keep theirs. */
+function ConditionalFooter() {
+  const loc = useLocation();
+  if (loc.pathname.startsWith('/field')) return null;
+  return <FimtoFooter />;
+}
 
 export default function App() {
   return (
@@ -90,7 +98,7 @@ export default function App() {
         </Routes>
         <FloatingActions />
         <FieldBackButton />
-        <FimtoFooter />
+        <ConditionalFooter />
       </HashRouter>
     </AdminProvider>
     </AuthProvider>

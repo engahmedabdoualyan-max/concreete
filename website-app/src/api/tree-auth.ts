@@ -211,7 +211,101 @@ export async function findTreeAccount(
   return null;
 }
 
-/** Convert a tree login into the website UserSession shape (raw tree role kept). */
+/** Convert our account shape to Firestore REST fields. */
+function encodeAccount(a: Record<string, unknown>): Record<string, unknown> {
+  const s = (v: unknown) => ({ stringValue: String(v ?? "") });
+  const arr = (v: unknown) => ({
+    arrayValue: { values: (Array.isArray(v) ? v : []).map((x) => s(x)) },
+  });
+  return {
+    email: s(a.email),
+    password: s(a.password),
+    passwordHash: s(a.passwordHash),
+    phone: s(a.phone),
+    role: s(a.role),
+    roleAr: s(a.roleAr),
+    permissions: arr(a.permissions),
+    mods: arr(a.mods),
+    truck: s(a.truck),
+    gps: s(a.gps),
+  };
+}
+
+export interface CompanyTreeDoc {
+  companyUsername: string;
+  accounts: Record<string, unknown>[];
+  subscriptionStart?: string;
+  subscriptionEnd?: string;
+  subscriptionStatus?: string;
+}
+
+/** Read a company tree doc (same store the Android app + Console use). */
+export async function loadCompanyTreeDoc(company: string): Promise<CompanyTreeDoc | null> {
+  const token = await firebaseToken();
+  const url =
+    `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT}` +
+    `/databases/%28default%29/documents/companyTrees/${encodeURIComponent(company.toLowerCase())}?key=${FIREBASE_API_KEY}`;
+  const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+  if (!res.ok) return null;
+  const json = (await res.json().catch(() => null)) as {
+    fields?: Record<string, unknown>;
+  } | null;
+  const fields = json?.fields ?? {};
+  const rawAccounts = (
+    fields.accounts as { arrayValue?: { values?: Array<{ mapValue?: { fields?: Record<string, unknown> } }> } }
+  )?.arrayValue?.values ?? [];
+  const str = (v: unknown): string => {
+    if (v && typeof v === "object" && "stringValue" in v) {
+      const s = (v as { stringValue: unknown }).stringValue;
+      return typeof s === "string" ? s : "";
+    }
+    return "";
+  };
+  return {
+    companyUsername: str(fields.companyUsername) || company.toLowerCase(),
+    accounts: rawAccounts.map((e) => {
+      const f = e?.mapValue?.fields ?? {};
+      const out: Record<string, unknown> = {};
+      for (const k of ["email", "password", "passwordHash", "phone", "role", "roleAr", "truck", "gps"]) {
+        out[k] = str(f[k]);
+      }
+      for (const k of ["permissions", "mods"]) {
+        const vals = (f[k] as { arrayValue?: { values?: unknown[] } })?.arrayValue?.values ?? [];
+        out[k] = vals.map(str);
+      }
+      return out;
+    }),
+    subscriptionStart: str(fields.subscriptionStart) || undefined,
+    subscriptionEnd: str(fields.subscriptionEnd) || undefined,
+    subscriptionStatus: str(fields.subscriptionStatus) || undefined,
+  };
+}
+
+/** Overwrite a company tree doc's accounts (owner operation). */
+export async function saveCompanyTreeDoc(company: string, accounts: Record<string, unknown>[]): Promise<void> {
+  const token = await firebaseToken();
+  const url =
+    `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT}` +
+    `/databases/%28default%29/documents/companyTrees/${encodeURIComponent(company.toLowerCase())}` +
+    `?key=${FIREBASE_API_KEY}&updateMask.fieldPaths=accounts&updateMask.fieldPaths=companyUsername&updateMask.fieldPaths=updatedAt`;
+  const now = new Date().toISOString();
+  const res = await fetch(url, {
+    method: "PATCH",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      fields: {
+        companyUsername: { stringValue: company.toLowerCase() },
+        accounts: {
+          arrayValue: {
+            values: accounts.map((a) => ({ mapValue: { fields: encodeAccount(a) } })),
+          },
+        },
+        updatedAt: { timestampValue: now },
+      },
+    }),
+  });
+  if (!res.ok) throw new Error(`SAVE_FAILED:${res.status}`);
+}
 export function treeResultToSession(result: TreeLoginResult): UserSession {
   const { companyUsername, account } = result;
   return {

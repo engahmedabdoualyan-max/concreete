@@ -1,0 +1,46 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Fimto Concrete App",
+  "version": "1.0.0",
+  "identifier": "com.fimtosoft.concrete-app",
+  "build": {
+    "devUrl": "http://localhost:8081",
+    "beforeDevCommand": "npm --prefix ../website-app/apps/mobile run start -- --port 8081",
+    "frontendDist": "../../website-app/apps/mobile/dist",
+    "beforeBuildCommand": "npm --prefix ../website-app/apps/mobile run export:web"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Fimto Concrete App",
+        "width": 1440,
+        "height": 900,
+        "minWidth": 1024,
+        "minHeight": 640,
+        "resizable": true,
+        "fullscreen": false
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self' https://concrete.fimtosoft.com http://127.0.0.1:3000; img-src 'self' data: blob: https:; style-src 'self' 'unsafe-inline' https:; script-src 'self' blob:; connect-src 'self' https://concrete.fimtosoft.com http://127.0.0.1:3000 https: http:; font-src 'self' data: https:"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": [
+      "nsis"
+    ],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "windows": {
+      "nsis": {
+        "displayLanguageSelector": false
+      }
+    }
+  }
+}

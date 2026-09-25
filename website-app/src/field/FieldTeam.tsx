@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import { loadCompanyTree, saveCompanyTree } from "../firebase/firestore";
+import { loadCompanyTreeDoc, saveCompanyTreeDoc } from "../api/tree-auth";
 import { TREE_ROLES, treeModsForRole } from "../lib/treeRoles";
 
 /**
@@ -39,26 +39,29 @@ export default function FieldTeam() {
   const reload = async () => {
     if (!myCompany) return;
     setBusy(true);
+    setMsg("");
     try {
-      const tree = await loadCompanyTree(myCompany);
-      setCompany(tree?.companyUsername || myCompany);
-      const list: Record<string, unknown>[] = Array.isArray(tree?.accounts)
-        ? (tree.accounts as unknown as Record<string, unknown>[])
-        : [];
-      setAccounts(
-        list.map((a) => ({
-          email: String(a.email || ""),
-          password: String(a.password || ""),
-          passwordHash: String(a.passwordHash || ""),
-          phone: String(a.phone || ""),
-          role: String(a.role || ""),
-          roleAr: String(a.roleAr || a.role || ""),
-          permissions: Array.isArray(a.permissions) ? (a.permissions as string[]) : [],
-          mods: Array.isArray(a.mods) ? (a.mods as string[]) : treeModsForRole(String(a.role || "")),
-          truck: String(a.truck || ""),
-          gps: String(a.gps || ""),
-        }))
-      );
+      // REST read (same store the Android app + Console use) — the Firebase
+      // SDK path fails inside the desktop WebView, so the tree API is used.
+      const tree = await loadCompanyTreeDoc(myCompany);
+      if (!tree) {
+        setMsg("تعذر تحميل الشجرة — تحقق من الاتصال");
+        return;
+      }
+      setCompany(tree.companyUsername);
+      const list = tree.accounts.map((a) => ({
+        email: String(a.email || ""),
+        password: String(a.password || ""),
+        passwordHash: String(a.passwordHash || ""),
+        phone: String(a.phone || ""),
+        role: String(a.role || ""),
+        roleAr: String(a.roleAr || a.role || ""),
+        permissions: Array.isArray(a.permissions) ? (a.permissions as string[]) : [],
+        mods: Array.isArray(a.mods) ? (a.mods as string[]) : treeModsForRole(String(a.role || "")),
+        truck: String(a.truck || ""),
+        gps: String(a.gps || ""),
+      }));
+      setAccounts(list);
     } catch {
       setMsg("تعذر تحميل الشجرة — تحقق من الاتصال");
     } finally {
@@ -92,7 +95,7 @@ export default function FieldTeam() {
         gps: "",
       };
       const next = [...accounts, entry];
-      await saveCompanyTree({ companyUsername: company || myCompany, accounts: next } as never);
+      await saveCompanyTreeDoc(company || myCompany, next as unknown as Record<string, unknown>[]);
       setAccounts(next);
       setForm({ email: "", password: "", phone: "", role: "driver" });
       setMsg("✅ تمت إضافة الحساب للشجرة");
