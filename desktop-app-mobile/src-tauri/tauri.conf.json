@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Fimto Concrete App",
-  "version": "1.6.0",
+  "version": "1.7.0",
   "identifier": "com.fimtosoft.concrete-app",
   "build": {
     "devUrl": "http://localhost:8081",
@@ -13,14 +13,14 @@
     "windows": [
       {
         "title": "Fimto Concrete App",
-        "width": 460,
-        "height": 900,
-        "minWidth": 360,
-        "minHeight": 640,
+        "width": 1100,
+        "height": 820,
+        "minWidth": 640,
+        "minHeight": 560,
         "resizable": true,
-        "fullscreen": true,
-        "center": true,
-        "visible": false
+        "fullscreen": false,
+        "maximized": false,
+        "center": true
       }
     ],
     "security": {

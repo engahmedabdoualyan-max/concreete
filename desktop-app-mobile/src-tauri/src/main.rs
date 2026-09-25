@@ -10,7 +10,23 @@
 
 use tauri::{Manager, RunEvent};
 
+// WebKitGTK on Wayland never resizes its surface when the compositor resizes
+// the window: the page keeps painting at the size the webview was created with,
+// so a maximised/fullscreen window shows the UI shrunk into one corner and
+// scrolling breaks. Running the same WebKitGTK build through XWayland resizes
+// correctly, so the desktop flavour pins the X11 backend before GTK is
+// initialised. (Android/phone builds are unaffected — native only.)
+#[cfg(target_os = "linux")]
+fn pin_x11_backend() {
+    if std::env::var_os("GDK_BACKEND").is_none() {
+        std::env::set_var("GDK_BACKEND", "x11");
+    }
+}
+
 fn main() {
+    #[cfg(target_os = "linux")]
+    pin_x11_backend();
+
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_opener::init())
@@ -23,17 +39,12 @@ fn main() {
         .expect("failed to build Fimto Concrete desktop app");
 
     app.run(|app_handle, event| {
-        // The window is created hidden (see `visible: false` in tauri.conf.json).
-        // GTK/Wayland ignores a maximize request made before the window is
-        // mapped, and maximizing *after* the page has painted leaves the
-        // webview surface at its old phone size — the UI then renders in a
-        // corner of a full-screen window and scrolling breaks. So: maximize
-        // first, show the window afterwards, and the very first paint already
-        // happens at the final size.
+        // No geometry changes here on purpose: any maximize/fullscreen applied
+        // after the window is mapped re-triggers the WebKit surface bug. The
+        // window opens at its normal desktop size, centred, and the user is
+        // free to resize, maximize or restore it.
         if let RunEvent::Ready = event {
             if let Some(window) = app_handle.get_webview_window("main") {
-                let _ = window.maximize();
-                let _ = window.show();
                 let _ = window.set_focus();
             }
         }
