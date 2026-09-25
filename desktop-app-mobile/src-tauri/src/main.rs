@@ -23,13 +23,18 @@ fn main() {
         .expect("failed to build Fimto Concrete desktop app");
 
     app.run(|app_handle, event| {
-        // `maximized: true` in tauri.conf.json is applied before the window is
-        // mapped, and GTK/Wayland drops geometry hints that early — so the
-        // window used to open phone-sized wherever the compositor felt like.
-        // Re-apply once the window is actually on screen.
+        // The window is created hidden (see `visible: false` in tauri.conf.json).
+        // GTK/Wayland ignores a maximize request made before the window is
+        // mapped, and maximizing *after* the page has painted leaves the
+        // webview surface at its old phone size — the UI then renders in a
+        // corner of a full-screen window and scrolling breaks. So: maximize
+        // first, show the window afterwards, and the very first paint already
+        // happens at the final size.
         if let RunEvent::Ready = event {
             if let Some(window) = app_handle.get_webview_window("main") {
                 let _ = window.maximize();
+                let _ = window.show();
+                let _ = window.set_focus();
             }
         }
     });
