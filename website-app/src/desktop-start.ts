@@ -37,9 +37,14 @@ function hasSavedSession(): boolean {
 
 export function redirectDesktopToLogin(): void {
   try {
-    if (!isTauriRuntime() || hasSavedSession()) return;
+    if (!isTauriRuntime()) return;
     const h = window.location.hash || "#/";
-    if (h === "#/" || h === "#" || h === "") window.location.hash = "#/login";
+    if (h === "#/" || h === "#" || h === "") {
+      // Desktop landing: logged-in users open the field hub, everyone else
+      // opens the login screen. (Returning users skip login entirely, so the
+      // post-login navigate() in LoginRegister never fires for them.)
+      window.location.hash = hasSavedSession() ? "#/field" : "#/login";
+    }
   } catch {
     /* never block startup */
   }
