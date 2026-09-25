@@ -1,29 +1,23 @@
+import { isTauriRuntime } from "./field/tauri";
 import { loadSession } from "./api/client";
 
 /**
  * Desktop-only startup behaviour (Tauri builds).
  * The website intentionally opens in guest mode, but the desktop app is a
  * plant workstation: it must open on the login screen (which also hosts
- * 🖥️ server settings) when no session exists. Web browsers are untouched.
+ * server settings) when no session exists. Web browsers are untouched.
  */
-function isTauriRuntime(): boolean {
-  try {
-    if (typeof window === "undefined") return false;
-    // Tauri v2 does not guarantee window.__TAURI__ (withGlobalTauri defaults
-    // to false); __TAURI_INTERNALS__ is always injected by the WebView bridge.
-    return "__TAURI__" in window || "__TAURI_INTERNALS__" in window;
-  } catch {
-    return false;
-  }
-}
-
 function hasSavedSession(): boolean {
   try {
     // Real ERP login — stays where it is.
     if (loadSession()) return true;
+  } catch {
+    /* fall through to website sessions */
+  }
+  try {
     // Website AuthContext sessions: a persisted GUEST session does NOT count —
     // otherwise the desktop app would reopen in guest mode forever instead of
-    // showing the login screen (the exact bug reported from the AppImage).
+    // showing the login screen.
     for (const store of [window.localStorage, window.sessionStorage]) {
       const raw = store.getItem("currentUserSession");
       if (!raw) continue;

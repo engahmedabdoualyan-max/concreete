@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { useLoginRegisterDict } from '../i18n/loginRegisterDict';
 import BrandLogo from './BrandLogo';
 import ServerSettings from './ServerSettings';
+import { isTauriRuntime } from '../field/tauri';
 
 export default function LoginRegister() {
   const t = useLoginRegisterDict();
@@ -23,7 +24,9 @@ export default function LoginRegister() {
     try {
       const success = await login(identifier, password);
       if (success) {
-        navigate('/');
+        // Desktop workstations land on the app-like field hub; browsers keep
+        // the classic dashboard landing.
+        navigate(isTauriRuntime() ? '/field' : '/');
       } else {
         setError(t('errBadCredentials'));
       }

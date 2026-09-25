@@ -33,6 +33,10 @@ import Payroll from './pages/Payroll';
 import BatchControl from './pages/BatchControl';
 import Sustainability from './pages/Sustainability';
 import SsoProviders from './pages/SsoProviders';
+import FieldHome from './field/FieldHome';
+import MyWork from './field/MyWork';
+import Tracking from './field/Tracking';
+import NotificationsCenter from './field/NotificationsCenter';
 
 export default function App() {
   return (
@@ -59,6 +63,10 @@ export default function App() {
           <Route path="/portal" element={<CustomerPortal />} />
           <Route path="/customer" element={<CustomerPortal />} />
           <Route path="/s/:id" element={<CustomSection />} />
+          <Route path="/field" element={<FieldHome />} />
+          <Route path="/field/work" element={<MyWork />} />
+          <Route path="/field/tracking" element={<Tracking />} />
+          <Route path="/field/notifications" element={<NotificationsCenter />} />
           <Route path="/" element={<Dashboard />} />
           <Route path="/operation" element={<Operations />} />
           <Route path="/operations" element={<Operations />} />
