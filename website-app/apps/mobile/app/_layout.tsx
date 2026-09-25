@@ -158,12 +158,13 @@ export default function RootLayout() {
           Platform.OS === "web"
             ? {
                 flex: 1,
+                alignSelf: "center",
                 width: "100%",
-                maxWidth: 640,
+                maxWidth: 430,
                 backgroundColor: "#F8FAFC",
                 borderLeftWidth: 1,
                 borderRightWidth: 1,
-                borderColor: "rgba(255,255,255,0.08)",
+                borderColor: "rgba(255,255,255,0.12)",
               }
             : { flex: 1 }
         }
