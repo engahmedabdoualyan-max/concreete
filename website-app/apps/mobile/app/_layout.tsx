@@ -159,20 +159,30 @@ export default function RootLayout() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <View style={{ flex: 1, alignItems: "center", backgroundColor: "#0B111E" }}>
+      <View
+        style={{
+          flex: 1,
+          alignItems: "center",
+          // Wide/landscape windows go full-bleed (no phone frame, no dark
+          // gutters) so the desktop layout fills the window edge to edge.
+          backgroundColor: isLandscapeFrame ? "#F8FAFC" : "#0B111E",
+        }}
+      >
       <View
         style={
           Platform.OS === "web"
-            ? {
-                flex: 1,
-                alignSelf: "center",
-                width: "100%",
-                maxWidth: frameMaxWidth,
-                backgroundColor: "#F8FAFC",
-                borderLeftWidth: 1,
-                borderRightWidth: 1,
-                borderColor: "rgba(255,255,255,0.12)",
-              }
+            ? isLandscapeFrame
+              ? { flex: 1, width: "100%", backgroundColor: "#F8FAFC" }
+              : {
+                  flex: 1,
+                  alignSelf: "center",
+                  width: "100%",
+                  maxWidth: frameMaxWidth,
+                  backgroundColor: "#F8FAFC",
+                  borderLeftWidth: 1,
+                  borderRightWidth: 1,
+                  borderColor: "rgba(255,255,255,0.12)",
+                }
             : { flex: 1 }
         }
       >
