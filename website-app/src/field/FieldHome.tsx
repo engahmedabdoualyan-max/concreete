@@ -33,7 +33,6 @@ export default function FieldHome() {
     { to: "/field/work", icon: "📋", title: "شغلي", desc: "رحلاتي / طلباتي / عملائي حسب دوري" },
     { to: "/field/tracking", icon: "🛰️", title: "المتابعة الحية", desc: "مواقع الشاحنات والمحطة على الخريطة" },
     { to: "/field/notifications", icon: "🔔", title: "التنبيهات", desc: "كل جديد أولاً بأول", badge: unread },
-    { to: "/", icon: "🏠", title: "الداشبورد الكاملة", desc: "كل أقسام المحطة" },
   ];
 
   return (
