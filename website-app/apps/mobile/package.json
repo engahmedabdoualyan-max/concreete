@@ -35,7 +35,7 @@
     "expo-notifications": "^0.28.19",
     "expo-router": "~3.5.0",
     "expo-secure-store": "~13.0.0",
-    "expo-status-bar": "~1.12.1",
+    "expo-status-bar": "~57.0.1",
     "expo-task-manager": "~11.8.2",
     "expo-updates": "~0.25.7",
     "js-sha256": "^1.0.0",
