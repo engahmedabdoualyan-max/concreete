@@ -42,6 +42,9 @@ class ApiClient {
 
     // Request interceptor - attach token
     this.client.interceptors.request.use(async (config) => {
+      // Re-resolve on every request so a server-URL change (set on the login
+      // screen, or auto-discovered at start) applies without a restart.
+      config.baseURL = resolveApiBase(API_BASE_URL);
       const token = await getItem(STORAGE_KEYS.ACCESS_TOKEN);
       if (token) {
         config.headers.Authorization = `Bearer ${token}`;

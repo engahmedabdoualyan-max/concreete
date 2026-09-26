@@ -12,6 +12,7 @@ import { useAuthStore, isDriver, isSalesRep, isOperationsMgr, isProductionMgr, i
 import { isSubscriptionExpired } from "@/lib/tree-auth";
 import { isRtl, SUPPORTED_LOCALES, type Locale } from "@/lib/i18n";
 import { getItem } from "@/lib/storage";
+import { discoverApiServer } from "@/lib/server-discovery";
 import { reportPresence } from "@/lib/firestore";
 import "@/lib/nativewind-interop";
 import "../global.css";
@@ -53,6 +54,11 @@ export default function RootLayout() {
 
   useEffect(() => {
     initialize();
+    // Web/desktop only: find the current API server (a Render free service or a
+    // tunnel can move) unless the user pinned one on the login screen.
+    if (Platform.OS === "web") {
+      void discoverApiServer();
+    }
   }, []);
 
   // Text direction follows the selected language: Arabic mirrors the whole UI
