@@ -10,6 +10,8 @@ import * as Updates from "expo-updates";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useAuthStore, isDriver, isSalesRep, isOperationsMgr, isProductionMgr, isStationTech, isAccountant, isScheduleMgr, isLabTech, isWorkshopManager, isRepsManager, isRndManager, isHrOfficer, isBatchOperator } from "@/store/auth-store";
 import { isSubscriptionExpired } from "@/lib/tree-auth";
+import { isRtl, SUPPORTED_LOCALES, type Locale } from "@/lib/i18n";
+import { getItem } from "@/lib/storage";
 import { reportPresence } from "@/lib/firestore";
 import "@/lib/nativewind-interop";
 import "../global.css";
@@ -51,6 +53,34 @@ export default function RootLayout() {
 
   useEffect(() => {
     initialize();
+  }, []);
+
+  // Text direction follows the selected language: Arabic mirrors the whole UI
+  // to the right, English/others lay out from the left. The document direction
+  // is what makes react-native-web flip every `flex-direction: row`, so it is
+  // set once here and re-applied whenever a screen switches language.
+  useEffect(() => {
+    if (Platform.OS !== "web" || typeof document === "undefined") return;
+    const apply = (locale: string) => {
+      const dir = isRtl(locale as Locale) ? "rtl" : "ltr";
+      document.documentElement.setAttribute("dir", dir);
+      document.documentElement.setAttribute("lang", locale);
+      document.getElementById("root")?.setAttribute("dir", dir);
+    };
+    // The app's own copy is Arabic, so Arabic is the fallback until a language
+    // has actually been chosen.
+    void getItem("fimto_locale").then((stored) => {
+      apply(
+        stored && (SUPPORTED_LOCALES as readonly string[]).includes(stored)
+          ? stored
+          : "ar",
+      );
+    });
+    const onLocale = (event: Event) => {
+      apply((event as CustomEvent<string>).detail);
+    };
+    window.addEventListener("fimto:locale", onLocale);
+    return () => window.removeEventListener("fimto:locale", onLocale);
   }, []);
 
   // OTA: check on launch and whenever the app returns to the foreground.

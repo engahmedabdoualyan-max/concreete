@@ -26,6 +26,7 @@
  */
 
 import { useState, useCallback, useEffect } from "react";
+import { Platform } from "react-native";
 import { getItem, setItem } from "./storage";
 
 // ─── Supported Locales ────────────────────────────────────────────────────────
@@ -1909,6 +1910,13 @@ export async function saveLocale(locale: Locale): Promise<void> {
     await setItem(LOCALE_STORAGE_KEY, locale);
   } catch {
     // Ignore storage errors — locale just won't persist
+  }
+  // Web/desktop builds mirror the whole UI (Arabic right-to-left, English
+  // left-to-right) from the document direction, so the root layout has to hear
+  // about the change immediately. Native screens read the locale themselves and
+  // keep their own layout, so nothing is emitted there.
+  if (Platform.OS === "web" && typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent("fimto:locale", { detail: locale }));
   }
 }
 
