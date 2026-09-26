@@ -44,11 +44,10 @@ const queryClient = new QueryClient({
 export default function RootLayout() {
   const { isAuthenticated, isLoading, user, initialize } = useAuthStore();
   const segments = useSegments();
-  // Desktop/web: the mobile UI always renders inside one centred tablet-width
-  // column. A phone column looked lost on a desktop screen, and stretching the
-  // UI to the full window made every card look misaligned — so the window size
-  // never changes the layout, only the gutter around the column.
-  const frameMaxWidth = 820;
+  // Desktop/web: the mobile UI fills the whole window like a tablet in
+  // landscape. No side gutters, no capped column — the screens are flex
+  // layouts, so they use the extra width instead of stretching.
+  const frameMaxWidth = "100%";
 
   useEffect(() => {
     initialize();
@@ -172,6 +171,7 @@ export default function RootLayout() {
         }}
       >
       <View
+        className={Platform.OS === "web" ? "fimto-frame" : undefined}
         style={
           Platform.OS === "web"
             ? {

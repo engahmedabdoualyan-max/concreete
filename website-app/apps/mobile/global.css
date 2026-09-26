@@ -51,9 +51,9 @@
 }
 
 /* react-native-screens renders the navigation header *after* the scene in the
-   web build, so the header ended up below the scrollable content. The header
-   is the level that owns the screen title, so pull that one back on top and
-   keep it at its natural height. */
+   web build, so the header ended up below the screen content. The scene is
+   taken out of flow by `contentStyle` (absolute fill), so the box owning the
+   title acts as the header band: pull it on top and give it the amber colour. */
 .fimto-content > *:has(h1),
 .fimto-content > * > *:has(h1),
 .fimto-content > * > * > *:has(h1),
@@ -71,6 +71,33 @@
   max-width: 100% !important;
   background-color: #f59e0b !important;
   overflow: visible !important;
+}
+
+/* Scrolling: nested react-native-web scroll boxes never got a definite height
+   in this export, so tall screens were clipped with no way to reach the bottom.
+   Let everything stay unclipped and make the app frame the single scroll
+   container — one visible scrollbar for the whole window. */
+:where(#root) :where(div) {
+  overflow: visible !important;
+}
+
+.fimto-frame {
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  overscroll-behavior: contain;
+}
+
+/* Mouse cursor: without an explicit cursor every react-native-web box inherits
+   the text I-beam, so buttons looked like text fields. */
+:where(#root) :where(div) {
+  cursor: default;
+}
+
+:where(#root) :where([role="button"]),
+:where(#root) :where(button),
+:where(#root) :where(a),
+:where(#root) :where([tabindex]:not([tabindex="-1"])) {
+  cursor: pointer;
 }
 
 /* Visible scrollbars on desktop/web builds (Ubuntu hides overlay bars,
