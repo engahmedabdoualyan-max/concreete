@@ -231,19 +231,12 @@ export default function RootLayout() {
       <Stack
         screenOptions={{
           headerShown: false,
-          // The screen content box is pinned to the frame instead of being
-          // sized by the navigator: on the web build the screen's own
-          // `flex-1` className never reaches the DOM, so the navigator
-          // shrink-wrapped every screen to its content width (~300px) inside
-          // the tablet column. Absolute fill keeps every screen full width.
-          contentStyle: {
-            backgroundColor: "#F8FAFC",
-            position: "absolute",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-          },
+          // No absolute positioning here: taking the scene out of flow made it
+          // overlap the header band and start the page halfway down. The
+          // navigator's own containers are forced to fill the frame by
+          // `.fimto-content` in global.css, so normal flow lays the header out
+          // first and the screen underneath it.
+          contentStyle: { backgroundColor: "#F8FAFC" },
         }}
       >
         <Stack.Screen name="(auth)/login" />

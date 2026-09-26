@@ -66,8 +66,7 @@
   order: -1 !important;
   flex: 0 0 auto !important;
   height: auto !important;
-  min-height: 120px !important;
-  justify-content: center !important;
+  min-height: 96px !important;
   width: 100% !important;
   max-width: 100% !important;
   background-color: #f59e0b !important;
