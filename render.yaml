@@ -1,0 +1,46 @@
+# Fimto Concrete ERP — free backend deployment (Render blueprint)
+#
+# Why Render and not Vercel Hobby: the API is one Next.js app with 151 routes.
+# Vercel counts each route as a serverless function and Hobby allows 12, so the
+# build is rejected. Render runs it as a single always-on process, so the free
+# tier is enough (it sleeps after inactivity and wakes on the first request).
+#
+# Steps (no card needed on the free plan):
+#   1. New → Blueprint → pick this repo → apply. Render reads this file.
+#   2. Render creates a secret DATABASE_URL for you; paste the Supabase
+#      *pooler* URL (port 6543, IPv4) and the three secrets below.
+#   3. Add a custom domain or use the generated https://fimto-api.onrender.com
+#
+# Afterwards: put the URL in the app (login → 🌐 السيرفر) and in the website
+# build (VITE_API_URL), no rebuild of the desktop app needed.
+
+services:
+  - type: web
+    name: fimto-api
+    runtime: node
+    plan: free
+    region: singapore
+    branch: main
+    rootDir: .
+    buildCommand: npm ci --no-audit --no-fund && npm run build
+    startCommand: npx next start -p $PORT
+    healthCheckPath: /api/health
+    autoDeploy: false
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: NODE_ENV
+        value: production
+      # Fill these in the Render dashboard (marked secret):
+      #   DATABASE_URL        postgresql://USER:PASSWORD@aws-0-ap-southeast-2.pooler.supabase.com:6543/postgres
+      #   JWT_SECRET          openssl rand -hex 32
+      #   JWT_REFRESH_SECRET  openssl rand -hex 32
+      #   QR_SECRET           openssl rand -hex 32
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_REFRESH_SECRET
+        generateValue: true
+      - key: QR_SECRET
+        generateValue: true
