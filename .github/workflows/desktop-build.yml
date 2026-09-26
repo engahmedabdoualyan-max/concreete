@@ -43,7 +43,12 @@ jobs:
           targets: ${{ startsWith(matrix.os, 'macos') && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
 
       - name: Install frontend deps
-        run: npm install --ignore-scripts
+        # `npm ci` on purpose: the root postinstall applies the mobile
+        # patch-package patches and links Tailwind v3 into NativeWind. Skipping
+        # install scripts (`--ignore-scripts`) left the mobile app unpatched and
+        # the `expo export --platform web` step of the App flavour failed on
+        # every runner.
+        run: npm ci --no-audit --no-fund
 
       - name: Build installers (Tauri)
         uses: tauri-apps/tauri-action@v0
