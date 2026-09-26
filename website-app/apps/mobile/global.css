@@ -66,8 +66,25 @@
   order: -1 !important;
   flex: 0 0 auto !important;
   height: auto !important;
+  min-height: 64px !important;
   width: 100% !important;
   max-width: 100% !important;
+  background-color: #f59e0b !important;
+  overflow: visible !important;
+}
+
+/* The header slots (back/home · title · actions) must sit in one row. */
+.fimto-content > *:has(h1) > div,
+.fimto-content > * > *:has(h1) > div,
+.fimto-content > * > * > *:has(h1) > div,
+.fimto-content > * > * > * > *:has(h1) > div,
+.fimto-content > * > * > * > * > *:has(h1) > div,
+.fimto-content > * > * > * > * > * > *:has(h1) > div,
+.fimto-content > * > * > * > * > * > * > *:has(h1) > div,
+.fimto-content > * > * > * > * > * > * > * > *:has(h1) > div,
+.fimto-content > * > * > * > * > * > * > * > * > *:has(h1) > div {
+  flex-direction: row !important;
+  align-items: center !important;
 }
 
 /* Visible scrollbars on desktop/web builds (Ubuntu hides overlay bars,
