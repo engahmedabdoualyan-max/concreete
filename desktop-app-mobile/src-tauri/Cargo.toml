@@ -1,6 +1,6 @@
 [package]
 name = "fimto-concrete-app"
-version = "1.8.0"
+version = "1.9.0"
 description = "Fimto Concrete ERP — Windows desktop wrapper (Tauri) around website-app"
 authors = ["FIMTO Software"]
 license = "MIT"

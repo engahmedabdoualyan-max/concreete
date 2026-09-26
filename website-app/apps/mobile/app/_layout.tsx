@@ -11,6 +11,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useAuthStore, isDriver, isSalesRep, isOperationsMgr, isProductionMgr, isStationTech, isAccountant, isScheduleMgr, isLabTech, isWorkshopManager, isRepsManager, isRndManager, isHrOfficer, isBatchOperator } from "@/store/auth-store";
 import { isSubscriptionExpired } from "@/lib/tree-auth";
 import { reportPresence } from "@/lib/firestore";
+import "@/lib/nativewind-interop";
 import "../global.css";
 
 /** Route groups that belong to a specific role (used by the cross-group guard). */
@@ -157,9 +158,15 @@ export default function RootLayout() {
 
   return (
     <QueryClientProvider client={queryClient}>
+      {/* `display: flex` is set explicitly on purpose: react-native-web does not
+          always emit the flex display for these wrappers, and WebKit then lays
+          them out as blocks — which silently killed `alignItems: "center"` and
+          dropped the tablet column into the top-left corner. */}
       <View
         style={{
           flex: 1,
+          display: "flex",
+          flexDirection: "column",
           alignItems: "center",
           backgroundColor: "#E2E8F0",
         }}
@@ -169,9 +176,12 @@ export default function RootLayout() {
           Platform.OS === "web"
             ? {
                 flex: 1,
+                display: "flex",
+                flexDirection: "column",
                 alignSelf: "center",
                 width: "100%",
                 maxWidth: frameMaxWidth,
+                position: "relative",
                 backgroundColor: "#F8FAFC",
                 borderLeftWidth: 1,
                 borderRightWidth: 1,
@@ -184,10 +194,26 @@ export default function RootLayout() {
             : { flex: 1 }
         }
       >
+      <View
+        className={Platform.OS === "web" ? "fimto-content" : undefined}
+        style={{ flex: 1, display: "flex", flexDirection: "column" }}
+      >
       <Stack
         screenOptions={{
           headerShown: false,
-          contentStyle: { backgroundColor: "#F8FAFC" },
+          // The screen content box is pinned to the frame instead of being
+          // sized by the navigator: on the web build the screen's own
+          // `flex-1` className never reaches the DOM, so the navigator
+          // shrink-wrapped every screen to its content width (~300px) inside
+          // the tablet column. Absolute fill keeps every screen full width.
+          contentStyle: {
+            backgroundColor: "#F8FAFC",
+            position: "absolute",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+          },
         }}
       >
         <Stack.Screen name="(auth)/login" />
@@ -213,6 +239,7 @@ export default function RootLayout() {
           <Text className="mt-4 text-slate-600 text-lg">جارِ التحميل...</Text>
         </View>
       )}
+      </View>
       </View>
       </View>
     </QueryClientProvider>

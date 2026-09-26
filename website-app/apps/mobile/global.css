@@ -16,6 +16,60 @@
   min-height: 0;
 }
 
+/* The screen navigator's own containers shrink-wrap on the web build: the
+   per-screen `flex-1` classNames never reach the DOM, so every screen ended up
+   sized to its content (~300px) inside the tablet column. Force the first
+   levels of the navigator subtree to fill the frame instead. */
+/* react-native-web never receives its base View styles in this export, so every
+   `<View>` lands on the page as a plain block box. On the phone React Native
+   makes each View a flex column, and utility classes such as `flex-row` assume
+   that (they only set `flex-direction`). Without this rule every screen stacks
+   vertically instead of laying out. `:where()` keeps the specificity at zero so
+   Tailwind utilities always win. */
+:where(#root) :where(div) {
+  display: flex;
+  flex-direction: column;
+}
+
+/* The navigator's internal containers additionally need to fill the frame —
+   they carry `flex: 0 1 auto` and would otherwise shrink-wrap the screen. */
+.fimto-content,
+.fimto-content > *:not(:has(h1)),
+.fimto-content > * > *:not(:has(h1)),
+.fimto-content > * > * > *:not(:has(h1)),
+.fimto-content > * > * > * > *:not(:has(h1)),
+.fimto-content > * > * > * > * > *:not(:has(h1)),
+.fimto-content > * > * > * > * > * > *:not(:has(h1)),
+.fimto-content > * > * > * > * > * > * > *:not(:has(h1)),
+.fimto-content > * > * > * > * > * > * > * > *:not(:has(h1)),
+.fimto-content > * > * > * > * > * > * > * > * > *:not(:has(h1)),
+.fimto-content > * > * > * > * > * > * > * > * > * > *:not(:has(h1)) {
+  flex: 1 1 0% !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-height: 0;
+}
+
+/* react-native-screens renders the navigation header *after* the scene in the
+   web build, so the header ended up below the scrollable content. The header
+   is the level that owns the screen title, so pull that one back on top and
+   keep it at its natural height. */
+.fimto-content > *:has(h1),
+.fimto-content > * > *:has(h1),
+.fimto-content > * > * > *:has(h1),
+.fimto-content > * > * > * > *:has(h1),
+.fimto-content > * > * > * > * > *:has(h1),
+.fimto-content > * > * > * > * > * > *:has(h1),
+.fimto-content > * > * > * > * > * > * > *:has(h1),
+.fimto-content > * > * > * > * > * > * > * > *:has(h1),
+.fimto-content > * > * > * > * > * > * > * > * > *:has(h1) {
+  order: -1 !important;
+  flex: 0 0 auto !important;
+  height: auto !important;
+  width: 100% !important;
+  max-width: 100% !important;
+}
+
 /* Visible scrollbars on desktop/web builds (Ubuntu hides overlay bars,
    leaving users stuck above the fold with no way down). */
 ::-webkit-scrollbar {
