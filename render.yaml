@@ -29,10 +29,11 @@ services:
     region: singapore
     branch: main
     rootDir: .
-    # `--include=dev` is required: next and patch-package are devDependencies.
-    # Without it npm omits them (and the postinstall patch step throws
-    # MODULE_NOT_FOUND), so the build dies with "next: not found".
-    buildCommand: npm ci --include=dev --no-audit --no-fund && npm run build
+    # `--workspaces=false` installs only the API's own dependencies. The
+    # monorepo also contains the Expo/website app (~2 GB of packages), which the
+    # API does not need and which does not fit in the free tier's 512 MB.
+    # `--include=dev` keeps next + typescript available to `next build`.
+    buildCommand: npm ci --workspaces=false --include=dev --no-audit --no-fund && npm run build
     # NODE_ENV is set here instead of in envVars: having it in the environment
     # during the build makes npm skip devDependencies.
     startCommand: NODE_ENV=production npx next start -p $PORT
