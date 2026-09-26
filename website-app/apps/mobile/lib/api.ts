@@ -6,6 +6,7 @@
 import axios, { AxiosInstance, AxiosError } from "axios";
 import { API_BASE_URL } from "@/types";
 import { getItem, setItem, removeItem, STORAGE_KEYS } from "./storage";
+import { resolveApiBase } from "./server-url";
 import { socket } from "./socket";
 import type { AuthResponse, AuthUser, ApiResponse } from "@/types";
 
@@ -21,8 +22,10 @@ class ApiClient {
   }> = [];
 
   constructor() {
+    const baseURL = resolveApiBase(API_BASE_URL);
+
     this.client = axios.create({
-      baseURL: API_BASE_URL,
+      baseURL,
       timeout: 30000,
       headers: {
         "Content-Type": "application/json",
@@ -30,7 +33,7 @@ class ApiClient {
     });
 
     this.authClient = axios.create({
-      baseURL: API_BASE_URL,
+      baseURL,
       timeout: 30000,
       headers: {
         "Content-Type": "application/json",
