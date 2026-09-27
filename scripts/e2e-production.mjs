@@ -360,8 +360,78 @@ async function main() {
         JSON.stringify(ztest.body).slice(0, 160));
     }
 
-    // 11 — tenant isolation
-    section("11. tenants cannot see each other");
+    // 11 — customer self-service through the portal
+    section("11. a customer link can ask for a delivery, and staff can answer");
+    // give the test client a CLIENT-scope magic link, as staff would
+    const link = await pool.query(
+      `insert into share_tokens (tenant_id, scope, client_id, token, label)
+       values ($1, 'CLIENT', $2, $3, 'e2e') returning token`,
+      [state.tenantId, state.clientId, `e2e${stamp}portal${stamp}`],
+    );
+    state.portalToken = link.rows[0].token;
+    check("a CLIENT-scope magic link was issued", Boolean(state.portalToken));
+
+    const view = await api(`/api/public/portal/${state.portalToken}`);
+    check("the customer can open the portal", view.status === 200, `got ${view.status}`);
+
+    const ask = await api(`/api/public/portal/${state.portalToken}/request`, {
+      method: "POST",
+      body: {
+        type: "NEW_ORDER",
+        volumeM3: 9,
+        date: "2030-02-01",
+        siteId: state.siteId,
+        mixDesignId: state.mixId,
+        note: "e2e customer request",
+      },
+    });
+    check("the customer request is accepted", ask.status === 200,
+      `got ${ask.status} ${JSON.stringify(ask.body).slice(0, 160)}`);
+    state.requestId = ask.body?.data?.requestId;
+    check("it comes back PENDING for a human", ask.body?.data?.status === "PENDING");
+
+    const firstCancel = await api(`/api/public/portal/${state.portalToken}/request`, {
+      method: "POST",
+      body: { type: "CANCELLATION", orderId: state.orderId },
+    });
+    check("a cancellation request is accepted", firstCancel.status === 200, `got ${firstCancel.status}`);
+    const again = await api(`/api/public/portal/${state.portalToken}/request`, {
+      method: "POST",
+      body: { type: "CANCELLATION", orderId: state.orderId },
+    });
+    check("a second identical request is refused (409)", again.status === 409,
+      `got ${again.status}`);
+
+    const badOrder = await api(`/api/public/portal/${state.portalToken}/request`, {
+      method: "POST",
+      body: { type: "CANCELLATION", orderId: "00000000-0000-0000-0000-000000000000" },
+    });
+    check("it cannot touch an order of another client", badOrder.status === 404,
+      `got ${badOrder.status}`);
+
+    const queue = await api("/api/portal/requests?status=PENDING", { token });
+    check("staff sees the request in the queue", queue.status === 200, `got ${queue.status}`);
+    const queued = (queue.body?.data?.items ?? []).find((i) => i.id === state.requestId);
+    check("the queued request is the customer's", Boolean(queued));
+
+    const decide = await api(`/api/portal/requests/${state.requestId}`, {
+      method: "PATCH",
+      token,
+      body: { decision: "APPROVED", note: "approved in e2e" },
+    });
+    check("approving it materialises a real order", decide.status === 200,
+      `got ${decide.status} ${JSON.stringify(decide.body).slice(0, 160)}`);
+    state.createdOrderId = decide.body?.data?.createdOrderId;
+
+    const twice = await api(`/api/portal/requests/${state.requestId}`, {
+      method: "PATCH",
+      token,
+      body: { decision: "REJECTED" },
+    });
+    check("deciding twice is refused (409)", twice.status === 409, `got ${twice.status}`);
+
+    // 12 — tenant isolation
+    section("12. tenants cannot see each other");
     if (state.orderId) {
       const row = await pool.query(`select tenant_id from orders where id = $1`, [state.orderId]);
       check("the order belongs to the test tenant", row.rows[0]?.tenant_id === state.tenantId);

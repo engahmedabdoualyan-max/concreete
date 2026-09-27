@@ -3117,6 +3117,72 @@ export const rndCompetitorProductsRelations = relations(
 //  revocable, view-counted. The public endpoint requires NO login.
 
 /**
+ * portal_requests — self-service actions a customer started from the portal.
+ *
+ * A customer with a magic link can ask for a new delivery, an amendment or a
+ * cancellation. Nothing here mutates an order directly: every request is a row
+ * that plant staff approve or reject, which keeps the credit check, the finance
+ * gate and the customer's confirmed volume under human control. A request that
+ * was never approved must never change what the plant is obliged to deliver.
+ */
+export const portalRequestStatusEnum = pgEnum("portal_request_status", [
+  "PENDING",
+  "APPROVED",
+  "REJECTED",
+]);
+
+export const portalRequestTypeEnum = pgEnum("portal_request_type", [
+  "NEW_ORDER",
+  "AMENDMENT",
+  "CANCELLATION",
+]);
+
+export const portalRequests = pgTable(
+  "portal_requests",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    clientId: uuid("client_id")
+      .notNull()
+      .references(() => clients.id, { onDelete: "cascade" }),
+    /** the share token the request came from, for the audit trail */
+    shareTokenId: uuid("share_token_id").references(() => shareTokens.id, {
+      onDelete: "set null",
+    }),
+    requestType: portalRequestTypeEnum("request_type").notNull(),
+    status: portalRequestStatusEnum("status").notNull().default("PENDING"),
+    /** for AMENDMENT / CANCELLATION */
+    orderId: uuid("order_id").references(() => orders.id, { onDelete: "cascade" }),
+    /** what the customer asked for, in their own words + the numbers */
+    requestedVolumeM3: decimal("requested_volume_m3", { precision: 8, scale: 2 }),
+    requestedDate: timestamp("requested_date"),
+    deliverySiteId: uuid("delivery_site_id").references(() => deliverySites.id, {
+      onDelete: "set null",
+    }),
+    mixDesignId: uuid("mix_design_id").references(() => mixDesigns.id, {
+      onDelete: "set null",
+    }),
+    note: text("note"),
+    /** who handled it and why it was refused */
+    handledById: uuid("handled_by_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    handledAt: timestamp("handled_at"),
+    decisionNote: text("decision_note"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("idx_portal_req_tenant").on(t.tenantId),
+    index("idx_portal_req_status").on(t.status),
+    index("idx_portal_req_client").on(t.clientId),
+    index("idx_portal_req_order").on(t.orderId),
+  ]
+);
+
+/**
  * share_tokens — Magic links for the customer portal.
  */
 export const shareTokens = pgTable(
