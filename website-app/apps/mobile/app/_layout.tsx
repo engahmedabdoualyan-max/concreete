@@ -13,6 +13,7 @@ import { isSubscriptionExpired } from "@/lib/tree-auth";
 import { isRtl, SUPPORTED_LOCALES, type Locale } from "@/lib/i18n";
 import { getItem } from "@/lib/storage";
 import { discoverApiServer } from "@/lib/server-discovery";
+import { flushErrorReports, reportError } from "@/lib/error-reporting";
 import { reportPresence } from "@/lib/firestore";
 import "@/lib/nativewind-interop";
 import "../global.css";
@@ -59,6 +60,44 @@ export default function RootLayout() {
     if (Platform.OS === "web") {
       void discoverApiServer();
     }
+  }, []);
+
+  // Unhandled errors are otherwise invisible to us: the customer says "the app
+  // does nothing" and there is nothing to look at. Hand them to the server log
+  // (POST /api/public/client-error) and replay anything queued while offline.
+  useEffect(() => {
+    const handler = (error: unknown) => {
+      void reportError(error, { context: ["unhandled"] });
+    };
+    const onRejection = (event: PromiseRejectionEvent) => {
+      void reportError(event.reason, { context: ["unhandled-rejection"] });
+    };
+
+    // React Native's global JS error hook.
+    const errorUtils = (globalThis as any).ErrorUtils;
+    const previousHandler = errorUtils?.getGlobalHandler?.();
+    errorUtils?.setGlobalHandler?.((error: unknown, isFatal?: boolean) => {
+      void reportError(error, { context: [isFatal ? "fatal" : "js-error"] });
+      previousHandler?.(error, isFatal);
+    });
+
+    if (Platform.OS === "web" && typeof window !== "undefined") {
+      window.addEventListener("error", handler);
+      window.addEventListener("unhandledrejection", onRejection);
+    }
+    const onForeground = () => {
+      if (AppState.currentState === "active") void flushErrorReports();
+    };
+    const subscription = AppState.addEventListener("change", onForeground);
+
+    return () => {
+      if (Platform.OS === "web" && typeof window !== "undefined") {
+        window.removeEventListener("error", handler);
+        window.removeEventListener("unhandledrejection", onRejection);
+      }
+      if (previousHandler) errorUtils?.setGlobalHandler?.(previousHandler);
+      subscription.remove();
+    };
   }, []);
 
   // Text direction follows the selected language: Arabic mirrors the whole UI
