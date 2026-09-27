@@ -51,7 +51,7 @@ if [ ! -f /etc/fimto/api.env ]; then
   install -d -m 750 /etc/fimto
   cat > /etc/fimto/api.env <<ENVFILE
 # Supabase *pooler* URL (IPv4) — direct host is IPv6-only and will not connect.
-DATABASE_URL=postgresql://USER:PASSWORD@aws-0-ap-southeast-2.pooler.supabase.com:6543/postgres
+DATABASE_URL=postgresql://USER:<password>@aws-0-ap-southeast-2.pooler.supabase.com:6543/postgres
 JWT_SECRET=$(openssl rand -hex 32)
 JWT_REFRESH_SECRET=$(openssl rand -hex 32)
 QR_SECRET=$(openssl rand -hex 32)
