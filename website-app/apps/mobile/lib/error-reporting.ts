@@ -11,7 +11,7 @@ import { Platform } from "react-native";
 import { API_BASE_URL } from "@/types";
 import { resolveApiBase } from "./server-url";
 
-const APP_VERSION = "2.9.0";
+const APP_VERSION = "3.0.0";
 const FLUSH_INTERVAL = 5000;
 
 /** Reports queued while the device is offline, replayed on the next call. */
