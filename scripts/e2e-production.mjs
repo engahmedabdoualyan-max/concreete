@@ -326,8 +326,27 @@ async function main() {
       check("it says which material prices are missing", Array.isArray(rdata.dataQuality?.missingMaterialPrices));
     }
 
-    // 9 — tenant isolation
-    section("9. tenants cannot see each other");
+    // 9 — the dispatch board
+    section("9. the dispatch board answers the shift questions");
+    // The window must include the test order's pour date.
+    const board = await api("/api/dispatch/board?date=2030-01-15&horizonDays=0", { token });
+    check("GET /api/dispatch/board answers 200", board.status === 200,
+      `got ${board.status} ${JSON.stringify(board.body).slice(0, 200)}`);
+    const bd = board.body?.data;
+    if (bd) {
+      const sums = ["orders", "totalM3", "remainingM3", "activeTrips", "idleVehicles", "criticalAlerts"];
+      const bad = sums.filter((k) => typeof bd.summary?.[k] !== "number" || Number.isNaN(bd.summary[k]));
+      check("its summary is all real numbers", bad.length === 0, bad.join(", "));
+      check("it ships an alert list", Array.isArray(bd.alerts));
+      check("it ships the order board and the live trips",
+        Array.isArray(bd.orders) && Array.isArray(bd.trips));
+      const ourOrder = (bd.orders ?? []).find((o) => o.id === state.orderId);
+      check("our test order shows on the board", Boolean(ourOrder),
+        `${(bd.orders ?? []).length} order(s) in the window`);
+    }
+
+    // 10 — tenant isolation
+    section("10. tenants cannot see each other");
     if (state.orderId) {
       const row = await pool.query(`select tenant_id from orders where id = $1`, [state.orderId]);
       check("the order belongs to the test tenant", row.rows[0]?.tenant_id === state.tenantId);

@@ -504,6 +504,22 @@ class ApiClient {
     return response.data.data;
   }
 
+  // ─── Dispatch board ─────────────────────────────────────────────────────────
+
+  /**
+   * The dispatcher's operational board: what must pour, what is running, what is
+   * late, and what can be sent next. Read-only, so the screen can poll it.
+   */
+  async getDispatchBoard(params: { date?: string; horizonDays?: number } = {}): Promise<any> {
+    const query = new URLSearchParams();
+    if (params.date) query.set("date", params.date);
+    if (params.horizonDays !== undefined)
+      query.set("horizonDays", String(params.horizonDays));
+    const suffix = query.toString() ? `?${query.toString()}` : "";
+    const response = await this.client.get(`/dispatch/board${suffix}`);
+    return response.data.data;
+  }
+
   // ─── Finance: cost & margin per m³ ──────────────────────────────────────────
 
   /**
