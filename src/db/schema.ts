@@ -1564,6 +1564,13 @@ export const trips = pgTable(
     onSiteDurationMinutes: integer("on_site_duration_minutes"),
     returnTimeMinutes: integer("return_time_minutes"),
     totalCycleTimeMinutes: integer("total_cycle_time_minutes"),
+    /**
+     * Delivered cost of THIS trip in SAR halalas (cents) — driver overtime, pump
+     * rental, tolls, loading crew, anything spent to move this load. Recorded at
+     * dispatch; it is what makes the cost-per-m³ report real instead of a
+     * materials-only estimate. 0 = not costed yet.
+     */
+    transportCostSar: integer("transport_cost_sar").notNull().default(0),
     isCompleted: boolean("is_completed").notNull().default(false),
     isCancelled: boolean("is_cancelled").notNull().default(false),
     cancellationReason: text("cancellation_reason"),

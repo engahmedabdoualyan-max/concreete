@@ -28,6 +28,7 @@ import { erp, dataUsername } from "@/lib/firestore";
 import { useAuthStore } from "@/store/auth-store";
 import { ELEMENT_TYPES, type SalesOrder } from "@/components/sales/BookingForm";
 import { playAlertSound } from "@/lib/sound";
+import { CostMarginPanel } from "./cost-margin";
 
 const ELEMENT_LABELS = Object.fromEntries(ELEMENT_TYPES.map((e) => [e.value, e.label]));
 
@@ -131,6 +132,7 @@ const TAB_KEYS = [
   { key: "suppliers", label: "🧾 فواتير الموردين" },
   { key: "customers", label: "👥 العملاء" },
   { key: "statement", label: "📊 كشف حساب" },
+  { key: "cost", label: "📈 التكلفة والربحية" },
 ] as const;
 
 type TabKey = (typeof TAB_KEYS)[number]["key"];
@@ -1385,6 +1387,8 @@ export default function AccountantHomeScreen() {
       )}
 
       {/* ================= TAB 6: Customer statement ================= */}
+      {tab === "cost" && <CostMarginPanel />}
+
       {tab === "statement" && (
         <>
           <Card variant="elevated" className="mb-4">

@@ -504,6 +504,28 @@ class ApiClient {
     return response.data.data;
   }
 
+  // ─── Finance: cost & margin per m³ ──────────────────────────────────────────
+
+  /**
+   * Contribution margin per order from the mix recipe × the silo price per
+   * tonne, plus whatever delivery cost the trips carry. The response also
+   * reports which material prices are missing so the UI can say the report is
+   * incomplete instead of showing a flattering number.
+   */
+  async getCostMargin(params: {
+    from: string;
+    to: string;
+    limit?: number;
+  }): Promise<any> {
+    const query = new URLSearchParams({
+      from: params.from,
+      to: params.to,
+      limit: String(params.limit ?? 50),
+    });
+    const response = await this.client.get(`/finance/cost-margin?${query.toString()}`);
+    return response.data.data;
+  }
+
   // ─── Workshop / Driver Breakdown Reports ────────────────────────────────────
 
   async reportBreakdown(payload: {

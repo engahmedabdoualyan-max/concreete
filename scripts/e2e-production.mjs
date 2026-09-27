@@ -312,8 +312,22 @@ async function main() {
       check("a driver cannot create an order (403)", denied.status === 403, `got ${denied.status}`);
     }
 
-    // 8 — tenant isolation
-    section("8. tenants cannot see each other");
+    // 8 — the cost & margin report
+    section("8. the cost/margin report answers with real numbers");
+    const report = await api("/api/finance/cost-margin?limit=5", { token });
+    check("GET /api/finance/cost-margin answers 200", report.status === 200,
+      `got ${report.status} ${JSON.stringify(report.body).slice(0, 300)}`);
+    const rdata = report.body?.data;
+    if (rdata) {
+      check("it reports a period and totals", Boolean(rdata.period && rdata.totals));
+      const nums = ["volumeM3", "revenueSar", "materialCostSar", "marginSar"];
+      const bad = nums.filter((k) => typeof rdata.totals?.[k] !== "number" || Number.isNaN(rdata.totals[k]));
+      check("every total is a real number", bad.length === 0, bad.join(", "));
+      check("it says which material prices are missing", Array.isArray(rdata.dataQuality?.missingMaterialPrices));
+    }
+
+    // 9 — tenant isolation
+    section("9. tenants cannot see each other");
     if (state.orderId) {
       const row = await pool.query(`select tenant_id from orders where id = $1`, [state.orderId]);
       check("the order belongs to the test tenant", row.rows[0]?.tenant_id === state.tenantId);
