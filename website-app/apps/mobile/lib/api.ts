@@ -21,12 +21,17 @@ class ApiClient {
     reject: (reason?: unknown) => void;
   }> = [];
 
+  /** The free API host sleeps when idle and needs up to ~60 s to wake, so a
+   *  30 s timeout would abort the very first request after a pause (usually the
+   *  login). 90 s covers a cold start with room to spare. */
+  private static readonly TIMEOUT = 90000;
+
   constructor() {
     const baseURL = resolveApiBase(API_BASE_URL);
 
     this.client = axios.create({
       baseURL,
-      timeout: 30000,
+      timeout: ApiClient.TIMEOUT,
       headers: {
         "Content-Type": "application/json",
       },
@@ -34,7 +39,7 @@ class ApiClient {
 
     this.authClient = axios.create({
       baseURL,
-      timeout: 30000,
+      timeout: ApiClient.TIMEOUT,
       headers: {
         "Content-Type": "application/json",
       },
