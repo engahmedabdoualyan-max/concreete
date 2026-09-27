@@ -29,18 +29,16 @@
 services:
   - type: web
     name: fimto-api-web
-    runtime: node
+    # A Docker image, not the native Node build: Render's native pipeline runs
+    # `npm install` (and our build command), which cannot fit in 512 MB. The
+    # image below only downloads the prebuilt bundle — see deploy/Dockerfile.api.
+    runtime: docker
+    dockerfilePath: ./deploy/Dockerfile.api
+    dockerCommand: node server.js
     plan: free
     region: singapore
     branch: main
     rootDir: .
-    buildCommand: >-
-      mkdir -p api-run &&
-      curl -fsSL
-      https://github.com/engahmedabdoualyan-max/concreete/releases/download/api/fimto-api.tgz
-      | tar -xz -C api-run &&
-      test -f api-run/server.js
-    startCommand: node api-run/server.js
     healthCheckPath: /api/health
     autoDeploy: false
     envVars:
