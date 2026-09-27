@@ -29,6 +29,7 @@ import { useAuthStore } from "@/store/auth-store";
 import { ELEMENT_TYPES, type SalesOrder } from "@/components/sales/BookingForm";
 import { playAlertSound } from "@/lib/sound";
 import { CostMarginPanel } from "./cost-margin";
+import { ZatcaPanel } from "./zatca";
 
 const ELEMENT_LABELS = Object.fromEntries(ELEMENT_TYPES.map((e) => [e.value, e.label]));
 
@@ -133,6 +134,7 @@ const TAB_KEYS = [
   { key: "customers", label: "👥 العملاء" },
   { key: "statement", label: "📊 كشف حساب" },
   { key: "cost", label: "📈 التكلفة والربحية" },
+  { key: "zatca", label: "🧾 الفوترة الإلكترونية" },
 ] as const;
 
 type TabKey = (typeof TAB_KEYS)[number]["key"];
@@ -1388,6 +1390,8 @@ export default function AccountantHomeScreen() {
 
       {/* ================= TAB 6: Customer statement ================= */}
       {tab === "cost" && <CostMarginPanel />}
+
+      {tab === "zatca" && <ZatcaPanel />}
 
       {tab === "statement" && (
         <>

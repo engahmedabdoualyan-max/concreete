@@ -345,8 +345,23 @@ async function main() {
         `${(bd.orders ?? []).length} order(s) in the window`);
     }
 
-    // 10 — tenant isolation
-    section("10. tenants cannot see each other");
+    // 10 — ZATCA readiness
+    section("10. e-invoicing says what is missing instead of failing silently");
+    const zc = await api("/api/finance/zatca/config", { token });
+    check("GET /api/finance/zatca/config answers 200", zc.status === 200, `got ${zc.status}`);
+    const zcfg = zc.body?.data?.config;
+    check("it reports a credential status", typeof zcfg?.credentialStatus === "string",
+      JSON.stringify(zcfg?.credentialStatus));
+    const ztest = await api("/api/finance/zatca/test", { method: "POST", token });
+    check("the connection test never 500s", ztest.status !== 500, `got ${ztest.status}`);
+    if (ztest.status === 409) {
+      check("it lists exactly what is still missing",
+        Array.isArray(ztest.body?.details?.missing) || Array.isArray(ztest.body?.missing),
+        JSON.stringify(ztest.body).slice(0, 160));
+    }
+
+    // 11 — tenant isolation
+    section("11. tenants cannot see each other");
     if (state.orderId) {
       const row = await pool.query(`select tenant_id from orders where id = $1`, [state.orderId]);
       check("the order belongs to the test tenant", row.rows[0]?.tenant_id === state.tenantId);

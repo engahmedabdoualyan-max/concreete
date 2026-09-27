@@ -520,6 +520,29 @@ class ApiClient {
     return response.data.data;
   }
 
+  // ─── ZATCA e-invoicing ─────────────────────────────────────────────────────
+
+  async getZatcaConfig(): Promise<any> {
+    const response = await this.client.get("/finance/zatca/config");
+    return response.data.data?.config;
+  }
+
+  async saveZatcaConfig(payload: Record<string, unknown>): Promise<any> {
+    const response = await this.client.post("/finance/zatca/config", payload);
+    return response.data;
+  }
+
+  async getZatcaStatus(): Promise<any> {
+    const response = await this.client.get("/finance/zatca/status");
+    return response.data.data;
+  }
+
+  /** Real handshake with Fatoora using the stored CSID. */
+  async testZatcaConnection(): Promise<any> {
+    const response = await this.client.post("/finance/zatca/test", {});
+    return response.data;
+  }
+
   // ─── Finance: cost & margin per m³ ──────────────────────────────────────────
 
   /**
