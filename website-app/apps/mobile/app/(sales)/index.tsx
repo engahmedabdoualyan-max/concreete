@@ -15,6 +15,7 @@ import { OrderCard } from "@/components/sales/OrderCard";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { erp, dataUsername } from "@/lib/firestore";
+import { PortalRequestsPanel } from "./portal-requests";
 import { useAuthStore } from "@/store/auth-store";
 import { playAlertSound } from "@/lib/sound";
 import { api } from "@/lib/api";
@@ -58,6 +59,8 @@ export default function SalesHomeScreen() {
   const [editingOrder, setEditingOrder] = useState<SalesOrder | null>(null);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("all");
+  // "orders" = the rep's own bookings, "portal" = what customers asked for
+  const [view, setView] = useState<"orders" | "portal">("orders");
   const prevStatuses = useRef<Record<string, string>>({});
   const alerted = useRef<Set<string>>(new Set());
 
@@ -338,6 +341,10 @@ export default function SalesHomeScreen() {
   };
 
   return (
+    <View className="flex-1 bg-slate-50">
+      {view === "portal" ? (
+        <PortalRequestsPanel />
+      ) : (
     <ScrollView
       className="flex-1 bg-slate-50"
       refreshControl={
@@ -507,6 +514,34 @@ export default function SalesHomeScreen() {
         </View>
       )}
 
+      {/* Which list am I looking at? */}
+      <View className="flex-row gap-2 mb-3">
+        {(
+          [
+            ["orders", "📋 طلباتي"],
+            ["portal", "📨 طلبات العملاء"],
+          ] as const
+        ).map(([k, label]) => (
+          <TouchableOpacity
+            key={k}
+            onPress={() => setView(k)}
+            className={`flex-1 rounded-full py-2.5 border-2 ${
+              view === k
+                ? "bg-orange-500 border-orange-500"
+                : "bg-white border-slate-200"
+            }`}
+          >
+            <Text
+              className={`text-center font-semibold text-sm ${
+                view === k ? "text-white" : "text-slate-700"
+              }`}
+            >
+              {label}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
       {/* Orders List */}
       <View>
         <Text className="text-xl font-bold text-slate-800 mb-3">طلباتي</Text>
@@ -567,5 +602,7 @@ export default function SalesHomeScreen() {
         )}
       </View>
     </ScrollView>
+      )}
+    </View>
   );
 }

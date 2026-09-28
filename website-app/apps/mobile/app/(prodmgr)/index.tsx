@@ -412,6 +412,12 @@ export default function ProductionMgrHome() {
           color="#7C3AED"
           onPress={() => router.push("/(dashboard)/workshop" as any)}
         />
+        <ModuleLink
+          emoji="⚙️" en="Batch plant" ar="المصنع — تشغيل الباتش"
+          desc="اشتغل خلطة + سجّل الاستهلاك الفعلي"
+          color="#B45309"
+          onPress={() => router.push("/(prodmgr)/batch-plant" as any)}
+        />
 
         <View style={{ marginTop: 10, backgroundColor: "#D1FAE5", borderRadius: 14, padding: 14, borderWidth: 1, borderColor: "rgba(5,150,105,0.2)" }}>
           <Text style={{ color: "#065F46", fontSize: 13, fontWeight: "800", marginBottom: 4 }}>⚙️ نصائح إنتاجية</Text>

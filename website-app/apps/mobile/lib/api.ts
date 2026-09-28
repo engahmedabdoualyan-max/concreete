@@ -520,6 +520,51 @@ class ApiClient {
     return response.data.data;
   }
 
+  // ─── Batch plant ────────────────────────────────────────────────────────────
+
+  async listBatchControllers(): Promise<any[]> {
+    const response = await this.client.get("/plant/controllers");
+    return response.data.data?.controllers ?? [];
+  }
+
+  /** Fire a batch, or book the consumption the plant reported. */
+  async batchAction(
+    controllerId: string,
+    body: {
+      action: "fire" | "record";
+      mixDesignId?: string;
+      ticketNumber?: string;
+      batchSizeM3?: number;
+    }
+  ): Promise<any> {
+    const response = await this.client.post(
+      `/plant/controllers/${controllerId}/batch`,
+      body
+    );
+    return response.data;
+  }
+
+  // ─── Customer self-service queue ────────────────────────────────────────────
+
+  /** Requests customers started from the magic-link portal. */
+  async getPortalRequests(params: { status?: string; limit?: number } = {}): Promise<any> {
+    const query = new URLSearchParams();
+    if (params.status) query.set("status", params.status);
+    if (params.limit) query.set("limit", String(params.limit));
+    const suffix = query.toString() ? `?${query.toString()}` : "";
+    const response = await this.client.get(`/portal/requests${suffix}`);
+    return response.data.data;
+  }
+
+  /** Approving a NEW_ORDER materialises a real DRAFT order. */
+  async decidePortalRequest(
+    requestId: string,
+    body: { decision: "APPROVED" | "REJECTED"; note?: string }
+  ): Promise<any> {
+    const response = await this.client.patch(`/portal/requests/${requestId}`, body);
+    return response.data;
+  }
+
   // ─── ZATCA e-invoicing ─────────────────────────────────────────────────────
 
   async getZatcaConfig(): Promise<any> {
