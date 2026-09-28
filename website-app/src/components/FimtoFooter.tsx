@@ -89,7 +89,7 @@ export default function FimtoFooter() {
             <h4 className="text-white font-bold text-xs uppercase tracking-wider mb-3">{t('downloadApp')}</h4>
             <div className="flex flex-row items-center justify-center gap-2">
               <a
-                href="https://concrete.fimtosoft.com/downloads/fimto-android.apk"
+                href="https://fimto-downloads.vercel.app/downloads/fimto-android.apk"
                 download
                 aria-label={t('downloadAndroid')}
                 className="inline-flex items-center justify-center w-10 h-10 rounded-lg bg-white/10 hover:bg-white/20 transition-colors"
@@ -110,7 +110,7 @@ export default function FimtoFooter() {
                 </svg>
               </a>
               <a
-                href="https://concrete.fimtosoft.com/downloads/fimto-concrete-setup.exe"
+                href="https://fimto-downloads.vercel.app/downloads/fimto-concrete-setup.exe"
                 download
                 aria-label="Download Windows desktop app"
                 title="نسخة الكمبيوتر — Windows"
@@ -119,7 +119,7 @@ export default function FimtoFooter() {
                 🪟
               </a>
               <a
-                href="https://concrete.fimtosoft.com/downloads/fimto-app.deb"
+                href="https://fimto-downloads.vercel.app/downloads/fimto-app.deb"
                 download
                 aria-label="Download Linux desktop app"
                 title="نسخة الكمبيوتر — Linux"
