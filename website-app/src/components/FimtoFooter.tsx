@@ -119,7 +119,7 @@ export default function FimtoFooter() {
                 🪟
               </a>
               <a
-                href="https://concrete.fimtosoft.com/downloads/fimto-concrete.AppImage"
+                href="https://concrete.fimtosoft.com/downloads/fimto-app.deb"
                 download
                 aria-label="Download Linux desktop app"
                 title="نسخة الكمبيوتر — Linux"
