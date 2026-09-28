@@ -52,3 +52,6 @@ npm-debug.log*
 
 # local build output (root copy)
 dist/
+
+# Installer binaries live in the fimto-downloads Vercel project, not in git.
+deploy/downloads-site/downloads/
