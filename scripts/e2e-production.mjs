@@ -430,8 +430,73 @@ async function main() {
     });
     check("deciding twice is refused (409)", twice.status === 409, `got ${twice.status}`);
 
-    // 12 — tenant isolation
-    section("12. tenants cannot see each other");
+    // 12 — the plant: fire a batch and book what it really consumed
+    section("12. the batch plant integration fires and books real consumption");
+    const plant = await pool.query(
+      `insert into batch_plants (tenant_id, plant_code, plant_name, is_active)
+       values ($1, $2, 'E2E Simulator Plant', true) returning id`,
+      [state.tenantId, `E2EP${stamp}`],
+    );
+    state.plantId = plant.rows[0].id;
+    const ctrl = await pool.query(
+      `insert into batch_controllers (tenant_id, batch_plant_id, name, provider, settings, is_active)
+       values ($1, $2, 'E2E simulator', 'SIMULATOR', $3::jsonb, true) returning id`,
+      [state.tenantId, state.plantId, JSON.stringify({ cycleSeconds: 60 })],
+    );
+    state.controllerId = ctrl.rows[0].id;
+    check("a simulator controller is registered", Boolean(state.controllerId));
+
+    const fired = await api(`/api/plant/controllers/${state.controllerId}/batch`, {
+      method: "POST",
+      token,
+      body: { action: "fire", mixDesignId: state.mixId, batchSizeM3: 1 },
+    });
+    check("POST .../batch fires the batch", fired.status === 200,
+      `got ${fired.status} ${JSON.stringify(fired.body).slice(0, 180)}`);
+    const firedData = fired.body?.data;
+    check("it returns the target weights per material",
+      Boolean(firedData?.targetWeightsKg?.cement > 0),
+      `cement target ${firedData?.targetWeightsKg?.cement} kg`);
+
+    // a silo to draw from, so the booking has somewhere to go
+    const silo = await pool.query(
+      `insert into inventory_silos (tenant_id, silo_code, silo_name, material_category,
+                                    current_stock_kg, capacity_kg, reorder_level_kg, is_active)
+       values ($1, $2, 'E2E cement silo', 'CEMENT', 50000, 60000, 5000, true) returning id, current_stock_kg`,
+      [state.tenantId, `E2ES${stamp}`],
+    );
+    state.siloId = silo.rows[0].id;
+    const stockBefore = Number(silo.rows[0].current_stock_kg);
+
+    const ticket = `E2E${stamp}`;
+    const booked = await api(`/api/plant/controllers/${state.controllerId}/batch`, {
+      method: "POST",
+      token,
+      body: { action: "record", ticketNumber: ticket, batchSizeM3: 1 },
+    });
+    check("POST .../batch books the consumption", booked.status === 200,
+      `got ${booked.status} ${JSON.stringify(booked.body).slice(0, 180)}`);
+    const posted = booked.body?.data?.posted ?? [];
+    check("the plant's real weights were posted", posted.length > 0, `${posted.length} material(s)`);
+    check("nothing ran negative", (booked.body?.data?.shortages ?? []).every(
+      (s) => typeof s === "string"), JSON.stringify(booked.body?.data?.shortages ?? []));
+
+    const after = await pool.query(`select current_stock_kg from inventory_silos where id = $1`, [state.siloId]);
+    const stockAfter = Number(after.rows[0].current_stock_kg);
+    check("the silo was decremented by the actual weight",
+      stockAfter < stockBefore && stockAfter === Number(posted[0]?.balanceAfterKg ?? -1),
+      `${stockBefore} -> ${stockAfter} kg`);
+
+    const rebook = await api(`/api/plant/controllers/${state.controllerId}/batch`, {
+      method: "POST",
+      token,
+      body: { action: "record", ticketNumber: ticket, batchSizeM3: 1 },
+    });
+    check("booking the same ticket twice is refused",
+      rebook.body?.data?.code === "ALREADY_RECORDED", JSON.stringify(rebook.body?.data?.code));
+
+    // 13 — tenant isolation
+    section("13. tenants cannot see each other");
     if (state.orderId) {
       const row = await pool.query(`select tenant_id from orders where id = $1`, [state.orderId]);
       check("the order belongs to the test tenant", row.rows[0]?.tenant_id === state.tenantId);
