@@ -341,7 +341,9 @@ async function getClientPortal(tenantId: string, clientId: string) {
       pricePerM3Cents: orders.pricePerM3Sar,
       scheduledDate: orders.scheduledDate,
       siteName: deliverySites.siteName,
+      city: deliverySites.city,
       designCode: mixDesigns.designCode,
+      gradeDescription: mixDesigns.gradeDescription,
     })
     .from(orders)
     .innerJoin(
@@ -369,9 +371,14 @@ async function getClientPortal(tenantId: string, clientId: string) {
       orderNumber: o.orderNumber,
       status: o.status,
       siteName: o.siteName,
+      city: o.city ?? null,
       mix: o.designCode,
+      // The customer asks "which mix and how much is left" more than anything
+      // else, so both belong in the public payload.
+      gradeDescription: o.gradeDescription ?? null,
       scheduledDate: o.scheduledDate,
       totalM3,
+      remainingM3,
       deliveredM3,
       pricePerM3Sar: priceSar,
       deliveredValueSar: Math.round(deliveredM3 * priceSar * 100) / 100,
@@ -381,6 +388,36 @@ async function getClientPortal(tenantId: string, clientId: string) {
 
   const totalBilledSar =
     Math.round(statements.reduce((s, x) => s + x.deliveredValueSar, 0) * 100) / 100;
+
+  // The order form needs the customer's own sites and the plant's active mixes.
+  // Both are public-safe: a site name and a concrete grade are what the customer
+  // already knows, and nothing internal (cost, staff, margin) is included.
+  const siteRows = await db
+    .select({
+      id: deliverySites.id,
+      siteName: deliverySites.siteName,
+      city: deliverySites.city,
+    })
+    .from(deliverySites)
+    .where(
+      and(
+        eq(deliverySites.tenantId, tenantId),
+        eq(deliverySites.clientId, clientId),
+        eq(deliverySites.isActive, true)
+      )
+    )
+    .orderBy(deliverySites.siteName);
+
+  const mixRows = await db
+    .select({
+      id: mixDesigns.id,
+      designCode: mixDesigns.designCode,
+      gradeDescription: mixDesigns.gradeDescription,
+      targetSlumpCm: mixDesigns.targetSlumpCm,
+    })
+    .from(mixDesigns)
+    .where(and(eq(mixDesigns.tenantId, tenantId), eq(mixDesigns.isActive, true)))
+    .orderBy(mixDesigns.designCode);
 
   return {
     client: {
@@ -394,5 +431,16 @@ async function getClientPortal(tenantId: string, clientId: string) {
       currency: "SAR",
     },
     statements,
+    sites: siteRows.map((r) => ({
+      id: r.id,
+      siteName: r.siteName,
+      city: r.city ?? null,
+    })),
+    mixDesigns: mixRows.map((r) => ({
+      id: r.id,
+      designCode: r.designCode,
+      gradeDescription: r.gradeDescription ?? null,
+      targetSlumpCm: r.targetSlumpCm ? Number(r.targetSlumpCm) : null,
+    })),
   };
 }
