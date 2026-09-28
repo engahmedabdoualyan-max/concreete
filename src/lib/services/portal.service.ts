@@ -16,7 +16,7 @@
  */
 
 import { randomBytes } from "node:crypto";
-import { db } from "@/db";
+import { db, withDbRetry } from "@/db";
 import { predictEtaMinutes } from "./dispatch-optimization.service";
 import { getTripTelemetry } from "./telematics.service";
 import {
@@ -127,6 +127,12 @@ async function consumeView(tokenId: string) {
 }
 
 export async function resolvePortalToken(token: string) {
+  // A pure read, so a dropped pooled connection is safe to retry once. Without
+  // it a customer occasionally saw "link invalid" during a server cold start.
+  return withDbRetry(() => resolvePortalTokenOnce(token), "portal.resolve-token");
+}
+
+async function resolvePortalTokenOnce(token: string) {
   const rows = await db
     .select()
     .from(shareTokens)

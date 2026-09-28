@@ -56,7 +56,17 @@ export async function GET(
       },
     });
   } catch (err) {
+    // A database hiccup must not tell a customer their link is invalid —
+    // that reads as "your account is gone". Say "try again" instead.
     console.error("[GET /api/public/portal/:token]", err);
-    return notFound();
+    return NextResponse.json(
+      {
+        success: false,
+        errorCode: "SERVICE_UNAVAILABLE",
+        message: "الخدمة مشغولة دلوقتي — من فضلك حاول تاني بعد لحظات.",
+        timestamp: new Date().toISOString(),
+      },
+      { status: 503, headers: { "Retry-After": "5" } },
+    );
   }
 }
