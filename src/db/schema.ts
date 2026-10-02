@@ -34,12 +34,13 @@ import {
   jsonb,
   uuid,
   unique,
+  uniqueIndex,
   index,
   primaryKey,
   decimal,
   date,
 } from "drizzle-orm/pg-core";
-import { relations } from "drizzle-orm";
+import { relations, sql } from "drizzle-orm";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SECTION 1 — ENUMERATIONS
@@ -3218,6 +3219,11 @@ export const shareTokens = pgTable(
 /**
  * telematics_devices — Sensor registry per vehicle.
  * One row per physical probe: drum-RPM, temperature, water-add meter, tracker.
+ *
+ * Coding a device onto a vehicle is what makes its readings attributable, so
+ * the identity is protected in the database (migration 0020): `serial_number`
+ * is globally unique once set, `device_code` is unique per tenant, and only one
+ * device per type can be the primary for a vehicle.
  */
 export const telematicsDevices = pgTable(
   "telematics_devices",
@@ -3231,10 +3237,19 @@ export const telematicsDevices = pgTable(
       .references(() => fleetVehicles.id, { onDelete: "cascade" }),
     /** DRUM_RPM | CONCRETE_TEMP | WATER_ADD_METER | GPS_TRACKER */
     deviceType: varchar("device_type", { length: 30 }).notNull(),
-    /** Vendor serial / IMEI printed on the probe */
+    /** Vendor serial / IMEI printed on the probe. Globally unique when set. */
     serialNumber: varchar("serial_number", { length: 80 }),
+    /** Short human-facing code read off the dashboard (e.g. DRUM-01, GPS-04). */
+    deviceCode: varchar("device_code", { length: 40 }),
+    /** Primary device of its type for the vehicle — only one per type. */
+    isPrimary: boolean("is_primary").notNull().default(false),
     isActive: boolean("is_active").notNull().default(true),
     mountedAt: timestamp("mounted_at"),
+    /** When the device was last mounted on / linked to the vehicle. */
+    linkedAt: timestamp("linked_at"),
+    linkedById: uuid("linked_by_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
     lastSeenAt: timestamp("last_seen_at"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
@@ -3242,6 +3257,19 @@ export const telematicsDevices = pgTable(
   (t) => [
     index("idx_tm_dev_vehicle").on(t.vehicleId),
     index("idx_tm_dev_tenant").on(t.tenantId),
+    index("idx_tm_dev_serial").on(t.serialNumber),
+    index("idx_tm_dev_active_vehicle").on(t.vehicleId, t.isActive),
+    // Partial, so hardware that is registered before its vendor IMEI is known
+    // (serial_number NULL) can still be linked without colliding.
+    uniqueIndex("telematics_devices_serial_number_unique")
+      .on(t.serialNumber)
+      .where(sql`${t.serialNumber} is not null`),
+    uniqueIndex("telematics_devices_tenant_device_code_unique")
+      .on(t.tenantId, t.deviceCode)
+      .where(sql`${t.deviceCode} is not null`),
+    uniqueIndex("telematics_devices_primary_per_vehicle_type_unique")
+      .on(t.vehicleId, t.deviceType)
+      .where(sql`${t.isPrimary}`),
   ]
 );
 

@@ -117,15 +117,43 @@
     {
       "idx": 16,
       "version": "7",
-      "when": 1790229697032,
+      "when": 1790229697033,
       "tag": "0016_zatca_immutable_artifacts",
       "breakpoints": true
     },
     {
       "idx": 17,
       "version": "7",
-      "when": 1790229697032,
+      "when": 1790229697034,
       "tag": "0017_zatca_idempotency",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1790229697035,
+      "tag": "0018_trip_transport_cost",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1790229697036,
+      "tag": "0019_portal_requests",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1790229697037,
+      "tag": "0020_device_coding",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1790229697038,
+      "tag": "0021_reusable_device_identity",
       "breakpoints": true
     }
   ]

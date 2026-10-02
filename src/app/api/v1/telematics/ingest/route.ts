@@ -14,17 +14,19 @@
  *    { truck_id, drum_rpm?, concrete_temp_c?, water_added_l?,
  *      latitude?, longitude?, speed_kmh?, captured_at?, source? }
  *    { readings: [ ... ] }
+ *
+ *  `truck_id` may be the vehicle code, the vehicle UUID, or the IMEI of a
+ *  device coded onto the vehicle in /api/fleet/devices — a probe is installed
+ *  blind and keeps reporting under the same IMEI, so the serial is what ties its
+ *  readings to a truck.
  * ============================================================
  */
 
 import { NextRequest } from "next/server";
 import crypto from "crypto";
-import { db } from "@/db";
-import { fleetVehicles } from "@/db/schema";
-import { or, eq } from "drizzle-orm";
 import { errorResponse, successResponse } from "@/lib/auth/middleware";
 import { checkNextRateLimit, clientIpFromHeaders } from "@/lib/rate-limit";
-import { ingestReadings, type TelemetryReadingInput } from "@/lib/services/telematics.service";
+import { ingestReadings, findIngestOwner, type TelemetryReadingInput } from "@/lib/services/telematics.service";
 import { z } from "zod";
 
 export const dynamic = "force-dynamic";
@@ -61,8 +63,6 @@ const PayloadSchema = z.union([
   ReadingSchema,
   z.object({ readings: z.array(ReadingSchema).min(1).max(500) }),
 ]);
-
-const UUID_RE = /^[0-9a-f-]{36}$/i;
 
 export async function POST(req: NextRequest) {
   const ip = clientIpFromHeaders(req.headers);
@@ -114,28 +114,19 @@ export async function POST(req: NextRequest) {
       : [toInput(parsed.data as WireReading)];
 
   try {
-    // Resolve tenants from vehicles (mirrors gps-webhook), group, ingest
-    const tenantOf = new Map<string, string>(); // truckId → tenantId
+    // Resolve the owning tenant per identifier (vehicle code, vehicle UUID, or
+    // a coded device IMEI), then group readings by tenant and ingest.
+    const ownerOf = new Map<string, { tenantId: string } | null>();
     for (const r of list) {
-      if (tenantOf.has(r.truckId)) continue;
-      const byId = UUID_RE.test(r.truckId);
-      const v = await db
-        .select({ tenantId: fleetVehicles.tenantId })
-        .from(fleetVehicles)
-        .where(
-          byId
-            ? eq(fleetVehicles.id, r.truckId)
-            : eq(fleetVehicles.vehicleCode, r.truckId)
-        )
-        .limit(1);
-      if (v[0]) tenantOf.set(r.truckId, v[0].tenantId);
+      if (ownerOf.has(r.truckId)) continue;
+      ownerOf.set(r.truckId, await findIngestOwner(r.truckId));
     }
 
-    const unknown = list.filter((r) => !tenantOf.has(r.truckId)).length;
+    const unknown = list.filter((r) => !ownerOf.get(r.truckId)).length;
 
     const groups = new Map<string, TelemetryReadingInput[]>();
     for (const r of list) {
-      const t = tenantOf.get(r.truckId);
+      const t = ownerOf.get(r.truckId)?.tenantId;
       if (!t) continue;
       const g = groups.get(t) ?? [];
       g.push(r);

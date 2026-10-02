@@ -7,6 +7,7 @@ const ALL_PAGES = [
   { path: '/', label: '🏠 Dashboard' },
   { path: '/operations', label: '🚚 Operations Tracker' },
   { path: '/workshop', label: '🔧 Workshop / Maintenance' },
+  { path: '/fleet/coding', label: '🔗 Vehicle & Device Coding', labelKey: 'fleetCoding' as const },
   { path: '/mixing', label: '🎛️ Mixing & Quality' },
   { path: '/production', label: '🏭 Production & Inventory' },
   { path: '/materials', label: '🏗️ الخامات والمخزون والخلطات', labelKey: 'materials' as const },
@@ -26,7 +27,10 @@ const ROLE_ACCESS: Record<string, string[]> = {
   ACCOUNTANT: ['/', '/orders', '/schedule', '/finance'],
   QUALITY_MGR: ['/', '/mixing', '/evaluation', '/governance', '/rnd'],
   LAB_TECH: ['/', '/mixing', '/evaluation', '/governance', '/rnd'],
-  PRODUCTION_OP: ['/', '/workshop', '/mixing', '/production', '/materials'],
+  // Device coding is a fleet action — the same people who code a probe onto a
+  // truck are the ones who move it to another truck. DISPATCHER/WORKSHOP_MGR and
+  // SUPER_ADMIN reach it via ALL_PAGES.
+  PRODUCTION_OP: ['/', '/workshop', '/fleet/coding', '/mixing', '/production', '/materials'],
   DRIVER: ['/', '/operations'],
 };
 

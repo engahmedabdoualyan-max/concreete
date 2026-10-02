@@ -35,6 +35,7 @@
     "security:mobile": "node scripts/mobile-config-audit.mjs",
     "security:apk": "node scripts/apk-integrity-audit.mjs",
     "e2e": "node scripts/e2e-production.mjs",
+    "e2e:coding": "node scripts/e2e-device-coding.mjs",
     "test:zatca": "tsx scripts/zatca-validation-smoke.ts",
     "test:security": "tsx scripts/security-unit-smoke.ts",
     "security:audit:deps": "npm audit --omit=dev --audit-level=high",
