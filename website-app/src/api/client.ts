@@ -66,16 +66,28 @@ export const SESSION_KEY = "fimto_user_session";
  * Keep web tokens out of persistent localStorage in production. This is not a
  * replacement for HttpOnly cookies, but it reduces the lifetime of a token
  * stolen by a later XSS/extension issue. Mobile uses SecureStore separately.
+ *
+ * Exception: the Tauri desktop app. It is a single-user native container, not
+ * a shared browser — sessionStorage dies on every app restart, which left a
+ * restored (looks-logged-in) session with no token behind, so every /api call
+ * failed with "Authorization header with Bearer token is required". persisted
+ * tokens there auto-renew via the 7-day refresh token like everywhere else.
  */
+function isTauri(): boolean {
+  if (typeof window === 'undefined') return false;
+  return '__TAURI_INTERNALS__' in window || '__TAURI__' in window;
+}
+
 function webStorage(): Storage {
   if (typeof window === 'undefined') {
     throw new Error('Web storage is unavailable during SSR');
   }
-  return import.meta.env.PROD ? window.sessionStorage : window.localStorage;
+  if (import.meta.env.PROD && !isTauri()) return window.sessionStorage;
+  return window.localStorage;
 }
 
 function removeLegacyPersistentTokens(): void {
-  if (typeof window === 'undefined' || !import.meta.env.PROD) return;
+  if (typeof window === 'undefined' || !import.meta.env.PROD || isTauri()) return;
   for (const key of [TOKEN_KEY, REFRESH_KEY, SESSION_KEY]) {
     window.localStorage.removeItem(key);
   }
