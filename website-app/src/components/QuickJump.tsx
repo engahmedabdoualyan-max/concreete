@@ -8,6 +8,7 @@ const ALL_PAGES = [
   { path: '/operations', label: '🚚 Operations Tracker' },
   { path: '/workshop', label: '🔧 Workshop / Maintenance' },
   { path: '/fleet/coding', label: '🔗 Vehicle & Device Coding', labelKey: 'fleetCoding' as const },
+  { path: '/sites', label: '🛰️ Sites & Fleet Map' },
   { path: '/mixing', label: '🎛️ Mixing & Quality' },
   { path: '/production', label: '🏭 Production & Inventory' },
   { path: '/materials', label: '🏗️ الخامات والمخزون والخلطات', labelKey: 'materials' as const },
