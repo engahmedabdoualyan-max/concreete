@@ -41,6 +41,7 @@ import FieldRnd from './field/FieldRnd';
 import FieldTeam from './field/FieldTeam';
 import FleetCoding from './pages/FleetCoding';
 import Sites from './pages/Sites';
+import CommandCenter from './pages/CommandCenter';
 import FieldBackButton from './field/FieldBackButton';
 import { useLocation } from 'react-router-dom';
 
@@ -89,6 +90,7 @@ export default function App() {
           <Route path="/workshop" element={<Workshop />} />
           <Route path="/fleet/coding" element={<FleetCoding />} />
           <Route path="/sites" element={<Sites />} />
+          <Route path="/command" element={<CommandCenter />} />
           <Route path="/mixing" element={<MixingQuality />} />
           <Route path="/quality" element={<MixingQuality />} />
           <Route path="/production" element={<Production />} />
