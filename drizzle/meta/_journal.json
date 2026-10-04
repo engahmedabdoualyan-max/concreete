@@ -155,6 +155,20 @@
       "when": 1790229697038,
       "tag": "0021_reusable_device_identity",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1790229697039,
+      "tag": "0022_asset_qr_warehouses",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1791108760331,
+      "tag": "0023_sites",
+      "breakpoints": true
     }
   ]
 }

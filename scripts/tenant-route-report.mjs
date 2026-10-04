@@ -29,6 +29,12 @@ const publicRoutes = [
   "/api/auth/sso/callback",
   "/api/health",
   "/api/public/portal/",
+  // Client crash intake. Unauthenticated on purpose — a client that is crashing
+  // cannot sign anything — and it writes to the server log rather than to a
+  // table, so there is no tenant-scoped row for it to reach across. Classifying it
+  // here is what the route actually is; leaving it unclassified made this report
+  // the one red check in CI.
+  "/api/public/client-error",
   "/api/reports/share/",
 ];
 

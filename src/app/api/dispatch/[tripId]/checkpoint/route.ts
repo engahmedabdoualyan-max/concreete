@@ -17,11 +17,15 @@
 
 import { NextRequest } from "next/server";
 import { db } from "@/db";
-import { trips, tripCheckpoints, orders, clients, deliverySites } from "@/db/schema";
+import { trips, tripCheckpoints, orders, clients, deliverySites, auditLogs } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import { requirePermission } from "@/lib/auth/middleware";
 import { errorResponse, successResponse } from "@/lib/auth/middleware";
 import { PERMISSIONS } from "@/lib/auth/rbac";
+import {
+  issueLabel,
+  buildQrPayload,
+} from "@/lib/services/asset-qr.service";
 import { updateTripCheckpoint, CHECKPOINT_ORDER } from "@/lib/services/dispatch.service";
 import { predictEtaMinutes } from "@/lib/services/dispatch-optimization.service";
 import { notifyCustomer, type NotifyEvent } from "@/lib/services/notification.service";
@@ -161,6 +165,51 @@ export async function POST(
 
     const isLastCheckpoint = parsed.data.checkpoint === "RETURN_PLANT";
 
+    // ── Permanent challan label, minted as the ticket is issued ───────────
+    // At DEP_PLANT the delivery ticket (الشجرة) is born, so this is the one
+    // moment a label can be attached to it without anyone having to remember.
+    //
+    // This is a SECOND, separate QR from the encrypted `qrCodeToken` below, and
+    // it does not replace it. The token is the live, security-critical payload
+    // the site engineer scans to prove the pour is happening at the right
+    // place — signed and encrypted for a reason. This label is the permanent
+    // archival identity of the paper challan, so a year-old printed ticket can
+    // still be traced through /api/qr/scan.
+    let challanLabel: { labelCode: string; qrPayload: string | null } | null = null;
+    if (
+      parsed.data.checkpoint === "DEP_PLANT" &&
+      updatedTripRows[0]?.deliveryTicketNumber
+    ) {
+      const issued = await issueLabel({
+        tenantId: auth.user.tenantId,
+        subjectType: "CHALLAN",
+        subjectId: tripId,
+        subjectRef: updatedTripRows[0].deliveryTicketNumber,
+        subjectLabel: trip.tripNumber,
+        issuedById: auth.user.sub,
+      });
+      challanLabel = {
+        labelCode: issued.label.labelCode,
+        // The secret only exists on first mint; a re-departure reuses the label.
+        qrPayload: issued.token
+          ? buildQrPayload(issued.label.labelCode, issued.token)
+          : null,
+      };
+
+      await db.insert(auditLogs).values({
+        userId: auth.user.sub,
+        tenantId: auth.user.tenantId,
+        action: "CHALLAN_QR_ISSUED",
+        entityType: "trips",
+        entityId: tripId,
+        newState: {
+          deliveryTicketNumber: updatedTripRows[0].deliveryTicketNumber,
+          tripNumber: trip.tripNumber,
+          labelCode: issued.label.labelCode,
+        },
+      });
+    }
+
     // ── Build the Socket.io event payload based on checkpoint ─────────────
     const socketEvent = result.dryingRisk?.triggered
       ? {
@@ -278,6 +327,14 @@ export async function POST(
          * to scan at the site via POST /api/dispatch/verify-ticket-qr.
          */
         qrCodeToken: result.qrCodeToken ?? undefined,
+        /**
+         * Permanent archival label for the paper challan. Separate from the
+         * encrypted token above: that one proves the pour is at the right site,
+         * this one lets an old printed ticket be traced years later.
+         * `qrPayload` is non-null only when the label was minted on this
+         * departure; print it, because the secret is not recoverable later.
+         */
+        challanLabel,
         /** Saudi TGA (Bayan/Naql) compliance — only present at DEP_PLANT */
         tga: result.tgaNotification
           ? {

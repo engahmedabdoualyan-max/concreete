@@ -9,6 +9,7 @@ import { getItem, setItem, removeItem, STORAGE_KEYS } from "./storage";
 import { resolveApiBase } from "./server-url";
 import { socket } from "./socket";
 import type { AuthResponse, AuthUser, ApiResponse } from "@/types";
+import type { SitesNearPoint } from "./sites";
 
 class ApiClient {
   private client: AxiosInstance;
@@ -190,6 +191,40 @@ class ApiClient {
       await removeItem(STORAGE_KEYS.ACCESS_TOKEN);
       await removeItem(STORAGE_KEYS.REFRESH_TOKEN);
       await removeItem(STORAGE_KEYS.USER);
+    }
+  }
+
+  // ─── Plant & Branch Proximity ─────────────────────────────────────
+
+  /**
+   * Sites measured from a point on the phone, nearest first.
+   *
+   * Not /fleet/positions: that answers "where is the whole fleet" and is gated on
+   * FLEET_POSITION_READ, which DRIVER does not hold — a driver does not see the
+   * other trucks. This card only needs "where am I relative to our yards", so it
+   * asks for the company's own sites and needs nothing beyond SITE_READ.
+   */
+  async getSitesNear(
+    latitude: number,
+    longitude: number
+  ): Promise<SitesNearPoint | null> {
+    try {
+      const query = new URLSearchParams({
+        lat: String(latitude),
+        lng: String(longitude),
+      });
+      // Generic is the ApiResponse envelope, matching every other method here —
+      // Axios does not unwrap the `{ success, data }` body on its own.
+      const response =
+        await this.client.get<ApiResponse<SitesNearPoint>>(
+          `/sites/near?${query.toString()}`
+        );
+      return response.data.data;
+    } catch {
+      // Best-effort: this is an informational card, and a driver in a concrete
+      // yard is often out of coverage. Failing loudly here would punish the
+      // caller for something it can simply do without.
+      return null;
     }
   }
 

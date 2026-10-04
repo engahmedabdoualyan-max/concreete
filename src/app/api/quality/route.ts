@@ -37,6 +37,7 @@ import { requirePermission } from "@/lib/auth/middleware";
 import { errorResponse, successResponse } from "@/lib/auth/middleware";
 import { PERMISSIONS } from "@/lib/auth/rbac";
 import { z } from "zod";
+import { issueLabel } from "@/lib/services/asset-qr.service";
 import { addDays } from "date-fns";
 
 export const dynamic = "force-dynamic";
@@ -277,6 +278,31 @@ export async function POST(req: NextRequest) {
       sampledAt: new Date(),
     })
     .returning();
+
+  // Cube specimens are labelled at the moment they are cast, while the technician
+  // still has the sample in hand. A label added later risks being stuck on the
+  // wrong crate of cubes — which is the one mistake the 7- and 28-day crush tests
+  // cannot survive.
+  const sampleLabel = await issueLabel({
+    tenantId: auth.user.tenantId,
+    subjectType: "CONCRETE_SAMPLE",
+    subjectId: newSample!.id,
+    subjectRef: newSample!.sampleNumber,
+    subjectLabel: `${newSample!.cubesCount} cubes`,
+    issuedById: auth.user.sub,
+  });
+
+  await db.insert(auditLogs).values({
+    userId: auth.user.sub,
+    tenantId: auth.user.tenantId,
+    action: "SAMPLE_QR_ISSUED",
+    entityType: "lab_test_samples",
+    entityId: newSample!.id,
+    newState: {
+      sampleNumber: newSample!.sampleNumber,
+      labelCode: sampleLabel.label.labelCode,
+    },
+  });
 
   const now = new Date();
 

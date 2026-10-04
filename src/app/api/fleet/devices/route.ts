@@ -18,6 +18,7 @@
 
 import { NextRequest } from "next/server";
 import { db } from "@/db";
+import { isUniqueViolation } from "@/lib/db/pg-errors";
 import { auditLogs } from "@/db/schema";
 import { requirePermission } from "@/lib/auth/middleware";
 import { errorResponse, successResponse } from "@/lib/auth/middleware";
@@ -211,14 +212,6 @@ export async function POST(req: NextRequest) {
 
 // ─── conflict mapping ──────────────────────────────────────────────────────────
 
-/** Postgres unique_violation. */
-function isUniqueViolation(err: unknown): boolean {
-  return (
-    typeof err === "object" &&
-    err !== null &&
-    (err as { code?: string }).code === "23505"
-  );
-}
 
 /**
  * Every "this device is already somewhere else" case is a 409 with the vehicle

@@ -2,6 +2,7 @@ import { useState, useEffect, type FormEvent, type ReactNode, Component } from '
 import { useNavigate } from 'react-router-dom';
 import { saveUser, getAllUsers, saveCompanyTree, saveCompanySubscription, deleteCompany, uploadConsoleImage, saveSiteConfig, loadSiteConfig, getStorageStatus, loadPlantProfile, savePlantProfile, savePlantLogo, isOnline, type CompanyTree } from '../firebase/firestore';
 import BrandLogo from '../components/BrandLogo';
+import PlantLocationField from '../components/PlantLocationField';
 import type { UserSession } from '../context/AuthContext';
 import { TREE_ROLES, treeModsForRole } from '../lib/treeRoles';
 import { hashPassword } from '../lib/passwords';
@@ -1284,6 +1285,10 @@ const [companies, setCompanies] = useState<any[]>([]);
                         onChange={o => updateCompanyInfoLocal(uname, { city: o.target.value })}
                         className={inputCls}
                         placeholder={t('cityPh')}
+                      />
+                      <PlantLocationField
+                        companyEmail={(companies.find(c => (c.username || '').toLowerCase() === uname)?.email || '') as string}
+                        sessionEmail={email}
                       />
                       <button
                         onClick={() => {
