@@ -127,6 +127,18 @@ export default function FimtoFooter() {
               >
                 🐧
               </a>
+              {/* The deb above is the field/mobile flavour. The AppImage is the
+                  full desktop build — it ships the website itself, so it is the
+                  only Linux build that has the Sites page and the fleet map. */}
+              <a
+                href="https://fimto-downloads.vercel.app/downloads/fimto-concrete.AppImage"
+                download
+                aria-label="Download Linux desktop app, full version"
+                title="نسخة الكمبيوتر الكاملة — Linux"
+                className="inline-flex items-center justify-center w-10 h-10 rounded-lg bg-white/10 hover:bg-white/20 transition-colors text-white text-xl"
+              >
+                🖥️
+              </a>
             </div>
             <p className="text-center text-[10px] text-slate-500 mt-2">
               v1.3.0 • R&D 🧠 • HR 💬 • Portal 🔗 • ZATCA 🧾

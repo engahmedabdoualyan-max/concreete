@@ -992,7 +992,7 @@ dependencies = [
 
 [[package]]
 name = "fimto-concrete-app"
-version = "3.4.0"
+version = "3.5.1"
 dependencies = [
  "serde",
  "serde_json",
