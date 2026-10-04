@@ -99,7 +99,7 @@ export default function FimtoFooter() {
                 </svg>
               </a>
               <a
-                href="https://apps.apple.com/app/fimto-concrete-erp"
+                href="https://fimto-downloads.vercel.app/downloads/Fimto.Concrete.ERP_1.0.0_universal.dmg"
                 target="_blank"
                 rel="noopener noreferrer"
                 aria-label={t('downloadIOS')}
