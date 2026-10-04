@@ -77,9 +77,9 @@ export default function CommandCenter() {
   const load = useCallback(async () => {
     // Production board — independent try/catch so one 403 never blanks the TV.
     try {
-      const b = await api.get<{ summary?: BoardSummary; liveTrips?: LiveTrip[] }>('/api/dispatch/board');
+      const b = await api.get<{ summary?: BoardSummary; trips?: LiveTrip[]; liveTrips?: LiveTrip[] }>('/api/dispatch/board');
       setBoard(b?.summary ?? null);
-      setTrips(Array.isArray(b?.liveTrips) ? b.liveTrips : []);
+      setTrips(Array.isArray(b?.trips) ? b.trips : Array.isArray(b?.liveTrips) ? b.liveTrips : []);
     } catch { /* section stays empty */ }
     // Silos.
     try {
