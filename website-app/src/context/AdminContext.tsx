@@ -247,7 +247,9 @@ export function AdminProvider({ children }: { children: ReactNode }) {
 
   const canAccess = (module: string): boolean => {
     if (!currentUser) return false;
-    if (currentUser.status === 'GUEST') return import.meta.env.DEV;
+    // Owner-approved: module cards are a preview for visitors (GUEST).
+    // No design change — only the visibility gate. Real data stays behind login.
+    if (currentUser.status === 'GUEST') return true;
     const norm = (module === 'operation' ? 'operations' : module) as ModuleKey;
     if (currentUser.status === 'APP_ACCOUNT') {
       const role = String((currentUser as any).role || '');
