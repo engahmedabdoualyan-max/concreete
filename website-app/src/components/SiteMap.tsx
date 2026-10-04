@@ -56,6 +56,12 @@ export interface MapVehicle {
   distanceLine: string;
   /** e.g. "3 min ago" */
   ageLine: string;
+  /** Optional extra line, e.g. "الحالة: متاح · 45 كم/س". Rendered only if set. */
+  statusLine?: string;
+  /** Optional deep-link shown in the popup, e.g. "#/operations". */
+  detailHref?: string;
+  /** Label for the deep-link. Defaults to "⇢". */
+  detailLabel?: string;
 }
 
 interface Props {
@@ -175,8 +181,11 @@ export default function SiteMap({ sites, vehicles = [], className = '' }: Props)
         .bindPopup(
           `<div style="direction:rtl;text-align:right"><b dir="ltr">${escapeHtml(label)}</b>` +
           `<br/>${escapeHtml(v.nearestLine)}` +
+          (v.statusLine ? `<br/>${escapeHtml(v.statusLine)}` : '') +
           `<br/>${escapeHtml(v.distanceLine)}` +
-          `<br/><span style="opacity:.7">${escapeHtml(v.ageLine)}</span></div>`
+          `<br/><span style="opacity:.7">${escapeHtml(v.ageLine)}</span>` +
+          (v.detailHref ? `<br/><a href="${escapeHtml(v.detailHref)}" style="color:#38bdf8;font-weight:bold">${escapeHtml(v.detailLabel || '⇢')}</a>` : '') +
+          `</div>`
         );
     });
 
