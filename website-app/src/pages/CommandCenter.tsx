@@ -10,9 +10,13 @@ import SiteMap, { type MapSite, type MapVehicle } from '../components/SiteMap';
 /**
  * CommandCenter — 📺 "بث الشاشة".
  * A read-only plant command center meant to run on an office TV like a
- * monitoring camera: production today, silo stock, fleet size, and the map.
- * Read-only on purpose: it never POSTs/PUTs anything, so it is safe to leave
- * polling on a wall screen. Lists refresh every 3 minutes.
+ * monitoring camera. The whole screen fits ONE viewport — no mouse, no
+ * scrolling: header, KPI strip, map + goal column + icon rail, bottom strip.
+ *
+ * The big number is the DAILY GOAL achievement % (concrete m³ + block units
+ * blended), set by the plant owner with the 🎯 editor. Read-only otherwise:
+ * it never POSTs/PUTs anything except the owner's own goal. Lists refresh
+ * every 3 minutes.
  *
  * Each section degrades independently — a role without INVENTORY_READ still
  * sees the map, and a role without FLEET_POSITION_READ (drivers) never sees
@@ -71,11 +75,11 @@ function fmt(n: number | undefined | null, lang: string): string {
   return Number(n).toLocaleString(lang === 'ar' ? 'ar-EG' : 'en-US', { maximumFractionDigits: 1 });
 }
 
-function StatRow({ label, value, alert }: { label: string; value: string; alert?: boolean }) {
+function MiniTile({ label, value, alert }: { label: string; value: string; alert?: boolean }) {
   return (
-    <div className="flex items-center justify-between py-2 border-b border-white/5 last:border-0">
-      <span className="text-xs text-slate-400 font-bold">{label}</span>
-      <span className={`text-lg font-black ${alert ? 'text-red-400' : 'text-white'}`}>{value}</span>
+    <div className={`rounded-xl border px-2 py-1.5 text-center ${alert ? 'border-red-500/60 bg-red-500/10' : 'border-white/10 bg-white/[0.03]'}`}>
+      <p className="text-[10px] text-slate-400 font-bold truncate">{label}</p>
+      <p className={`text-xl font-black leading-tight ${alert ? 'text-red-400' : 'text-white'}`}>{value}</p>
     </div>
   );
 }
@@ -107,6 +111,12 @@ export default function CommandCenter() {
   const [vehicles, setVehicles] = useState<MapVehicle[]>([]);
   const [canFleet, setCanFleet] = useState(false);
   const [showEmergency, setShowEmergency] = useState(false);
+  const [targets, setTargets] = useState({ concreteM3: 0, blocks: 0 });
+  const [canEditTargets, setCanEditTargets] = useState(false);
+  const [showTargetEditor, setShowTargetEditor] = useState(false);
+  const [editConcrete, setEditConcrete] = useState('');
+  const [editBlocks, setEditBlocks] = useState('');
+  const [blocks, setBlocks] = useState({ producedUnits: 0, producedM3: 0, salesOrders: 0, salesM3: 0 });
 
   const load = useCallback(async () => {
     // Production board — independent try/catch so one 403 never blanks the TV.
@@ -116,6 +126,22 @@ export default function CommandCenter() {
       setTrips(Array.isArray(b?.trips) ? b.trips : Array.isArray(b?.liveTrips) ? b.liveTrips : []);
       setBoardAlerts(Array.isArray(b?.alerts) ? b.alerts : []);
     } catch { /* section stays empty */ }
+    // Daily goal (plant owner sets it; everyone permitted reads it).
+    try {
+      const g = await api.get<{ targets?: { concreteM3?: number; blocks?: number }; canEdit?: boolean }>('/api/command/targets');
+      setTargets({ concreteM3: g?.targets?.concreteM3 ?? 0, blocks: g?.targets?.blocks ?? 0 });
+      setCanEditTargets(!!g?.canEdit);
+    } catch { /* ring shows no-goal state */ }
+    // Blocks today: produced + sold.
+    try {
+      const bl = await api.get<{ produced?: { units?: number; volumeM3?: number }; sales?: { orders?: number; volumeM3?: number } }>('/api/blocks/today');
+      setBlocks({
+        producedUnits: bl?.produced?.units ?? 0,
+        producedM3: bl?.produced?.volumeM3 ?? 0,
+        salesOrders: bl?.sales?.orders ?? 0,
+        salesM3: bl?.sales?.volumeM3 ?? 0,
+      });
+    } catch { /* tiles stay empty */ }
     // Silos.
     try {
       const inv = await api.get<{ silos?: Silo[]; alerts?: { lowStockCount?: number } }>('/api/inventory');
@@ -176,6 +202,16 @@ export default function CommandCenter() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ar]);
 
+  const saveTargets = async () => {
+    const c = Math.max(0, Number(editConcrete) || 0);
+    const b = Math.max(0, Math.round(Number(editBlocks) || 0));
+    try {
+      const res = await api.put<{ targets?: { concreteM3?: number; blocks?: number } }>('/api/command/targets', { concreteM3: c, blocks: b });
+      setTargets({ concreteM3: res?.targets?.concreteM3 ?? c, blocks: res?.targets?.blocks ?? b });
+      setShowTargetEditor(false);
+    } catch { /* keep editor open on failure */ }
+  };
+
   useEffect(() => {
     if (!currentUser) return;
     load();
@@ -218,9 +254,15 @@ export default function CommandCenter() {
   }
   const faults = openWO.length + fuelAnom.length + trips.filter((t) => t.stalled).length;
 
+  // ===== daily goal achievement: the ONE big number =====
+  const concretePct = targets.concreteM3 > 0 ? Math.min(999, Math.round(((board?.deliveredTodayM3 ?? 0) / targets.concreteM3) * 100)) : -1;
+  const blocksPct = targets.blocks > 0 ? Math.min(999, Math.round((blocks.producedUnits / targets.blocks) * 100)) : -1;
+  const parts = [concretePct, blocksPct].filter((p) => p >= 0);
+  const achievement = parts.length > 0 ? Math.round(parts.reduce((a, b) => a + b, 0) / parts.length) : -1;
+
   if (!currentUser) {
     return (
-      <div className="min-h-screen bg-[#080C14] text-slate-200 flex items-center justify-center p-6 text-center" dir={ar ? 'rtl' : 'ltr'}>
+      <div className="h-screen bg-[#080C14] text-slate-200 flex items-center justify-center p-6 text-center" dir={ar ? 'rtl' : 'ltr'}>
         <div className="max-w-md rounded-2xl border border-white/10 bg-white/[0.03] p-8">
           <p className="text-4xl mb-3">📺</p>
           <h1 className="text-xl font-black text-white">{L('بث الشاشة', 'Command Center')}</h1>
@@ -233,24 +275,26 @@ export default function CommandCenter() {
   }
 
   const liveCount = vehicles.filter((v) => !v.isStale).length;
-  const readiness = vehicles.length > 0 ? Math.round((liveCount / vehicles.length) * 100) : 0;
   const R = 54;
   const CIRC = 2 * Math.PI * R;
+  const ringPct = achievement >= 0 ? Math.min(100, achievement) : 0;
+  const concreteBar = targets.concreteM3 > 0 ? Math.min(100, ((board?.deliveredTodayM3 ?? 0) / targets.concreteM3) * 100) : 0;
+  const blocksBar = targets.blocks > 0 ? Math.min(100, (blocks.producedUnits / targets.blocks) * 100) : 0;
 
   return (
-    <div className="min-h-screen bg-[#080C14] text-slate-200" dir={ar ? 'rtl' : 'ltr'}>
-      {/* ===== header: plant logo, title, language, flashing emergency ===== */}
-      <header className="px-4 sm:px-6 py-3 flex flex-wrap items-center justify-between gap-2 border-b border-white/10 bg-[#0B111E]/80">
+    <div className="h-screen flex flex-col overflow-hidden bg-[#080C14] text-slate-200" dir={ar ? 'rtl' : 'ltr'}>
+      {/* ===== header ===== */}
+      <header className="px-4 py-2 flex flex-wrap items-center justify-between gap-2 border-b border-white/10 bg-[#0B111E]/80 shrink-0">
         <div className="flex items-center gap-3">
-          <BrandLogo width={56} rounded="rounded-2xl" />
+          <BrandLogo width={48} rounded="rounded-xl" />
           <div>
-            <h1 className="text-lg sm:text-xl font-black text-white tracking-tight">
+            <h1 className="text-base sm:text-lg font-black text-white tracking-tight leading-tight">
               CONCRETE PLANT <span className="text-sky-400">COMMAND CENTER</span>
             </h1>
-            <p className="text-[11px] text-slate-500">{L('بث الشاشة — تحديث تلقائي كل ٣ دقائق', 'Screen cast — auto-refresh every 3 min')}</p>
+            <p className="text-[10px] text-slate-500">{L('بث الشاشة — تحديث تلقائي كل ٣ دقائق', 'Screen cast — auto-refresh every 3 min')}</p>
           </div>
         </div>
-        <div className="flex items-center gap-2 sm:gap-3">
+        <div className="flex items-center gap-2">
           <LangSelector />
           <button
             onClick={() => setShowEmergency((v) => !v)}
@@ -260,26 +304,29 @@ export default function CommandCenter() {
                 : 'text-slate-400 bg-white/[0.04] border-white/10'
             }`}
           >
-            🚨 {L('مشاكل طارئة', 'Emergency')} · {emergencies.length}
+            🚨 {L('طوارئ', 'Emergency')} · {emergencies.length}
           </button>
           <span className="flex items-center gap-1.5 text-xs font-black text-emerald-300 bg-emerald-500/10 border border-emerald-500/30 rounded-lg px-3 py-2">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" /> {L('بث مباشر', 'LIVE')}
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" /> {L('مباشر', 'LIVE')}
           </span>
           <span className="text-sm font-mono text-slate-300">
-            {now.toLocaleTimeString(ar ? 'ar-EG' : 'en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+            {now.toLocaleTimeString(ar ? 'ar-EG' : 'en-US', { hour: '2-digit', minute: '2-digit' })}
           </span>
         </div>
       </header>
 
-      {/* ===== emergency panel ===== */}
+      {/* ===== emergency overlay (never pushes layout — TV has no mouse to scroll back) ===== */}
       {showEmergency && (
-        <div className="px-4 sm:px-6 pt-3 max-w-[1700px] mx-auto">
-          <div className="rounded-2xl border border-red-500/40 bg-red-500/[0.06] p-4">
-            <h2 className="text-sm font-black text-red-300 mb-2">🚨 {L('مشاكل طارئة — دوس على أي قسم لمتابعته', 'Urgent issues by department')}</h2>
+        <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-6" onClick={() => setShowEmergency(false)}>
+          <div className="max-w-3xl w-full max-h-[85vh] overflow-y-auto rounded-2xl border border-red-500/40 bg-[#120B0B] p-5" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-base font-black text-red-300">🚨 {L('مشاكل طارئة حسب القسم', 'Urgent issues by department')}</h2>
+              <button onClick={() => setShowEmergency(false)} className="text-slate-400 hover:text-white text-lg px-2">✕</button>
+            </div>
             {emergencies.length === 0 && (
-              <p className="text-xs text-emerald-300 font-bold">✅ {L('لا مشاكل طارئة حالياً — كل الأقسام سليمة.', 'No urgent issues — all departments clear.')}</p>
+              <p className="text-sm text-emerald-300 font-bold">✅ {L('لا مشاكل طارئة حالياً — كل الأقسام سليمة.', 'No urgent issues — all departments clear.')}</p>
             )}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               {emergencies.map((e, i) => (
                 <div key={i} className={`rounded-xl border px-3 py-2 text-xs ${e.critical ? 'border-red-500/50 bg-red-500/10' : 'border-white/10 bg-white/[0.03]'}`}>
                   <span className={`inline-block font-black rounded px-2 py-0.5 mb-1 ${e.critical ? 'bg-red-500/20 text-red-300' : 'bg-white/10 text-slate-300'}`}>
@@ -293,110 +340,105 @@ export default function CommandCenter() {
         </div>
       )}
 
-      <div className="p-4 sm:p-6 max-w-[1700px] mx-auto grid grid-cols-1 lg:grid-cols-[1fr_340px_64px] gap-4">
-        {/* ===== map (always mounted — tiles stay alive even before data arrives) ===== */}
-        <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-3 min-h-[480px] lg:min-h-[600px] flex flex-col">
-          <h2 className="text-sm font-black text-white mb-2 px-1">
+      {/* ===== KPI strip: concrete + blocks + fleet, one row ===== */}
+      <div className="px-4 pt-2 grid grid-cols-4 lg:grid-cols-8 gap-2 shrink-0">
+        <MiniTile label={L('خرسانة اليوم م³', 'Concrete m³')} value={fmt(board?.deliveredTodayM3, lang)} />
+        <MiniTile label={L('إنتاج البلك 🧱', 'Blocks made')} value={fmt(blocks.producedUnits, lang)} />
+        <MiniTile label={L('مبيعات البلك 🧾', 'Blocks sold')} value={fmt(blocks.salesOrders, lang)} />
+        <MiniTile label={L('رحلات نشطة', 'Active trips')} value={fmt(board?.activeTrips, lang)} />
+        <MiniTile label={L('متعثرة', 'Stalled')} value={fmt(board?.stalledTrips, lang)} alert={(board?.stalledTrips ?? 0) > 0} />
+        <MiniTile label={L('أسطول نشط', 'Fleet live')} value={canFleet ? `${fmt(liveCount, lang)}/${fmt(vehicles.length, lang)}` : '—'} />
+        <MiniTile label={L('أعطال اليوم', "Today's faults")} value={fmt(faults, lang)} alert={faults > 0} />
+        <MiniTile label={L('مخزون حرج', 'Low stock')} value={fmt(lowStock, lang)} alert={lowStock > 0} />
+      </div>
+
+      {/* ===== main row: map + goal column + rail (fills the rest, never scrolls) ===== */}
+      <div className="flex-1 min-h-0 px-4 py-2 grid grid-cols-1 lg:grid-cols-[1fr_300px_52px] gap-3 max-w-[1700px] w-full mx-auto">
+        <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-2 min-h-0 flex flex-col">
+          <h2 className="text-xs font-black text-white px-1 pb-1">
             🗺️ {L('الخريطة — المصنع والفروع والأسطول', 'Map — plant, branches & fleet')}
-            {canFleet && vehicles.length > 0 && (
-              <span className="text-[11px] text-slate-400 font-bold"> · {liveCount}/{vehicles.length} {L('نشطة', 'live')}</span>
-            )}
           </h2>
-          <SiteMap sites={sites} vehicles={canFleet ? vehicles : []} className="flex-1 min-h-[420px]" />
-          <p className="text-[10px] text-slate-600 px-1 pt-1">{L('دوس على أي مركبة لبياناتها ورحلاتها.', 'Click any vehicle for its data and trips.')}</p>
+          <SiteMap sites={sites} vehicles={canFleet ? vehicles : []} className="flex-1 min-h-0" />
         </div>
 
-        {/* ===== center: readiness ring + production + faults + inventory + trips ===== */}
-        <div className="flex flex-col gap-4">
-          <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-4 text-center">
-            <h2 className="text-xs font-black text-slate-400">{L('جاهزية الأسطول', 'FLEET READINESS')}</h2>
-            <div className="relative w-[150px] h-[150px] mx-auto mt-2">
+        <div className="hidden lg:flex flex-col gap-2 min-h-0 overflow-hidden">
+          {/* goal ring */}
+          <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-3 text-center shrink-0">
+            <h2 className="text-[11px] font-black text-slate-400">{L('تحقيق هدف اليوم', 'DAILY GOAL')}</h2>
+            <div className="relative w-[128px] h-[128px] mx-auto mt-1">
               <svg viewBox="0 0 130 130" className="w-full h-full -rotate-90">
                 <circle cx="65" cy="65" r={R} fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="11" />
                 <circle
                   cx="65" cy="65" r={R} fill="none"
-                  stroke={readiness >= 70 ? '#34d399' : readiness >= 40 ? '#fbbf24' : '#f87171'}
+                  stroke={achievement >= 100 ? '#34d399' : achievement >= 50 ? '#38bdf8' : '#fbbf24'}
                   strokeWidth="11" strokeLinecap="round"
-                  strokeDasharray={`${(readiness / 100) * CIRC} ${CIRC}`}
+                  strokeDasharray={`${ringPct / 100 * CIRC} ${CIRC}`}
                 />
               </svg>
               <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <span className="text-3xl font-black text-white">{canFleet ? `%${readiness}` : '—'}</span>
-                <span className="text-[10px] text-slate-500">{L('إشارة حية', 'live signal')}</span>
+                <span className="text-2xl font-black text-white">{achievement >= 0 ? `%${achievement}` : '—'}</span>
               </div>
             </div>
-            <p className="text-[11px] text-slate-500 mt-1">
-              {canFleet ? `${liveCount} / ${vehicles.length} ${L('مركبة', 'vehicles')}` : L('لا صلاحية مواقع للأسطول', 'No fleet access')}
-            </p>
+            <div className="text-left mt-1">
+              <div className="flex justify-between text-[10px] mb-0.5">
+                <span className="font-bold text-slate-300">{L('خرسانة', 'Concrete')}</span>
+                <span className="font-mono text-slate-400">{fmt(board?.deliveredTodayM3, lang)}/{fmt(targets.concreteM3, lang)} {L('م³', 'm³')}</span>
+              </div>
+              <div className="h-1.5 rounded-full bg-white/10 overflow-hidden mb-1.5">
+                <div className="h-full bg-sky-400 rounded-full" style={{ width: `${concreteBar}%` }} />
+              </div>
+              <div className="flex justify-between text-[10px] mb-0.5">
+                <span className="font-bold text-slate-300">{L('بلك', 'Blocks')}</span>
+                <span className="font-mono text-slate-400">{fmt(blocks.producedUnits, lang)}/{fmt(targets.blocks, lang)}</span>
+              </div>
+              <div className="h-1.5 rounded-full bg-white/10 overflow-hidden">
+                <div className="h-full bg-emerald-400 rounded-full" style={{ width: `${blocksBar}%` }} />
+              </div>
+            </div>
+            {canEditTargets && (
+              <button onClick={() => { setEditConcrete(String(targets.concreteM3)); setEditBlocks(String(targets.blocks)); setShowTargetEditor((v) => !v); }}
+                className="mt-1 text-[11px] font-black text-sky-300 border border-sky-500/40 rounded-lg px-3 py-1 hover:bg-sky-500/10">
+                🎯 {L('هدف اليوم', 'Set goal')}
+              </button>
+            )}
+            {showTargetEditor && canEditTargets && (
+              <div className="mt-1 flex gap-1">
+                <input value={editConcrete} onChange={(e) => setEditConcrete(e.target.value)} inputMode="decimal" placeholder={L('م³ خرسانة', 'm³')} className="w-full bg-white/[0.06] border border-white/15 rounded-lg px-2 py-1 text-xs text-white outline-none" />
+                <input value={editBlocks} onChange={(e) => setEditBlocks(e.target.value)} inputMode="numeric" placeholder={L('بلك', 'blocks')} className="w-full bg-white/[0.06] border border-white/15 rounded-lg px-2 py-1 text-xs text-white outline-none" />
+                <button onClick={saveTargets} className="shrink-0 bg-sky-500 text-white text-xs font-black rounded-lg px-3">✓</button>
+              </div>
+            )}
           </div>
-
-          <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-4">
-            <h2 className="text-sm font-black text-white mb-1">🏭 {L('إنتاج اليوم', "Today's production")}</h2>
-            <StatRow label={L('تم صبه (م³)', 'Poured (m³)')} value={fmt(board?.deliveredTodayM3, lang)} />
-            <StatRow label={L('المطلوب (م³)', 'Ordered (m³)')} value={fmt(board?.totalM3, lang)} />
-            <StatRow label={L('المتبقي (م³)', 'Remaining (m³)')} value={fmt(board?.remainingM3, lang)} />
-            <StatRow label={L('غير مغطى (م³)', 'Uncovered (m³)')} value={fmt(board?.uncoveredM3, lang)} alert={(board?.uncoveredM3 ?? 0) > 0} />
-            <StatRow label={L('رحلات نشطة', 'Active trips')} value={fmt(board?.activeTrips, lang)} />
-            <StatRow label={L('رحلات متعثرة', 'Stalled trips')} value={fmt(board?.stalledTrips, lang)} alert={(board?.stalledTrips ?? 0) > 0} />
-            <StatRow label={L('عربيات فاضية', 'Idle vehicles')} value={fmt(board?.idleVehicles, lang)} />
-          </div>
-
-          <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-4">
-            <h2 className="text-sm font-black text-white mb-1">🔧 {L('أعطال وبلاغات اليوم', "Today's faults & tickets")}</h2>
-            <StatRow label={L('بلاغات ورشة مفتوحة', 'Open workshop tickets')} value={fmt(openWO.length, lang)} alert={openWO.length > 0} />
-            <StatRow label={L('شذوذ وقود', 'Fuel anomalies')} value={fmt(fuelAnom.length, lang)} alert={fuelAnom.length > 0} />
-            <StatRow label={L('رحلات متعثرة', 'Stalled trips')} value={fmt(trips.filter((t) => t.stalled).length, lang)} alert={trips.some((t) => t.stalled)} />
-            {faults === 0 && <p className="text-xs text-emerald-300 font-bold mt-1">✅ {L('يوم نظيف — لا أعطال مسجلة.', 'Clean day — nothing recorded.')}</p>}
-          </div>
-
-          <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-4">
-            <h2 className="text-sm font-black text-white mb-1">🏗️ {L('المخزون', 'Inventory')}</h2>
-            {silos.length === 0 && <p className="text-xs text-slate-500 py-1">{L('لا صوامع مسجلة.', 'No silos registered.')}</p>}
-            {silos.slice(0, 6).map((s, i) => (
-              <div key={s.siloCode ?? i} className="mb-2">
-                <div className="flex justify-between text-xs mb-1">
-                  <span className="font-bold text-slate-200">{s.siloName ?? s.siloCode}</span>
-                  <span className={(s.isCritical || s.isLowStock) ? 'text-red-400 font-black' : 'text-slate-400'}>%{s.stockPct ?? 0}</span>
+          {/* compact lists */}
+          <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-2 min-h-0 overflow-hidden">
+            <h2 className="text-[11px] font-black text-white px-1">🏗️ {L('المخزون', 'Stock')}</h2>
+            {silos.length === 0 && <p className="text-[10px] text-slate-500 px-1">{L('لا صوامع مسجلة.', 'No silos.')}</p>}
+            {silos.slice(0, 3).map((s, i) => (
+              <div key={s.siloCode ?? i} className="flex items-center gap-1 mt-1">
+                <span className="text-[10px] text-slate-300 truncate flex-1">{s.siloName ?? s.siloCode}</span>
+                <div className="w-16 h-1.5 rounded-full bg-white/10 overflow-hidden">
+                  <div className={`h-full rounded-full ${(s.stockPct ?? 0) < 20 ? 'bg-red-500' : (s.stockPct ?? 0) < 40 ? 'bg-yellow-400' : 'bg-emerald-400'}`} style={{ width: `${Math.min(100, s.stockPct ?? 0)}%` }} />
                 </div>
-                <div className="h-2 rounded-full bg-white/10 overflow-hidden">
-                  <div
-                    className={`h-full rounded-full ${(s.stockPct ?? 0) < 20 ? 'bg-red-500' : (s.stockPct ?? 0) < 40 ? 'bg-yellow-400' : 'bg-emerald-400'}`}
-                    style={{ width: `${Math.min(100, Math.max(0, s.stockPct ?? 0))}%` }}
-                  />
-                </div>
+                <span className="text-[10px] font-mono text-slate-400">%{s.stockPct ?? 0}</span>
               </div>
             ))}
-            {lowStock > 0 && <p className="text-xs text-red-300 font-bold mt-2">⚠️ {lowStock} {L('صومعة تحت حد الطلب', 'silos below reorder level')}</p>}
           </div>
-
-          <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-4">
-            <h2 className="text-sm font-black text-white mb-2">🚚 {L('الرحلات الآن', 'Trips right now')}</h2>
-            {trips.length === 0 && <p className="text-xs text-slate-500">{L('لا رحلات نشطة حالياً.', 'No active trips right now.')}</p>}
-            <div className="space-y-2 max-h-[220px] overflow-y-auto">
-              {trips.slice(0, 8).map((t, i) => (
-                <div key={i} className={`rounded-xl border px-3 py-2 text-xs ${t.stalled ? 'border-red-500/50 bg-red-500/10' : 'border-white/10 bg-white/[0.03]'}`}>
-                  <div className="flex justify-between">
-                    <span className="font-black text-white">{t.tripCode ?? t.code ?? `${L('رحلة', 'Trip')} ${i + 1}`}</span>
-                    {t.stalled && <span className="text-red-400 font-black">{L('متعثرة', 'Stalled')}{t.stalledMinutes ? ` ${t.stalledMinutes} ${L('د', 'm')}` : ''}</span>}
-                  </div>
-                  {(t.vehicleCode || t.checkpoint) && (
-                    <p className="text-slate-400 mt-0.5">{t.vehicleCode ?? ''} {t.checkpoint ? `· ${t.checkpoint}` : ''}</p>
-                  )}
-                </div>
-              ))}
-            </div>
+          <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-2 min-h-0 overflow-hidden">
+            <h2 className="text-[11px] font-black text-white px-1">🚚 {L('الرحلات', 'Trips')}</h2>
+            {trips.length === 0 && <p className="text-[10px] text-slate-500 px-1">{L('لا رحلات نشطة.', 'None active.')}</p>}
+            {trips.slice(0, 3).map((t, i) => (
+              <p key={i} className={`text-[10px] px-1 py-0.5 truncate ${t.stalled ? 'text-red-300 font-black' : 'text-slate-300'}`}>
+                {t.stalled ? '🔴 ' : '🟢 '}{t.tripCode ?? t.code ?? ''} {t.vehicleCode ?? ''}
+              </p>
+            ))}
           </div>
         </div>
 
-        {/* ===== right icon rail (like the reference console) ===== */}
-        <div className="flex lg:flex-col flex-row gap-2 justify-start">
+        {/* icon rail */}
+        <div className="hidden lg:flex flex-col gap-2 justify-start">
           {RAIL.filter((r) => !r.fleet || canFleet).map((r) => (
-            <Link
-              key={r.to}
-              to={r.to}
-              title={ar ? r.ar : r.en}
-              className="w-12 h-12 shrink-0 flex items-center justify-center text-xl rounded-xl border border-white/10 bg-white/[0.03] hover:border-sky-400/60 hover:bg-white/[0.07] transition"
-            >
+            <Link key={r.to} to={r.to} title={ar ? r.ar : r.en}
+              className="w-11 h-11 shrink-0 flex items-center justify-center text-lg rounded-xl border border-white/10 bg-white/[0.03] hover:border-sky-400/60 hover:bg-white/[0.07] transition">
               {r.icon}
             </Link>
           ))}
