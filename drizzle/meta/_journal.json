@@ -239,6 +239,13 @@
       "when": 1791314639524,
       "tag": "0033_friendly_toxin",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1791317071619,
+      "tag": "0034_supreme_doctor_faustus",
+      "breakpoints": true
     }
   ]
 }

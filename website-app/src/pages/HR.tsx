@@ -170,7 +170,19 @@ export default function HR() {
   const [showCustodyForm, setShowCustodyForm] = useState(false);
   const [custodyForm, setCustodyForm] = useState({ employeeId: '', item: '', serialNo: '', notes: '' });
   const [docKind, setDocKind] = useState('IQAMA');
+  const [docTitle, setDocTitle] = useState('');
   const [uploading, setUploading] = useState(false);
+
+  const printDoc = (d: any) => {
+    const w = window.open('', '_blank', 'width=900,height=700');
+    if (!w || !d.storageUrl) return;
+    const label = d.title || d.fileName || '';
+    const body = /pdf/i.test(d.mimeType ?? '') || /\.pdf$/i.test(d.fileName ?? '')
+      ? `<embed src="${d.storageUrl}" type="application/pdf" style="width:100%;height:92vh;" />`
+      : `<img src="${d.storageUrl}" style="max-width:100%;" />`;
+    w.document.write(`<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>${label}</title></head><body style="margin:0;font-family:'Segoe UI',Tahoma;">${body}<script>window.onload=()=>setTimeout(()=>window.print(),400);<\/script></body></html>`);
+    w.document.close();
+  };
   const [fleet, setFleet] = useState<any[]>([]);
   const [editVeh, setEditVeh] = useState<Record<string, { istimara: string; insurance: string; inspection: string }>>({});
   const [vios, setVios] = useState<any[]>([]);
@@ -298,12 +310,14 @@ export default function HR() {
       await api.post('/api/hr/documents', {
         employeeId: docsEmp.id,
         kind: docKind,
+        title: docKind === 'OTHER' && docTitle.trim() ? docTitle.trim() : undefined,
         fileName: file.name,
         mimeType: file.type || 'application/octet-stream',
         sizeBytes: file.size,
         fileData: dataUrl,
       });
       setMsg('✅ تم رفع المستند');
+      setDocTitle('');
       await loadDocs(docsEmp.id, docsEmp.name);
     } catch (e: any) {
       setMsg(`❌ ${e?.message ?? 'فشل الرفع'}`);
@@ -1512,9 +1526,13 @@ export default function HR() {
                 {docs.length === 0 && <p className="text-xs text-slate-500">{ar ? 'لا مستندات مسجلة.' : 'No documents registered.'}</p>}
                 {docs.map((d, i) => (
                   <div key={d.id ?? i} className="flex items-center justify-between text-xs border-b border-white/5 py-1.5 last:border-0">
-                    <span className="font-bold text-slate-200">{DOC_KIND_AR[d.kind] ?? d.kind} · {d.fileName}</span>
+                    <span className="font-bold text-slate-200">{d.title ?? DOC_KIND_AR[d.kind] ?? d.kind} · {d.fileName}</span>
                     {d.storageUrl ? (
-                      <a href={d.storageUrl} target="_blank" rel="noreferrer" className="text-sky-400 font-black">⬇ {ar ? 'فتح' : 'Open'}</a>
+                      <span className="flex gap-2 shrink-0">
+                        <button onClick={() => printDoc(d)} className="text-slate-300 font-black hover:text-white">🖨️ {ar ? 'طباعة' : 'Print'}</button>
+                        <a href={d.storageUrl} download={d.fileName} className="text-emerald-300 font-black">⬇ {ar ? 'تنزيل' : 'Save'}</a>
+                        <a href={d.storageUrl} target="_blank" rel="noreferrer" className="text-sky-400 font-black">{ar ? 'فتح' : 'Open'}</a>
+                      </span>
                     ) : (
                       <span className="text-slate-500">{String(d.createdAt ?? '').slice(0, 10)}</span>
                     )}
@@ -1525,6 +1543,11 @@ export default function HR() {
                     className="bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none">
                     {Object.entries(DOC_KIND_AR).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
                   </select>
+                  {docKind === 'OTHER' && (
+                    <input value={docTitle} onChange={(e) => setDocTitle(e.target.value)}
+                      placeholder={ar ? '✏️ اسم الملف (مثال: شهادة خبرة)' : 'File name'}
+                      className="flex-1 min-w-[140px] bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" />
+                  )}
                   <label className={`text-[11px] font-black rounded-lg px-3 py-1.5 border cursor-pointer ${uploading ? 'opacity-50' : 'border-sky-500/50 bg-sky-500/15 text-sky-300 hover:bg-sky-500/25'}`}>
                     📎 {uploading ? '…' : (ar ? 'رفع PDF / صورة (حتى 8MB)' : 'Upload PDF/image (8MB)')}
                     <input type="file" accept="application/pdf,image/*" className="hidden" disabled={uploading}

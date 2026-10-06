@@ -1,0 +1,1 @@
+ALTER TABLE "hr_documents" ADD COLUMN "title" varchar(200);

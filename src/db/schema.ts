@@ -3972,6 +3972,8 @@ export const hrDocuments = pgTable(
     custodyId: uuid("custody_id").references(() => hrCustody.id, { onDelete: "cascade" }),
     /** Optional link to an investigation — the file lands in the employee file too */
     investigationId: uuid("investigation_id").references(() => hrInvestigations.id, { onDelete: "cascade" }),
+    /** Free-text label (used when kind is OTHER, e.g. "خبرة سابقة") */
+    title: varchar("title", { length: 200 }),
     /** IQAMA | DRIVING_LICENCE | INSURANCE | CONTRACT | OTHER */
     kind: varchar("kind", { length: 20 }).notNull(),
     fileName: varchar("file_name", { length: 255 }).notNull(),
