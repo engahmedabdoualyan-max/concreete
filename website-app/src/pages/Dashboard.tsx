@@ -120,6 +120,14 @@ const ICON = {
       <rect x="14" y="14" width="7" height="7" rx="1" />
     </>
   ),
+  person: (
+    <>
+      <circle cx="9" cy="8" r="3.2" />
+      <path d="M3.5 20c.6-3.2 2.8-5 5.5-5s4.9 1.8 5.5 5" />
+      <circle cx="17" cy="9" r="2.4" />
+      <path d="M15.5 14.6c2.3.2 4 1.7 4.5 4.4" />
+    </>
+  ),
 };
 
 const MODULES: ModuleDef[] = [
@@ -135,6 +143,7 @@ const MODULES: ModuleDef[] = [
   { access: 'finance', path: 'finance', labelKey: 'modFinance', descKey: 'modFinanceDesc', icon: ICON.coin },
   { access: 'rnd', path: 'rnd', labelKey: 'modRnd', descKey: 'modRndDesc', icon: ICON.atom },
   { access: 'multiplant', path: 'multiplant', labelKey: 'modMultiPlant', descKey: 'modMultiPlantDesc', icon: ICON.grid },
+  { access: 'hr', path: 'hr', en: 'HR', ar: 'الموارد البشرية', desc: 'الإجازات والسلف وفريق العمل', icon: ICON.person },
 ];
 
 const DEFAULT_TRIPS: Trip[] = [
@@ -622,9 +631,9 @@ export default function Dashboard() {
             )}
           </div>
 
-          {/* RIGHT column — Maintenance & Quality: Workshop · Mixing & Quality · Governance · R&D */}
+          {/* RIGHT column — Maintenance & Quality: Workshop · Mixing & Quality · Governance · R&D · HR */}
           <div className="order-3 flex flex-col gap-6 w-full">
-            {[eff(4), eff(5), eff(6), eff(10)].filter(m => m && canAccess(m.access)).map(m => (
+            {[eff(4), eff(5), eff(6), eff(10), eff(12)].filter(m => m && canAccess(m.access)).map(m => (
               <ModuleButton key={m!.path} m={m!} onGo={() => go(m!.path)} showDesc className="flex-1 min-h-[130px] lg:min-h-[150px]" />
             ))}
           </div>

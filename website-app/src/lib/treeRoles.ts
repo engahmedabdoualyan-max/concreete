@@ -35,8 +35,7 @@ export function treeModsForRole(key: string): string[] {
   // API (Postgres) roles are UPPER_SNAKE and never match the legacy lowercase
   // tree keys above — without this map every API login resolved to [] and the
   // dashboard rendered zero cards. Only modules with a real web route are
-  // listed here ('hr' has no /hr route, so it is deliberately excluded rather
-  // than shipping a card that opens a blank page).
+  // listed here.
   return [...(API_ROLE_MODS[key] ?? [])];
 }
 
@@ -72,10 +71,9 @@ const API_ROLE_MODS: Record<string, string[]> = {
   STOREKEEPER: ['production', 'orders', 'materials'],
   STATION_TECH: ['workshop', 'mixing', 'multiplant'],
   RND_MANAGER: ['rnd', 'evaluation', 'orders'],
-  HR_OFFICER: ['orders'],
-  // 'hr' is excluded: no /hr web route exists, and a card to a blank page
-  // reads as a bug. HR staff work orders + evaluations on the web dashboard.
-  HR_MANAGER: ['orders', 'evaluation'],
+  // '/hr' exists (HR command page), so HR roles get a working card.
+  HR_OFFICER: ['hr', 'orders'],
+  HR_MANAGER: ['hr', 'orders', 'evaluation'],
 };
 
 export const TREE_ROLE_KEYS: string[] = TREE_ROLES.map(r => r.key);
