@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { useLang } from '../context/LangContext';
+import LangSelector from '../components/LangSelector';
 
 /**
  * HR — منظومة الموارد البشرية (مدير الـHR).
@@ -109,10 +110,15 @@ export default function HR() {
   return (
     <div className="min-h-screen bg-[#080C14] text-slate-200" dir={ar ? 'rtl' : 'ltr'}>
       <div className="max-w-[1200px] mx-auto px-4 sm:px-6 py-6">
-        <h1 className="text-xl sm:text-2xl font-black text-white">👔 {ar ? 'الموارد البشرية' : 'Human Resources'}</h1>
-        <p className="text-xs text-slate-500 mt-1">
-          {ar ? 'طلبات الإجازات والسلف • فريق العمل • الحضور • الإعلانات • الرواتب' : 'Leave & advances • team • attendance • broadcasts • payroll'}
-        </p>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h1 className="text-xl sm:text-2xl font-black text-white">👔 {ar ? 'الموارد البشرية' : 'Human Resources'}</h1>
+            <p className="text-xs text-slate-500 mt-1">
+              {ar ? 'طلبات الإجازات والسلف • فريق العمل • الحضور • الإعلانات • الرواتب' : 'Leave & advances • team • attendance • broadcasts • payroll'}
+            </p>
+          </div>
+          <LangSelector />
+        </div>
 
         <div className="flex flex-wrap gap-2 mt-4">
           {tabs.map((t) => (
