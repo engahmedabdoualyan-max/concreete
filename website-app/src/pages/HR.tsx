@@ -60,6 +60,20 @@ function daysUntil(raw: unknown): number | null {
 
 const DEPTS = ['الإدارة', 'المالية', 'الموارد البشرية', 'المبيعات', 'التشغيل', 'الورشة', 'المخازن', 'المختبر', 'الإنتاج', 'البحث والتطوير'];
 
+/** Department (Arabic UI) → API role keys used by broadcasts audience. */
+const DEPT_ROLES: Record<string, string[]> = {
+  'الإدارة': ['PLANT_MGR', 'SUPER_ADMIN'],
+  'المالية': ['ACCOUNTANT', 'CFO', 'FINANCE'],
+  'الموارد البشرية': ['HR_MANAGER', 'HR_OFFICER'],
+  'المبيعات': ['SALES_REP', 'REPS_MGR'],
+  'التشغيل': ['DRIVER', 'DISPATCHER', 'OPERATIONS_MGR', 'SCHEDULE_MGR'],
+  'الورشة': ['MECHANIC', 'WORKSHOP_MECHANIC', 'WORKSHOP_MGR'],
+  'المخازن': ['STOREKEEPER'],
+  'المختبر': ['LAB_TECH', 'LAB_TECHNICIAN', 'LAB_MGR'],
+  'الإنتاج': ['PRODUCTION_MGR', 'BATCH_OP', 'BATCH_OPERATOR', 'STATION_TECH'],
+  'البحث والتطوير': ['RND_MANAGER'],
+};
+
 function ExportBar({ title, subtitle, fileBase, columns, rows, branding }: {
   title: string; subtitle: string; fileBase: string; columns: ExportColumn[]; rows: ExportRow[];
   branding?: { companyName?: string; logoDataUrl?: string };
@@ -165,6 +179,7 @@ export default function HR() {
   const [uploadingCdoc, setUploadingCdoc] = useState(false);
   const [showCastForm, setShowCastForm] = useState(false);
   const [castForm, setCastForm] = useState({ title: '', body: '' });
+  const [castDepts, setCastDepts] = useState<string[]>([]);
   const [runPeriod, setRunPeriod] = useState(() => new Date().toISOString().slice(0, 7));
 
   const addEmployee = async () => {
@@ -506,9 +521,15 @@ export default function HR() {
     setBusy('cast');
     setMsg('');
     try {
-      await api.post('/api/hr/broadcasts', { title: castForm.title.trim(), body: castForm.body.trim() });
-      setMsg('✅ تم نشر الإعلان');
+      const audience = [...new Set(castDepts.flatMap((d) => DEPT_ROLES[d] ?? []))];
+      await api.post('/api/hr/broadcasts', {
+        title: castForm.title.trim(),
+        body: castForm.body.trim(),
+        ...(audience.length ? { audience } : {}),
+      });
+      setMsg(`✅ تم النشر ${audience.length ? `لـ ${castDepts.join('، ')}` : 'لكل الإدارات'}`);
       setCastForm({ title: '', body: '' });
+      setCastDepts([]);
       setShowCastForm(false);
       await load();
     } catch (e: any) {
@@ -1027,6 +1048,24 @@ export default function HR() {
                 <textarea value={castForm.body} onChange={(e) => setCastForm({ ...castForm, body: e.target.value })} rows={3}
                   placeholder={ar ? 'نص الإعلان *' : 'Body *'}
                   className="w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" />
+                <div className="mt-2">
+                  <p className="text-[11px] text-slate-400 font-bold mb-1">{ar ? 'التوجيه إلى:' : 'Target:'}</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    <button type="button" onClick={() => setCastDepts([])}
+                      className={`text-[11px] font-black rounded-lg px-3 py-1 border ${castDepts.length === 0 ? 'bg-sky-500 text-white border-sky-400' : 'text-slate-400 border-white/10'}`}>
+                      {ar ? '🌍 كل الإدارات' : 'All'}
+                    </button>
+                    {DEPTS.map((d) => {
+                      const on = castDepts.includes(d);
+                      return (
+                        <button type="button" key={d} onClick={() => setCastDepts((p) => (on ? p.filter((x) => x !== d) : [...p, d]))}
+                          className={`text-[11px] font-black rounded-lg px-3 py-1 border ${on ? 'bg-sky-500 text-white border-sky-400' : 'text-slate-400 border-white/10'}`}>
+                          {d}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
                 <button disabled={busy === 'cast'} onClick={publishCast}
                   className="mt-2 bg-sky-500 hover:bg-sky-400 disabled:opacity-50 text-white text-xs font-black rounded-lg px-6 py-2">
                   {busy === 'cast' ? '…' : `📢 ${ar ? 'نشر' : 'Publish'}`}
@@ -1036,7 +1075,14 @@ export default function HR() {
             {casts.length === 0 && <p className="text-xs text-slate-500">{ar ? 'لا إعلانات.' : 'No broadcasts.'}</p>}
             {casts.map((b, i) => (
               <div key={b.id ?? i} className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-                <p className="text-sm font-black text-white">{b.title ?? b.subject ?? (ar ? 'إعلان' : 'Broadcast')}</p>
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-sm font-black text-white">{b.title ?? b.subject ?? (ar ? 'إعلان' : 'Broadcast')}</p>
+                  <span className="text-[10px] text-slate-400 font-bold shrink-0">
+                    {Array.isArray(b.audience) && b.audience.length
+                      ? `🎯 ${[...new Set(b.audience.flatMap((r: string) => Object.entries(DEPT_ROLES).filter(([, roles]) => roles.includes(r)).map(([d]) => d)))].join('، ') || b.audience.join(', ')}`
+                      : `🌍 ${ar ? 'الكل' : 'All'}`}
+                  </span>
+                </div>
                 {(b.body ?? b.message) && <p className="text-xs text-slate-300 mt-1 whitespace-pre-wrap">{b.body ?? b.message}</p>}
                 <p className="text-[10px] text-slate-500 mt-1">{b.createdAt ?? b.created_at ?? ''}</p>
               </div>
