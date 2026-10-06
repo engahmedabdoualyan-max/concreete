@@ -14,7 +14,7 @@ import { downloadExcel, openPrintPDF, type ExportColumn, type ExportRow } from '
  * (HR_READ / HR_WRITE); every tab degrades independently.
  */
 
-type Tab = 'requests' | 'team' | 'attendance' | 'broadcasts' | 'payroll' | 'actions' | 'investigations' | 'custody' | 'vehicles' | 'deductions' | 'company';
+type Tab = 'requests' | 'team' | 'attendance' | 'broadcasts' | 'payroll' | 'actions' | 'investigations' | 'custody' | 'vehicles' | 'deductions' | 'company' | 'leave' | 'vlog' | 'overtime' | 'expenses' | 'modules';
 
 const COUNTRIES = [
   { code: 'SA', ar: 'السعودية', flag: '🇸🇦' }, { code: 'EG', ar: 'مصر', flag: '🇪🇬' },
@@ -179,6 +179,19 @@ export default function HR() {
   const [showCdocForm, setShowCdocForm] = useState(false);
   const [cdocForm, setCdocForm] = useState({ title: '', kind: 'COMMERCIAL_REG', expiryDate: '' });
   const [uploadingCdoc, setUploadingCdoc] = useState(false);
+  const [balances, setBalances] = useState<any[]>([]);
+  const [balForm, setBalForm] = useState({ employeeId: '', year: String(new Date().getFullYear()), allocated: '' });
+  const [otList, setOtList] = useState<any[]>([]);
+  const [otFilter, setOtFilter] = useState('ALL');
+  const [showOtForm, setShowOtForm] = useState(false);
+  const [otForm, setOtForm] = useState({ employeeId: '', workDate: '', hours: '', rateSar: '', reason: '' });
+  const [vlogs, setVlogs] = useState<any[]>([]);
+  const [showVlogForm, setShowVlogForm] = useState(false);
+  const [vlogForm, setVlogForm] = useState({ vehicleId: '', logDate: '', odometerKm: '', fuelLitres: '', notes: '' });
+  const [claims, setClaims] = useState<any[]>([]);
+  const [claimFilter, setClaimFilter] = useState('ALL');
+  const [showClaimForm, setShowClaimForm] = useState(false);
+  const [claimForm, setClaimForm] = useState({ employeeId: '', kind: 'FUEL', amountSar: '', expenseDate: '', notes: '' });
   const [showCastForm, setShowCastForm] = useState(false);
   const [castForm, setCastForm] = useState({ title: '', body: '' });
   const [castDepts, setCastDepts] = useState<string[]>([]);
@@ -450,6 +463,140 @@ export default function HR() {
     }
   };
 
+  const saveBalance = async () => {
+    if (!balForm.employeeId || !balForm.allocated.trim()) {
+      setMsg('❌ اختر الموظف واكتب الرصيد');
+      return;
+    }
+    setBusy('bal');
+    try {
+      await api.put('/api/hr/leave-balances', {
+        employeeId: balForm.employeeId,
+        year: Number(balForm.year) || new Date().getFullYear(),
+        allocated: Number(balForm.allocated),
+      });
+      setMsg('✅ تم تحديد الرصيد');
+      setBalForm({ employeeId: '', year: String(new Date().getFullYear()), allocated: '' });
+      await load();
+    } catch (e: any) {
+      setMsg(`❌ ${e?.message ?? 'فشل الحفظ'}`);
+    } finally {
+      setBusy('');
+    }
+  };
+
+  const addOt = async () => {
+    if (!otForm.employeeId || !otForm.hours.trim() || !otForm.workDate) {
+      setMsg('❌ الموظف والساعات والتاريخ مطلوبة');
+      return;
+    }
+    setBusy('ot');
+    try {
+      await api.post('/api/hr/overtime', {
+        employeeId: otForm.employeeId,
+        workDate: otForm.workDate,
+        hours: Number(otForm.hours),
+        rateSar: otForm.rateSar.trim() === '' ? undefined : Number(otForm.rateSar),
+        reason: otForm.reason.trim() || undefined,
+      });
+      setMsg('✅ تم تسجيل الساعات');
+      setOtForm({ employeeId: '', workDate: '', hours: '', rateSar: '', reason: '' });
+      setShowOtForm(false);
+      await load();
+    } catch (e: any) {
+      setMsg(`❌ ${e?.message ?? 'فشل التسجيل'}`);
+    } finally {
+      setBusy('');
+    }
+  };
+
+  const reviewOt = async (id: string, decision: 'APPROVED' | 'REJECTED') => {
+    setBusy('otr' + id);
+    try {
+      await api.put(`/api/hr/overtime?id=${id}&decision=${decision}`, {});
+      setMsg(decision === 'APPROVED' ? '✅ تم الاعتماد' : 'تم الرفض');
+      await load();
+    } catch (e: any) {
+      setMsg(`❌ ${e?.message ?? 'فشل'}`);
+    } finally {
+      setBusy('');
+    }
+  };
+
+  const addVlog = async () => {
+    if (!vlogForm.vehicleId || !vlogForm.logDate) {
+      setMsg('❌ اختر المركبة والتاريخ');
+      return;
+    }
+    setBusy('vlog');
+    try {
+      await api.post('/api/hr/vehicle-logs', {
+        vehicleId: vlogForm.vehicleId,
+        logDate: vlogForm.logDate,
+        odometerKm: vlogForm.odometerKm.trim() === '' ? undefined : Number(vlogForm.odometerKm),
+        fuelLitres: vlogForm.fuelLitres.trim() === '' ? undefined : Number(vlogForm.fuelLitres),
+        notes: vlogForm.notes.trim() || undefined,
+      });
+      setMsg('✅ تم تسجيل القراءة');
+      setVlogForm({ vehicleId: '', logDate: '', odometerKm: '', fuelLitres: '', notes: '' });
+      setShowVlogForm(false);
+      await load();
+    } catch (e: any) {
+      setMsg(`❌ ${e?.message ?? 'فشل التسجيل'}`);
+    } finally {
+      setBusy('');
+    }
+  };
+
+  const addClaim = async () => {
+    if (!claimForm.employeeId || !claimForm.amountSar.trim() || !claimForm.expenseDate) {
+      setMsg('❌ الموظف والمبلغ والتاريخ مطلوبة');
+      return;
+    }
+    setBusy('claim');
+    try {
+      await api.post('/api/hr/expenses', {
+        employeeId: claimForm.employeeId,
+        kind: claimForm.kind,
+        amountSar: Number(claimForm.amountSar),
+        expenseDate: claimForm.expenseDate,
+        notes: claimForm.notes.trim() || undefined,
+      });
+      setMsg('✅ تم تقديم المطالبة');
+      setClaimForm({ employeeId: '', kind: 'FUEL', amountSar: '', expenseDate: '', notes: '' });
+      setShowClaimForm(false);
+      await load();
+    } catch (e: any) {
+      setMsg(`❌ ${e?.message ?? 'فشل التقديم'}`);
+    } finally {
+      setBusy('');
+    }
+  };
+
+  const reviewClaim = async (id: string, decision: 'APPROVED' | 'REJECTED' | 'PAID') => {
+    setBusy('clr' + id);
+    try {
+      await api.put(`/api/hr/expenses?id=${id}&decision=${decision}`, {});
+      setMsg('✅ تم');
+      await load();
+    } catch (e: any) {
+      setMsg(`❌ ${e?.message ?? 'فشل'}`);
+    } finally {
+      setBusy('');
+    }
+  };
+
+  const toggleModule = async (key: string) => {
+    const next = { ...modules, [key]: !(modules[key] !== false) };
+    setModules(next);
+    try {
+      await api.put('/api/hr/settings', { modules: { [key]: next[key] } });
+      setMsg(next[key] ? '✅ تم تفعيل الوحدة' : '⏸ تم إيقاف الوحدة');
+    } catch (e: any) {
+      setMsg(`❌ ${e?.message ?? 'فشل الحفظ'}`);
+    }
+  };
+
   const addAction = async () => {
     if (!actionForm.employeeId || !actionForm.reason.trim()) {
       setMsg('❌ اختر الموظف واكتب السبب');
@@ -655,7 +802,27 @@ export default function HR() {
       const cd = await api.get<{ documents?: any[] }>('/api/hr/company-docs');
       setCdocs(Array.isArray(cd?.documents) ? cd.documents : []);
     } catch { setCdocs([]); }
-  }, [filter, fromDate, toDate, actionFilter, invFilter, custodyFilter, dedPeriod]);
+    try {
+      const st = await api.get<{ modules?: Record<string, boolean> }>('/api/hr/settings');
+      if (st?.modules) setModules((m) => ({ ...m, ...st.modules }));
+    } catch { /* defaults stay on */ }
+    try {
+      const lb = await api.get<{ balances?: any[] }>('/api/hr/leave-balances');
+      setBalances(Array.isArray(lb?.balances) ? lb.balances : []);
+    } catch { setBalances([]); }
+    try {
+      const ot = await api.get<{ overtime?: any[] }>(`/api/hr/overtime${otFilter === 'ALL' ? '' : `?status=${otFilter}`}`);
+      setOtList(Array.isArray(ot?.overtime) ? ot.overtime : []);
+    } catch { setOtList([]); }
+    try {
+      const vl = await api.get<{ logs?: any[] }>('/api/hr/vehicle-logs');
+      setVlogs(Array.isArray(vl?.logs) ? vl.logs : []);
+    } catch { setVlogs([]); }
+    try {
+      const ec = await api.get<{ claims?: any[] }>(`/api/hr/expenses${claimFilter === 'ALL' ? '' : `?status=${claimFilter}`}`);
+      setClaims(Array.isArray(ec?.claims) ? ec.claims : []);
+    } catch { setClaims([]); }
+  }, [filter, fromDate, toDate, actionFilter, invFilter, custodyFilter, dedPeriod, otFilter, claimFilter]);
 
   useEffect(() => {
     if (!currentUser) return;
@@ -683,7 +850,9 @@ export default function HR() {
     );
   }
 
-  const tabs: Array<{ id: Tab; ar: string; en: string }> = [
+  const [modules, setModules] = useState<Record<string, boolean>>({ leaveBalances: true, vehicleLog: true, overtime: true, expenses: true });
+
+  const tabs: Array<{ id: Tab; ar: string; en: string; mod?: string }> = [
     { id: 'requests', ar: '📥 الطلبات', en: 'Requests' },
     { id: 'team', ar: '👥 فريق العمل', en: 'Team' },
     { id: 'attendance', ar: '🕐 الحضور', en: 'Attendance' },
@@ -695,7 +864,16 @@ export default function HR() {
     { id: 'vehicles', ar: '🚛 المركبات والمخالفات', en: 'Vehicles' },
     { id: 'deductions', ar: '🧾 كشف الخصومات', en: 'Deductions' },
     { id: 'company', ar: '📂 أوراق الشركة', en: 'Company docs' },
+    { id: 'leave', ar: '🏖️ الأرصدة', en: 'Balances', mod: 'leaveBalances' },
+    { id: 'vlog', ar: '⛽ سجل المركبات', en: 'Logbook', mod: 'vehicleLog' },
+    { id: 'overtime', ar: '⏰ الإضافي', en: 'Overtime', mod: 'overtime' },
+    { id: 'expenses', ar: '🧾 المصاريف', en: 'Expenses', mod: 'expenses' },
+    { id: 'modules', ar: '⚙️ الوحدات', en: 'Modules' },
   ];
+
+  const MOD_AR: Record<string, string> = {
+    leaveBalances: 'أرصدة الإجازات', vehicleLog: 'سجل المركبات', overtime: 'الأجر الإضافي', expenses: 'مطالبات المصاريف',
+  };
 
   const team = employees.filter((e) => {
     const q = search.trim().toLowerCase();
@@ -762,7 +940,7 @@ export default function HR() {
         </div>
 
         <div className="flex flex-wrap gap-2 mt-4">
-          {tabs.map((t) => (
+          {tabs.filter((t) => !t.mod || modules[t.mod] !== false).map((t) => (
             <button
               key={t.id}
               onClick={() => setTab(t.id)}
@@ -1617,6 +1795,253 @@ export default function HR() {
                 </div>
               ))}
             </div>
+          </div>
+        )}
+
+        {/* ===== leave balances ===== */}
+        {tab === 'leave' && (
+          <div className="mt-4">
+            <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-3 mb-3 flex flex-wrap items-end gap-2">
+              <label className="text-[11px] text-slate-400 font-bold">{ar ? 'الموظف' : 'Employee'}
+                <select value={balForm.employeeId} onChange={(e) => setBalForm({ ...balForm, employeeId: e.target.value })}
+                  className="mt-0.5 block bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none min-w-[160px]">
+                  <option value="">—</option>
+                  {employees.map((e) => <option key={e.id} value={e.id}>{nameOf(e)} · {e.employeeCode}</option>)}
+                </select></label>
+              <label className="text-[11px] text-slate-400 font-bold">{ar ? 'السنة' : 'Year'}
+                <input value={balForm.year} onChange={(e) => setBalForm({ ...balForm, year: e.target.value })} inputMode="numeric"
+                  className="mt-0.5 block w-24 bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
+              <label className="text-[11px] text-slate-400 font-bold">{ar ? 'الرصيد السنوي (يوم)' : 'Allocated'}
+                <input value={balForm.allocated} onChange={(e) => setBalForm({ ...balForm, allocated: e.target.value })} inputMode="decimal"
+                  className="mt-0.5 block w-28 bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
+              <button disabled={busy === 'bal'} onClick={saveBalance}
+                className="text-[11px] font-black rounded-lg px-4 py-1.5 border border-sky-500/50 bg-sky-500/15 text-sky-300 disabled:opacity-50">
+                {busy === 'bal' ? '…' : (ar ? 'تحديد الرصيد' : 'Set')}
+              </button>
+            </div>
+            <p className="text-[10px] text-slate-500 mb-2">{ar ? 'قبول طلب إجازة يخصم من الرصيد تلقائياً (قد يظهر بالسالب = تجاوز).' : 'Approving leave auto-deducts.'}</p>
+            {balances.length === 0 && <p className="text-xs text-slate-500">{ar ? 'لا أرصدة مسجلة.' : 'No balances.'}</p>}
+            <div className="space-y-1">
+              {balances.slice(0, 60).map((b, i) => {
+                const left = Number(b.allocated ?? 0) - Number(b.used ?? 0);
+                return (
+                  <div key={b.id ?? i} className="flex items-center justify-between text-xs border-b border-white/5 py-1.5">
+                    <span className="font-bold text-slate-200">{b.year} · {left} {ar ? 'متبقي' : 'left'}</span>
+                    <span className={`font-black ${left < 0 ? 'text-red-400' : 'text-emerald-300'}`}>
+                      {ar ? 'المستخدم' : 'Used'} {b.used} / {b.allocated}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* ===== vehicle logbook ===== */}
+        {tab === 'vlog' && (
+          <div className="mt-4">
+            <button onClick={() => setShowVlogForm((v) => !v)}
+              className="text-[11px] font-black rounded-lg px-3 py-1.5 border border-sky-500/50 bg-sky-500/15 text-sky-300 hover:bg-sky-500/25 mb-3">
+              ➕ {ar ? 'تسجيل قراءة (عداد / وقود)' : 'Log reading'}
+            </button>
+            {showVlogForm && (
+              <div className="rounded-2xl border border-sky-500/30 bg-sky-500/[0.06] p-4 mb-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                  <label className="text-[11px] text-slate-400 font-bold">{ar ? 'المركبة *' : 'Vehicle *'}
+                    <select value={vlogForm.vehicleId} onChange={(e) => setVlogForm({ ...vlogForm, vehicleId: e.target.value })}
+                      className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none">
+                      <option value="">—</option>
+                      {fleet.map((v) => <option key={v.id} value={v.id}>{v.vehicleCode} · {v.plateNumber}</option>)}
+                    </select></label>
+                  <label className="text-[11px] text-slate-400 font-bold">{ar ? 'التاريخ *' : 'Date *'}
+                    <input type="date" value={vlogForm.logDate} onChange={(e) => setVlogForm({ ...vlogForm, logDate: e.target.value })}
+                      className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
+                  <label className="text-[11px] text-slate-400 font-bold">{ar ? 'العداد (كم)' : 'Odometer'}
+                    <input value={vlogForm.odometerKm} onChange={(e) => setVlogForm({ ...vlogForm, odometerKm: e.target.value })} inputMode="decimal"
+                      className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
+                  <label className="text-[11px] text-slate-400 font-bold">{ar ? 'الوقود (لتر)' : 'Fuel (L)'}
+                    <input value={vlogForm.fuelLitres} onChange={(e) => setVlogForm({ ...vlogForm, fuelLitres: e.target.value })} inputMode="decimal"
+                      className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
+                  <label className="text-[11px] text-slate-400 font-bold sm:col-span-2">{ar ? 'ملاحظات' : 'Notes'}
+                    <input value={vlogForm.notes} onChange={(e) => setVlogForm({ ...vlogForm, notes: e.target.value })}
+                      className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
+                </div>
+                <button disabled={busy === 'vlog'} onClick={addVlog}
+                  className="mt-3 bg-sky-500 hover:bg-sky-400 disabled:opacity-50 text-white text-xs font-black rounded-lg px-6 py-2">
+                  {busy === 'vlog' ? '…' : `✅ ${ar ? 'تسجيل' : 'Log'}`}
+                </button>
+              </div>
+            )}
+            {vlogs.length === 0 && <p className="text-xs text-slate-500">{ar ? 'لا قراءات.' : 'No readings.'}</p>}
+            <div className="space-y-1">
+              {vlogs.slice(0, 40).map((l, i) => (
+                <div key={l.id ?? i} className="flex items-center justify-between text-xs border-b border-white/5 py-1.5">
+                  <span className="font-bold text-slate-200">{String(l.logDate).slice(0, 10)}</span>
+                  <span className="text-slate-400">{l.odometerKm ? `${l.odometerKm} كم` : ''} {l.fuelLitres ? `· ⛽ ${l.fuelLitres} لتر` : ''}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ===== overtime ===== */}
+        {tab === 'overtime' && (
+          <div className="mt-4">
+            <div className="flex flex-wrap items-center gap-2 mb-3">
+              <div className="flex gap-2">
+                {['ALL', 'PENDING', 'APPROVED', 'REJECTED'].map((f) => (
+                  <button key={f} onClick={() => setOtFilter(f)}
+                    className={`text-[11px] font-black rounded-lg px-3 py-1.5 border ${otFilter === f ? 'bg-white text-black border-white' : 'text-slate-400 border-white/10'}`}>
+                    {f === 'ALL' ? (ar ? 'الكل' : 'All') : f === 'PENDING' ? (ar ? 'بانتظار' : 'Pending') : f === 'APPROVED' ? (ar ? 'معتمد' : 'Approved') : (ar ? 'مرفوض' : 'Rejected')}
+                  </button>
+                ))}
+              </div>
+              <button onClick={() => setShowOtForm((v) => !v)}
+                className="text-[11px] font-black rounded-lg px-3 py-1.5 border border-sky-500/50 bg-sky-500/15 text-sky-300 hover:bg-sky-500/25">
+                ➕ {ar ? 'تسجيل ساعات' : 'Log hours'}
+              </button>
+            </div>
+            {showOtForm && (
+              <div className="rounded-2xl border border-sky-500/30 bg-sky-500/[0.06] p-4 mb-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                  <label className="text-[11px] text-slate-400 font-bold">{ar ? 'الموظف *' : 'Employee *'}
+                    <select value={otForm.employeeId} onChange={(e) => setOtForm({ ...otForm, employeeId: e.target.value })}
+                      className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none">
+                      <option value="">—</option>
+                      {employees.map((e) => <option key={e.id} value={e.id}>{nameOf(e)} · {e.employeeCode}</option>)}
+                    </select></label>
+                  <label className="text-[11px] text-slate-400 font-bold">{ar ? 'التاريخ *' : 'Date *'}
+                    <input type="date" value={otForm.workDate} onChange={(e) => setOtForm({ ...otForm, workDate: e.target.value })}
+                      className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
+                  <label className="text-[11px] text-slate-400 font-bold">{ar ? 'الساعات *' : 'Hours *'}
+                    <input value={otForm.hours} onChange={(e) => setOtForm({ ...otForm, hours: e.target.value })} inputMode="decimal"
+                      className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
+                  <label className="text-[11px] text-slate-400 font-bold">{ar ? 'سعر الساعة (ر.س)' : 'Rate'}
+                    <input value={otForm.rateSar} onChange={(e) => setOtForm({ ...otForm, rateSar: e.target.value })} inputMode="decimal"
+                      className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
+                  <label className="text-[11px] text-slate-400 font-bold sm:col-span-2">{ar ? 'السبب' : 'Reason'}
+                    <input value={otForm.reason} onChange={(e) => setOtForm({ ...otForm, reason: e.target.value })}
+                      className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
+                </div>
+                <button disabled={busy === 'ot'} onClick={addOt}
+                  className="mt-3 bg-sky-500 hover:bg-sky-400 disabled:opacity-50 text-white text-xs font-black rounded-lg px-6 py-2">
+                  {busy === 'ot' ? '…' : `✅ ${ar ? 'تسجيل' : 'Log'}`}
+                </button>
+              </div>
+            )}
+            {otList.length === 0 && <p className="text-xs text-slate-500">{ar ? 'لا ساعات مسجلة.' : 'None.'}</p>}
+            <div className="space-y-1">
+              {otList.slice(0, 40).map((o, i) => (
+                <div key={o.id ?? i} className="flex items-center justify-between text-xs border-b border-white/5 py-1.5">
+                  <span className="font-bold text-slate-200">{o.hours}h · {String(o.workDate).slice(0, 10)} {o.rateSar ? `· ${o.rateSar} ر.س/س` : ''}</span>
+                  {o.status === 'PENDING' ? (
+                    <span className="flex gap-1">
+                      <button disabled={busy === 'otr' + o.id} onClick={() => reviewOt(o.id, 'APPROVED')}
+                        className="text-[10px] font-black rounded px-2 py-1 border border-emerald-500/40 text-emerald-300 disabled:opacity-50">✓</button>
+                      <button disabled={busy === 'otr' + o.id} onClick={() => reviewOt(o.id, 'REJECTED')}
+                        className="text-[10px] font-black rounded px-2 py-1 border border-red-500/40 text-red-300 disabled:opacity-50">✕</button>
+                    </span>
+                  ) : (
+                    <span className={`text-[10px] font-bold ${o.status === 'APPROVED' ? 'text-emerald-300' : 'text-slate-500'}`}>{o.status}</span>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ===== expenses ===== */}
+        {tab === 'expenses' && (
+          <div className="mt-4">
+            <div className="flex flex-wrap items-center gap-2 mb-3">
+              <div className="flex gap-2">
+                {['ALL', 'PENDING', 'APPROVED', 'PAID'].map((f) => (
+                  <button key={f} onClick={() => setClaimFilter(f)}
+                    className={`text-[11px] font-black rounded-lg px-3 py-1.5 border ${claimFilter === f ? 'bg-white text-black border-white' : 'text-slate-400 border-white/10'}`}>
+                    {f === 'ALL' ? (ar ? 'الكل' : 'All') : f === 'PENDING' ? (ar ? 'بانتظار' : 'Pending') : f === 'APPROVED' ? (ar ? 'معتمدة' : 'Approved') : (ar ? 'مدفوعة' : 'Paid')}
+                  </button>
+                ))}
+              </div>
+              <button onClick={() => setShowClaimForm((v) => !v)}
+                className="text-[11px] font-black rounded-lg px-3 py-1.5 border border-sky-500/50 bg-sky-500/15 text-sky-300 hover:bg-sky-500/25">
+                ➕ {ar ? 'مطالبة جديدة' : 'New claim'}
+              </button>
+            </div>
+            {showClaimForm && (
+              <div className="rounded-2xl border border-sky-500/30 bg-sky-500/[0.06] p-4 mb-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                  <label className="text-[11px] text-slate-400 font-bold">{ar ? 'الموظف *' : 'Employee *'}
+                    <select value={claimForm.employeeId} onChange={(e) => setClaimForm({ ...claimForm, employeeId: e.target.value })}
+                      className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none">
+                      <option value="">—</option>
+                      {employees.map((e) => <option key={e.id} value={e.id}>{nameOf(e)} · {e.employeeCode}</option>)}
+                    </select></label>
+                  <label className="text-[11px] text-slate-400 font-bold">{ar ? 'النوع' : 'Kind'}
+                    <select value={claimForm.kind} onChange={(e) => setClaimForm({ ...claimForm, kind: e.target.value })}
+                      className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none">
+                      <option value="FUEL">{ar ? '⛽ وقود' : 'Fuel'}</option>
+                      <option value="TOLL">{ar ? '🛣️ رسوم' : 'Toll'}</option>
+                      <option value="PARTS">{ar ? '🔧 قطع' : 'Parts'}</option>
+                      <option value="OTHER">{ar ? 'أخرى' : 'Other'}</option>
+                    </select></label>
+                  <label className="text-[11px] text-slate-400 font-bold">{ar ? 'المبلغ (ر.س) *' : 'Amount *'}
+                    <input value={claimForm.amountSar} onChange={(e) => setClaimForm({ ...claimForm, amountSar: e.target.value })} inputMode="decimal"
+                      className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
+                  <label className="text-[11px] text-slate-400 font-bold">{ar ? 'التاريخ *' : 'Date *'}
+                    <input type="date" value={claimForm.expenseDate} onChange={(e) => setClaimForm({ ...claimForm, expenseDate: e.target.value })}
+                      className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
+                  <label className="text-[11px] text-slate-400 font-bold sm:col-span-2">{ar ? 'ملاحظات' : 'Notes'}
+                    <input value={claimForm.notes} onChange={(e) => setClaimForm({ ...claimForm, notes: e.target.value })}
+                      className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
+                </div>
+                <button disabled={busy === 'claim'} onClick={addClaim}
+                  className="mt-3 bg-sky-500 hover:bg-sky-400 disabled:opacity-50 text-white text-xs font-black rounded-lg px-6 py-2">
+                  {busy === 'claim' ? '…' : `✅ ${ar ? 'تقديم' : 'File'}`}
+                </button>
+              </div>
+            )}
+            {claims.length === 0 && <p className="text-xs text-slate-500">{ar ? 'لا مطالبات.' : 'None.'}</p>}
+            <div className="space-y-1">
+              {claims.slice(0, 40).map((c, i) => (
+                <div key={c.id ?? i} className="flex items-center justify-between text-xs border-b border-white/5 py-1.5">
+                  <span className="font-bold text-slate-200">{c.amountSar} {ar ? 'ر.س' : 'SAR'} · {String(c.expenseDate).slice(0, 10)} {c.notes ? `· ${c.notes}` : ''}</span>
+                  {c.status === 'PENDING' ? (
+                    <span className="flex gap-1">
+                      <button disabled={busy === 'clr' + c.id} onClick={() => reviewClaim(c.id, 'APPROVED')}
+                        className="text-[10px] font-black rounded px-2 py-1 border border-emerald-500/40 text-emerald-300 disabled:opacity-50">✓</button>
+                      <button disabled={busy === 'clr' + c.id} onClick={() => reviewClaim(c.id, 'REJECTED')}
+                        className="text-[10px] font-black rounded px-2 py-1 border border-red-500/40 text-red-300 disabled:opacity-50">✕</button>
+                    </span>
+                  ) : c.status === 'APPROVED' ? (
+                    <button disabled={busy === 'clr' + c.id} onClick={() => reviewClaim(c.id, 'PAID')}
+                      className="text-[10px] font-black rounded px-2 py-1 border border-sky-500/40 text-sky-300 disabled:opacity-50">
+                      {busy === 'clr' + c.id ? '…' : (ar ? 'دفع' : 'Pay')}
+                    </button>
+                  ) : (
+                    <span className="text-[10px] text-slate-500 font-bold">{c.status}</span>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ===== modules toggles ===== */}
+        {tab === 'modules' && (
+          <div className="mt-4 max-w-xl">
+            <p className="text-xs text-slate-400 mb-3">{ar ? 'شغّل الوحدات حسب نظام شركتك — المطفأة لا تظهر تبويباتها.' : 'Enable units per company policy.'}</p>
+            {Object.entries(MOD_AR).map(([k, label]) => {
+              const on = modules[k] !== false;
+              return (
+                <div key={k} className="flex items-center justify-between rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2.5 mb-2">
+                  <span className="text-sm font-black text-white">{label}</span>
+                  <button onClick={() => toggleModule(k)}
+                    className={`w-12 h-6 rounded-full transition ${on ? 'bg-emerald-500' : 'bg-white/10'}`}>
+                    <span className={`block w-5 h-5 rounded-full bg-white mt-0.5 transition ${on ? 'mr-0.5 ml-auto' : 'ml-0.5'}`} />
+                  </button>
+                </div>
+              );
+            })}
           </div>
         )}
       </div>

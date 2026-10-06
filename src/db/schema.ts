@@ -4086,6 +4086,123 @@ export const hrViolations = pgTable(
 );
 
 /**
+ * hr_leave_balances — yearly leave entitlement per employee.
+ * Leave approvals decrement `used` (may go negative = overuse, visible).
+ * HR sets `allocated`; rows auto-create at 0 on first approval — no invented
+ * entitlements. Types: ANNUAL | SICK | UNPAID.
+ */
+export const hrLeaveBalances = pgTable(
+  "hr_leave_balances",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    employeeId: uuid("employee_id")
+      .notNull()
+      .references(() => payrollEmployees.id, { onDelete: "restrict" }),
+    year: integer("year").notNull(),
+    /** ANNUAL | SICK | UNPAID */
+    leaveType: varchar("leave_type", { length: 20 }).notNull().default("ANNUAL"),
+    allocated: decimal("allocated", { precision: 8, scale: 2 }).notNull().default("0"),
+    used: decimal("used", { precision: 8, scale: 2 }).notNull().default("0"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("idx_hr_lb_tenant").on(t.tenantId),
+    index("idx_hr_lb_employee").on(t.employeeId),
+  ]
+);
+
+/**
+ * hr_overtime — extra hours slips, approved into pay.
+ * Status: PENDING | APPROVED | REJECTED. Approved slips are the payroll
+ * officer's source of truth at run creation.
+ */
+export const hrOvertime = pgTable(
+  "hr_overtime",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    employeeId: uuid("employee_id")
+      .notNull()
+      .references(() => payrollEmployees.id, { onDelete: "restrict" }),
+    workDate: varchar("work_date", { length: 10 }).notNull(),
+    hours: decimal("hours", { precision: 6, scale: 2 }).notNull(),
+    rateSar: decimal("rate_sar", { precision: 10, scale: 2 }),
+    reason: text("reason"),
+    /** PENDING | APPROVED | REJECTED */
+    status: varchar("status", { length: 16 }).notNull().default("PENDING"),
+    reviewedById: uuid("reviewed_by_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("idx_hr_ot_tenant").on(t.tenantId),
+    index("idx_hr_ot_employee").on(t.employeeId),
+  ]
+);
+
+/**
+ * hr_vehicle_logs — odometer + refuelling logbook per vehicle.
+ * Consecutive fuel entries with odometer readings yield km/l in the UI.
+ */
+export const hrVehicleLogs = pgTable(
+  "hr_vehicle_logs",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    vehicleId: uuid("vehicle_id")
+      .notNull()
+      .references(() => fleetVehicles.id, { onDelete: "restrict" }),
+    logDate: varchar("log_date", { length: 10 }).notNull(),
+    odometerKm: decimal("odometer_km", { precision: 12, scale: 1 }),
+    fuelLitres: decimal("fuel_litres", { precision: 10, scale: 2 }),
+    notes: text("notes"),
+    recordedById: uuid("recorded_by_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("idx_hr_vl_tenant").on(t.tenantId),
+    index("idx_hr_vl_vehicle").on(t.vehicleId),
+  ]
+);
+
+/**
+ * hr_expense_claims — out-of-pocket claims (fuel, tolls…).
+ * Status: PENDING | APPROVED | REJECTED | PAID.
+ */
+export const hrExpenseClaims = pgTable(
+  "hr_expense_claims",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    employeeId: uuid("employee_id")
+      .notNull()
+      .references(() => payrollEmployees.id, { onDelete: "restrict" }),
+    /** FUEL | TOLL | PARTS | OTHER */
+    kind: varchar("kind", { length: 20 }).notNull().default("OTHER"),
+    amountSar: decimal("amount_sar", { precision: 12, scale: 2 }).notNull(),
+    expenseDate: varchar("expense_date", { length: 10 }).notNull(),
+    notes: text("notes"),
+    /** PENDING | APPROVED | REJECTED | PAID */
+    status: varchar("status", { length: 16 }).notNull().default("PENDING"),
+    reviewedById: uuid("reviewed_by_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("idx_hr_ec_tenant").on(t.tenantId),
+    index("idx_hr_ec_employee").on(t.employeeId),
+  ]
+);
+
+/**
  * hr_broadcasts — HR → employees announcements (role-targeted or all).
  */
 export const hrBroadcasts = pgTable(
