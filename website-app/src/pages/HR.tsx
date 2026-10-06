@@ -13,7 +13,30 @@ import { downloadExcel, openPrintPDF, type ExportColumn, type ExportRow } from '
  * (HR_READ / HR_WRITE); every tab degrades independently.
  */
 
-type Tab = 'requests' | 'team' | 'attendance' | 'broadcasts' | 'payroll';
+type Tab = 'requests' | 'team' | 'attendance' | 'broadcasts' | 'payroll' | 'actions' | 'investigations';
+
+const COUNTRIES = [
+  { code: 'SA', ar: 'السعودية', flag: '🇸🇦' }, { code: 'EG', ar: 'مصر', flag: '🇪🇬' },
+  { code: 'SD', ar: 'السودان', flag: '🇸🇩' }, { code: 'YE', ar: 'اليمن', flag: '🇾🇪' },
+  { code: 'PK', ar: 'باكستان', flag: '🇵🇰' }, { code: 'IN', ar: 'الهند', flag: '🇮🇳' },
+  { code: 'BD', ar: 'بنجلاديش', flag: '🇧🇩' }, { code: 'PH', ar: 'الفلبين', flag: '🇵🇭' },
+  { code: 'SY', ar: 'سوريا', flag: '🇸🇾' }, { code: 'JO', ar: 'الأردن', flag: '🇯🇴' },
+  { code: 'PS', ar: 'فلسطين', flag: '🇵🇸' }, { code: 'LB', ar: 'لبنان', flag: '🇱🇧' },
+  { code: 'IQ', ar: 'العراق', flag: '🇮🇶' }, { code: 'AF', ar: 'أفغانستان', flag: '🇦🇫' },
+  { code: 'ID', ar: 'إندونيسيا', flag: '🇮🇩' }, { code: 'LK', ar: 'سريلانكا', flag: '🇱🇰' },
+  { code: 'NP', ar: 'نيبال', flag: '🇳🇵' }, { code: 'ET', ar: 'إثيوبيا', flag: '🇪🇹' },
+  { code: 'KE', ar: 'كينيا', flag: '🇰🇪' }, { code: 'UG', ar: 'أوغندا', flag: '🇺🇬' },
+  { code: 'ER', ar: 'إريتريا', flag: '🇪🇷' }, { code: 'TR', ar: 'تركيا', flag: '🇹🇷' },
+  { code: 'MM', ar: 'ميانمار', flag: '🇲🇲' }, { code: 'TD', ar: 'تشاد', flag: '🇹🇩' },
+];
+
+const ACTION_KIND_AR: Record<string, string> = {
+  WARNING: 'إنذار', DEDUCTION: 'خصم', SUSPENSION: 'إيقاف', TERMINATION: 'فصل',
+  BONUS: 'مكافأة', OVERTIME_BONUS: 'بدل إضافي', RECOGNITION: 'تكريم',
+};
+const DOC_KIND_AR: Record<string, string> = {
+  IQAMA: 'الإقامة', DRIVING_LICENCE: 'رخصة القيادة', INSURANCE: 'التأمين الطبي', CONTRACT: 'العقد', OTHER: 'أخرى',
+};
 
 const TYPE_AR: Record<string, string> = { LEAVE: 'إجازة', ADVANCE: 'سلفة', SALARY_CONFIRM: 'تعريف راتب', OTHER: 'أخرى' };
 const STATUS_AR: Record<string, string> = { PENDING: 'بانتظار', APPROVED: 'مقبول', REJECTED: 'مرفوض', CANCELLED: 'ملغي' };
@@ -65,7 +88,18 @@ export default function HR() {
   const [fromDate, setFromDate] = useState(() => new Date(Date.now() - 6 * 864e5).toISOString().slice(0, 10));
   const [toDate, setToDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [showAdd, setShowAdd] = useState(false);
-  const [form, setForm] = useState({ employeeCode: '', fullName: '', nationalId: '', nationality: 'NON_SAUDI', jobTitle: '', department: '', baseSalarySar: '', housingAllowanceSar: '', transportAllowanceSar: '', bankIban: '', bankName: '', hireDate: '' });
+  const [form, setForm] = useState({ employeeCode: '', fullName: '', nationalId: '', countryCode: '', jobTitle: '', department: '', baseSalarySar: '', housingAllowanceSar: '', transportAllowanceSar: '', bankIban: '', bankName: '', hireDate: '', contactPhone: '', emergencyContactName: '', emergencyContactPhone: '', lastVacationDate: '', lastResumptionDate: '', medicalInsuranceNo: '', medicalInsuranceExpiry: '' });
+  const [actions, setActions] = useState<any[]>([]);
+  const [actionFilter, setActionFilter] = useState('ALL');
+  const [showActionForm, setShowActionForm] = useState(false);
+  const [actionForm, setActionForm] = useState({ kind: 'PENALTY', employeeId: '', subKind: 'WARNING', amountSar: '', suspensionDays: '', reason: '' });
+  const [invs, setInvs] = useState<any[]>([]);
+  const [invFilter, setInvFilter] = useState('ALL');
+  const [showInvForm, setShowInvForm] = useState(false);
+  const [invForm, setInvForm] = useState({ employeeId: '', subject: '', details: '' });
+  const [closeNote, setCloseNote] = useState<Record<string, string>>({});
+  const [docsEmp, setDocsEmp] = useState<{ id: string; name: string } | null>(null);
+  const [docs, setDocs] = useState<any[]>([]);
 
   const addEmployee = async () => {
     if (!form.employeeCode.trim() || !form.fullName.trim()) {
@@ -80,7 +114,8 @@ export default function HR() {
         employeeCode: form.employeeCode.trim(),
         fullName: form.fullName.trim(),
         nationalId: form.nationalId.trim() || undefined,
-        nationality: form.nationality,
+        nationality: form.countryCode === 'SA' ? 'SAUDI' : 'NON_SAUDI',
+        countryCode: form.countryCode || undefined,
         jobTitle: form.jobTitle.trim() || undefined,
         department: form.department || undefined,
         baseSalarySar: num(form.baseSalarySar),
@@ -89,13 +124,93 @@ export default function HR() {
         bankIban: form.bankIban.trim() || undefined,
         bankName: form.bankName.trim() || undefined,
         hireDate: form.hireDate || undefined,
+        contactPhone: form.contactPhone.trim() || undefined,
+        emergencyContactName: form.emergencyContactName.trim() || undefined,
+        emergencyContactPhone: form.emergencyContactPhone.trim() || undefined,
+        lastVacationDate: form.lastVacationDate || undefined,
+        lastResumptionDate: form.lastResumptionDate || undefined,
+        medicalInsuranceNo: form.medicalInsuranceNo.trim() || undefined,
+        medicalInsuranceExpiry: form.medicalInsuranceExpiry || undefined,
       });
       setMsg('✅ تمت إضافة الموظف');
-      setForm({ employeeCode: '', fullName: '', nationalId: '', nationality: 'NON_SAUDI', jobTitle: '', department: '', baseSalarySar: '', housingAllowanceSar: '', transportAllowanceSar: '', bankIban: '', bankName: '', hireDate: '' });
+      setForm({ employeeCode: '', fullName: '', nationalId: '', countryCode: '', jobTitle: '', department: '', baseSalarySar: '', housingAllowanceSar: '', transportAllowanceSar: '', bankIban: '', bankName: '', hireDate: '', contactPhone: '', emergencyContactName: '', emergencyContactPhone: '', lastVacationDate: '', lastResumptionDate: '', medicalInsuranceNo: '', medicalInsuranceExpiry: '' });
       setShowAdd(false);
       await load();
     } catch (e: any) {
       setMsg(`❌ ${e?.message ?? 'فشل الإضافة'}`);
+    } finally {
+      setBusy('');
+    }
+  };
+
+  const loadDocs = async (employeeId: string, name: string) => {
+    setDocsEmp({ id: employeeId, name });
+    try {
+      const d = await api.get<{ documents?: any[] }>(`/api/hr/documents?employeeId=${employeeId}`);
+      setDocs(Array.isArray(d?.documents) ? d.documents : []);
+    } catch { setDocs([]); }
+  };
+
+  const addAction = async () => {
+    if (!actionForm.employeeId || !actionForm.reason.trim()) {
+      setMsg('❌ اختر الموظف واكتب السبب');
+      return;
+    }
+    setBusy('action');
+    setMsg('');
+    try {
+      const num = (v: string) => (v.trim() === '' ? undefined : Number(v));
+      await api.post('/api/hr/actions', {
+        kind: actionForm.kind,
+        employeeId: actionForm.employeeId,
+        subKind: actionForm.subKind,
+        amountSar: num(actionForm.amountSar),
+        suspensionDays: actionForm.suspensionDays.trim() === '' ? undefined : Math.round(Number(actionForm.suspensionDays)),
+        reason: actionForm.reason.trim(),
+      });
+      setMsg(actionForm.kind === 'PENALTY' ? '✅ تم تسجيل الجزاء' : '✅ تم تسجيل المكافأة');
+      setActionForm({ kind: 'PENALTY', employeeId: '', subKind: 'WARNING', amountSar: '', suspensionDays: '', reason: '' });
+      setShowActionForm(false);
+      await load();
+    } catch (e: any) {
+      setMsg(`❌ ${e?.message ?? 'فشل التسجيل'}`);
+    } finally {
+      setBusy('');
+    }
+  };
+
+  const openInv = async () => {
+    if (!invForm.employeeId || !invForm.subject.trim()) {
+      setMsg('❌ اختر الموظف واكتب موضوع التحقيق');
+      return;
+    }
+    setBusy('inv');
+    setMsg('');
+    try {
+      await api.post('/api/hr/investigations', {
+        employeeId: invForm.employeeId,
+        subject: invForm.subject.trim(),
+        details: invForm.details.trim() || undefined,
+      });
+      setMsg('✅ تم فتح التحقيق');
+      setInvForm({ employeeId: '', subject: '', details: '' });
+      setShowInvForm(false);
+      await load();
+    } catch (e: any) {
+      setMsg(`❌ ${e?.message ?? 'فشل الفتح'}`);
+    } finally {
+      setBusy('');
+    }
+  };
+
+  const closeInv = async (id: string) => {
+    setBusy('close' + id);
+    try {
+      await api.post(`/api/hr/investigations/${id}/close`, { outcome: closeNote[id]?.trim() || undefined });
+      setMsg('✅ تم إغلاق التحقيق وحفظ النتيجة');
+      await load();
+    } catch (e: any) {
+      setMsg(`❌ ${e?.message ?? 'فشل الإغلاق'}`);
     } finally {
       setBusy('');
     }
@@ -122,7 +237,15 @@ export default function HR() {
       const p = await api.get<{ runs?: any[] }>('/api/hr/payroll/runs');
       setRuns(Array.isArray(p?.runs) ? p.runs : []);
     } catch { setRuns([]); }
-  }, [filter, fromDate, toDate]);
+    try {
+      const ac = await api.get<{ actions?: any[] }>(`/api/hr/actions${actionFilter === 'ALL' ? '' : `?kind=${actionFilter}`}`);
+      setActions(Array.isArray(ac?.actions) ? ac.actions : []);
+    } catch { setActions([]); }
+    try {
+      const iv = await api.get<{ investigations?: any[] }>(`/api/hr/investigations${invFilter === 'ALL' ? '' : `?status=${invFilter}`}`);
+      setInvs(Array.isArray(iv?.investigations) ? iv.investigations : []);
+    } catch { setInvs([]); }
+  }, [filter, fromDate, toDate, actionFilter, invFilter]);
 
   useEffect(() => {
     if (!currentUser) return;
@@ -156,6 +279,8 @@ export default function HR() {
     { id: 'attendance', ar: '🕐 الحضور', en: 'Attendance' },
     { id: 'broadcasts', ar: '📢 الإعلانات', en: 'Broadcasts' },
     { id: 'payroll', ar: '💰 الرواتب', en: 'Payroll' },
+    { id: 'actions', ar: '⚖️ الجزاءات والمكافآت', en: 'Actions' },
+    { id: 'investigations', ar: '🔍 التحقيقات', en: 'Investigations' },
   ];
 
   const team = employees.filter((e) => {
@@ -302,10 +427,10 @@ export default function HR() {
                     <input value={form.nationalId} onChange={(e) => setForm({ ...form, nationalId: e.target.value })} inputMode="numeric"
                       className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
                   <label className="text-[11px] text-slate-400 font-bold">{ar ? 'الجنسية' : 'Nationality'}
-                    <select value={form.nationality} onChange={(e) => setForm({ ...form, nationality: e.target.value })}
+                    <select value={form.countryCode} onChange={(e) => setForm({ ...form, countryCode: e.target.value })}
                       className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none">
-                      <option value="NON_SAUDI">غير سعودي</option>
-                      <option value="SAUDI">سعودي</option>
+                      <option value="">—</option>
+                      {COUNTRIES.map((c) => <option key={c.code} value={c.code}>{c.flag} {c.ar}</option>)}
                     </select></label>
                   <label className="text-[11px] text-slate-400 font-bold">{ar ? 'الوظيفة' : 'Job title'}
                     <input value={form.jobTitle} onChange={(e) => setForm({ ...form, jobTitle: e.target.value })}
@@ -334,6 +459,27 @@ export default function HR() {
                   <label className="text-[11px] text-slate-400 font-bold">{ar ? 'تاريخ التعيين' : 'Hire date'}
                     <input type="date" value={form.hireDate} onChange={(e) => setForm({ ...form, hireDate: e.target.value })}
                       className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
+                  <label className="text-[11px] text-slate-400 font-bold">{ar ? 'رقم التواصل' : 'Contact phone'}
+                    <input value={form.contactPhone} onChange={(e) => setForm({ ...form, contactPhone: e.target.value })} inputMode="tel"
+                      className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
+                  <label className="text-[11px] text-slate-400 font-bold">{ar ? 'قريب بالسعودية (للطوارئ)' : 'Emergency contact (KSA)'}
+                    <input value={form.emergencyContactName} onChange={(e) => setForm({ ...form, emergencyContactName: e.target.value })}
+                      className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
+                  <label className="text-[11px] text-slate-400 font-bold">{ar ? 'جوال الطوارئ' : 'Emergency mobile'}
+                    <input value={form.emergencyContactPhone} onChange={(e) => setForm({ ...form, emergencyContactPhone: e.target.value })} inputMode="tel"
+                      className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
+                  <label className="text-[11px] text-slate-400 font-bold">{ar ? 'تاريخ آخر إجازة' : 'Last vacation'}
+                    <input type="date" value={form.lastVacationDate} onChange={(e) => setForm({ ...form, lastVacationDate: e.target.value })}
+                      className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
+                  <label className="text-[11px] text-slate-400 font-bold">{ar ? 'تاريخ آخر مباشرة' : 'Last resumption'}
+                    <input type="date" value={form.lastResumptionDate} onChange={(e) => setForm({ ...form, lastResumptionDate: e.target.value })}
+                      className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
+                  <label className="text-[11px] text-slate-400 font-bold">{ar ? 'وثيقة التأمين الطبي' : 'Medical insurance no.'}
+                    <input value={form.medicalInsuranceNo} onChange={(e) => setForm({ ...form, medicalInsuranceNo: e.target.value })}
+                      className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
+                  <label className="text-[11px] text-slate-400 font-bold">{ar ? 'انتهاء التأمين الطبي' : 'Insurance expiry'}
+                    <input type="date" value={form.medicalInsuranceExpiry} onChange={(e) => setForm({ ...form, medicalInsuranceExpiry: e.target.value })}
+                      className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
                 </div>
                 <button disabled={busy === 'add'} onClick={addEmployee}
                   className="mt-3 w-full sm:w-auto bg-sky-500 hover:bg-sky-400 disabled:opacity-50 text-white text-xs font-black rounded-lg px-6 py-2">
@@ -349,15 +495,46 @@ export default function HR() {
                   <div className="w-11 h-11 shrink-0 rounded-full bg-sky-500/15 border border-sky-500/30 flex items-center justify-center text-lg font-black text-sky-300">
                     {(nameOf(e) || '?').trim().charAt(0)}
                   </div>
-                  <div className="min-w-0">
+                  <div className="min-w-0 flex-1">
                     <p className="text-sm font-black text-white truncate">{nameOf(e)}</p>
                     <p className="text-[11px] text-slate-400 truncate">
                       {[e.role ?? e.jobTitle, e.department, e.employeeCode, e.phone].filter(Boolean).join(' · ')}
                     </p>
                   </div>
+                  {e.id && (
+                    <button onClick={() => (docsEmp?.id === e.id ? setDocsEmp(null) : loadDocs(e.id, nameOf(e)))}
+                      title={ar ? 'مستندات الموظف' : 'Documents'}
+                      className="shrink-0 text-lg rounded-lg border border-white/10 bg-white/[0.04] w-9 h-9 hover:border-sky-400/60">
+                      📁
+                    </button>
+                  )}
                 </div>
               ))}
             </div>
+            {docsEmp && (
+              <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-4 mt-3">
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="text-sm font-black text-white">📁 {ar ? 'مستندات' : 'Documents'} — {docsEmp.name}</h3>
+                  <button onClick={() => setDocsEmp(null)} className="text-slate-400 hover:text-white px-2">✕</button>
+                </div>
+                {docs.length === 0 && <p className="text-xs text-slate-500">{ar ? 'لا مستندات مسجلة.' : 'No documents registered.'}</p>}
+                {docs.map((d, i) => (
+                  <div key={d.id ?? i} className="flex items-center justify-between text-xs border-b border-white/5 py-1.5 last:border-0">
+                    <span className="font-bold text-slate-200">{DOC_KIND_AR[d.kind] ?? d.kind} · {d.fileName}</span>
+                    {d.storageUrl ? (
+                      <a href={d.storageUrl} target="_blank" rel="noreferrer" className="text-sky-400 font-black">⬇ {ar ? 'فتح' : 'Open'}</a>
+                    ) : (
+                      <span className="text-slate-500">{String(d.createdAt ?? '').slice(0, 10)}</span>
+                    )}
+                  </div>
+                ))}
+                <p className="text-[11px] text-yellow-300/90 bg-yellow-500/10 border border-yellow-500/25 rounded-lg px-2 py-1.5 mt-2">
+                  ⏳ {ar
+                    ? 'رفع الملفات (PDF/صور: الإقامة، الرخصة…) يتفعل بعد توصيل مخزن الملفات — السجل جاهز والأزرار هتشتغل تلقائياً.'
+                    : 'File upload activates once object storage is connected.'}
+                </p>
+              </div>
+            )}
           </div>
         )}
 
@@ -426,6 +603,151 @@ export default function HR() {
                 <span className="text-slate-400">{r.status ?? ''} {typeof r.totalSar === 'number' ? `· ${r.totalSar} ر.س` : ''}</span>
               </div>
             ))}
+          </div>
+        )}
+
+        {/* ===== actions: penalties + rewards ===== */}
+        {tab === 'actions' && (
+          <div className="mt-4">
+            <div className="flex flex-wrap items-center gap-2 mb-3">
+              <div className="flex gap-2">
+                {['ALL', 'PENALTY', 'REWARD'].map((f) => (
+                  <button key={f} onClick={() => setActionFilter(f)}
+                    className={`text-[11px] font-black rounded-lg px-3 py-1.5 border ${actionFilter === f ? 'bg-white text-black border-white' : 'text-slate-400 border-white/10'}`}>
+                    {f === 'ALL' ? (ar ? 'الكل' : 'All') : f === 'PENALTY' ? (ar ? '⚠️ الجزاءات' : 'Penalties') : (ar ? '🏅 المكافآت' : 'Rewards')}
+                  </button>
+                ))}
+              </div>
+              <button onClick={() => setShowActionForm((v) => !v)}
+                className="text-[11px] font-black rounded-lg px-3 py-1.5 border border-sky-500/50 bg-sky-500/15 text-sky-300 hover:bg-sky-500/25">
+                ➕ {ar ? 'تسجيل جزاء / مكافأة' : 'Record action'}
+              </button>
+            </div>
+            {showActionForm && (
+              <div className="rounded-2xl border border-sky-500/30 bg-sky-500/[0.06] p-4 mb-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                  <label className="text-[11px] text-slate-400 font-bold">{ar ? 'النوع' : 'Kind'}
+                    <select value={actionForm.kind} onChange={(e) => setActionForm({ ...actionForm, kind: e.target.value, subKind: e.target.value === 'PENALTY' ? 'WARNING' : 'BONUS' })}
+                      className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none">
+                      <option value="PENALTY">⚠️ {ar ? 'جزاء' : 'Penalty'}</option>
+                      <option value="REWARD">🏅 {ar ? 'مكافأة' : 'Reward'}</option>
+                    </select></label>
+                  <label className="text-[11px] text-slate-400 font-bold">{ar ? 'الموظف' : 'Employee'}
+                    <select value={actionForm.employeeId} onChange={(e) => setActionForm({ ...actionForm, employeeId: e.target.value })}
+                      className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none">
+                      <option value="">—</option>
+                      {employees.map((e) => <option key={e.id} value={e.id}>{nameOf(e)} · {e.employeeCode}</option>)}
+                    </select></label>
+                  <label className="text-[11px] text-slate-400 font-bold">{ar ? 'التصنيف' : 'Type'}
+                    <select value={actionForm.subKind} onChange={(e) => setActionForm({ ...actionForm, subKind: e.target.value })}
+                      className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none">
+                      {(actionForm.kind === 'PENALTY' ? ['WARNING', 'DEDUCTION', 'SUSPENSION', 'TERMINATION'] : ['BONUS', 'OVERTIME_BONUS', 'RECOGNITION']).map((k) => (
+                        <option key={k} value={k}>{ACTION_KIND_AR[k] ?? k}</option>
+                      ))}
+                    </select></label>
+                  {(actionForm.subKind === 'DEDUCTION' || actionForm.subKind === 'BONUS' || actionForm.subKind === 'OVERTIME_BONUS') && (
+                    <label className="text-[11px] text-slate-400 font-bold">{ar ? 'المبلغ (ر.س)' : 'Amount (SAR)'}
+                      <input value={actionForm.amountSar} onChange={(e) => setActionForm({ ...actionForm, amountSar: e.target.value })} inputMode="decimal"
+                        className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
+                  )}
+                  {actionForm.subKind === 'SUSPENSION' && (
+                    <label className="text-[11px] text-slate-400 font-bold">{ar ? 'أيام الإيقاف' : 'Suspension days'}
+                      <input value={actionForm.suspensionDays} onChange={(e) => setActionForm({ ...actionForm, suspensionDays: e.target.value })} inputMode="numeric"
+                        className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
+                  )}
+                  <label className="text-[11px] text-slate-400 font-bold sm:col-span-2">{ar ? 'السبب *' : 'Reason *'}
+                    <input value={actionForm.reason} onChange={(e) => setActionForm({ ...actionForm, reason: e.target.value })}
+                      className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
+                </div>
+                <button disabled={busy === 'action'} onClick={addAction}
+                  className="mt-3 bg-sky-500 hover:bg-sky-400 disabled:opacity-50 text-white text-xs font-black rounded-lg px-6 py-2">
+                  {busy === 'action' ? '…' : `✅ ${ar ? 'تسجيل' : 'Record'}`}
+                </button>
+              </div>
+            )}
+            {actions.length === 0 && <p className="text-xs text-slate-500">{ar ? 'لا جزاءات ولا مكافآت مسجلة.' : 'Nothing recorded.'}</p>}
+            <div className="space-y-2">
+              {actions.map((a, i) => (
+                <div key={a.id ?? i} className={`rounded-xl border px-3 py-2 text-xs ${a.kind === 'PENALTY' ? 'border-red-500/30 bg-red-500/[0.06]' : 'border-emerald-500/30 bg-emerald-500/[0.06]'}`}>
+                  <div className="flex items-center justify-between">
+                    <span className="font-black text-white">{a.kind === 'PENALTY' ? '⚠️' : '🏅'} {ACTION_KIND_AR[a.subKind] ?? a.subKind}</span>
+                    <span className="text-slate-400">{String(a.issuedAt ?? '').slice(0, 10)}</span>
+                  </div>
+                  <p className="text-slate-300 mt-0.5">{a.reason}</p>
+                  <p className="text-slate-500 mt-0.5">
+                    {[a.amountSar ? `${a.amountSar} ر.س` : '', a.suspensionDays ? `${a.suspensionDays} يوم إيقاف` : ''].filter(Boolean).join(' · ')}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ===== investigations ===== */}
+        {tab === 'investigations' && (
+          <div className="mt-4">
+            <div className="flex flex-wrap items-center gap-2 mb-3">
+              <div className="flex gap-2">
+                {['ALL', 'OPEN', 'CLOSED'].map((f) => (
+                  <button key={f} onClick={() => setInvFilter(f)}
+                    className={`text-[11px] font-black rounded-lg px-3 py-1.5 border ${invFilter === f ? 'bg-white text-black border-white' : 'text-slate-400 border-white/10'}`}>
+                    {f === 'ALL' ? (ar ? 'الكل' : 'All') : f === 'OPEN' ? (ar ? '🔴 مفتوحة' : 'Open') : (ar ? 'مغلقة' : 'Closed')}
+                  </button>
+                ))}
+              </div>
+              <button onClick={() => setShowInvForm((v) => !v)}
+                className="text-[11px] font-black rounded-lg px-3 py-1.5 border border-sky-500/50 bg-sky-500/15 text-sky-300 hover:bg-sky-500/25">
+                ➕ {ar ? 'فتح تحقيق' : 'Open investigation'}
+              </button>
+            </div>
+            {showInvForm && (
+              <div className="rounded-2xl border border-sky-500/30 bg-sky-500/[0.06] p-4 mb-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <label className="text-[11px] text-slate-400 font-bold">{ar ? 'الموظف' : 'Employee'}
+                    <select value={invForm.employeeId} onChange={(e) => setInvForm({ ...invForm, employeeId: e.target.value })}
+                      className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none">
+                      <option value="">—</option>
+                      {employees.map((e) => <option key={e.id} value={e.id}>{nameOf(e)} · {e.employeeCode}</option>)}
+                    </select></label>
+                  <label className="text-[11px] text-slate-400 font-bold">{ar ? 'موضوع التحقيق *' : 'Subject *'}
+                    <input value={invForm.subject} onChange={(e) => setInvForm({ ...invForm, subject: e.target.value })}
+                      className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
+                  <label className="text-[11px] text-slate-400 font-bold sm:col-span-2">{ar ? 'التفاصيل' : 'Details'}
+                    <input value={invForm.details} onChange={(e) => setInvForm({ ...invForm, details: e.target.value })}
+                      className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
+                </div>
+                <button disabled={busy === 'inv'} onClick={openInv}
+                  className="mt-3 bg-sky-500 hover:bg-sky-400 disabled:opacity-50 text-white text-xs font-black rounded-lg px-6 py-2">
+                  {busy === 'inv' ? '…' : `✅ ${ar ? 'فتح' : 'Open'}`}
+                </button>
+              </div>
+            )}
+            {invs.length === 0 && <p className="text-xs text-slate-500">{ar ? 'لا تحقيقات.' : 'No investigations.'}</p>}
+            <div className="space-y-2">
+              {invs.map((v, i) => (
+                <div key={v.id ?? i} className={`rounded-xl border px-3 py-2 text-xs ${v.status === 'OPEN' ? 'border-yellow-500/40 bg-yellow-500/[0.06]' : 'border-white/10 bg-white/[0.03]'}`}>
+                  <div className="flex items-center justify-between">
+                    <span className="font-black text-white">{v.subject}</span>
+                    <span className={`text-[10px] font-black rounded px-2 py-0.5 ${v.status === 'OPEN' ? 'bg-yellow-500/15 text-yellow-300' : 'bg-white/10 text-slate-400'}`}>
+                      {v.status === 'OPEN' ? (ar ? '🔴 مفتوح' : 'OPEN') : (ar ? 'مغلق' : 'CLOSED')}
+                    </span>
+                  </div>
+                  {v.details && <p className="text-slate-400 mt-1">{v.details}</p>}
+                  {v.outcome && <p className="text-emerald-300 mt-1">📋 {ar ? 'النتيجة' : 'Outcome'}: {v.outcome}</p>}
+                  {v.status === 'OPEN' && (
+                    <div className="flex gap-2 mt-2">
+                      <input value={closeNote[v.id] ?? ''} onChange={(e) => setCloseNote((n) => ({ ...n, [v.id]: e.target.value }))}
+                        placeholder={ar ? 'نتيجة التحقيق…' : 'Outcome…'}
+                        className="flex-1 bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" />
+                      <button disabled={busy === 'close' + v.id} onClick={() => closeInv(v.id)}
+                        className="bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-xs font-black rounded-lg px-4 disabled:opacity-50">
+                        {busy === 'close' + v.id ? '…' : (ar ? 'إغلاق' : 'Close')}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
           </div>
         )}
       </div>

@@ -169,6 +169,20 @@
       "when": 1791108760331,
       "tag": "0023_sites",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1791292111048,
+      "tag": "0024_wooden_drax",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1791292304378,
+      "tag": "0025_deep_cyclops",
+      "breakpoints": true
     }
   ]
 }

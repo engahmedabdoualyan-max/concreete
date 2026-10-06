@@ -131,6 +131,14 @@ export async function createEmployee(
     bankIban?: string;
     bankName?: string;
     hireDate?: string;
+    countryCode?: string;
+    contactPhone?: string;
+    emergencyContactName?: string;
+    emergencyContactPhone?: string;
+    lastVacationDate?: string;
+    lastResumptionDate?: string;
+    medicalInsuranceNo?: string;
+    medicalInsuranceExpiry?: string;
   }
 ) {
   const [created] = await db
@@ -152,6 +160,14 @@ export async function createEmployee(
       bankIban: input.bankIban,
       bankName: input.bankName,
       hireDate: input.hireDate ? new Date(input.hireDate) : null,
+      countryCode: input.countryCode,
+      contactPhone: input.contactPhone,
+      emergencyContactName: input.emergencyContactName,
+      emergencyContactPhone: input.emergencyContactPhone,
+      lastVacationDate: input.lastVacationDate ? new Date(input.lastVacationDate) : null,
+      lastResumptionDate: input.lastResumptionDate ? new Date(input.lastResumptionDate) : null,
+      medicalInsuranceNo: input.medicalInsuranceNo,
+      medicalInsuranceExpiry: input.medicalInsuranceExpiry ? new Date(input.medicalInsuranceExpiry) : null,
     })
     .returning();
   return created;

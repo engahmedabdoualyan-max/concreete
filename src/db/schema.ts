@@ -3698,6 +3698,19 @@ export const payrollEmployees = pgTable(
     employeeCode: varchar("employee_code", { length: 20 }).notNull(),
     fullName: varchar("full_name", { length: 120 }).notNull(),
     nationalId: varchar("national_id", { length: 20 }),
+    /** ISO country code of nationality (SA, EG, PK…) — shown with its flag */
+    countryCode: varchar("country_code", { length: 4 }),
+    /** Direct contact number of the employee */
+    contactPhone: varchar("contact_phone", { length: 20 }),
+    /** Emergency contact inside Saudi Arabia (relative) + mobile */
+    emergencyContactName: varchar("emergency_contact_name", { length: 120 }),
+    emergencyContactPhone: varchar("emergency_contact_phone", { length: 20 }),
+    /** Last vacation end-date and last resumption (return-to-work) date */
+    lastVacationDate: timestamp("last_vacation_date"),
+    lastResumptionDate: timestamp("last_resumption_date"),
+    /** Medical insurance policy number + expiry */
+    medicalInsuranceNo: varchar("medical_insurance_no", { length: 60 }),
+    medicalInsuranceExpiry: timestamp("medical_insurance_expiry"),
     /** SAUDI | NON_SAUDI */
     nationality: varchar("nationality", { length: 12 }).notNull().default("NON_SAUDI"),
     /**
@@ -3835,6 +3848,128 @@ export const hrRequests = pgTable(
     index("idx_hr_req_requester").on(t.requesterId),
     index("idx_hr_req_status").on(t.status),
     index("idx_hr_req_type").on(t.type),
+  ]
+);
+
+/**
+ * hr_penalties — HR → employee disciplinary actions.
+ * Kinds: WARNING (verbal/written), DEDUCTION (salary cut in SAR),
+ * SUSPENSION (days), TERMINATION. A deduction here is a record; it reaches
+ * payroll only when the payroll officer adds it to a run.
+ */
+export const hrPenalties = pgTable(
+  "hr_penalties",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    employeeId: uuid("employee_id")
+      .notNull()
+      .references(() => payrollEmployees.id, { onDelete: "restrict" }),
+    /** WARNING | DEDUCTION | SUSPENSION | TERMINATION */
+    kind: varchar("kind", { length: 20 }).notNull(),
+    amountSar: decimal("amount_sar", { precision: 12, scale: 2 }),
+    suspensionDays: integer("suspension_days"),
+    reason: text("reason").notNull(),
+    issuedById: uuid("issued_by_id").references(() => users.id, { onDelete: "set null" }),
+    issuedAt: timestamp("issued_at").notNull().defaultNow(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("idx_hr_pen_tenant").on(t.tenantId),
+    index("idx_hr_pen_employee").on(t.employeeId),
+  ]
+);
+
+/**
+ * hr_rewards — HR → employee bonuses and recognition.
+ * Kinds: BONUS (SAR), OVERTIME_BONUS, RECOGNITION (moral, no amount).
+ * Like penalties, a BONUS reaches payroll only via a payroll run.
+ */
+export const hrRewards = pgTable(
+  "hr_rewards",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    employeeId: uuid("employee_id")
+      .notNull()
+      .references(() => payrollEmployees.id, { onDelete: "restrict" }),
+    /** BONUS | OVERTIME_BONUS | RECOGNITION */
+    kind: varchar("kind", { length: 20 }).notNull(),
+    amountSar: decimal("amount_sar", { precision: 12, scale: 2 }),
+    reason: text("reason").notNull(),
+    issuedById: uuid("issued_by_id").references(() => users.id, { onDelete: "set null" }),
+    issuedAt: timestamp("issued_at").notNull().defaultNow(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("idx_hr_rew_tenant").on(t.tenantId),
+    index("idx_hr_rew_employee").on(t.employeeId),
+  ]
+);
+
+/**
+ * hr_investigations — formal investigations with an open/close workflow.
+ * Status: OPEN | CLOSED. Closing records the outcome for the file.
+ */
+export const hrInvestigations = pgTable(
+  "hr_investigations",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    employeeId: uuid("employee_id")
+      .notNull()
+      .references(() => payrollEmployees.id, { onDelete: "restrict" }),
+    subject: varchar("subject", { length: 200 }).notNull(),
+    details: text("details"),
+    /** OPEN | CLOSED */
+    status: varchar("status", { length: 16 }).notNull().default("OPEN"),
+    outcome: text("outcome"),
+    openedById: uuid("opened_by_id").references(() => users.id, { onDelete: "set null" }),
+    closedById: uuid("closed_by_id").references(() => users.id, { onDelete: "set null" }),
+    closedAt: timestamp("closed_at"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("idx_hr_inv_tenant").on(t.tenantId),
+    index("idx_hr_inv_employee").on(t.employeeId),
+    index("idx_hr_inv_status").on(t.status),
+  ]
+);
+
+/**
+ * hr_documents — employee file registry (iqama, driving licence, …).
+ * Bytes live in object storage; only the reference is stored here.
+ * Kinds: IQAMA | DRIVING_LICENCE | INSURANCE | CONTRACT | OTHER.
+ */
+export const hrDocuments = pgTable(
+  "hr_documents",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    employeeId: uuid("employee_id")
+      .notNull()
+      .references(() => payrollEmployees.id, { onDelete: "cascade" }),
+    /** IQAMA | DRIVING_LICENCE | INSURANCE | CONTRACT | OTHER */
+    kind: varchar("kind", { length: 20 }).notNull(),
+    fileName: varchar("file_name", { length: 255 }).notNull(),
+    mimeType: varchar("mime_type", { length: 100 }),
+    sizeBytes: integer("size_bytes"),
+    storageUrl: text("storage_url").notNull(),
+    uploadedById: uuid("uploaded_by_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("idx_hr_doc_tenant").on(t.tenantId),
+    index("idx_hr_doc_employee").on(t.employeeId),
   ]
 );
 
