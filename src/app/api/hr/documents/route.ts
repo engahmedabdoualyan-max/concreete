@@ -51,8 +51,11 @@ const DocSchema = z.object({
   fileName: z.string().min(1).max(255),
   mimeType: z.string().max(100).optional(),
   sizeBytes: z.number().int().nonnegative().optional(),
-  storageUrl: z.string().min(1).max(4000),
-});
+  // Either a hosted URL (object storage, when configured) or inline base64
+  // bytes ("data:<mime>;base64,…", max ~8 MB — enough for employee papers).
+  storageUrl: z.string().min(1).max(4000).optional(),
+  fileData: z.string().min(1).max(11_000_000).optional(),
+}).refine((d) => d.storageUrl || d.fileData, { message: "storageUrl or fileData required" });
 
 export async function POST(req: NextRequest) {
   const auth = await requirePermission(req, PERMISSIONS.HR_WRITE);
@@ -72,6 +75,11 @@ export async function POST(req: NextRequest) {
   }
 
   try {
+    const url =
+      parsed.data.storageUrl ??
+      (parsed.data.mimeType && parsed.data.fileData?.startsWith("data:")
+        ? parsed.data.fileData
+        : `data:${parsed.data.mimeType ?? "application/octet-stream"};base64,${parsed.data.fileData}`);
     const [created] = await db
       .insert(hrDocuments)
       .values({
@@ -81,7 +89,7 @@ export async function POST(req: NextRequest) {
         fileName: parsed.data.fileName,
         mimeType: parsed.data.mimeType ?? null,
         sizeBytes: parsed.data.sizeBytes ?? null,
-        storageUrl: parsed.data.storageUrl,
+        storageUrl: url,
         uploadedById: auth.user.sub,
       })
       .returning();

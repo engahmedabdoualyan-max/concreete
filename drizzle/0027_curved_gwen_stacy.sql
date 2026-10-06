@@ -1,0 +1,1 @@
+ALTER TABLE "payroll_employees" ADD COLUMN "iqama_expiry" timestamp;

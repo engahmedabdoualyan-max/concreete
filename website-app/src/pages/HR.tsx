@@ -13,7 +13,7 @@ import { downloadExcel, openPrintPDF, type ExportColumn, type ExportRow } from '
  * (HR_READ / HR_WRITE); every tab degrades independently.
  */
 
-type Tab = 'requests' | 'team' | 'attendance' | 'broadcasts' | 'payroll' | 'actions' | 'investigations';
+type Tab = 'requests' | 'team' | 'attendance' | 'broadcasts' | 'payroll' | 'actions' | 'investigations' | 'custody';
 
 const COUNTRIES = [
   { code: 'SA', ar: 'السعودية', flag: '🇸🇦' }, { code: 'EG', ar: 'مصر', flag: '🇪🇬' },
@@ -88,7 +88,7 @@ export default function HR() {
   const [fromDate, setFromDate] = useState(() => new Date(Date.now() - 6 * 864e5).toISOString().slice(0, 10));
   const [toDate, setToDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [showAdd, setShowAdd] = useState(false);
-  const [form, setForm] = useState({ employeeCode: '', fullName: '', nationalId: '', countryCode: '', jobTitle: '', department: '', baseSalarySar: '', housingAllowanceSar: '', transportAllowanceSar: '', bankIban: '', bankName: '', hireDate: '', contactPhone: '', emergencyContactName: '', emergencyContactPhone: '', lastVacationDate: '', lastResumptionDate: '', medicalInsuranceNo: '', medicalInsuranceExpiry: '' });
+  const [form, setForm] = useState({ employeeCode: '', fullName: '', nationalId: '', countryCode: '', jobTitle: '', department: '', baseSalarySar: '', housingAllowanceSar: '', transportAllowanceSar: '', bankIban: '', bankName: '', hireDate: '', contactPhone: '', emergencyContactName: '', emergencyContactPhone: '', lastVacationDate: '', lastResumptionDate: '', medicalInsuranceNo: '', medicalInsuranceExpiry: '', vehiclePlate: '', vehicleOwnership: '', iqamaExpiry: '' });
   const [actions, setActions] = useState<any[]>([]);
   const [actionFilter, setActionFilter] = useState('ALL');
   const [showActionForm, setShowActionForm] = useState(false);
@@ -100,6 +100,12 @@ export default function HR() {
   const [closeNote, setCloseNote] = useState<Record<string, string>>({});
   const [docsEmp, setDocsEmp] = useState<{ id: string; name: string } | null>(null);
   const [docs, setDocs] = useState<any[]>([]);
+  const [custody, setCustody] = useState<any[]>([]);
+  const [custodyFilter, setCustodyFilter] = useState('ALL');
+  const [showCustodyForm, setShowCustodyForm] = useState(false);
+  const [custodyForm, setCustodyForm] = useState({ employeeId: '', item: '', serialNo: '', notes: '' });
+  const [docKind, setDocKind] = useState('IQAMA');
+  const [uploading, setUploading] = useState(false);
 
   const addEmployee = async () => {
     if (!form.employeeCode.trim() || !form.fullName.trim()) {
@@ -131,9 +137,12 @@ export default function HR() {
         lastResumptionDate: form.lastResumptionDate || undefined,
         medicalInsuranceNo: form.medicalInsuranceNo.trim() || undefined,
         medicalInsuranceExpiry: form.medicalInsuranceExpiry || undefined,
+        iqamaExpiry: form.iqamaExpiry || undefined,
+        vehiclePlate: form.vehiclePlate.trim() || undefined,
+        vehicleOwnership: (form.vehicleOwnership || undefined) as 'PRIVATE' | 'COMPANY' | undefined,
       });
       setMsg('✅ تمت إضافة الموظف');
-      setForm({ employeeCode: '', fullName: '', nationalId: '', countryCode: '', jobTitle: '', department: '', baseSalarySar: '', housingAllowanceSar: '', transportAllowanceSar: '', bankIban: '', bankName: '', hireDate: '', contactPhone: '', emergencyContactName: '', emergencyContactPhone: '', lastVacationDate: '', lastResumptionDate: '', medicalInsuranceNo: '', medicalInsuranceExpiry: '' });
+      setForm({ employeeCode: '', fullName: '', nationalId: '', countryCode: '', jobTitle: '', department: '', baseSalarySar: '', housingAllowanceSar: '', transportAllowanceSar: '', bankIban: '', bankName: '', hireDate: '', contactPhone: '', emergencyContactName: '', emergencyContactPhone: '', lastVacationDate: '', lastResumptionDate: '', medicalInsuranceNo: '', medicalInsuranceExpiry: '', vehiclePlate: '', vehicleOwnership: '', iqamaExpiry: '' });
       setShowAdd(false);
       await load();
     } catch (e: any) {
@@ -149,6 +158,79 @@ export default function HR() {
       const d = await api.get<{ documents?: any[] }>(`/api/hr/documents?employeeId=${employeeId}`);
       setDocs(Array.isArray(d?.documents) ? d.documents : []);
     } catch { setDocs([]); }
+  };
+
+  const uploadDoc = async (file: File | undefined) => {
+    if (!file || !docsEmp) return;
+    if (file.size > 8 * 1024 * 1024) {
+      setMsg('❌ الملف أكبر من 8MB');
+      return;
+    }
+    if (!/pdf|image/i.test(file.type) && !/\.(pdf|png|jpe?g|webp)$/i.test(file.name)) {
+      setMsg('❌ PDF أو صور فقط');
+      return;
+    }
+    setUploading(true);
+    try {
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const r = new FileReader();
+        r.onload = () => resolve(String(r.result));
+        r.onerror = reject;
+        r.readAsDataURL(file);
+      });
+      await api.post('/api/hr/documents', {
+        employeeId: docsEmp.id,
+        kind: docKind,
+        fileName: file.name,
+        mimeType: file.type || 'application/octet-stream',
+        sizeBytes: file.size,
+        fileData: dataUrl,
+      });
+      setMsg('✅ تم رفع المستند');
+      await loadDocs(docsEmp.id, docsEmp.name);
+    } catch (e: any) {
+      setMsg(`❌ ${e?.message ?? 'فشل الرفع'}`);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handCustody = async () => {
+    if (!custodyForm.employeeId || !custodyForm.item.trim()) {
+      setMsg('❌ اختر الموظف واكتب الصنف');
+      return;
+    }
+    setBusy('custody');
+    setMsg('');
+    try {
+      await api.post('/api/hr/custody', {
+        employeeId: custodyForm.employeeId,
+        item: custodyForm.item.trim(),
+        serialNo: custodyForm.serialNo.trim() || undefined,
+        notes: custodyForm.notes.trim() || undefined,
+      });
+      setMsg('✅ تم تسليم العهدة');
+      setCustodyForm({ employeeId: '', item: '', serialNo: '', notes: '' });
+      setShowCustodyForm(false);
+      await load();
+    } catch (e: any) {
+      setMsg(`❌ ${e?.message ?? 'فشل التسليم'}`);
+    } finally {
+      setBusy('');
+    }
+  };
+
+  const returnCustody = async (id: string) => {
+    setBusy('ret' + id);
+    try {
+      await api.post(`/api/hr/custody/${id}/return`, {});
+      setMsg('✅ تم استلام العهدة');
+      await load();
+    } catch (e: any) {
+      setMsg(`❌ ${e?.message ?? 'فشل الاستلام'}`);
+    } finally {
+      setBusy('');
+    }
   };
 
   const addAction = async () => {
@@ -245,7 +327,11 @@ export default function HR() {
       const iv = await api.get<{ investigations?: any[] }>(`/api/hr/investigations${invFilter === 'ALL' ? '' : `?status=${invFilter}`}`);
       setInvs(Array.isArray(iv?.investigations) ? iv.investigations : []);
     } catch { setInvs([]); }
-  }, [filter, fromDate, toDate, actionFilter, invFilter]);
+    try {
+      const cu = await api.get<{ custody?: any[] }>(`/api/hr/custody${custodyFilter === 'ALL' ? '' : `?status=${custodyFilter}`}`);
+      setCustody(Array.isArray(cu?.custody) ? cu.custody : []);
+    } catch { setCustody([]); }
+  }, [filter, fromDate, toDate, actionFilter, invFilter, custodyFilter]);
 
   useEffect(() => {
     if (!currentUser) return;
@@ -281,6 +367,7 @@ export default function HR() {
     { id: 'payroll', ar: '💰 الرواتب', en: 'Payroll' },
     { id: 'actions', ar: '⚖️ الجزاءات والمكافآت', en: 'Actions' },
     { id: 'investigations', ar: '🔍 التحقيقات', en: 'Investigations' },
+    { id: 'custody', ar: '🎒 العهد', en: 'Custody' },
   ];
 
   const team = employees.filter((e) => {
@@ -288,6 +375,19 @@ export default function HR() {
     if (!q) return true;
     return [e.fullName, e.full_name, e.email, e.employeeCode, e.phone, e.department].filter(Boolean).join(' ').toLowerCase().includes(q);
   });
+
+  // Iqama renewals due within 60 days (or already expired) — the watch section.
+  const renewals = employees
+    .map((e) => {
+      const raw = e.iqamaExpiry ?? e.iqama_expiry;
+      if (!raw) return null;
+      const t = new Date(raw).getTime();
+      if (Number.isNaN(t)) return null;
+      const days = Math.ceil((t - Date.now()) / 864e5);
+      return days <= 60 ? { e, days } : null;
+    })
+    .filter((x): x is { e: any; days: number } => !!x)
+    .sort((a, b) => a.days - b.days);
 
   return (
     <div className="min-h-screen bg-[#080C14] text-slate-200" dir={ar ? 'rtl' : 'ltr'}>
@@ -389,6 +489,21 @@ export default function HR() {
         {/* ===== team ===== */}
         {tab === 'team' && (
           <div className="mt-4">
+            {renewals.length > 0 && (
+              <div className="rounded-2xl border border-yellow-500/40 bg-yellow-500/[0.07] p-3 mb-3">
+                <h3 className="text-xs font-black text-yellow-300 mb-2">
+                  ⏰ {ar ? `تجديدات الإقامة القادمة (${renewals.length}) — قبل الانتهاء بشهرين` : `Iqama renewals due (${renewals.length})`}
+                </h3>
+                {renewals.slice(0, 8).map(({ e, days }, i) => (
+                  <div key={e.id ?? i} className="flex items-center justify-between text-xs border-b border-white/5 py-1 last:border-0">
+                    <span className="font-bold text-slate-200">{nameOf(e)} · {e.employeeCode}</span>
+                    <span className={`font-black ${days < 0 ? 'text-red-400' : days <= 30 ? 'text-yellow-300' : 'text-slate-300'}`}>
+                      {days < 0 ? (ar ? `منتهية منذ ${-days} يوم` : `expired ${-days}d ago`) : (ar ? `متبقي ${days} يوم` : `${days}d left`)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
             <div className="flex flex-wrap items-center gap-2 mb-3">
               <input value={search} onChange={(e) => setSearch(e.target.value)}
                 placeholder={ar ? '🔍 بحث بالاسم / الكود / الجوال…' : 'Search name / code / phone…'}
@@ -425,6 +540,9 @@ export default function HR() {
                       className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
                   <label className="text-[11px] text-slate-400 font-bold">{ar ? 'رقم الهوية / الإقامة' : 'National ID / Iqama'}
                     <input value={form.nationalId} onChange={(e) => setForm({ ...form, nationalId: e.target.value })} inputMode="numeric"
+                      className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
+                  <label className="text-[11px] text-slate-400 font-bold">{ar ? 'تاريخ انتهاء الإقامة * للتنبيه' : 'Iqama expiry (alerts)'}
+                    <input type="date" value={form.iqamaExpiry} onChange={(e) => setForm({ ...form, iqamaExpiry: e.target.value })}
                       className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
                   <label className="text-[11px] text-slate-400 font-bold">{ar ? 'الجنسية' : 'Nationality'}
                     <select value={form.countryCode} onChange={(e) => setForm({ ...form, countryCode: e.target.value })}
@@ -480,6 +598,16 @@ export default function HR() {
                   <label className="text-[11px] text-slate-400 font-bold">{ar ? 'انتهاء التأمين الطبي' : 'Insurance expiry'}
                     <input type="date" value={form.medicalInsuranceExpiry} onChange={(e) => setForm({ ...form, medicalInsuranceExpiry: e.target.value })}
                       className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
+                  <label className="text-[11px] text-slate-400 font-bold">{ar ? 'رقم السيارة' : 'Car plate'}
+                    <input value={form.vehiclePlate} onChange={(e) => setForm({ ...form, vehiclePlate: e.target.value })}
+                      className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
+                  <label className="text-[11px] text-slate-400 font-bold">{ar ? 'السيارة خاصة أم عهدة؟' : 'Car: private or custody?'}
+                    <select value={form.vehicleOwnership} onChange={(e) => setForm({ ...form, vehicleOwnership: e.target.value })}
+                      className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none">
+                      <option value="">—</option>
+                      <option value="PRIVATE">{ar ? '🚗 خاصة' : 'Private'}</option>
+                      <option value="COMPANY">{ar ? '🏢 عهدة الشركة' : 'Company'}</option>
+                    </select></label>
                 </div>
                 <button disabled={busy === 'add'} onClick={addEmployee}
                   className="mt-3 w-full sm:w-auto bg-sky-500 hover:bg-sky-400 disabled:opacity-50 text-white text-xs font-black rounded-lg px-6 py-2">
@@ -498,8 +626,14 @@ export default function HR() {
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-black text-white truncate">{nameOf(e)}</p>
                     <p className="text-[11px] text-slate-400 truncate">
-                      {[e.role ?? e.jobTitle, e.department, e.employeeCode, e.phone].filter(Boolean).join(' · ')}
+                      {[e.role ?? e.jobTitle, e.department, e.employeeCode, e.phone ?? e.contactPhone].filter(Boolean).join(' · ')}
                     </p>
+                    {(e.vehiclePlate || e.countryCode) && (
+                      <p className="text-[11px] text-slate-500 truncate">
+                        {[e.vehiclePlate ? `🚗 ${e.vehiclePlate}${e.vehicleOwnership === 'COMPANY' ? ' (عهدة)' : e.vehicleOwnership === 'PRIVATE' ? ' (خاصة)' : ''}` : '',
+                          e.countryCode ? (COUNTRIES.find((c) => c.code === e.countryCode)?.flag ?? '') : ''].filter(Boolean).join(' · ')}
+                      </p>
+                    )}
                   </div>
                   {e.id && (
                     <button onClick={() => (docsEmp?.id === e.id ? setDocsEmp(null) : loadDocs(e.id, nameOf(e)))}
@@ -528,11 +662,17 @@ export default function HR() {
                     )}
                   </div>
                 ))}
-                <p className="text-[11px] text-yellow-300/90 bg-yellow-500/10 border border-yellow-500/25 rounded-lg px-2 py-1.5 mt-2">
-                  ⏳ {ar
-                    ? 'رفع الملفات (PDF/صور: الإقامة، الرخصة…) يتفعل بعد توصيل مخزن الملفات — السجل جاهز والأزرار هتشتغل تلقائياً.'
-                    : 'File upload activates once object storage is connected.'}
-                </p>
+                <div className="flex flex-wrap items-center gap-2 mt-3 rounded-xl border border-white/10 bg-white/[0.03] p-2">
+                  <select value={docKind} onChange={(e) => setDocKind(e.target.value)}
+                    className="bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none">
+                    {Object.entries(DOC_KIND_AR).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                  </select>
+                  <label className={`text-[11px] font-black rounded-lg px-3 py-1.5 border cursor-pointer ${uploading ? 'opacity-50' : 'border-sky-500/50 bg-sky-500/15 text-sky-300 hover:bg-sky-500/25'}`}>
+                    📎 {uploading ? '…' : (ar ? 'رفع PDF / صورة (حتى 8MB)' : 'Upload PDF/image (8MB)')}
+                    <input type="file" accept="application/pdf,image/*" className="hidden" disabled={uploading}
+                      onChange={(e) => { uploadDoc(e.target.files?.[0]); e.target.value = ''; }} />
+                  </label>
+                </div>
               </div>
             )}
           </div>
@@ -744,6 +884,71 @@ export default function HR() {
                         {busy === 'close' + v.id ? '…' : (ar ? 'إغلاق' : 'Close')}
                       </button>
                     </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ===== custody: personal + company custody ===== */}
+        {tab === 'custody' && (
+          <div className="mt-4">
+            <div className="flex flex-wrap items-center gap-2 mb-3">
+              <div className="flex gap-2">
+                {['ALL', 'HELD', 'RETURNED'].map((f) => (
+                  <button key={f} onClick={() => setCustodyFilter(f)}
+                    className={`text-[11px] font-black rounded-lg px-3 py-1.5 border ${custodyFilter === f ? 'bg-white text-black border-white' : 'text-slate-400 border-white/10'}`}>
+                    {f === 'ALL' ? (ar ? 'الكل' : 'All') : f === 'HELD' ? (ar ? '🟢 مع الموظفين' : 'Held') : (ar ? 'مُعادة' : 'Returned')}
+                  </button>
+                ))}
+              </div>
+              <button onClick={() => setShowCustodyForm((v) => !v)}
+                className="text-[11px] font-black rounded-lg px-3 py-1.5 border border-sky-500/50 bg-sky-500/15 text-sky-300 hover:bg-sky-500/25">
+                ➕ {ar ? 'تسليم عهدة' : 'Hand over'}
+              </button>
+            </div>
+            {showCustodyForm && (
+              <div className="rounded-2xl border border-sky-500/30 bg-sky-500/[0.06] p-4 mb-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <label className="text-[11px] text-slate-400 font-bold">{ar ? 'الموظف *' : 'Employee *'}
+                    <select value={custodyForm.employeeId} onChange={(e) => setCustodyForm({ ...custodyForm, employeeId: e.target.value })}
+                      className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none">
+                      <option value="">—</option>
+                      {employees.map((e) => <option key={e.id} value={e.id}>{nameOf(e)} · {e.employeeCode}</option>)}
+                    </select></label>
+                  <label className="text-[11px] text-slate-400 font-bold">{ar ? 'الصنف * (عدة، جوال، مفتاح…)' : 'Item *'}
+                    <input value={custodyForm.item} onChange={(e) => setCustodyForm({ ...custodyForm, item: e.target.value })}
+                      className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
+                  <label className="text-[11px] text-slate-400 font-bold">{ar ? 'الرقم التسلسلي' : 'Serial'}
+                    <input value={custodyForm.serialNo} onChange={(e) => setCustodyForm({ ...custodyForm, serialNo: e.target.value })}
+                      className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
+                  <label className="text-[11px] text-slate-400 font-bold">{ar ? 'ملاحظات' : 'Notes'}
+                    <input value={custodyForm.notes} onChange={(e) => setCustodyForm({ ...custodyForm, notes: e.target.value })}
+                      className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
+                </div>
+                <button disabled={busy === 'custody'} onClick={handCustody}
+                  className="mt-3 bg-sky-500 hover:bg-sky-400 disabled:opacity-50 text-white text-xs font-black rounded-lg px-6 py-2">
+                  {busy === 'custody' ? '…' : `✅ ${ar ? 'تسليم' : 'Hand over'}`}
+                </button>
+              </div>
+            )}
+            {custody.length === 0 && <p className="text-xs text-slate-500">{ar ? 'لا عهد مسجلة.' : 'No custody items.'}</p>}
+            <div className="space-y-2">
+              {custody.map((c, i) => (
+                <div key={c.id ?? i} className={`rounded-xl border px-3 py-2 text-xs flex items-center justify-between ${c.status === 'HELD' ? 'border-white/10 bg-white/[0.03]' : 'border-white/5 bg-transparent opacity-60'}`}>
+                  <div>
+                    <span className="font-black text-white">🎒 {c.item}</span>
+                    <p className="text-slate-400 mt-0.5">{[c.serialNo, c.notes].filter(Boolean).join(' · ')}</p>
+                    <p className="text-slate-500 text-[10px]">{String(c.handedAt ?? '').slice(0, 10)}</p>
+                  </div>
+                  {c.status === 'HELD' ? (
+                    <button disabled={busy === 'ret' + c.id} onClick={() => returnCustody(c.id)}
+                      className="shrink-0 bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-[11px] font-black rounded-lg px-3 py-1.5 disabled:opacity-50">
+                      {busy === 'ret' + c.id ? '…' : (ar ? 'استلام' : 'Return')}
+                    </button>
+                  ) : (
+                    <span className="text-[10px] text-slate-500 font-bold">{ar ? 'مُعادة' : 'Returned'}</span>
                   )}
                 </div>
               ))}

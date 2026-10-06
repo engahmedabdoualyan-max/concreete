@@ -52,6 +52,9 @@ const CreateEmployeeSchema = z.object({
   lastResumptionDate: z.string().min(1).optional(),
   medicalInsuranceNo: z.string().max(60).optional(),
   medicalInsuranceExpiry: z.string().min(1).optional(),
+  iqamaExpiry: z.string().min(1).optional(),
+  vehiclePlate: z.string().max(20).optional(),
+  vehicleOwnership: z.enum(["PRIVATE", "COMPANY"]).optional(),
 });
 
 export async function POST(req: NextRequest) {

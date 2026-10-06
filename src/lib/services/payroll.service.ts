@@ -139,6 +139,9 @@ export async function createEmployee(
     lastResumptionDate?: string;
     medicalInsuranceNo?: string;
     medicalInsuranceExpiry?: string;
+    iqamaExpiry?: string;
+    vehiclePlate?: string;
+    vehicleOwnership?: string;
   }
 ) {
   const [created] = await db
@@ -168,6 +171,9 @@ export async function createEmployee(
       lastResumptionDate: input.lastResumptionDate ? new Date(input.lastResumptionDate) : null,
       medicalInsuranceNo: input.medicalInsuranceNo,
       medicalInsuranceExpiry: input.medicalInsuranceExpiry ? new Date(input.medicalInsuranceExpiry) : null,
+      iqamaExpiry: input.iqamaExpiry ? new Date(input.iqamaExpiry) : null,
+      vehiclePlate: input.vehiclePlate,
+      vehicleOwnership: input.vehicleOwnership,
     })
     .returning();
   return created;

@@ -3711,6 +3711,12 @@ export const payrollEmployees = pgTable(
     /** Medical insurance policy number + expiry */
     medicalInsuranceNo: varchar("medical_insurance_no", { length: 60 }),
     medicalInsuranceExpiry: timestamp("medical_insurance_expiry"),
+    /** Iqama (residence) expiry — drives the 60-day renewal watch */
+    iqamaExpiry: timestamp("iqama_expiry"),
+    /** Employee's car plate + whether it is PRIVATE or COMPANY custody */
+    vehiclePlate: varchar("vehicle_plate", { length: 20 }),
+    /** PRIVATE | COMPANY */
+    vehicleOwnership: varchar("vehicle_ownership", { length: 10 }),
     /** SAUDI | NON_SAUDI */
     nationality: varchar("nationality", { length: 12 }).notNull().default("NON_SAUDI"),
     /**
@@ -3970,6 +3976,37 @@ export const hrDocuments = pgTable(
   (t) => [
     index("idx_hr_doc_tenant").on(t.tenantId),
     index("idx_hr_doc_employee").on(t.employeeId),
+  ]
+);
+
+/**
+ * hr_custody — company property entrusted to an employee (tools, devices…).
+ * Status: HELD | RETURNED. Returning stamps returnedAt, history is kept.
+ */
+export const hrCustody = pgTable(
+  "hr_custody",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    employeeId: uuid("employee_id")
+      .notNull()
+      .references(() => payrollEmployees.id, { onDelete: "restrict" }),
+    item: varchar("item", { length: 200 }).notNull(),
+    serialNo: varchar("serial_no", { length: 100 }),
+    notes: text("notes"),
+    /** HELD | RETURNED */
+    status: varchar("status", { length: 16 }).notNull().default("HELD"),
+    handedAt: timestamp("handed_at").notNull().defaultNow(),
+    returnedAt: timestamp("returned_at"),
+    handedById: uuid("handed_by_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("idx_hr_cus_tenant").on(t.tenantId),
+    index("idx_hr_cus_employee").on(t.employeeId),
+    index("idx_hr_cus_status").on(t.status),
   ]
 );
 
