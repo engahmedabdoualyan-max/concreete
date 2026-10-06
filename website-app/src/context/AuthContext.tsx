@@ -7,6 +7,7 @@ import {
   api,
   clearSession,
   getToken,
+  loadSession,
   saveSession,
   setTokens,
   type SessionUser,
@@ -98,7 +99,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           saveSession(user);
           setCurrentUser(sessionUserToUserSession(user));
         })
-        .catch(() => clearSession());
+        .catch((e: any) => {
+          // Only a 401/403 means the session is actually dead (revoked or
+          // invalid) and deserves a logout. Anything else — Render cold
+          // start (~50s on free), a deploy restart, or offline — is
+          // transient: wiping the session here is what threw users back to
+          // "login first" on every refresh during updates. Keep the token
+          // and fall back to the stored user; live calls retry on their own.
+          const status = e?.status ?? 0;
+          if (status === 401 || status === 403) {
+            clearSession();
+            return;
+          }
+          try {
+            const saved = loadSession();
+            if (saved) setCurrentUser(sessionUserToUserSession(saved));
+          } catch {
+            /* keep logged-out state */
+          }
+        });
       return;
     }
     try {
