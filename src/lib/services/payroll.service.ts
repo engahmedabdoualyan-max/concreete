@@ -196,11 +196,13 @@ export async function updateEmployee(
     bankIban: string;
     bankName: string;
     isActive: boolean;
+    photoUrl?: string;
   }>
 ) {
   const patch: Record<string, unknown> = { updatedAt: new Date() };
   for (const k of [
     "fullName", "nationalId", "jobTitle", "department", "bankIban", "bankName",
+    "photoUrl",
   ] as const) {
     if (input[k] !== undefined) patch[k] = input[k];
   }

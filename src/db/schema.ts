@@ -3715,6 +3715,8 @@ export const payrollEmployees = pgTable(
     /** Medical insurance policy number + expiry */
     medicalInsuranceNo: varchar("medical_insurance_no", { length: 60 }),
     medicalInsuranceExpiry: timestamp("medical_insurance_expiry"),
+    /** Employee photo (data URI, small) — shown on the file */
+    photoUrl: text("photo_url"),
     /** Iqama (residence) expiry — drives the 60-day renewal watch */
     iqamaExpiry: timestamp("iqama_expiry"),
     /** Employee's car plate + whether it is PRIVATE or COMPANY custody */

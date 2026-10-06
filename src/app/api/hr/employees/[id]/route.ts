@@ -38,6 +38,7 @@ const UpdateEmployeeSchema = z.object({
   bankIban: z.string().max(40).optional(),
   bankName: z.string().max(80).optional(),
   isActive: z.boolean().optional(),
+  photoUrl: z.string().min(1).max(1_500_000).optional(),
 });
 
 export async function PUT(

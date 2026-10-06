@@ -1,0 +1,1 @@
+ALTER TABLE "payroll_employees" ADD COLUMN "photo_url" text;

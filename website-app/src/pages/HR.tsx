@@ -194,7 +194,38 @@ export default function HR() {
   const [cdocs, setCdocs] = useState<any[]>([]);
   const [showCdocForm, setShowCdocForm] = useState(false);
   const [cdocForm, setCdocForm] = useState({ title: '', kind: 'COMMERCIAL_REG', expiryDate: '' });
+  const [custFiles, setCustFiles] = useState<Record<string, any[]>>({});
+  const [custFilesOpen, setCustFilesOpen] = useState<Record<string, boolean>>({});
   const [uploadingCdoc, setUploadingCdoc] = useState(false);
+  const [uploadingPhoto, setUploadingPhoto] = useState('');
+
+  const uploadPhoto = async (employeeId: string, file: File | undefined) => {
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      setMsg('❌ صور فقط');
+      return;
+    }
+    if (file.size > 1024 * 1024) {
+      setMsg('❌ الصورة أكبر من 1MB');
+      return;
+    }
+    setUploadingPhoto(employeeId);
+    try {
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const r = new FileReader();
+        r.onload = () => resolve(String(r.result));
+        r.onerror = reject;
+        r.readAsDataURL(file);
+      });
+      await api.put(`/api/hr/employees/${employeeId}`, { photoUrl: dataUrl });
+      setMsg('✅ تم تحديث الصورة');
+      await load();
+    } catch (e: any) {
+      setMsg(`❌ ${e?.message ?? 'فشل الرفع'}`);
+    } finally {
+      setUploadingPhoto('');
+    }
+  };
   const [funds, setFunds] = useState<any[]>([]);
   const [showFundForm, setShowFundForm] = useState(false);
   const [fundForm, setFundForm] = useState({ amountReceived: '', receivedDate: '', purpose: '' });
@@ -424,12 +455,12 @@ export default function HR() {
 
   const uploadCustodyPhoto = async (custodyId: string, employeeId: string, file: File | undefined) => {
     if (!file) return;
-    if (!file.type.startsWith('image/')) {
-      setMsg('❌ صور فقط للعهدة');
+    if (!/pdf|image/i.test(file.type) && !/\.(pdf|png|jpe?g|webp)$/i.test(file.name)) {
+      setMsg('❌ PDF أو صور فقط');
       return;
     }
     if (file.size > 8 * 1024 * 1024) {
-      setMsg('❌ الصورة أكبر من 8MB');
+      setMsg('❌ الملف أكبر من 8MB');
       return;
     }
     setUploading(true);
@@ -442,13 +473,29 @@ export default function HR() {
       });
       await api.post('/api/hr/documents', {
         employeeId, custodyId, kind: 'CUSTODY',
-        fileName: file.name, mimeType: file.type, sizeBytes: file.size, fileData: dataUrl,
+        fileName: file.name, mimeType: file.type || 'application/octet-stream', sizeBytes: file.size, fileData: dataUrl,
       });
-      setMsg('✅ تم إرفاق صورة العهدة');
+      setMsg('✅ تم إرفاق ملف العهدة');
+      try {
+        const d = await api.get<{ documents?: any[] }>(`/api/hr/documents?employeeId=${employeeId}&custodyId=${custodyId}`);
+        setCustFiles((p) => ({ ...p, [custodyId]: d?.documents ?? [] }));
+        setCustFilesOpen((p) => ({ ...p, [custodyId]: true }));
+      } catch { /* list stays */ }
     } catch (e: any) {
       setMsg(`❌ ${e?.message ?? 'فشل الرفع'}`);
     } finally {
       setUploading(false);
+    }
+  };
+
+  const toggleCustFiles = async (c: any) => {
+    const open = !custFilesOpen[c.id];
+    setCustFilesOpen((p) => ({ ...p, [c.id]: open }));
+    if (open && c.employeeId && !custFiles[c.id]) {
+      try {
+        const d = await api.get<{ documents?: any[] }>(`/api/hr/documents?employeeId=${c.employeeId}&custodyId=${c.id}`);
+        setCustFiles((p) => ({ ...p, [c.id]: d?.documents ?? [] }));
+      } catch { setCustFiles((p) => ({ ...p, [c.id]: [] })); }
     }
   };
 
@@ -1492,8 +1539,22 @@ export default function HR() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               {team.map((e, i) => (
                 <div key={e.id ?? i} className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 flex items-center gap-3">
-                  <div className="w-11 h-11 shrink-0 rounded-full bg-sky-500/15 border border-sky-500/30 flex items-center justify-center text-lg font-black text-sky-300">
-                    {(nameOf(e) || '?').trim().charAt(0)}
+                  <div className="relative shrink-0">
+                    {e.photoUrl ? (
+                      <img src={e.photoUrl} alt={nameOf(e)} className="w-11 h-11 rounded-full object-cover border border-sky-500/40" />
+                    ) : (
+                      <div className="w-11 h-11 rounded-full bg-sky-500/15 border border-sky-500/30 flex items-center justify-center text-lg font-black text-sky-300">
+                        {(nameOf(e) || '?').trim().charAt(0)}
+                      </div>
+                    )}
+                    {e.id && (
+                      <label title={ar ? 'رفع الصورة' : 'Upload photo'}
+                        className="absolute -bottom-1 -left-1 w-5 h-5 rounded-full bg-white text-[10px] flex items-center justify-center cursor-pointer shadow hover:scale-110 transition">
+                        {uploadingPhoto === e.id ? '…' : '📷'}
+                        <input type="file" accept="image/*" className="hidden" disabled={!!uploadingPhoto}
+                          onChange={(ev) => { uploadPhoto(e.id, ev.target.files?.[0]); ev.target.value = ''; }} />
+                      </label>
+                    )}
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-black text-white truncate">{nameOf(e)}</p>
@@ -1917,18 +1978,23 @@ export default function HR() {
             {custody.length === 0 && <p className="text-xs text-slate-500">{ar ? 'لا عهد مسجلة.' : 'No custody items.'}</p>}
             <div className="space-y-2">
               {custody.map((c, i) => (
-                <div key={c.id ?? i} className={`rounded-xl border px-3 py-2 text-xs flex items-center justify-between ${c.status === 'HELD' ? 'border-white/10 bg-white/[0.03]' : 'border-white/5 bg-transparent opacity-60'}`}>
+                <div key={c.id ?? i} className={`rounded-xl border px-3 py-2 text-xs ${c.status === 'HELD' ? 'border-white/10 bg-white/[0.03]' : 'border-white/5 bg-transparent opacity-60'}`}>
+                  <div className="flex items-center justify-between w-full">
                   <div>
                     <span className="font-black text-white">🎒 {c.item}</span>
                     <p className="text-slate-400 mt-0.5">{[c.serialNo, c.notes].filter(Boolean).join(' · ')}</p>
                     <p className="text-slate-500 text-[10px]">{String(c.handedAt ?? '').slice(0, 10)}</p>
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
+                    <button onClick={() => toggleCustFiles(c)} title={ar ? 'صور وأوراق العهدة' : 'Files'}
+                      className="text-[11px] font-black rounded-lg px-2 py-1.5 border border-white/15 bg-white/[0.04] text-slate-200 hover:border-sky-400/60">
+                      📎{Array.isArray(custFiles[c.id]) ? ` ${custFiles[c.id].length}` : ''}
+                    </button>
                     {c.status === 'HELD' && c.employeeId && (
-                      <label title={ar ? 'صورة العهدة' : 'Custody photo'}
+                      <label title={ar ? 'رفع صورة / PDF' : 'Upload'}
                         className="text-base rounded-lg border border-white/10 bg-white/[0.04] w-9 h-9 flex items-center justify-center cursor-pointer hover:border-sky-400/60">
-                        📷
-                        <input type="file" accept="image/*" className="hidden" disabled={uploading}
+                        ⬆
+                        <input type="file" accept="application/pdf,image/*" className="hidden" disabled={uploading}
                           onChange={(e) => { uploadCustodyPhoto(c.id, c.employeeId, e.target.files?.[0]); e.target.value = ''; }} />
                       </label>
                     )}
@@ -1941,6 +2007,18 @@ export default function HR() {
                       <span className="text-[10px] text-slate-500 font-bold">{ar ? 'مُعادة' : 'Returned'}</span>
                     )}
                   </div>
+                  </div>
+                  {custFilesOpen[c.id] && (
+                    <div className="mt-1 rounded-lg border border-white/10 bg-white/[0.02] p-2">
+                      {(custFiles[c.id] ?? []).length === 0 && <p className="text-[10px] text-slate-500">{ar ? 'لا ملفات مرفقة.' : 'No files.'}</p>}
+                      {(custFiles[c.id] ?? []).map((d, di) => (
+                        <div key={d.id ?? di} className="flex items-center justify-between text-[11px] py-0.5">
+                          <span className="text-slate-300">{d.fileName}</span>
+                          <a href={d.storageUrl} target="_blank" rel="noreferrer" className="text-sky-400 font-black">⬇ {ar ? 'فتح' : 'Open'}</a>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

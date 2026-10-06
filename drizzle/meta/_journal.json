@@ -246,6 +246,13 @@
       "when": 1791317071619,
       "tag": "0034_supreme_doctor_faustus",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1791317417601,
+      "tag": "0035_soft_frightful_four",
+      "breakpoints": true
     }
   ]
 }
