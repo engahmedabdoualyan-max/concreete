@@ -14,7 +14,7 @@ import { downloadExcel, openPrintPDF, type ExportColumn, type ExportRow } from '
  * (HR_READ / HR_WRITE); every tab degrades independently.
  */
 
-type Tab = 'requests' | 'team' | 'attendance' | 'broadcasts' | 'payroll' | 'actions' | 'investigations' | 'custody' | 'vehicles' | 'deductions' | 'company' | 'leave' | 'vlog' | 'overtime' | 'expenses' | 'modules';
+type Tab = 'requests' | 'team' | 'attendance' | 'broadcasts' | 'payroll' | 'actions' | 'investigations' | 'custody' | 'vehicles' | 'deductions' | 'company' | 'leave' | 'vlog' | 'overtime' | 'expenses' | 'modules' | 'org';
 
 const COUNTRIES = [
   { code: 'SA', ar: 'السعودية', flag: '🇸🇦' }, { code: 'EG', ar: 'مصر', flag: '🇪🇬' },
@@ -179,6 +179,12 @@ export default function HR() {
   const [showCdocForm, setShowCdocForm] = useState(false);
   const [cdocForm, setCdocForm] = useState({ title: '', kind: 'COMMERCIAL_REG', expiryDate: '' });
   const [uploadingCdoc, setUploadingCdoc] = useState(false);
+  const [now, setNow] = useState(() => new Date());
+
+  useEffect(() => {
+    const t = window.setInterval(() => setNow(new Date()), 1000);
+    return () => window.clearInterval(t);
+  }, []);
   const [balances, setBalances] = useState<any[]>([]);
   const [balForm, setBalForm] = useState({ employeeId: '', year: String(new Date().getFullYear()), allocated: '' });
   const [otList, setOtList] = useState<any[]>([]);
@@ -864,6 +870,7 @@ export default function HR() {
     { id: 'vehicles', ar: '🚛 المركبات والمخالفات', en: 'Vehicles' },
     { id: 'deductions', ar: '🧾 كشف الخصومات', en: 'Deductions' },
     { id: 'company', ar: '📂 أوراق الشركة', en: 'Company docs' },
+    { id: 'org', ar: '🏢 الهيكل الوظيفي', en: 'Org chart' },
     { id: 'leave', ar: '🏖️ الأرصدة', en: 'Balances', mod: 'leaveBalances' },
     { id: 'vlog', ar: '⛽ سجل المركبات', en: 'Logbook', mod: 'vehicleLog' },
     { id: 'overtime', ar: '⏰ الإضافي', en: 'Overtime', mod: 'overtime' },
@@ -936,7 +943,20 @@ export default function HR() {
               )}
             </div>
           </div>
-          <LangSelector />
+          <div className="flex items-center gap-2 shrink-0">
+            <span className="flex items-center gap-1.5 text-[11px] font-black text-emerald-300 bg-emerald-500/10 border border-emerald-500/30 rounded-lg px-2.5 py-1.5">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" /> {ar ? 'مباشر' : 'LIVE'}
+            </span>
+            <span className="text-center leading-tight">
+              <span className="block text-xs font-mono font-black text-slate-200">
+                {now.toLocaleTimeString(ar ? 'ar-EG' : 'en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+              </span>
+              <span className="block text-[10px] text-slate-400">
+                {now.toLocaleDateString(ar ? 'ar-EG' : 'en-US', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+              </span>
+            </span>
+            <LangSelector />
+          </div>
         </div>
 
         <div className="flex flex-wrap gap-2 mt-4">
@@ -2042,6 +2062,53 @@ export default function HR() {
                 </div>
               );
             })}
+          </div>
+        )}
+
+        {/* ===== org chart: company → departments → people ===== */}
+        {tab === 'org' && (
+          <div className="mt-4">
+            <div className="flex flex-col items-center">
+              <div className="rounded-2xl border border-sky-500/50 bg-sky-500/10 px-6 py-3 text-center shadow-[0_0_25px_rgba(56,189,248,0.25)]">
+                {tenant?.logoUrl && <img src={tenant.logoUrl} alt="" className="w-10 h-10 rounded-lg object-contain bg-white p-0.5 mx-auto mb-1" />}
+                <p className="text-base font-black text-white">{tenant?.companyName ?? (ar ? 'الشركة' : 'Company')}</p>
+                <p className="text-[11px] text-slate-400">{employees.length} {ar ? 'موظف' : 'employees'}</p>
+              </div>
+              <div className="w-px h-6 bg-sky-500/40" />
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 w-full">
+                {(() => {
+                  const groups = new Map<string, any[]>();
+                  for (const e of employees) {
+                    const d = e.department || (ar ? 'بدون قسم' : 'Unassigned');
+                    if (!groups.has(d)) groups.set(d, []);
+                    groups.get(d)!.push(e);
+                  }
+                  const ordered = [...DEPTS.filter((d) => groups.has(d)), ...[...groups.keys()].filter((d) => !DEPTS.includes(d))];
+                  return ordered.map((d) => (
+                    <div key={d} className="rounded-2xl border border-white/10 bg-white/[0.02] overflow-hidden">
+                      <div className="bg-white/[0.05] border-b border-white/10 px-3 py-2 flex items-center justify-between">
+                        <span className="text-xs font-black text-sky-300">{d}</span>
+                        <span className="text-[10px] font-black text-slate-400 bg-white/10 rounded-full px-2 py-0.5">{groups.get(d)!.length}</span>
+                      </div>
+                      <div className="p-2 space-y-1.5 max-h-[320px] overflow-y-auto">
+                        {(groups.get(d) ?? []).map((e, i) => (
+                          <div key={e.id ?? i} className="flex items-center gap-2 rounded-xl border border-white/5 bg-white/[0.02] px-2 py-1.5">
+                            <div className="w-7 h-7 shrink-0 rounded-full bg-sky-500/15 border border-sky-500/30 flex items-center justify-center text-xs font-black text-sky-300">
+                              {(nameOf(e) || '?').trim().charAt(0)}
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-[11px] font-black text-white truncate">{nameOf(e)}</p>
+                              <p className="text-[10px] text-slate-500 truncate">{e.jobTitle ?? e.role ?? e.employeeCode ?? ''}</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ));
+                })()}
+              </div>
+              {employees.length === 0 && <p className="text-xs text-slate-500 mt-3">{ar ? 'لا بيانات فريق.' : 'No team data.'}</p>}
+            </div>
           </div>
         )}
       </div>
