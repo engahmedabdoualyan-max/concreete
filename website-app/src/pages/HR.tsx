@@ -22,6 +22,8 @@ function nameOf(e: any): string {
   return e.fullName ?? e.full_name ?? e.name ?? e.email ?? e.employeeCode ?? '—';
 }
 
+const DEPTS = ['الإدارة', 'المالية', 'الموارد البشرية', 'المبيعات', 'التشغيل', 'الورشة', 'المخازن', 'المختبر', 'الإنتاج', 'البحث والتطوير'];
+
 function ExportBar({ title, subtitle, fileBase, columns, rows }: {
   title: string; subtitle: string; fileBase: string; columns: ExportColumn[]; rows: ExportRow[];
 }) {
@@ -62,6 +64,42 @@ export default function HR() {
   const [msg, setMsg] = useState('');
   const [fromDate, setFromDate] = useState(() => new Date(Date.now() - 6 * 864e5).toISOString().slice(0, 10));
   const [toDate, setToDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [showAdd, setShowAdd] = useState(false);
+  const [form, setForm] = useState({ employeeCode: '', fullName: '', nationalId: '', nationality: 'NON_SAUDI', jobTitle: '', department: '', baseSalarySar: '', housingAllowanceSar: '', transportAllowanceSar: '', bankIban: '', bankName: '', hireDate: '' });
+
+  const addEmployee = async () => {
+    if (!form.employeeCode.trim() || !form.fullName.trim()) {
+      setMsg('❌ الكود والاسم مطلوبان');
+      return;
+    }
+    setBusy('add');
+    setMsg('');
+    try {
+      const num = (v: string) => (v.trim() === '' ? undefined : Number(v));
+      await api.post('/api/hr/employees', {
+        employeeCode: form.employeeCode.trim(),
+        fullName: form.fullName.trim(),
+        nationalId: form.nationalId.trim() || undefined,
+        nationality: form.nationality,
+        jobTitle: form.jobTitle.trim() || undefined,
+        department: form.department || undefined,
+        baseSalarySar: num(form.baseSalarySar),
+        housingAllowanceSar: num(form.housingAllowanceSar),
+        transportAllowanceSar: num(form.transportAllowanceSar),
+        bankIban: form.bankIban.trim() || undefined,
+        bankName: form.bankName.trim() || undefined,
+        hireDate: form.hireDate || undefined,
+      });
+      setMsg('✅ تمت إضافة الموظف');
+      setForm({ employeeCode: '', fullName: '', nationalId: '', nationality: 'NON_SAUDI', jobTitle: '', department: '', baseSalarySar: '', housingAllowanceSar: '', transportAllowanceSar: '', bankIban: '', bankName: '', hireDate: '' });
+      setShowAdd(false);
+      await load();
+    } catch (e: any) {
+      setMsg(`❌ ${e?.message ?? 'فشل الإضافة'}`);
+    } finally {
+      setBusy('');
+    }
+  };
 
   const load = useCallback(async () => {
     try {
@@ -230,6 +268,10 @@ export default function HR() {
               <input value={search} onChange={(e) => setSearch(e.target.value)}
                 placeholder={ar ? '🔍 بحث بالاسم / الكود / الجوال…' : 'Search name / code / phone…'}
                 className="flex-1 min-w-[200px] max-w-md bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2 text-sm text-white outline-none" />
+              <button onClick={() => setShowAdd((v) => !v)}
+                className="text-[11px] font-black rounded-lg px-3 py-2 border border-sky-500/50 bg-sky-500/15 text-sky-300 hover:bg-sky-500/25">
+                ➕ {ar ? 'إضافة موظف' : 'Add employee'}
+              </button>
               <ExportBar
                 title={ar ? 'فريق العمل' : 'Team'}
                 subtitle={`${team.length} ${ar ? 'موظف' : 'employees'}`}
@@ -246,6 +288,59 @@ export default function HR() {
                 }))}
               />
             </div>
+            {showAdd && (
+              <div className="rounded-2xl border border-sky-500/30 bg-sky-500/[0.06] p-4 mb-3">
+                <h3 className="text-sm font-black text-white mb-3">➕ {ar ? 'بيانات الموظف الجديد' : 'New employee'}</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                  <label className="text-[11px] text-slate-400 font-bold">{ar ? 'كود الموظف *' : 'Code *'}
+                    <input value={form.employeeCode} onChange={(e) => setForm({ ...form, employeeCode: e.target.value })}
+                      className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
+                  <label className="text-[11px] text-slate-400 font-bold">{ar ? 'الاسم *' : 'Name *'}
+                    <input value={form.fullName} onChange={(e) => setForm({ ...form, fullName: e.target.value })}
+                      className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
+                  <label className="text-[11px] text-slate-400 font-bold">{ar ? 'رقم الهوية / الإقامة' : 'National ID / Iqama'}
+                    <input value={form.nationalId} onChange={(e) => setForm({ ...form, nationalId: e.target.value })} inputMode="numeric"
+                      className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
+                  <label className="text-[11px] text-slate-400 font-bold">{ar ? 'الجنسية' : 'Nationality'}
+                    <select value={form.nationality} onChange={(e) => setForm({ ...form, nationality: e.target.value })}
+                      className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none">
+                      <option value="NON_SAUDI">غير سعودي</option>
+                      <option value="SAUDI">سعودي</option>
+                    </select></label>
+                  <label className="text-[11px] text-slate-400 font-bold">{ar ? 'الوظيفة' : 'Job title'}
+                    <input value={form.jobTitle} onChange={(e) => setForm({ ...form, jobTitle: e.target.value })}
+                      className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
+                  <label className="text-[11px] text-slate-400 font-bold">{ar ? 'الإدارة التابع لها' : 'Department'}
+                    <select value={form.department} onChange={(e) => setForm({ ...form, department: e.target.value })}
+                      className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none">
+                      <option value="">—</option>
+                      {DEPTS.map((d) => <option key={d} value={d}>{d}</option>)}
+                    </select></label>
+                  <label className="text-[11px] text-slate-400 font-bold">{ar ? 'الراتب الأساسي (ر.س)' : 'Base salary'}
+                    <input value={form.baseSalarySar} onChange={(e) => setForm({ ...form, baseSalarySar: e.target.value })} inputMode="decimal"
+                      className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
+                  <label className="text-[11px] text-slate-400 font-bold">{ar ? 'بدل السكن' : 'Housing'}
+                    <input value={form.housingAllowanceSar} onChange={(e) => setForm({ ...form, housingAllowanceSar: e.target.value })} inputMode="decimal"
+                      className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
+                  <label className="text-[11px] text-slate-400 font-bold">{ar ? 'بدل المواصلات' : 'Transport'}
+                    <input value={form.transportAllowanceSar} onChange={(e) => setForm({ ...form, transportAllowanceSar: e.target.value })} inputMode="decimal"
+                      className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
+                  <label className="text-[11px] text-slate-400 font-bold">{ar ? 'البنك' : 'Bank'}
+                    <input value={form.bankName} onChange={(e) => setForm({ ...form, bankName: e.target.value })}
+                      className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
+                  <label className="text-[11px] text-slate-400 font-bold">{ar ? 'الآيبان' : 'IBAN'}
+                    <input value={form.bankIban} onChange={(e) => setForm({ ...form, bankIban: e.target.value })}
+                      className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
+                  <label className="text-[11px] text-slate-400 font-bold">{ar ? 'تاريخ التعيين' : 'Hire date'}
+                    <input type="date" value={form.hireDate} onChange={(e) => setForm({ ...form, hireDate: e.target.value })}
+                      className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
+                </div>
+                <button disabled={busy === 'add'} onClick={addEmployee}
+                  className="mt-3 w-full sm:w-auto bg-sky-500 hover:bg-sky-400 disabled:opacity-50 text-white text-xs font-black rounded-lg px-6 py-2">
+                  {busy === 'add' ? '…' : `✅ ${ar ? 'حفظ الموظف' : 'Save employee'}`}
+                </button>
+              </div>
+            )}
             <p className="text-[11px] text-slate-500 mb-2">{team.length} {ar ? 'موظف' : 'employees'}</p>
             {team.length === 0 && <p className="text-xs text-slate-500">{ar ? 'لا بيانات فريق.' : 'No team data.'}</p>}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
