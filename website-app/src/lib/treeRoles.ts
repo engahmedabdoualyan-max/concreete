@@ -31,7 +31,51 @@ export const TREE_ROLES: TreeRole[] = [
 
 export function treeModsForRole(key: string): string[] {
   const role = TREE_ROLES.find(r => r.key === key);
-  return role ? [...role.mods] : [];
+  if (role) return [...role.mods];
+  // API (Postgres) roles are UPPER_SNAKE and never match the legacy lowercase
+  // tree keys above — without this map every API login resolved to [] and the
+  // dashboard rendered zero cards. Only modules with a real web route are
+  // listed here ('hr' has no /hr route, so it is deliberately excluded rather
+  // than shipping a card that opens a blank page).
+  return [...(API_ROLE_MODS[key] ?? [])];
 }
+
+/**
+ * Dashboard modules per API role (see user_role enum in src/db/schema.ts).
+ * Fail-closed: a role missing here sees no cards, same as before.
+ */
+const API_ALL = ALL_MODS.filter(m => m !== 'hr');
+
+const API_ROLE_MODS: Record<string, string[]> = {
+  SUPER_ADMIN: API_ALL,
+  PLANT_MGR: API_ALL,
+  ACCOUNTANT: ['orders', 'evaluation', 'finance'],
+  LAB_TECH: ['mixing', 'evaluation', 'rnd', 'materials'],
+  LAB_TECHNICIAN: ['mixing', 'evaluation', 'rnd', 'materials'],
+  LAB_MGR: ['mixing', 'evaluation', 'rnd', 'materials'],
+  BATCH_OPERATOR: ['production', 'mixing', 'multiplant'],
+  BATCH_OP: ['production', 'mixing', 'multiplant'],
+  SALES_REP: ['orders', 'operations'],
+  REPS_MGR: ['orders'],
+  // Drivers must never reach the fleet map: MODULES has no sites card and
+  // QuickJump limits DRIVER to ['/', '/operations'] — keep it that way.
+  DRIVER: ['operations', 'orders'],
+  FINANCE: ['orders', 'evaluation', 'finance', 'governance'],
+  CFO: ['orders', 'evaluation', 'finance', 'governance'],
+  DISPATCHER: ['operations', 'schedule', 'orders'],
+  SCHEDULE_MGR: ['schedule', 'orders'],
+  OPERATIONS_MGR: ['operations', 'schedule', 'orders', 'multiplant'],
+  PRODUCTION_MGR: ['production', 'mixing', 'workshop', 'multiplant'],
+  WORKSHOP_MGR: ['workshop', 'production'],
+  WORKSHOP_MECHANIC: ['workshop'],
+  MECHANIC: ['workshop'],
+  STOREKEEPER: ['production', 'orders', 'materials'],
+  STATION_TECH: ['workshop', 'mixing', 'multiplant'],
+  RND_MANAGER: ['rnd', 'evaluation', 'orders'],
+  HR_OFFICER: ['orders'],
+  // 'hr' is excluded: no /hr web route exists, and a card to a blank page
+  // reads as a bug. HR staff work orders + evaluations on the web dashboard.
+  HR_MANAGER: ['orders', 'evaluation'],
+};
 
 export const TREE_ROLE_KEYS: string[] = TREE_ROLES.map(r => r.key);
