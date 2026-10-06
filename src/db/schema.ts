@@ -802,6 +802,8 @@ export const fleetVehicles = pgTable(
     insuranceExpiresAt: timestamp("insurance_expires_at"),
     /** Inspection due date */
     inspectionDueAt: timestamp("inspection_due_at"),
+    /** Vehicle registration (istimara) expiry */
+    istimaraExpiry: timestamp("istimara_expiry"),
     /**
      * LIVE GPS TELEMETRY — last known position pushed either by the driver app
      * (Socket.io) or by a third-party GPS vendor via /api/v1/fleet/gps-webhook.
@@ -3966,6 +3968,8 @@ export const hrDocuments = pgTable(
     employeeId: uuid("employee_id")
       .notNull()
       .references(() => payrollEmployees.id, { onDelete: "cascade" }),
+    /** Optional link to a custody record — photos of the entrusted item */
+    custodyId: uuid("custody_id").references(() => hrCustody.id, { onDelete: "cascade" }),
     /** IQAMA | DRIVING_LICENCE | INSURANCE | CONTRACT | OTHER */
     kind: varchar("kind", { length: 20 }).notNull(),
     fileName: varchar("file_name", { length: 255 }).notNull(),
@@ -4009,6 +4013,73 @@ export const hrCustody = pgTable(
     index("idx_hr_cus_tenant").on(t.tenantId),
     index("idx_hr_cus_employee").on(t.employeeId),
     index("idx_hr_cus_status").on(t.status),
+  ]
+);
+
+/**
+ * hr_company_docs — company papers vault (commercial registration, tax
+ * certificates, employee files…). Each entry has an optional expiry so the
+ * renewals watch can flag it 60 days ahead, like iqamas.
+ * Kinds: COMMERCIAL_REG | TAX | EMPLOYEE_FILE | LICENSE | OTHER.
+ */
+export const hrCompanyDocs = pgTable(
+  "hr_company_docs",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    /** Free-text file name written by HR, e.g. "السجل التجاري 2026" */
+    title: varchar("title", { length: 200 }).notNull(),
+    /** COMMERCIAL_REG | TAX | EMPLOYEE_FILE | LICENSE | OTHER */
+    kind: varchar("kind", { length: 20 }).notNull(),
+    fileName: varchar("file_name", { length: 255 }).notNull(),
+    mimeType: varchar("mime_type", { length: 100 }),
+    sizeBytes: integer("size_bytes"),
+    storageUrl: text("storage_url").notNull(),
+    /** Expiry/renewal date — null means no renewal tracking */
+    expiryDate: timestamp("expiry_date"),
+    uploadedById: uuid("uploaded_by_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("idx_hr_cdoc_tenant").on(t.tenantId),
+    index("idx_hr_cdoc_kind").on(t.kind),
+  ]
+);
+
+/**
+ * hr_violations — traffic (and other) violations charged to drivers.
+ * An unpaid in-period violation lands on the monthly deductions statement;
+ * marking it paid removes it from future statements. History is kept.
+ * Kinds: TRAFFIC | OTHER.
+ */
+export const hrViolations = pgTable(
+  "hr_violations",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    employeeId: uuid("employee_id")
+      .notNull()
+      .references(() => payrollEmployees.id, { onDelete: "restrict" }),
+    vehicleId: uuid("vehicle_id").references(() => fleetVehicles.id, { onDelete: "set null" }),
+    /** TRAFFIC | OTHER */
+    kind: varchar("kind", { length: 20 }).notNull().default("TRAFFIC"),
+    amountSar: decimal("amount_sar", { precision: 12, scale: 2 }).notNull(),
+    violationDate: timestamp("violation_date").notNull().defaultNow(),
+    location: varchar("location", { length: 200 }),
+    paid: boolean("paid").notNull().default(false),
+    paidAt: timestamp("paid_at"),
+    notes: text("notes"),
+    recordedById: uuid("recorded_by_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("idx_hr_vio_tenant").on(t.tenantId),
+    index("idx_hr_vio_employee").on(t.employeeId),
+    index("idx_hr_vio_vehicle").on(t.vehicleId),
   ]
 );
 

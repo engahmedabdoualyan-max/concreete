@@ -14,7 +14,7 @@ import { downloadExcel, openPrintPDF, type ExportColumn, type ExportRow } from '
  * (HR_READ / HR_WRITE); every tab degrades independently.
  */
 
-type Tab = 'requests' | 'team' | 'attendance' | 'broadcasts' | 'payroll' | 'actions' | 'investigations' | 'custody';
+type Tab = 'requests' | 'team' | 'attendance' | 'broadcasts' | 'payroll' | 'actions' | 'investigations' | 'custody' | 'vehicles' | 'deductions' | 'company';
 
 const COUNTRIES = [
   { code: 'SA', ar: 'السعودية', flag: '🇸🇦' }, { code: 'EG', ar: 'مصر', flag: '🇪🇬' },
@@ -44,6 +44,18 @@ const STATUS_AR: Record<string, string> = { PENDING: 'بانتظار', APPROVED:
 
 function nameOf(e: any): string {
   return e.fullName ?? e.full_name ?? e.name ?? e.email ?? e.employeeCode ?? '—';
+}
+
+function fmtMoney(n: number | undefined | null): string {
+  if (n === undefined || n === null || Number.isNaN(n)) return '—';
+  return Number(n).toLocaleString('ar-EG', { maximumFractionDigits: 0 });
+}
+
+function daysUntil(raw: unknown): number | null {
+  if (!raw) return null;
+  const t = new Date(String(raw)).getTime();
+  if (Number.isNaN(t)) return null;
+  return Math.ceil((t - Date.now()) / 864e5);
 }
 
 const DEPTS = ['الإدارة', 'المالية', 'الموارد البشرية', 'المبيعات', 'التشغيل', 'الورشة', 'المخازن', 'المختبر', 'الإنتاج', 'البحث والتطوير'];
@@ -139,6 +151,18 @@ export default function HR() {
   const [custodyForm, setCustodyForm] = useState({ employeeId: '', item: '', serialNo: '', notes: '' });
   const [docKind, setDocKind] = useState('IQAMA');
   const [uploading, setUploading] = useState(false);
+  const [fleet, setFleet] = useState<any[]>([]);
+  const [editVeh, setEditVeh] = useState<Record<string, { istimara: string; insurance: string; inspection: string }>>({});
+  const [vios, setVios] = useState<any[]>([]);
+  const [showVioForm, setShowVioForm] = useState(false);
+  const [vioForm, setVioForm] = useState({ employeeId: '', vehicleId: '', amountSar: '', violationDate: '', location: '', notes: '' });
+  const [dedPeriod, setDedPeriod] = useState(() => new Date().toISOString().slice(0, 7));
+  const [dedRows, setDedRows] = useState<any[]>([]);
+  const [dedTotal, setDedTotal] = useState(0);
+  const [cdocs, setCdocs] = useState<any[]>([]);
+  const [showCdocForm, setShowCdocForm] = useState(false);
+  const [cdocForm, setCdocForm] = useState({ title: '', kind: 'COMMERCIAL_REG', expiryDate: '' });
+  const [uploadingCdoc, setUploadingCdoc] = useState(false);
   const [showCastForm, setShowCastForm] = useState(false);
   const [castForm, setCastForm] = useState({ title: '', body: '' });
   const [runPeriod, setRunPeriod] = useState(() => new Date().toISOString().slice(0, 7));
@@ -265,6 +289,147 @@ export default function HR() {
       setMsg(`❌ ${e?.message ?? 'فشل الاستلام'}`);
     } finally {
       setBusy('');
+    }
+  };
+
+  const saveVehDates = async (id: string) => {
+    const f = editVeh[id];
+    if (!f) return;
+    setBusy('veh' + id);
+    try {
+      await api.put(`/api/hr/vehicles/${id}/renewals`, {
+        istimaraExpiry: f.istimara || null,
+        insuranceExpiresAt: f.insurance || null,
+        inspectionDueAt: f.inspection || null,
+      });
+      setMsg('✅ تم حفظ تواريخ التجديد');
+      await load();
+    } catch (e: any) {
+      setMsg(`❌ ${e?.message ?? 'فشل الحفظ'}`);
+    } finally {
+      setBusy('');
+    }
+  };
+
+  const addVio = async () => {
+    if (!vioForm.employeeId || !vioForm.amountSar.trim()) {
+      setMsg('❌ اختر السائق واكتب المبلغ');
+      return;
+    }
+    setBusy('vio');
+    setMsg('');
+    try {
+      await api.post('/api/hr/violations', {
+        employeeId: vioForm.employeeId,
+        vehicleId: vioForm.vehicleId || undefined,
+        amountSar: Number(vioForm.amountSar),
+        violationDate: vioForm.violationDate || undefined,
+        location: vioForm.location.trim() || undefined,
+        notes: vioForm.notes.trim() || undefined,
+      });
+      setMsg('✅ تم تسجيل المخالفة على السائق');
+      setVioForm({ employeeId: '', vehicleId: '', amountSar: '', violationDate: '', location: '', notes: '' });
+      setShowVioForm(false);
+      await load();
+    } catch (e: any) {
+      setMsg(`❌ ${e?.message ?? 'فشل التسجيل'}`);
+    } finally {
+      setBusy('');
+    }
+  };
+
+  const payVio = async (id: string) => {
+    setBusy('pay' + id);
+    try {
+      await api.post(`/api/hr/violations/${id}/pay`, {});
+      setMsg('✅ تم تحصيل المخالفة');
+      await load();
+    } catch (e: any) {
+      setMsg(`❌ ${e?.message ?? 'فشل التحصيل'}`);
+    } finally {
+      setBusy('');
+    }
+  };
+
+  const uploadCustodyPhoto = async (custodyId: string, employeeId: string, file: File | undefined) => {
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      setMsg('❌ صور فقط للعهدة');
+      return;
+    }
+    if (file.size > 8 * 1024 * 1024) {
+      setMsg('❌ الصورة أكبر من 8MB');
+      return;
+    }
+    setUploading(true);
+    try {
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const r = new FileReader();
+        r.onload = () => resolve(String(r.result));
+        r.onerror = reject;
+        r.readAsDataURL(file);
+      });
+      await api.post('/api/hr/documents', {
+        employeeId, custodyId, kind: 'CUSTODY',
+        fileName: file.name, mimeType: file.type, sizeBytes: file.size, fileData: dataUrl,
+      });
+      setMsg('✅ تم إرفاق صورة العهدة');
+    } catch (e: any) {
+      setMsg(`❌ ${e?.message ?? 'فشل الرفع'}`);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const uploadCdoc = async (file: File | undefined) => {
+    if (!file) return;
+    if (!cdocForm.title.trim()) {
+      setMsg('❌ اكتب اسم الملف أولاً');
+      return;
+    }
+    if (file.size > 8 * 1024 * 1024) {
+      setMsg('❌ الملف أكبر من 8MB');
+      return;
+    }
+    if (!/pdf|image/i.test(file.type) && !/\.(pdf|png|jpe?g|webp)$/i.test(file.name)) {
+      setMsg('❌ PDF أو صور فقط');
+      return;
+    }
+    setUploadingCdoc(true);
+    try {
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const r = new FileReader();
+        r.onload = () => resolve(String(r.result));
+        r.onerror = reject;
+        r.readAsDataURL(file);
+      });
+      await api.post('/api/hr/company-docs', {
+        title: cdocForm.title.trim(),
+        kind: cdocForm.kind,
+        fileName: file.name,
+        mimeType: file.type || 'application/octet-stream',
+        sizeBytes: file.size,
+        expiryDate: cdocForm.expiryDate || undefined,
+        fileData: dataUrl,
+      });
+      setMsg('✅ تم حفظ الورقة');
+      setCdocForm({ title: '', kind: 'COMMERCIAL_REG', expiryDate: '' });
+      await load();
+    } catch (e: any) {
+      setMsg(`❌ ${e?.message ?? 'فشل الحفظ'}`);
+    } finally {
+      setUploadingCdoc(false);
+    }
+  };
+
+  const deleteCdoc = async (id: string) => {
+    if (!window.confirm('حذف هذه الورقة؟')) return;
+    try {
+      await api.del(`/api/hr/company-docs?id=${id}`);
+      setMsg('✅ تم الحذف');
+      await load();
+    } catch (e: any) {
+      setMsg(`❌ ${e?.message ?? 'فشل الحذف'}`);
     }
   };
 
@@ -404,7 +569,24 @@ export default function HR() {
       const cu = await api.get<{ custody?: any[] }>(`/api/hr/custody${custodyFilter === 'ALL' ? '' : `?status=${custodyFilter}`}`);
       setCustody(Array.isArray(cu?.custody) ? cu.custody : []);
     } catch { setCustody([]); }
-  }, [filter, fromDate, toDate, actionFilter, invFilter, custodyFilter]);
+    try {
+      const fl = await api.get<{ vehicles?: any[] }>('/api/hr/vehicles');
+      setFleet(Array.isArray(fl?.vehicles) ? fl.vehicles : []);
+    } catch { setFleet([]); }
+    try {
+      const vi = await api.get<{ violations?: any[] }>('/api/hr/violations');
+      setVios(Array.isArray(vi?.violations) ? vi.violations : []);
+    } catch { setVios([]); }
+    try {
+      const dd = await api.get<{ rows?: any[]; grandTotal?: number }>(`/api/hr/deductions?period=${dedPeriod}`);
+      setDedRows(Array.isArray(dd?.rows) ? dd.rows : []);
+      setDedTotal(dd?.grandTotal ?? 0);
+    } catch { setDedRows([]); setDedTotal(0); }
+    try {
+      const cd = await api.get<{ documents?: any[] }>('/api/hr/company-docs');
+      setCdocs(Array.isArray(cd?.documents) ? cd.documents : []);
+    } catch { setCdocs([]); }
+  }, [filter, fromDate, toDate, actionFilter, invFilter, custodyFilter, dedPeriod]);
 
   useEffect(() => {
     if (!currentUser) return;
@@ -441,6 +623,9 @@ export default function HR() {
     { id: 'actions', ar: '⚖️ الجزاءات والمكافآت', en: 'Actions' },
     { id: 'investigations', ar: '🔍 التحقيقات', en: 'Investigations' },
     { id: 'custody', ar: '🎒 العهد', en: 'Custody' },
+    { id: 'vehicles', ar: '🚛 المركبات والمخالفات', en: 'Vehicles' },
+    { id: 'deductions', ar: '🧾 كشف الخصومات', en: 'Deductions' },
+    { id: 'company', ar: '📂 أوراق الشركة', en: 'Company docs' },
   ];
 
   const team = employees.filter((e) => {
@@ -448,6 +633,22 @@ export default function HR() {
     if (!q) return true;
     return [e.fullName, e.full_name, e.email, e.employeeCode, e.phone, e.department].filter(Boolean).join(' ').toLowerCase().includes(q);
   });
+
+  // Vehicle paperwork watch (istimara / insurance / inspection ≤ 60 days).
+  const vehWatch = fleet
+    .flatMap((v) => ([
+      { code: `${v.vehicleCode}`, label: ar ? 'الاستمارة' : 'Reg', days: daysUntil(v.istimaraExpiry) },
+      { code: `${v.vehicleCode}`, label: ar ? 'التأمين' : 'Ins', days: daysUntil(v.insuranceExpiresAt) },
+      { code: `${v.vehicleCode}`, label: ar ? 'الفحص' : 'Insp', days: daysUntil(v.inspectionDueAt) },
+    ]))
+    .filter((w): w is { code: string; label: string; days: number } => w.days !== null && w.days <= 60)
+    .sort((a, b) => a.days - b.days);
+
+  // Company papers watch (expiry ≤ 60 days).
+  const cdocWatch = cdocs
+    .map((d) => ({ ...d, days: daysUntil(d.expiryDate) }))
+    .filter((d) => d.days !== null && d.days <= 60)
+    .sort((a, b) => (a.days as number) - (b.days as number));
 
   // Iqama renewals due within 60 days (or already expired) — the watch section.
   const renewals = employees
@@ -1061,14 +1262,239 @@ export default function HR() {
                     <p className="text-slate-400 mt-0.5">{[c.serialNo, c.notes].filter(Boolean).join(' · ')}</p>
                     <p className="text-slate-500 text-[10px]">{String(c.handedAt ?? '').slice(0, 10)}</p>
                   </div>
-                  {c.status === 'HELD' ? (
-                    <button disabled={busy === 'ret' + c.id} onClick={() => returnCustody(c.id)}
-                      className="shrink-0 bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-[11px] font-black rounded-lg px-3 py-1.5 disabled:opacity-50">
-                      {busy === 'ret' + c.id ? '…' : (ar ? 'استلام' : 'Return')}
+                  <div className="flex items-center gap-1 shrink-0">
+                    {c.status === 'HELD' && c.employeeId && (
+                      <label title={ar ? 'صورة العهدة' : 'Custody photo'}
+                        className="text-base rounded-lg border border-white/10 bg-white/[0.04] w-9 h-9 flex items-center justify-center cursor-pointer hover:border-sky-400/60">
+                        📷
+                        <input type="file" accept="image/*" className="hidden" disabled={uploading}
+                          onChange={(e) => { uploadCustodyPhoto(c.id, c.employeeId, e.target.files?.[0]); e.target.value = ''; }} />
+                      </label>
+                    )}
+                    {c.status === 'HELD' ? (
+                      <button disabled={busy === 'ret' + c.id} onClick={() => returnCustody(c.id)}
+                        className="bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-[11px] font-black rounded-lg px-3 py-1.5 disabled:opacity-50">
+                        {busy === 'ret' + c.id ? '…' : (ar ? 'استلام' : 'Return')}
+                      </button>
+                    ) : (
+                      <span className="text-[10px] text-slate-500 font-bold">{ar ? 'مُعادة' : 'Returned'}</span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ===== vehicles: renewals + violations ===== */}
+        {tab === 'vehicles' && (
+          <div className="mt-4">
+            {vehWatch.length > 0 && (
+              <div className="rounded-2xl border border-yellow-500/40 bg-yellow-500/[0.07] p-3 mb-3">
+                <h3 className="text-xs font-black text-yellow-300 mb-2">
+                  ⏰ {ar ? `تجديدات المركبات القادمة (${vehWatch.length})` : `Vehicle renewals due (${vehWatch.length})`}
+                </h3>
+                {vehWatch.slice(0, 8).map((w, i) => (
+                  <div key={i} className="flex items-center justify-between text-xs border-b border-white/5 py-1 last:border-0">
+                    <span className="font-bold text-slate-200">{w.code} · {w.label}</span>
+                    <span className={`font-black ${w.days < 0 ? 'text-red-400' : w.days <= 30 ? 'text-yellow-300' : 'text-slate-300'}`}>
+                      {w.days < 0 ? (ar ? `منتهية منذ ${-w.days} يوم` : `expired ${-w.days}d`) : (ar ? `متبقي ${w.days} يوم` : `${w.days}d left`)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="flex flex-wrap items-center gap-2 mb-3">
+              <button onClick={() => setShowVioForm((v) => !v)}
+                className="text-[11px] font-black rounded-lg px-3 py-1.5 border border-red-500/50 bg-red-500/15 text-red-300 hover:bg-red-500/25">
+                ➕ {ar ? 'تسجيل مخالفة على سائق' : 'Record violation'}
+              </button>
+            </div>
+            {showVioForm && (
+              <div className="rounded-2xl border border-red-500/30 bg-red-500/[0.06] p-4 mb-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                  <label className="text-[11px] text-slate-400 font-bold">{ar ? 'السائق *' : 'Driver *'}
+                    <select value={vioForm.employeeId} onChange={(e) => setVioForm({ ...vioForm, employeeId: e.target.value })}
+                      className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none">
+                      <option value="">—</option>
+                      {employees.map((e) => <option key={e.id} value={e.id}>{nameOf(e)} · {e.employeeCode}</option>)}
+                    </select></label>
+                  <label className="text-[11px] text-slate-400 font-bold">{ar ? 'المركبة' : 'Vehicle'}
+                    <select value={vioForm.vehicleId} onChange={(e) => setVioForm({ ...vioForm, vehicleId: e.target.value })}
+                      className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none">
+                      <option value="">—</option>
+                      {fleet.map((v) => <option key={v.id} value={v.id}>{v.vehicleCode} · {v.plateNumber}</option>)}
+                    </select></label>
+                  <label className="text-[11px] text-slate-400 font-bold">{ar ? 'المبلغ (ر.س) *' : 'Amount *'}
+                    <input value={vioForm.amountSar} onChange={(e) => setVioForm({ ...vioForm, amountSar: e.target.value })} inputMode="decimal"
+                      className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
+                  <label className="text-[11px] text-slate-400 font-bold">{ar ? 'تاريخ المخالفة' : 'Date'}
+                    <input type="date" value={vioForm.violationDate} onChange={(e) => setVioForm({ ...vioForm, violationDate: e.target.value })}
+                      className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
+                  <label className="text-[11px] text-slate-400 font-bold">{ar ? 'المكان' : 'Location'}
+                    <input value={vioForm.location} onChange={(e) => setVioForm({ ...vioForm, location: e.target.value })}
+                      className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
+                  <label className="text-[11px] text-slate-400 font-bold">{ar ? 'ملاحظات' : 'Notes'}
+                    <input value={vioForm.notes} onChange={(e) => setVioForm({ ...vioForm, notes: e.target.value })}
+                      className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
+                </div>
+                <button disabled={busy === 'vio'} onClick={addVio}
+                  className="mt-3 bg-red-500 hover:bg-red-400 disabled:opacity-50 text-white text-xs font-black rounded-lg px-6 py-2">
+                  {busy === 'vio' ? '…' : `✅ ${ar ? 'تسجيل' : 'Record'}`}
+                </button>
+              </div>
+            )}
+            {vios.length > 0 && (
+              <div className="mb-3">
+                <h3 className="text-xs font-black text-slate-300 mb-1">{ar ? 'المخالفات المسجلة' : 'Recorded violations'}</h3>
+                <div className="space-y-1">
+                  {vios.slice(0, 10).map((v, i) => (
+                    <div key={v.id ?? i} className="flex items-center justify-between text-xs border-b border-white/5 py-1">
+                      <span className="text-slate-300">{v.amountSar} {ar ? 'ر.س' : 'SAR'} · {String(v.violationDate ?? '').slice(0, 10)} {v.location ? `· ${v.location}` : ''}</span>
+                      {v.paid ? (
+                        <span className="text-[10px] text-emerald-300 font-bold">{ar ? 'مدفوعة' : 'Paid'}</span>
+                      ) : (
+                        <button disabled={busy === 'pay' + v.id} onClick={() => payVio(v.id)}
+                          className="text-[10px] font-black rounded px-2 py-1 border border-emerald-500/40 text-emerald-300 disabled:opacity-50">
+                          {busy === 'pay' + v.id ? '…' : (ar ? 'تحصيل' : 'Collect')}
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {fleet.length === 0 && <p className="text-xs text-slate-500">{ar ? 'لا مركبات.' : 'No vehicles.'}</p>}
+            <div className="space-y-2">
+              {fleet.map((v, i) => {
+                const f = editVeh[v.id];
+                return (
+                  <div key={v.id ?? i} className="rounded-xl border border-white/10 bg-white/[0.03] p-3 text-xs">
+                    <div className="flex items-center justify-between">
+                      <span className="font-black text-white">🚛 {v.vehicleCode} · {v.plateNumber}</span>
+                      <span className="text-slate-400">{v.driverName ?? (ar ? 'بدون سائق' : 'No driver')}</span>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-2">
+                      {([['istimara', 'الاستمارة', v.istimaraExpiry], ['insurance', 'التأمين', v.insuranceExpiresAt], ['inspection', 'الفحص', v.inspectionDueAt]] as const).map(([k, label, cur]) => (
+                        <label key={k} className="text-[10px] text-slate-400 font-bold">{label} {cur ? `(${String(cur).slice(0, 10)})` : ''}
+                          <span className="flex gap-1 mt-0.5">
+                            <input type="date"
+                              value={f?.[k] ?? ''}
+                              onChange={(e) => setEditVeh((p) => ({ ...p, [v.id]: Object.assign({ istimara: '', insurance: '', inspection: '' }, p[v.id], { [k]: e.target.value }) }))}
+                              className="flex-1 bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1 text-xs text-white outline-none" />
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                    <button disabled={busy === 'veh' + v.id} onClick={() => saveVehDates(v.id)}
+                      className="mt-2 text-[11px] font-black rounded-lg px-4 py-1.5 border border-sky-500/50 bg-sky-500/15 text-sky-300 disabled:opacity-50">
+                      {busy === 'veh' + v.id ? '…' : (ar ? 'حفظ التواريخ' : 'Save dates')}
                     </button>
-                  ) : (
-                    <span className="text-[10px] text-slate-500 font-bold">{ar ? 'مُعادة' : 'Returned'}</span>
-                  )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* ===== deductions: monthly statement ===== */}
+        {tab === 'deductions' && (
+          <div className="mt-4">
+            <div className="flex flex-wrap items-center gap-2 mb-3">
+              <label className="text-[11px] text-slate-400 font-bold">{ar ? 'الشهر' : 'Month'}</label>
+              <input value={dedPeriod} onChange={(e) => setDedPeriod(e.target.value)}
+                className="bg-white/[0.04] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none font-mono" />
+              <ExportBar
+                title={ar ? 'كشف الخصومات' : 'Deductions'}
+                subtitle={dedPeriod}
+                fileBase={`hr-deductions-${dedPeriod}`}
+                columns={[
+                  { header: 'الموظف', key: 'name' },
+                  { header: 'الكود', key: 'code' },
+                  { header: 'جزاءات', key: 'penalties' },
+                  { header: 'مخالفات', key: 'violations' },
+                  { header: 'سلف', key: 'advances' },
+                  { header: 'الإجمالي', key: 'total' },
+                ]}
+                rows={dedRows.map((r) => ({ name: r.name, code: r.code, penalties: r.penalties, violations: r.violations, advances: r.advances, total: r.total }))}
+                branding={brandParam}
+              />
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-3 mb-3 text-center">
+              <p className="text-[11px] text-slate-400 font-bold">{ar ? 'إجمالي خصومات الشهر (ر.س)' : 'Month total (SAR)'}</p>
+              <p className="text-2xl font-black text-white">{fmtMoney(dedTotal)}</p>
+            </div>
+            {dedRows.length === 0 && <p className="text-xs text-slate-500">{ar ? 'لا خصومات هذا الشهر.' : 'No deductions this month.'}</p>}
+            <div className="space-y-1">
+              {dedRows.map((r, i) => (
+                <div key={r.employeeId ?? i} className="flex items-center justify-between text-xs border-b border-white/5 py-1.5">
+                  <span className="font-bold text-slate-200">{r.name} <span className="text-slate-500">· {r.code}</span></span>
+                  <span className="text-slate-400 text-[10px]">{ar ? 'جزاء' : 'P'} {r.penalties} · {ar ? 'مخالفات' : 'V'} {r.violations} · {ar ? 'سلف' : 'A'} {r.advances}</span>
+                  <span className="font-black text-red-300">{fmtMoney(r.total)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ===== company docs vault ===== */}
+        {tab === 'company' && (
+          <div className="mt-4">
+            <button onClick={() => setShowCdocForm((v) => !v)}
+              className="text-[11px] font-black rounded-lg px-3 py-1.5 border border-sky-500/50 bg-sky-500/15 text-sky-300 hover:bg-sky-500/25 mb-3">
+              ➕ {ar ? 'إضافة ورقة (سجل / ضريبة / ملف عامل…)' : 'Add paper'}
+            </button>
+            {showCdocForm && (
+              <div className="rounded-2xl border border-sky-500/30 bg-sky-500/[0.06] p-4 mb-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <label className="text-[11px] text-slate-400 font-bold">{ar ? 'اسم الملف *' : 'Title *'}
+                    <input value={cdocForm.title} onChange={(e) => setCdocForm({ ...cdocForm, title: e.target.value })}
+                      placeholder={ar ? 'مثال: السجل التجاري 2026' : 'e.g. Commercial reg 2026'}
+                      className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
+                  <label className="text-[11px] text-slate-400 font-bold">{ar ? 'النوع' : 'Kind'}
+                    <select value={cdocForm.kind} onChange={(e) => setCdocForm({ ...cdocForm, kind: e.target.value })}
+                      className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none">
+                      <option value="COMMERCIAL_REG">{ar ? '📜 سجل تجاري' : 'Commercial reg'}</option>
+                      <option value="TAX">{ar ? '🧾 ضريبة' : 'Tax'}</option>
+                      <option value="EMPLOYEE_FILE">{ar ? '👤 ملف عامل' : 'Employee file'}</option>
+                      <option value="LICENSE">{ar ? '📄 رخصة' : 'License'}</option>
+                      <option value="OTHER">{ar ? 'أخرى' : 'Other'}</option>
+                    </select></label>
+                  <label className="text-[11px] text-slate-400 font-bold">{ar ? 'تاريخ الانتهاء (للتنبيه)' : 'Expiry (watch)'}
+                    <input type="date" value={cdocForm.expiryDate} onChange={(e) => setCdocForm({ ...cdocForm, expiryDate: e.target.value })}
+                      className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
+                  <div className="text-[11px] text-slate-400 font-bold">{ar ? 'الملف (PDF/صورة حتى 8MB)' : 'File'}
+                    <label className={`block mt-0.5 text-center text-[11px] font-black rounded-lg px-3 py-1.5 border cursor-pointer ${uploadingCdoc ? 'opacity-50' : 'border-sky-500/50 bg-sky-500/15 text-sky-300'}`}>
+                      📎 {uploadingCdoc ? '…' : (ar ? 'اختر الملف' : 'Choose file')}
+                      <input type="file" accept="application/pdf,image/*" className="hidden" disabled={uploadingCdoc}
+                        onChange={(e) => { uploadCdoc(e.target.files?.[0]); e.target.value = ''; }} />
+                    </label>
+                  </div>
+                </div>
+              </div>
+            )}
+            {cdocWatch.length > 0 && (
+              <div className="rounded-2xl border border-yellow-500/40 bg-yellow-500/[0.07] p-3 mb-3">
+                <h3 className="text-xs font-black text-yellow-300 mb-2">⏰ {ar ? 'تجديدات أوراق الشركة' : 'Paper renewals'}</h3>
+                {cdocWatch.slice(0, 8).map((d, i) => (
+                  <div key={d.id ?? i} className="flex items-center justify-between text-xs border-b border-white/5 py-1 last:border-0">
+                    <span className="font-bold text-slate-200">{d.title}</span>
+                    <span className={`font-black ${d.days < 0 ? 'text-red-400' : 'text-yellow-300'}`}>
+                      {d.days < 0 ? (ar ? `منتهية منذ ${-d.days} يوم` : `expired`) : (ar ? `متبقي ${d.days} يوم` : `${d.days}d`)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+            {cdocs.length === 0 && <p className="text-xs text-slate-500">{ar ? 'لا أوراق محفوظة.' : 'Vault is empty.'}</p>}
+            <div className="space-y-1">
+              {cdocs.map((d, i) => (
+                <div key={d.id ?? i} className="flex items-center justify-between text-xs border-b border-white/5 py-1.5">
+                  <span className="font-bold text-slate-200">{d.title} <span className="text-slate-500">· {d.fileName}{d.expiryDate ? ` · ${ar ? 'ينتهي' : 'exp'} ${String(d.expiryDate).slice(0, 10)}` : ''}</span></span>
+                  <span className="flex gap-2 shrink-0">
+                    <a href={d.storageUrl} target="_blank" rel="noreferrer" className="text-sky-400 font-black">⬇ {ar ? 'فتح' : 'Open'}</a>
+                    <button onClick={() => deleteCdoc(d.id)} className="text-red-400 font-black">{ar ? 'حذف' : 'Del'}</button>
+                  </span>
                 </div>
               ))}
             </div>

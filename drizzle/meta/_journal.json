@@ -204,6 +204,20 @@
       "when": 1791305927149,
       "tag": "0028_lethal_junta",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1791307464941,
+      "tag": "0029_hot_eddie_brock",
+      "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1791307704969,
+      "tag": "0030_vengeful_madame_web",
+      "breakpoints": true
     }
   ]
 }

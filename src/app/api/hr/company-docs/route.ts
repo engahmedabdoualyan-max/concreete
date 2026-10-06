@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { db } from "@/db";
-import { hrDocuments } from "@/db/schema";
+import { hrCompanyDocs } from "@/db/schema";
 import { and, desc, eq } from "drizzle-orm";
 import { z } from "zod";
 import {
@@ -14,13 +14,13 @@ export const dynamic = "force-dynamic";
 
 /**
  * ============================================================
- *  GET /api/hr/documents?employeeId= — file registry of an employee
- *  POST /api/hr/documents — register one (HR_WRITE)
+ *  GET /api/hr/company-docs — the company papers vault
+ *  POST /api/hr/company-docs — file one with a name (HR_WRITE)
+ *  DELETE /api/hr/company-docs/[id] — remove one (HR_WRITE)
  * ============================================================
- *  Bytes live in object storage; this table holds the reference.
- *  Until a storage bucket is configured, the UI offers the registry
- *  (kinds, names) and marks byte-upload as pending instead of faking it.
- *  Kinds: IQAMA | DRIVING_LICENCE | INSURANCE | CONTRACT | CUSTODY | OTHER.
+ *  Each paper carries an optional expiryDate so the renewals watch can
+ *  flag commercial registrations and tax certificates 60 days ahead —
+ *  the same rule as iqamas. Bytes travel as data URIs (8 MB cap).
  */
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -28,34 +28,21 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 export async function GET(req: NextRequest) {
   const auth = await requirePermission(req, PERMISSIONS.HR_READ);
   if ("status" in auth) return auth;
-  const employeeId = new URL(req.url).searchParams.get("employeeId");
-  if (!employeeId || !UUID_RE.test(employeeId)) {
-    return errorResponse("INVALID_ID", "employeeId is required", 400);
-  }
-  const custodyId = new URL(req.url).searchParams.get("custodyId");
   const rows = await db
     .select()
-    .from(hrDocuments)
-    .where(
-      and(
-        eq(hrDocuments.tenantId, auth.user.tenantId),
-        eq(hrDocuments.employeeId, employeeId),
-        ...(custodyId && UUID_RE.test(custodyId) ? [eq(hrDocuments.custodyId, custodyId)] : [])
-      )
-    )
-    .orderBy(desc(hrDocuments.createdAt));
+    .from(hrCompanyDocs)
+    .where(eq(hrCompanyDocs.tenantId, auth.user.tenantId))
+    .orderBy(desc(hrCompanyDocs.createdAt));
   return successResponse({ documents: rows }, `${rows.length} document(s)`);
 }
 
 const DocSchema = z.object({
-  employeeId: z.string().uuid(),
-  kind: z.enum(["IQAMA", "DRIVING_LICENCE", "INSURANCE", "CONTRACT", "CUSTODY", "OTHER"]),
-  custodyId: z.string().uuid().optional(),
+  title: z.string().min(1).max(200),
+  kind: z.enum(["COMMERCIAL_REG", "TAX", "EMPLOYEE_FILE", "LICENSE", "OTHER"]),
   fileName: z.string().min(1).max(255),
   mimeType: z.string().max(100).optional(),
   sizeBytes: z.number().int().nonnegative().optional(),
-  // Either a hosted URL (object storage, when configured) or inline base64
-  // bytes ("data:<mime>;base64,…", max ~8 MB — enough for employee papers).
+  expiryDate: z.string().min(1).optional(),
   storageUrl: z.string().min(1).max(4000).optional(),
   fileData: z.string().min(1).max(11_000_000).optional(),
 }).refine((d) => d.storageUrl || d.fileData, { message: "storageUrl or fileData required" });
@@ -84,22 +71,37 @@ export async function POST(req: NextRequest) {
         ? parsed.data.fileData
         : `data:${parsed.data.mimeType ?? "application/octet-stream"};base64,${parsed.data.fileData}`);
     const [created] = await db
-      .insert(hrDocuments)
+      .insert(hrCompanyDocs)
       .values({
         tenantId: auth.user.tenantId,
-        employeeId: parsed.data.employeeId,
-        custodyId: parsed.data.custodyId ?? null,
+        title: parsed.data.title,
         kind: parsed.data.kind,
         fileName: parsed.data.fileName,
         mimeType: parsed.data.mimeType ?? null,
         sizeBytes: parsed.data.sizeBytes ?? null,
         storageUrl: url,
+        expiryDate: parsed.data.expiryDate ? new Date(parsed.data.expiryDate) : null,
         uploadedById: auth.user.sub,
       })
       .returning();
-    return successResponse(created, "تم تسجيل المستند", 201);
+    return successResponse(created, "تم حفظ الورقة", 201);
   } catch (err) {
-    console.error("[POST /api/hr/documents]", err);
-    return errorResponse("HR_ERROR", "Failed to register document", 500);
+    console.error("[POST /api/hr/company-docs]", err);
+    return errorResponse("HR_ERROR", "Failed to save document", 500);
   }
+}
+
+export async function DELETE(req: NextRequest) {
+  const auth = await requirePermission(req, PERMISSIONS.HR_WRITE);
+  if ("status" in auth) return auth;
+  const id = new URL(req.url).searchParams.get("id");
+  if (!id || !UUID_RE.test(id)) {
+    return errorResponse("INVALID_ID", "Invalid document id", 400);
+  }
+  const [deleted] = await db
+    .delete(hrCompanyDocs)
+    .where(and(eq(hrCompanyDocs.id, id), eq(hrCompanyDocs.tenantId, auth.user.tenantId)))
+    .returning({ id: hrCompanyDocs.id });
+  if (!deleted) return errorResponse("DOC_NOT_FOUND", "Document not found", 404);
+  return successResponse({ id: deleted.id }, "تم حذف الورقة");
 }
