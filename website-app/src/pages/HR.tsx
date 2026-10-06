@@ -18,7 +18,7 @@ import { downloadExcel, openPrintPDF, type ExportColumn, type ExportRow } from '
  * (HR_READ / HR_WRITE); every tab degrades independently.
  */
 
-type Tab = 'requests' | 'team' | 'attendance' | 'broadcasts' | 'payroll' | 'actions' | 'investigations' | 'custody' | 'vehicles' | 'deductions' | 'company' | 'leave' | 'vlog' | 'overtime' | 'expenses' | 'modules' | 'org' | 'tree';
+type Tab = 'requests' | 'team' | 'attendance' | 'broadcasts' | 'payroll' | 'actions' | 'investigations' | 'custody' | 'vehicles' | 'deductions' | 'company' | 'petty' | 'leave' | 'vlog' | 'overtime' | 'expenses' | 'modules' | 'org' | 'tree';
 
 const COUNTRIES = [
   { code: 'SA', ar: 'السعودية', flag: '🇸🇦' }, { code: 'EG', ar: 'مصر', flag: '🇪🇬' },
@@ -183,6 +183,12 @@ export default function HR() {
   const [showCdocForm, setShowCdocForm] = useState(false);
   const [cdocForm, setCdocForm] = useState({ title: '', kind: 'COMMERCIAL_REG', expiryDate: '' });
   const [uploadingCdoc, setUploadingCdoc] = useState(false);
+  const [funds, setFunds] = useState<any[]>([]);
+  const [showFundForm, setShowFundForm] = useState(false);
+  const [fundForm, setFundForm] = useState({ amountReceived: '', receivedDate: '', purpose: '' });
+  const [openFund, setOpenFund] = useState<string | null>(null);
+  const [fundLines, setFundLines] = useState<any[]>([]);
+  const [expForm, setExpForm] = useState({ amountSar: '', expenseDate: '', description: '' });
   const [importing, setImporting] = useState(false);
   const [importPreview, setImportPreview] = useState<{ code: string; datetime: string }[] | null>(null);
   // Login-tree accounts (Android app logins). Second-password gate below is
@@ -481,6 +487,76 @@ export default function HR() {
       await load();
     } catch (e: any) {
       setMsg(`❌ ${e?.message ?? 'فشل الحذف'}`);
+    }
+  };
+
+  const loadFundLines = async (fundId: string) => {
+    setOpenFund(openFund === fundId ? null : fundId);
+    if (openFund === fundId) return;
+    try {
+      const r = await api.get<{ expenses?: any[] }>(`/api/hr/petty-cash?fundId=${fundId}`);
+      setFundLines(Array.isArray(r?.expenses) ? r.expenses : []);
+    } catch { setFundLines([]); }
+  };
+
+  const openFund_ = async () => {
+    if (!fundForm.amountReceived.trim() || !fundForm.receivedDate) {
+      setMsg('❌ المبلغ والتاريخ مطلوبان');
+      return;
+    }
+    setBusy('fund');
+    try {
+      await api.post('/api/hr/petty-cash', {
+        amountReceived: Number(fundForm.amountReceived),
+        receivedDate: fundForm.receivedDate,
+        purpose: fundForm.purpose.trim() || undefined,
+      });
+      setMsg('✅ تم فتح العهدة المالية');
+      setFundForm({ amountReceived: '', receivedDate: '', purpose: '' });
+      setShowFundForm(false);
+      await load();
+    } catch (e: any) {
+      setMsg(`❌ ${e?.message ?? 'فشل الفتح'}`);
+    } finally {
+      setBusy('');
+    }
+  };
+
+  const spendLine = async (fundId: string) => {
+    if (!expForm.amountSar.trim() || !expForm.expenseDate || !expForm.description.trim()) {
+      setMsg('❌ المبلغ والتاريخ والبيان مطلوبة');
+      return;
+    }
+    setBusy('spend');
+    try {
+      await api.put(`/api/hr/petty-cash?id=${fundId}&action=spend`, {
+        amountSar: Number(expForm.amountSar),
+        expenseDate: expForm.expenseDate,
+        description: expForm.description.trim(),
+      });
+      setMsg('✅ تم تسجيل الصرف');
+      setExpForm({ amountSar: '', expenseDate: '', description: '' });
+      await load();
+      const r = await api.get<{ expenses?: any[] }>(`/api/hr/petty-cash?fundId=${fundId}`);
+      setFundLines(Array.isArray(r?.expenses) ? r.expenses : []);
+    } catch (e: any) {
+      setMsg(`❌ ${e?.message ?? 'فشل التسجيل'}`);
+    } finally {
+      setBusy('');
+    }
+  };
+
+  const settleFund = async (fundId: string) => {
+    if (!window.confirm('تصفية العهدة نهائياً؟')) return;
+    setBusy('settle' + fundId);
+    try {
+      const r = await api.put<{ settleNote?: string }>(`/api/hr/petty-cash?id=${fundId}&action=settle`, {});
+      setMsg(`✅ ${(r as any)?.settleNote ?? 'تمت التصفية'}`);
+      await load();
+    } catch (e: any) {
+      setMsg(`❌ ${e?.message ?? 'فشل التصفية'}`);
+    } finally {
+      setBusy('');
     }
   };
 
@@ -1011,6 +1087,10 @@ export default function HR() {
       setCdocs(Array.isArray(cd?.documents) ? cd.documents : []);
     } catch { setCdocs([]); }
     try {
+      const pf = await api.get<{ funds?: any[] }>('/api/hr/petty-cash');
+      setFunds(Array.isArray(pf?.funds) ? pf.funds : []);
+    } catch { setFunds([]); }
+    try {
       const st = await api.get<{ modules?: Record<string, boolean> }>('/api/hr/settings');
       if (st?.modules) setModules((m) => ({ ...m, ...st.modules }));
     } catch { /* defaults stay on */ }
@@ -1072,6 +1152,7 @@ export default function HR() {
     { id: 'vehicles', ar: '🚛 المركبات والمخالفات', en: 'Vehicles' },
     { id: 'deductions', ar: '🧾 كشف الخصومات', en: 'Deductions' },
     { id: 'company', ar: '📂 أوراق الشركة', en: 'Company docs' },
+    { id: 'petty', ar: '💰 العهدة المالية', en: 'Petty cash' },
     { id: 'org', ar: '🏢 الهيكل الوظيفي', en: 'Org chart' },
     { id: 'tree', ar: '🌳 حسابات الدخول', en: 'Login tree' },
     { id: 'leave', ar: '🏖️ الأرصدة', en: 'Balances', mod: 'leaveBalances' },
@@ -2040,6 +2121,90 @@ export default function HR() {
                     <a href={d.storageUrl} target="_blank" rel="noreferrer" className="text-sky-400 font-black">⬇ {ar ? 'فتح' : 'Open'}</a>
                     <button onClick={() => deleteCdoc(d.id)} className="text-red-400 font-black">{ar ? 'حذف' : 'Del'}</button>
                   </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ===== petty cash: department financial custody ===== */}
+        {tab === 'petty' && (
+          <div className="mt-4">
+            <button onClick={() => setShowFundForm((v) => !v)}
+              className="text-[11px] font-black rounded-lg px-3 py-1.5 border border-sky-500/50 bg-sky-500/15 text-sky-300 hover:bg-sky-500/25 mb-3">
+              ➕ {ar ? 'فتح عهدة مالية للقسم' : 'Open fund'}
+            </button>
+            {showFundForm && (
+              <div className="rounded-2xl border border-sky-500/30 bg-sky-500/[0.06] p-4 mb-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  <label className="text-[11px] text-slate-400 font-bold">{ar ? 'المبلغ المستلم (ر.س) *' : 'Received *'}
+                    <input value={fundForm.amountReceived} onChange={(e) => setFundForm({ ...fundForm, amountReceived: e.target.value })} inputMode="decimal"
+                      className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
+                  <label className="text-[11px] text-slate-400 font-bold">{ar ? 'تاريخ الاستلام *' : 'Date *'}
+                    <input type="date" value={fundForm.receivedDate} onChange={(e) => setFundForm({ ...fundForm, receivedDate: e.target.value })}
+                      className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
+                  <label className="text-[11px] text-slate-400 font-bold">{ar ? 'الغرض' : 'Purpose'}
+                    <input value={fundForm.purpose} onChange={(e) => setFundForm({ ...fundForm, purpose: e.target.value })}
+                      className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
+                </div>
+                <button disabled={busy === 'fund'} onClick={openFund_}
+                  className="mt-3 bg-sky-500 hover:bg-sky-400 disabled:opacity-50 text-white text-xs font-black rounded-lg px-6 py-2">
+                  {busy === 'fund' ? '…' : `✅ ${ar ? 'فتح' : 'Open'}`}
+                </button>
+              </div>
+            )}
+            {funds.length === 0 && <p className="text-xs text-slate-500">{ar ? 'لا عهد مالية.' : 'No funds.'}</p>}
+            <div className="space-y-3">
+              {funds.map((f, i) => (
+                <div key={f.id ?? i} className={`rounded-2xl border p-3 ${f.status === 'OPEN' ? 'border-white/10 bg-white/[0.03]' : 'border-white/5 opacity-70'}`}>
+                  <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                    <span className="font-black text-white">💰 {f.department} · {f.amountReceived} {ar ? 'ر.س' : 'SAR'}</span>
+                    <span className="text-slate-400">{ar ? 'مصروف' : 'Spent'} <b className="text-yellow-300">{f.spent}</b> · {ar ? 'متبقي' : 'Left'} <b className="text-emerald-300">{f.remaining}</b></span>
+                    <span className="flex gap-1">
+                      {f.status === 'OPEN' ? (
+                        <>
+                          <button onClick={() => loadFundLines(f.id)}
+                            className="text-[10px] font-black rounded px-2 py-1 border border-white/15 text-slate-200">
+                            {openFund === f.id ? (ar ? 'إخفاء الصرف' : 'Hide') : (ar ? 'جدول الصرف' : 'Ledger')}
+                          </button>
+                          <button disabled={busy === 'settle' + f.id} onClick={() => settleFund(f.id)}
+                            className="text-[10px] font-black rounded px-2 py-1 border border-emerald-500/40 text-emerald-300 disabled:opacity-50">
+                            {busy === 'settle' + f.id ? '…' : (ar ? 'تصفية' : 'Settle')}
+                          </button>
+                        </>
+                      ) : (
+                        <span className="text-[10px] text-slate-500 font-bold">✅ {f.settleNote ?? (ar ? 'مصفّاة' : 'Settled')}</span>
+                      )}
+                    </span>
+                  </div>
+                  {openFund === f.id && f.status === 'OPEN' && (
+                    <div className="mt-2 rounded-xl border border-white/10 bg-white/[0.02] p-2">
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-2">
+                        <label className="text-[10px] text-slate-400 font-bold">{ar ? 'المبلغ *' : 'Amount *'}
+                          <input value={expForm.amountSar} onChange={(e) => setExpForm({ ...expForm, amountSar: e.target.value })} inputMode="decimal"
+                            className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1 text-xs text-white outline-none" /></label>
+                        <label className="text-[10px] text-slate-400 font-bold">{ar ? 'التاريخ *' : 'Date *'}
+                          <input type="date" value={expForm.expenseDate} onChange={(e) => setExpForm({ ...expForm, expenseDate: e.target.value })}
+                            className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1 text-xs text-white outline-none" /></label>
+                        <label className="text-[10px] text-slate-400 font-bold">{ar ? 'البيان *' : 'Description *'}
+                          <input value={expForm.description} onChange={(e) => setExpForm({ ...expForm, description: e.target.value })}
+                            className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1 text-xs text-white outline-none" /></label>
+                      </div>
+                      <button disabled={busy === 'spend'} onClick={() => spendLine(f.id)}
+                        className="text-[10px] font-black rounded-lg px-3 py-1 border border-sky-500/50 bg-sky-500/15 text-sky-300 disabled:opacity-50">
+                        {busy === 'spend' ? '…' : `➕ ${ar ? 'تسجيل صرف' : 'Spend'}`}
+                      </button>
+                      <div className="mt-2 space-y-1">
+                        {fundLines.map((l, j) => (
+                          <div key={l.id ?? j} className="flex items-center justify-between text-[11px] border-b border-white/5 py-1">
+                            <span className="text-slate-300">{l.description}</span>
+                            <span className="text-slate-400">{String(l.expenseDate).slice(0, 10)} · <b className="text-white">{l.amountSar}</b></span>
+                          </div>
+                        ))}
+                        {fundLines.length === 0 && <p className="text-[10px] text-slate-500">{ar ? 'لا صرف بعد.' : 'No spending yet.'}</p>}
+                      </div>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

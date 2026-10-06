@@ -4203,6 +4203,60 @@ export const hrExpenseClaims = pgTable(
 );
 
 /**
+ * hr_petty_funds — department financial custody (imprest).
+ * A department receives an amount, spends against it, then settles.
+ * Status: OPEN | SETTLED.
+ */
+export const hrPettyFunds = pgTable(
+  "hr_petty_funds",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    department: varchar("department", { length: 80 }).notNull().default("الموارد البشرية"),
+    amountReceived: decimal("amount_received", { precision: 12, scale: 2 }).notNull(),
+    receivedDate: varchar("received_date", { length: 10 }).notNull(),
+    purpose: text("purpose"),
+    /** OPEN | SETTLED */
+    status: varchar("status", { length: 16 }).notNull().default("OPEN"),
+    settledAt: timestamp("settled_at"),
+    settleNote: text("settle_note"),
+    receivedById: uuid("received_by_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("idx_hr_pf_tenant").on(t.tenantId),
+    index("idx_hr_pf_status").on(t.status),
+  ]
+);
+
+/**
+ * hr_petty_expenses — spending lines against a custody fund.
+ */
+export const hrPettyExpenses = pgTable(
+  "hr_petty_expenses",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    fundId: uuid("fund_id")
+      .notNull()
+      .references(() => hrPettyFunds.id, { onDelete: "cascade" }),
+    amountSar: decimal("amount_sar", { precision: 12, scale: 2 }).notNull(),
+    expenseDate: varchar("expense_date", { length: 10 }).notNull(),
+    description: varchar("description", { length: 300 }).notNull(),
+    recordedById: uuid("recorded_by_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("idx_hr_pe_tenant").on(t.tenantId),
+    index("idx_hr_pe_fund").on(t.fundId),
+  ]
+);
+
+/**
  * hr_broadcasts — HR → employees announcements (role-targeted or all).
  */
 export const hrBroadcasts = pgTable(
