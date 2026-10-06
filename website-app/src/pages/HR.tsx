@@ -106,6 +106,9 @@ export default function HR() {
   const [custodyForm, setCustodyForm] = useState({ employeeId: '', item: '', serialNo: '', notes: '' });
   const [docKind, setDocKind] = useState('IQAMA');
   const [uploading, setUploading] = useState(false);
+  const [showCastForm, setShowCastForm] = useState(false);
+  const [castForm, setCastForm] = useState({ title: '', body: '' });
+  const [runPeriod, setRunPeriod] = useState(() => new Date().toISOString().slice(0, 7));
 
   const addEmployee = async () => {
     if (!form.employeeCode.trim() || !form.fullName.trim()) {
@@ -220,8 +223,7 @@ export default function HR() {
     }
   };
 
-  const returnCustody = async (id: string) => {
-    setBusy('ret' + id);
+  const returnCustody = async (id: string) => {    setBusy('ret' + id);
     try {
       await api.post(`/api/hr/custody/${id}/return`, {});
       setMsg('✅ تم استلام العهدة');
@@ -293,6 +295,44 @@ export default function HR() {
       await load();
     } catch (e: any) {
       setMsg(`❌ ${e?.message ?? 'فشل الإغلاق'}`);
+    } finally {
+      setBusy('');
+    }
+  };
+
+  const publishCast = async () => {
+    if (!castForm.title.trim() || !castForm.body.trim()) {
+      setMsg('❌ العنوان والنص مطلوبان');
+      return;
+    }
+    setBusy('cast');
+    setMsg('');
+    try {
+      await api.post('/api/hr/broadcasts', { title: castForm.title.trim(), body: castForm.body.trim() });
+      setMsg('✅ تم نشر الإعلان');
+      setCastForm({ title: '', body: '' });
+      setShowCastForm(false);
+      await load();
+    } catch (e: any) {
+      setMsg(`❌ ${e?.message ?? 'فشل النشر'}`);
+    } finally {
+      setBusy('');
+    }
+  };
+
+  const createRun = async () => {
+    if (!/^\d{4}-\d{2}$/.test(runPeriod)) {
+      setMsg('❌ الشهر بصيغة YYYY-MM');
+      return;
+    }
+    setBusy('run');
+    setMsg('');
+    try {
+      await api.post('/api/hr/payroll/runs', { period: runPeriod });
+      setMsg(`✅ تم إنشاء مسير ${runPeriod} كمسودة`);
+      await load();
+    } catch (e: any) {
+      setMsg(`❌ ${e?.message ?? 'فشل الإنشاء'}`);
     } finally {
       setBusy('');
     }
@@ -722,6 +762,24 @@ export default function HR() {
         {/* ===== broadcasts ===== */}
         {tab === 'broadcasts' && (
           <div className="mt-4 space-y-3">
+            <button onClick={() => setShowCastForm((v) => !v)}
+              className="text-[11px] font-black rounded-lg px-3 py-1.5 border border-sky-500/50 bg-sky-500/15 text-sky-300 hover:bg-sky-500/25">
+              ➕ {ar ? 'إعلان جديد' : 'New broadcast'}
+            </button>
+            {showCastForm && (
+              <div className="rounded-2xl border border-sky-500/30 bg-sky-500/[0.06] p-4">
+                <input value={castForm.title} onChange={(e) => setCastForm({ ...castForm, title: e.target.value })}
+                  placeholder={ar ? 'عنوان الإعلان *' : 'Title *'}
+                  className="w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none mb-2" />
+                <textarea value={castForm.body} onChange={(e) => setCastForm({ ...castForm, body: e.target.value })} rows={3}
+                  placeholder={ar ? 'نص الإعلان *' : 'Body *'}
+                  className="w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" />
+                <button disabled={busy === 'cast'} onClick={publishCast}
+                  className="mt-2 bg-sky-500 hover:bg-sky-400 disabled:opacity-50 text-white text-xs font-black rounded-lg px-6 py-2">
+                  {busy === 'cast' ? '…' : `📢 ${ar ? 'نشر' : 'Publish'}`}
+                </button>
+              </div>
+            )}
             {casts.length === 0 && <p className="text-xs text-slate-500">{ar ? 'لا إعلانات.' : 'No broadcasts.'}</p>}
             {casts.map((b, i) => (
               <div key={b.id ?? i} className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
@@ -736,6 +794,15 @@ export default function HR() {
         {/* ===== payroll ===== */}
         {tab === 'payroll' && (
           <div className="mt-4 space-y-2">
+            <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.02] p-3">
+              <span className="text-[11px] text-slate-400 font-bold">{ar ? 'مسير شهر (YYYY-MM)' : 'Run month'}</span>
+              <input value={runPeriod} onChange={(e) => setRunPeriod(e.target.value)}
+                className="bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none font-mono" />
+              <button disabled={busy === 'run'} onClick={createRun}
+                className="text-[11px] font-black rounded-lg px-4 py-1.5 border border-sky-500/50 bg-sky-500/15 text-sky-300 hover:bg-sky-500/25 disabled:opacity-50">
+                {busy === 'run' ? '…' : `➕ ${ar ? 'إنشاء مسير كمسودة' : 'Draft run'}`}
+              </button>
+            </div>
             {runs.length === 0 && <p className="text-xs text-slate-500">{ar ? 'لا مسيرات رواتب.' : 'No payroll runs.'}</p>}
             {runs.map((r, i) => (
               <div key={r.id ?? i} className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-xs flex items-center justify-between">
