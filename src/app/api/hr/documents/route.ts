@@ -49,8 +49,9 @@ export async function GET(req: NextRequest) {
 
 const DocSchema = z.object({
   employeeId: z.string().uuid(),
-  kind: z.enum(["IQAMA", "DRIVING_LICENCE", "INSURANCE", "CONTRACT", "CUSTODY", "OTHER"]),
+  kind: z.enum(["IQAMA", "DRIVING_LICENCE", "INSURANCE", "CONTRACT", "CUSTODY", "INVESTIGATION", "OTHER"]),
   custodyId: z.string().uuid().optional(),
+  investigationId: z.string().uuid().optional(),
   fileName: z.string().min(1).max(255),
   mimeType: z.string().max(100).optional(),
   sizeBytes: z.number().int().nonnegative().optional(),
@@ -89,6 +90,7 @@ export async function POST(req: NextRequest) {
         tenantId: auth.user.tenantId,
         employeeId: parsed.data.employeeId,
         custodyId: parsed.data.custodyId ?? null,
+        investigationId: parsed.data.investigationId ?? null,
         kind: parsed.data.kind,
         fileName: parsed.data.fileName,
         mimeType: parsed.data.mimeType ?? null,

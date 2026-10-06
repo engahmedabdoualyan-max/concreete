@@ -3970,6 +3970,8 @@ export const hrDocuments = pgTable(
       .references(() => payrollEmployees.id, { onDelete: "cascade" }),
     /** Optional link to a custody record — photos of the entrusted item */
     custodyId: uuid("custody_id").references(() => hrCustody.id, { onDelete: "cascade" }),
+    /** Optional link to an investigation — the file lands in the employee file too */
+    investigationId: uuid("investigation_id").references(() => hrInvestigations.id, { onDelete: "cascade" }),
     /** IQAMA | DRIVING_LICENCE | INSURANCE | CONTRACT | OTHER */
     kind: varchar("kind", { length: 20 }).notNull(),
     fileName: varchar("file_name", { length: 255 }).notNull(),

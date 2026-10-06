@@ -36,7 +36,7 @@ const ACTION_KIND_AR: Record<string, string> = {
   BONUS: 'مكافأة', OVERTIME_BONUS: 'بدل إضافي', RECOGNITION: 'تكريم',
 };
 const DOC_KIND_AR: Record<string, string> = {
-  IQAMA: 'الإقامة', DRIVING_LICENCE: 'رخصة القيادة', INSURANCE: 'التأمين الطبي', CONTRACT: 'العقد', OTHER: 'أخرى',
+  IQAMA: 'الإقامة', DRIVING_LICENCE: 'رخصة القيادة', INSURANCE: 'التأمين الطبي', CONTRACT: 'العقد', CUSTODY: 'صورة عهدة', INVESTIGATION: 'ملف تحقيق', OTHER: 'أخرى',
 };
 
 const TYPE_AR: Record<string, string> = { LEAVE: 'إجازة', ADVANCE: 'سلفة', SALARY_CONFIRM: 'تعريف راتب', OTHER: 'أخرى' };
@@ -157,6 +157,8 @@ export default function HR() {
   const [showInvForm, setShowInvForm] = useState(false);
   const [invForm, setInvForm] = useState({ employeeId: '', subject: '', details: '' });
   const [closeNote, setCloseNote] = useState<Record<string, string>>({});
+  const [invFiles, setInvFiles] = useState<Record<string, any[]>>({});
+  const [invFilesOpen, setInvFilesOpen] = useState<Record<string, boolean>>({});
   const [docsEmp, setDocsEmp] = useState<{ id: string; name: string } | null>(null);
   const [docs, setDocs] = useState<any[]>([]);
   const [custody, setCustody] = useState<any[]>([]);
@@ -500,8 +502,7 @@ export default function HR() {
     }
   };
 
-  const closeInv = async (id: string) => {
-    setBusy('close' + id);
+  const closeInv = async (id: string) => {    setBusy('close' + id);
     try {
       await api.post(`/api/hr/investigations/${id}/close`, { outcome: closeNote[id]?.trim() || undefined });
       setMsg('✅ تم إغلاق التحقيق وحفظ النتيجة');
@@ -510,6 +511,53 @@ export default function HR() {
       setMsg(`❌ ${e?.message ?? 'فشل الإغلاق'}`);
     } finally {
       setBusy('');
+    }
+  };
+
+  const toggleInvFiles = async (inv: any) => {
+    const open = !invFilesOpen[inv.id];
+    setInvFilesOpen((p) => ({ ...p, [inv.id]: open }));
+    if (open && inv.employeeId && !invFiles[inv.id]) {
+      try {
+        const d = await api.get<{ documents?: any[] }>(`/api/hr/documents?employeeId=${inv.employeeId}`);
+        setInvFiles((p) => ({ ...p, [inv.id]: (d?.documents ?? []).filter((x) => x.investigationId === inv.id) }));
+      } catch { setInvFiles((p) => ({ ...p, [inv.id]: [] })); }
+    }
+  };
+
+  const uploadInvDoc = async (inv: any, file: File | undefined) => {
+    if (!file || !inv.employeeId) return;
+    if (file.size > 8 * 1024 * 1024) {
+      setMsg('❌ الملف أكبر من 8MB');
+      return;
+    }
+    if (!/pdf|image/i.test(file.type) && !/\.(pdf|png|jpe?g|webp)$/i.test(file.name)) {
+      setMsg('❌ PDF أو صور فقط');
+      return;
+    }
+    setUploading(true);
+    try {
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const r = new FileReader();
+        r.onload = () => resolve(String(r.result));
+        r.onerror = reject;
+        r.readAsDataURL(file);
+      });
+      await api.post('/api/hr/documents', {
+        employeeId: inv.employeeId, investigationId: inv.id, kind: 'INVESTIGATION',
+        fileName: file.name, mimeType: file.type || 'application/octet-stream',
+        sizeBytes: file.size, fileData: dataUrl,
+      });
+      setMsg('✅ تم إرفاق الملف بالتحقيق وملف الموظف');
+      try {
+        const d = await api.get<{ documents?: any[] }>(`/api/hr/documents?employeeId=${inv.employeeId}`);
+        setInvFiles((p) => ({ ...p, [inv.id]: (d?.documents ?? []).filter((x) => x.investigationId === inv.id) }));
+        setInvFilesOpen((p) => ({ ...p, [inv.id]: true }));
+      } catch { /* list stays */ }
+    } catch (e: any) {
+      setMsg(`❌ ${e?.message ?? 'فشل الرفع'}`);
+    } finally {
+      setUploading(false);
     }
   };
 
@@ -1240,6 +1288,31 @@ export default function HR() {
                   </div>
                   {v.details && <p className="text-slate-400 mt-1">{v.details}</p>}
                   {v.outcome && <p className="text-emerald-300 mt-1">📋 {ar ? 'النتيجة' : 'Outcome'}: {v.outcome}</p>}
+                  <div className="flex flex-wrap items-center gap-2 mt-2">
+                    <button onClick={() => toggleInvFiles(v)}
+                      className="text-[11px] font-black rounded-lg px-3 py-1 border border-white/15 bg-white/[0.05] text-slate-200 hover:border-sky-400/60">
+                      📎 {ar ? 'ملفات التحقيق' : 'Files'}{Array.isArray(invFiles[v.id]) ? ` (${invFiles[v.id].length})` : ''}
+                    </button>
+                    {v.employeeId && (
+                      <label className={`text-[11px] font-black rounded-lg px-3 py-1 border cursor-pointer ${uploading ? 'opacity-50' : 'border-sky-500/50 bg-sky-500/15 text-sky-300'}`}>
+                        ⬆ {uploading ? '…' : (ar ? 'رفع ملف PDF/صورة' : 'Upload')}
+                        <input type="file" accept="application/pdf,image/*" className="hidden" disabled={uploading}
+                          onChange={(e) => { uploadInvDoc(v, e.target.files?.[0]); e.target.value = ''; }} />
+                      </label>
+                    )}
+                  </div>
+                  {invFilesOpen[v.id] && (
+                    <div className="mt-1 rounded-lg border border-white/10 bg-white/[0.02] p-2">
+                      {(invFiles[v.id] ?? []).length === 0 && <p className="text-[10px] text-slate-500">{ar ? 'لا ملفات مرفقة.' : 'No files.'}</p>}
+                      {(invFiles[v.id] ?? []).map((d, di) => (
+                        <div key={d.id ?? di} className="flex items-center justify-between text-[11px] py-0.5">
+                          <span className="text-slate-300">{d.fileName}</span>
+                          <a href={d.storageUrl} target="_blank" rel="noreferrer" className="text-sky-400 font-black">⬇ {ar ? 'فتح' : 'Open'}</a>
+                        </div>
+                      ))}
+                      <p className="text-[10px] text-slate-500 mt-1">{ar ? 'تظهر نفس الملفات في لوحة مستندات الموظف.' : 'Also listed in the employee file.'}</p>
+                    </div>
+                  )}
                   {v.status === 'OPEN' && (
                     <div className="flex gap-2 mt-2">
                       <input value={closeNote[v.id] ?? ''} onChange={(e) => setCloseNote((n) => ({ ...n, [v.id]: e.target.value }))}
