@@ -481,6 +481,8 @@ export const tenants = pgTable(
     defaultLocale: varchar("default_locale", { length: 10 }).notNull().default("en"),
     isActive: boolean("is_active").notNull().default(true),
     subscriptionPlan: varchar("subscription_plan", { length: 40 }).notNull().default("STANDARD"),
+    /** Company logo (data URI or hosted URL) — shown in reports + HR header */
+    logoUrl: text("logo_url"),
     settings: jsonb("settings").$type<Record<string, unknown>>().notNull().default({}),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),

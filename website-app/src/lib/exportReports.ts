@@ -27,10 +27,19 @@ function toRows(columns: ExportColumn[], rows: ExportRow[]): Record<string, stri
 }
 
 /** Excel via SheetJS (.xlsx) — full fidelity, multi-sheet optional */
-export function downloadExcel(filename: string, sheets: { name: string; columns: ExportColumn[]; rows: ExportRow[] }[]) {
+export function downloadExcel(
+  filename: string,
+  sheets: { name: string; columns: ExportColumn[]; rows: ExportRow[] }[],
+  branding?: { companyName?: string; title?: string }
+) {
   const wb = XLSX.utils.book_new();
   for (const sheet of sheets.slice(0, 20)) {
-    const ws = XLSX.utils.json_to_sheet(toRows(sheet.columns, sheet.rows));
+    const body = toRows(sheet.columns, sheet.rows);
+    const head: Record<string, string | number>[] =
+      branding?.companyName || branding?.title
+        ? [{ [sheet.columns[0]?.header ?? 'A']: [branding.companyName, branding.title].filter(Boolean).join(' — ') }]
+        : [];
+    const ws = XLSX.utils.json_to_sheet([...head, ...body]);
     ws['!cols'] = sheet.columns.slice(0, 200).map((c) => ({ wch: Math.min(80, Math.max(10, c.header.length + 4)) }));
     XLSX.utils.book_append_sheet(wb, ws, sheet.name.replace(/[\\/*?:[\]]/g, '_').slice(0, 31) || 'Sheet');
   }
@@ -60,10 +69,15 @@ export function openPrintPDF(opts: {
   columns: ExportColumn[];
   rows: ExportRow[];
   landscape?: boolean;
+  branding?: { companyName?: string; logoDataUrl?: string };
 }) {
   const w = window.open('', '_blank', 'width=1000,height=800');
   if (!w) return;
   const rtl = true;
+  const brand = opts.branding;
+  const logoHtml = brand?.logoDataUrl
+    ? `<img src="${brand.logoDataUrl}" style="height:56px;object-fit:contain;" />`
+    : '';
   w.document.write(`<!DOCTYPE html><html lang="ar" dir="${rtl ? 'rtl' : 'ltr'}"><head><meta charset="utf-8"><title>${opts.title}</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -77,6 +91,7 @@ export function openPrintPDF(opts: {
     .total td { font-weight: 700; background: #eef2f7 !important; }
     @media print { body { padding: 10mm; } }
   </style></head><body>
+  ${brand?.companyName || logoHtml ? `<div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">${logoHtml}<div><div style="font-size:18px;font-weight:800;">${brand?.companyName ?? ''}</div></div></div>` : ''}
   <h1>${opts.title}</h1>
   ${opts.subtitle ? `<div class="sub">${opts.subtitle}</div>` : ''}
   <table><thead><tr>${opts.columns.map((c) => `<th>${c.header}</th>`).join('')}</tr></thead>

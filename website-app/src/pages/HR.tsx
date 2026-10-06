@@ -3,6 +3,7 @@ import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { useLang } from '../context/LangContext';
 import LangSelector from '../components/LangSelector';
+import { useTenant } from '../hooks/useTenant';
 import { downloadExcel, openPrintPDF, type ExportColumn, type ExportRow } from '../lib/exportReports';
 
 /**
@@ -47,20 +48,21 @@ function nameOf(e: any): string {
 
 const DEPTS = ['الإدارة', 'المالية', 'الموارد البشرية', 'المبيعات', 'التشغيل', 'الورشة', 'المخازن', 'المختبر', 'الإنتاج', 'البحث والتطوير'];
 
-function ExportBar({ title, subtitle, fileBase, columns, rows }: {
+function ExportBar({ title, subtitle, fileBase, columns, rows, branding }: {
   title: string; subtitle: string; fileBase: string; columns: ExportColumn[]; rows: ExportRow[];
+  branding?: { companyName?: string; logoDataUrl?: string };
 }) {
   const stamp = new Date().toISOString().slice(0, 10);
   return (
     <div className="flex flex-wrap gap-2">
       <button
-        onClick={() => openPrintPDF({ title, subtitle: `${subtitle} — ${stamp}`, columns, rows })}
+        onClick={() => openPrintPDF({ title, subtitle: `${subtitle} — ${stamp}`, columns, rows, branding })}
         className="text-[11px] font-black rounded-lg px-3 py-1.5 border border-white/15 bg-white/[0.05] text-slate-200 hover:border-sky-400/60"
       >
         🖨️ طباعة / PDF
       </button>
       <button
-        onClick={() => downloadExcel(`${fileBase}-${stamp}`, [{ name: title.slice(0, 31), columns, rows }])}
+        onClick={() => downloadExcel(`${fileBase}-${stamp}`, [{ name: title.slice(0, 31), columns, rows }], branding ? { companyName: branding.companyName, title } : undefined)}
         className="text-[11px] font-black rounded-lg px-3 py-1.5 border border-emerald-500/40 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20"
       >
         📊 إكسل
@@ -73,6 +75,37 @@ export default function HR() {
   const { currentUser } = useAuth();
   const { lang } = useLang();
   const ar = lang === 'ar';
+  const tenant = useTenant();
+  const brandParam = tenant ? { companyName: tenant.companyName, logoDataUrl: tenant.logoUrl ?? undefined } : undefined;
+  const canBrand = currentUser?.role === 'PLANT_MGR' || currentUser?.role === 'SUPER_ADMIN';
+  const [brandingBusy, setBrandingBusy] = useState(false);
+
+  const uploadLogo = async (file: File | undefined) => {
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      setMsg('❌ صورة فقط');
+      return;
+    }
+    if (file.size > 1024 * 1024) {
+      setMsg('❌ الصورة أكبر من 1MB');
+      return;
+    }
+    setBrandingBusy(true);
+    try {
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const r = new FileReader();
+        r.onload = () => resolve(String(r.result));
+        r.onerror = reject;
+        r.readAsDataURL(file);
+      });
+      await api.put('/api/tenant/branding', { logoData: dataUrl });
+      setMsg('✅ تم تحديث شعار الشركة');
+    } catch (e: any) {
+      setMsg(`❌ ${e?.message ?? 'فشل الحفظ'}`);
+    } finally {
+      setBrandingBusy(false);
+    }
+  };
 
   const [tab, setTab] = useState<Tab>('requests');
   const [filter, setFilter] = useState('PENDING');
@@ -433,11 +466,27 @@ export default function HR() {
     <div className="min-h-screen bg-[#080C14] text-slate-200" dir={ar ? 'rtl' : 'ltr'}>
       <div className="max-w-[1200px] mx-auto px-4 sm:px-6 py-6">
         <div className="flex items-start justify-between gap-3">
-          <div>
-            <h1 className="text-xl sm:text-2xl font-black text-white">👔 {ar ? 'الموارد البشرية' : 'Human Resources'}</h1>
-            <p className="text-xs text-slate-500 mt-1">
-              {ar ? 'طلبات الإجازات والسلف • فريق العمل • الحضور • الإعلانات • الرواتب' : 'Leave & advances • team • attendance • broadcasts • payroll'}
-            </p>
+          <div className="flex items-center gap-3">
+            {tenant?.logoUrl ? (
+              <img src={tenant.logoUrl} alt={tenant.companyName} className="w-12 h-12 rounded-xl object-contain bg-white p-1 shadow-lg shrink-0" />
+            ) : (
+              <div className="w-12 h-12 rounded-xl bg-white/10 border border-white/10 flex items-center justify-center text-xl shrink-0">🏢</div>
+            )}
+            <div>
+              <h1 className="text-xl sm:text-2xl font-black text-white">
+                {tenant?.companyName ?? (ar ? 'الموارد البشرية' : 'Human Resources')}
+              </h1>
+              <p className="text-xs text-slate-500 mt-1">
+                {ar ? 'الموارد البشرية • طلبات الإجازات والسلف • فريق العمل • الحضور • الإعلانات • الرواتب' : 'HR • Leave & advances • team • attendance • broadcasts • payroll'}
+              </p>
+              {canBrand && (
+                <label className={`inline-block mt-1 text-[11px] font-black rounded-lg px-2 py-1 border cursor-pointer ${brandingBusy ? 'opacity-50' : 'border-white/15 bg-white/[0.05] text-slate-300 hover:border-sky-400/60'}`}>
+                  🖼️ {brandingBusy ? '…' : (ar ? 'تغيير شعار الشركة' : 'Change logo')}
+                  <input type="file" accept="image/*" className="hidden" disabled={brandingBusy}
+                    onChange={(e) => { uploadLogo(e.target.files?.[0]); e.target.value = ''; }} />
+                </label>
+              )}
+            </div>
           </div>
           <LangSelector />
         </div>
@@ -479,6 +528,7 @@ export default function HR() {
                   { header: 'الحالة', key: 'status' },
                   { header: 'التفاصيل', key: 'detail' },
                 ]}
+                branding={brandParam}
                 rows={requests.map((r) => ({
                   name: nameOf(r), code: r.employeeCode ?? '',
                   type: TYPE_AR[r.type] ?? r.type, status: STATUS_AR[r.status] ?? r.status,
@@ -562,6 +612,7 @@ export default function HR() {
                   { header: 'المسمى', key: 'title' },
                   { header: 'القسم', key: 'dept' },
                 ]}
+                branding={brandParam}
                 rows={team.map((e) => ({
                   name: nameOf(e), code: e.employeeCode ?? '',
                   title: e.role ?? e.jobTitle ?? '', dept: e.department ?? '',
@@ -737,6 +788,7 @@ export default function HR() {
                   { header: 'التاريخ', key: 'date' },
                   { header: 'ساعات العمل', key: 'hours' },
                 ]}
+                branding={brandParam}
                 rows={attRows.map((r) => ({
                   name: r.fullName ?? r.name ?? '',
                   date: r.workDate ?? r.date ?? '',
