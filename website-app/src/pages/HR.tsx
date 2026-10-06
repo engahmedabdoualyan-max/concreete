@@ -873,6 +873,13 @@ export default function HR() {
   const toggleModule = async (key: string) => {
     const next = { ...modules, [key]: !(modules[key] !== false) };
     setModules(next);
+    if (next[key] === false) {
+      const tabMod: Record<string, string> = { requests: 'requests', team: 'team', attendance: 'attendance', broadcasts: 'broadcasts', payroll: 'payroll', actions: 'actions', investigations: 'investigations', custody: 'custody', vehicles: 'vehicles', deductions: 'deductions', company: 'company', petty: 'petty', leave: 'leaveBalances', vlog: 'vehicleLog', overtime: 'overtime', expenses: 'expenses', org: 'org', tree: 'tree' };
+      if (tabMod[tab] === key) {
+        const fallback = (['requests', 'team', 'leave', 'vlog', 'overtime', 'expenses', 'attendance', 'broadcasts', 'payroll', 'actions', 'investigations', 'custody', 'vehicles', 'deductions', 'company', 'petty', 'org', 'tree'] as Tab[]).find((t) => (tabMod[t] ? next[tabMod[t]] !== false : true));
+        if (fallback) setTab(fallback);
+      }
+    }
     try {
       await api.put('/api/hr/settings', { modules: { [key]: next[key] } });
       setMsg(next[key] ? '✅ تم تفعيل الوحدة' : '⏸ تم إيقاف الوحدة');
@@ -1141,20 +1148,20 @@ export default function HR() {
   const [modules, setModules] = useState<Record<string, boolean>>({ leaveBalances: true, vehicleLog: true, overtime: true, expenses: true });
 
   const tabs: Array<{ id: Tab; ar: string; en: string; mod?: string }> = [
-    { id: 'requests', ar: '📥 الطلبات', en: 'Requests' },
-    { id: 'team', ar: '👥 فريق العمل', en: 'Team' },
-    { id: 'attendance', ar: '🕐 الحضور', en: 'Attendance' },
-    { id: 'broadcasts', ar: '📢 الإعلانات', en: 'Broadcasts' },
-    { id: 'payroll', ar: '💰 الرواتب', en: 'Payroll' },
-    { id: 'actions', ar: '⚖️ الجزاءات والمكافآت', en: 'Actions' },
-    { id: 'investigations', ar: '🔍 التحقيقات', en: 'Investigations' },
-    { id: 'custody', ar: '🎒 العهد', en: 'Custody' },
-    { id: 'vehicles', ar: '🚛 المركبات والمخالفات', en: 'Vehicles' },
-    { id: 'deductions', ar: '🧾 كشف الخصومات', en: 'Deductions' },
-    { id: 'company', ar: '📂 أوراق الشركة', en: 'Company docs' },
-    { id: 'petty', ar: '💰 العهدة المالية', en: 'Petty cash' },
-    { id: 'org', ar: '🏢 الهيكل الوظيفي', en: 'Org chart' },
-    { id: 'tree', ar: '🌳 حسابات الدخول', en: 'Login tree' },
+    { id: 'requests', ar: '📥 الطلبات', en: 'Requests', mod: 'requests' },
+    { id: 'team', ar: '👥 فريق العمل', en: 'Team', mod: 'team' },
+    { id: 'attendance', ar: '🕐 الحضور', en: 'Attendance', mod: 'attendance' },
+    { id: 'broadcasts', ar: '📢 الإعلانات', en: 'Broadcasts', mod: 'broadcasts' },
+    { id: 'payroll', ar: '💰 الرواتب', en: 'Payroll', mod: 'payroll' },
+    { id: 'actions', ar: '⚖️ الجزاءات والمكافآت', en: 'Actions', mod: 'actions' },
+    { id: 'investigations', ar: '🔍 التحقيقات', en: 'Investigations', mod: 'investigations' },
+    { id: 'custody', ar: '🎒 العهد', en: 'Custody', mod: 'custody' },
+    { id: 'vehicles', ar: '🚛 المركبات والمخالفات', en: 'Vehicles', mod: 'vehicles' },
+    { id: 'deductions', ar: '🧾 كشف الخصومات', en: 'Deductions', mod: 'deductions' },
+    { id: 'company', ar: '📂 أوراق الشركة', en: 'Company docs', mod: 'company' },
+    { id: 'petty', ar: '💰 العهدة المالية', en: 'Petty cash', mod: 'petty' },
+    { id: 'org', ar: '🏢 الهيكل الوظيفي', en: 'Org chart', mod: 'org' },
+    { id: 'tree', ar: '🌳 حسابات الدخول', en: 'Login tree', mod: 'tree' },
     { id: 'leave', ar: '🏖️ الأرصدة', en: 'Balances', mod: 'leaveBalances' },
     { id: 'vlog', ar: '⛽ سجل المركبات', en: 'Logbook', mod: 'vehicleLog' },
     { id: 'overtime', ar: '⏰ الإضافي', en: 'Overtime', mod: 'overtime' },
@@ -1163,7 +1170,12 @@ export default function HR() {
   ];
 
   const MOD_AR: Record<string, string> = {
-    leaveBalances: 'أرصدة الإجازات', vehicleLog: 'سجل المركبات', overtime: 'الأجر الإضافي', expenses: 'مطالبات المصاريف',
+    requests: 'الطلبات', team: 'فريق العمل', attendance: 'الحضور والتقارير',
+    broadcasts: 'الإعلانات', payroll: 'الرواتب', actions: 'الجزاءات والمكافآت',
+    investigations: 'التحقيقات', custody: 'العهد', vehicles: 'المركبات والمخالفات',
+    deductions: 'كشف الخصومات', company: 'أوراق الشركة', petty: 'العهدة المالية',
+    leaveBalances: 'أرصدة الإجازات', vehicleLog: 'سجل المركبات', overtime: 'الأجر الإضافي',
+    expenses: 'مطالبات المصاريف', org: 'الهيكل الوظيفي', tree: 'حسابات الدخول',
   };
 
   const team = employees.filter((e) => {

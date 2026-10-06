@@ -23,7 +23,11 @@ export const dynamic = "force-dynamic";
  *  never renders. Stored in tenants.settings.hrModules — no migration.
  */
 
-const MODULES = ["leaveBalances", "vehicleLog", "overtime", "expenses"] as const;
+const MODULES = [
+  "requests", "team", "attendance", "broadcasts", "payroll", "actions",
+  "investigations", "custody", "vehicles", "deductions", "company", "petty",
+  "leaveBalances", "vehicleLog", "overtime", "expenses", "org", "tree",
+] as const;
 type ModuleKey = (typeof MODULES)[number];
 
 const SettingsSchema = z.object({
@@ -38,12 +42,8 @@ export async function GET(req: NextRequest) {
     .from(tenants)
     .where(eq(tenants.id, auth.user.tenantId));
   const stored = ((rows[0]?.settings as Record<string, unknown>)?.hrModules ?? {}) as Record<string, boolean>;
-  const modules: Record<ModuleKey, boolean> = {
-    leaveBalances: stored.leaveBalances ?? true,
-    vehicleLog: stored.vehicleLog ?? true,
-    overtime: stored.overtime ?? true,
-    expenses: stored.expenses ?? true,
-  };
+  const modules: Record<string, boolean> = {};
+  for (const m of MODULES) modules[m] = stored[m] ?? true;
   return successResponse({ modules });
 }
 
