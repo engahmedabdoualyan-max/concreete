@@ -4,6 +4,10 @@ import { useAuth } from '../context/AuthContext';
 import { useLang } from '../context/LangContext';
 import LangSelector from '../components/LangSelector';
 import { useTenant } from '../hooks/useTenant';
+import { TREE_ROLES } from '../lib/treeRoles';
+import { hashPassword } from '../lib/passwords';
+import { loadCompanyTree, saveCompanyTree, saveAppAccount, deleteAppAccount, type CompanyTree } from '../firebase/firestore';
+import * as XLSX from 'xlsx';
 import { downloadExcel, openPrintPDF, type ExportColumn, type ExportRow } from '../lib/exportReports';
 
 /**
@@ -14,7 +18,7 @@ import { downloadExcel, openPrintPDF, type ExportColumn, type ExportRow } from '
  * (HR_READ / HR_WRITE); every tab degrades independently.
  */
 
-type Tab = 'requests' | 'team' | 'attendance' | 'broadcasts' | 'payroll' | 'actions' | 'investigations' | 'custody' | 'vehicles' | 'deductions' | 'company' | 'leave' | 'vlog' | 'overtime' | 'expenses' | 'modules' | 'org';
+type Tab = 'requests' | 'team' | 'attendance' | 'broadcasts' | 'payroll' | 'actions' | 'investigations' | 'custody' | 'vehicles' | 'deductions' | 'company' | 'leave' | 'vlog' | 'overtime' | 'expenses' | 'modules' | 'org' | 'tree';
 
 const COUNTRIES = [
   { code: 'SA', ar: 'السعودية', flag: '🇸🇦' }, { code: 'EG', ar: 'مصر', flag: '🇪🇬' },
@@ -179,6 +183,17 @@ export default function HR() {
   const [showCdocForm, setShowCdocForm] = useState(false);
   const [cdocForm, setCdocForm] = useState({ title: '', kind: 'COMMERCIAL_REG', expiryDate: '' });
   const [uploadingCdoc, setUploadingCdoc] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [importPreview, setImportPreview] = useState<{ code: string; datetime: string }[] | null>(null);
+  // Login-tree accounts (Android app logins). Second-password gate below is
+  // a UI curtain for a sensitive area — writes go through the same Firestore
+  // path and rules as the Console, which remain the real enforcement.
+  const [treeUnlocked, setTreeUnlocked] = useState(false);
+  const [treePass, setTreePass] = useState('');
+  const [treeCompany, setTreeCompany] = useState('');
+  const [treeAccounts, setTreeAccounts] = useState<any[]>([]);
+  const [treeForm, setTreeForm] = useState({ email: '', phone: '', role: '', password: '' });
+  const [editingTree, setEditingTree] = useState<number | null>(null);
   const [now, setNow] = useState(() => new Date());
 
   useEffect(() => {
@@ -466,6 +481,193 @@ export default function HR() {
       await load();
     } catch (e: any) {
       setMsg(`❌ ${e?.message ?? 'فشل الحذف'}`);
+    }
+  };
+
+  /** Parse a fingerprint/Excel export into {code, datetime} rows. Handles
+   *  Arabic + English headers (كود/code/id, تاريخ/date, وقت/time) and
+   *  headerless files (col0=code, col1=date, col2=time?). */
+  const parseImportFile = async (file: File | undefined) => {
+    if (!file) return;
+    setImporting(true);
+    setImportPreview(null);
+    try {
+      const buf = await file.arrayBuffer();
+      const wb = XLSX.read(buf, { type: 'array', cellDates: true });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      if (!ws) throw new Error('empty');
+      const grid = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, raw: true, defval: '' }) as unknown[][];
+      const norm = (v: unknown) => String(v ?? '').trim();
+      const isCodeH = (s: string) => /^(كود|الكود|code|id|emp|موظف|رقم)/i.test(s);
+      const isDateH = (s: string) => /(تاريخ|date|يوم|day)/i.test(s);
+      const isTimeH = (s: string) => /(وقت|time|ساعة)/i.test(s);
+      let start = 0;
+      let ci = 0;
+      let di = 1;
+      let ti = 2;
+      const head = grid[0].map(norm);
+      if (head.some((h) => isCodeH(h) || isDateH(h))) {
+        start = 1;
+        head.forEach((h, i) => {
+          if (isCodeH(h)) ci = i;
+          else if (isDateH(h)) di = i;
+          else if (isTimeH(h)) ti = i;
+        });
+        if (!head.some(isTimeH)) ti = -1;
+      } else {
+        ti = grid[0].length > 2 ? 2 : -1;
+      }
+      const cellDate = (v: unknown): string => {
+        if (v instanceof Date && !Number.isNaN(+v)) return v.toISOString();
+        const s = norm(v).replace(/\//g, '-');
+        const d = new Date(s.length <= 10 ? `${s}T00:00:00` : s);
+        return Number.isNaN(+d) ? '' : d.toISOString();
+      };
+      const out: { code: string; datetime: string }[] = [];
+      for (const row of grid.slice(start)) {
+        const code = norm(row[ci]);
+        if (!code) continue;
+        let dt = cellDate(row[di]);
+        if (!dt) continue;
+        if (ti >= 0 && norm(row[ti])) {
+          const t = norm(row[ti]);
+          const base = dt.slice(0, 10);
+          const full = new Date(`${base}T${t.length <= 5 ? t + ':00' : t}`);
+          if (!Number.isNaN(+full)) dt = full.toISOString();
+        }
+        out.push({ code, datetime: dt });
+        if (out.length >= 2000) break;
+      }
+      if (out.length === 0) throw new Error('empty');
+      setImportPreview(out);
+      setMsg(`📄 ${out.length} ${ar ? 'بصمة جاهزة للمراجعة' : 'punches ready to review'}`);
+    } catch {
+      setMsg('❌ تعذر قراءة الملف — CSV أو Excel بأعمدة الكود والتاريخ');
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  const confirmImport = async () => {
+    if (!importPreview?.length) return;
+    setImporting(true);
+    try {
+      const res = await api.post<{ imported?: number; filled?: number; skippedUnknown?: string[]; days?: number }>('/api/hr/attendance/import', {
+        rows: importPreview,
+      });
+      setMsg(`✅ ${ar ? 'استيراد' : 'Imported'}: ${res?.imported ?? 0} ${ar ? 'يوم' : 'days'} + ${res?.filled ?? 0} ${ar ? 'استكمال' : 'filled'}${(res?.skippedUnknown?.length ?? 0) ? ` — ⚠️ ${ar ? 'غير معروف' : 'unknown'}: ${(res?.skippedUnknown ?? []).slice(0, 5).join('، ')}` : ''}`);
+      setImportPreview(null);
+      await load();
+    } catch (e: any) {
+      setMsg(`❌ ${e?.message ?? 'فشل الاستيراد'}`);
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  const unlockTree = () => {
+    if (treePass.trim() === '01001006627') {
+      setTreeUnlocked(true);
+      setTreePass('');
+      setMsg('✅ تم فتح حسابات الدخول');
+      const def = tenant?.code?.toLowerCase?.() ?? '';
+      if (def && !treeCompany) {
+        setTreeCompany(def);
+        loadTree(def);
+      }
+    } else {
+      setMsg('❌ الرقم غير صحيح');
+    }
+  };
+
+  const loadTree = async (company?: string) => {
+    const uname = (company ?? treeCompany).trim().toLowerCase();
+    if (!uname) {
+      setMsg('❌ اكتب اسم الشركة');
+      return;
+    }
+    setBusy('tree');
+    try {
+      const t: CompanyTree | null = await loadCompanyTree(uname);
+      setTreeAccounts(Array.isArray(t?.accounts) ? t.accounts : []);
+      if (!t) setMsg('ℹ️ لا شجرة بهذا الاسم — احفظ حساباً لإنشائها');
+    } catch (e: any) {
+      setMsg(`❌ ${e?.message ?? 'فشل التحميل'}`);
+    } finally {
+      setBusy('');
+    }
+  };
+
+  const saveTreeAccount = async () => {
+    const loginId = (treeForm.email || treeForm.phone).trim().toLowerCase();
+    if (!treeCompany.trim() || !loginId || !treeForm.role) {
+      setMsg('❌ الشركة والحساب والدور مطلوبة');
+      return;
+    }
+    setBusy('treesave');
+    try {
+      const roleDef = TREE_ROLES.find((r) => r.key === treeForm.role);
+      const prev = editingTree !== null ? treeAccounts[editingTree] : null;
+      const passwordHash =
+        treeForm.password.trim() !== ''
+          ? await hashPassword(loginId, treeForm.password.trim())
+          : prev?.passwordHash || '';
+      const acc = {
+        email: treeForm.email.trim().toLowerCase() || loginId,
+        phone: treeForm.phone.trim(),
+        role: treeForm.role,
+        roleAr: roleDef?.ar ?? treeForm.role,
+        permissions: roleDef?.perms ?? [],
+        mods: roleDef?.mods ?? [],
+        password: '',
+        passwordHash,
+        truck: prev?.truck ?? '',
+        gps: prev?.gps ?? '',
+      };
+      const next = [...treeAccounts];
+      if (editingTree !== null) next[editingTree] = { ...prev, ...acc };
+      else next.push(acc);
+      const uname = treeCompany.trim().toLowerCase();
+      await saveCompanyTree({ companyUsername: uname, accounts: next } as CompanyTree);
+      await saveAppAccount({
+        username: loginId,
+        password: '',
+        passwordHash,
+        plantName: uname,
+        phone: acc.phone,
+        email: acc.email,
+        status: 'APP_ACCOUNT',
+        role: acc.role,
+        roleAr: acc.roleAr,
+        permissions: acc.permissions,
+        mods: acc.mods,
+      } as any);
+      setMsg('✅ تم الحفظ');
+      setTreeForm({ email: '', phone: '', role: '', password: '' });
+      setEditingTree(null);
+      setTreeAccounts(next);
+    } catch (e: any) {
+      setMsg(`❌ ${e?.message ?? 'فشل الحفظ'}`);
+    } finally {
+      setBusy('');
+    }
+  };
+
+  const delTreeAccount = async (idx: number) => {
+    const acc = treeAccounts[idx];
+    if (!acc) return;
+    if (!window.confirm(`حذف ${acc.email || acc.phone}؟`)) return;
+    setBusy('treedel' + idx);
+    try {
+      const next = treeAccounts.filter((_, i) => i !== idx);
+      await saveCompanyTree({ companyUsername: treeCompany.trim().toLowerCase(), accounts: next } as CompanyTree);
+      await deleteAppAccount(acc.email || acc.phone || '');
+      setMsg('✅ تم الحذف');
+      setTreeAccounts(next);
+    } catch (e: any) {
+      setMsg(`❌ ${e?.message ?? 'فشل الحذف'}`);
+    } finally {
+      setBusy('');
     }
   };
 
@@ -871,6 +1073,7 @@ export default function HR() {
     { id: 'deductions', ar: '🧾 كشف الخصومات', en: 'Deductions' },
     { id: 'company', ar: '📂 أوراق الشركة', en: 'Company docs' },
     { id: 'org', ar: '🏢 الهيكل الوظيفي', en: 'Org chart' },
+    { id: 'tree', ar: '🌳 حسابات الدخول', en: 'Login tree' },
     { id: 'leave', ar: '🏖️ الأرصدة', en: 'Balances', mod: 'leaveBalances' },
     { id: 'vlog', ar: '⛽ سجل المركبات', en: 'Logbook', mod: 'vehicleLog' },
     { id: 'overtime', ar: '⏰ الإضافي', en: 'Overtime', mod: 'overtime' },
@@ -931,6 +1134,9 @@ export default function HR() {
               <h1 className="text-xl sm:text-2xl font-black text-white">
                 {tenant?.companyName ?? (ar ? 'الموارد البشرية' : 'Human Resources')}
               </h1>
+              {tenant?.plantName && (
+                <p className="text-xs text-sky-300 font-bold mt-0.5">🏭 {tenant.plantName}</p>
+              )}
               <p className="text-xs text-slate-500 mt-1">
                 {ar ? 'الموارد البشرية • طلبات الإجازات والسلف • فريق العمل • الحضور • الإعلانات • الرواتب' : 'HR • Leave & advances • team • attendance • broadcasts • payroll'}
               </p>
@@ -1241,6 +1447,11 @@ export default function HR() {
         {tab === 'attendance' && (
           <div className="mt-4">
             <div className="flex flex-wrap items-center gap-2 mb-3">
+              <label className={`text-[11px] font-black rounded-lg px-3 py-1.5 border cursor-pointer ${importing ? 'opacity-50' : 'border-violet-500/50 bg-violet-500/15 text-violet-300 hover:bg-violet-500/25'}`}>
+                📤 {importing ? '…' : (ar ? 'استيراد بصمة / إكسل' : 'Import')}
+                <input type="file" accept=".csv,.xlsx,.xls" className="hidden" disabled={importing}
+                  onChange={(e) => { parseImportFile(e.target.files?.[0]); e.target.value = ''; }} />
+              </label>
               <label className="text-[11px] text-slate-400 font-bold">{ar ? 'من' : 'From'}</label>
               <input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)}
                 className="bg-white/[0.04] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" />
@@ -1265,6 +1476,23 @@ export default function HR() {
               />
             </div>
             {attRows.length === 0 && <p className="text-xs text-slate-500">{ar ? 'لا سجلات حضور.' : 'No attendance records.'}</p>}
+            {importPreview && (
+              <div className="rounded-2xl border border-violet-500/40 bg-violet-500/[0.07] p-3 mb-3">
+                <p className="text-xs font-black text-violet-200 mb-1">
+                  📄 {importPreview.length} {ar ? 'بصمة — أول 5 للمراجعة:' : 'punches, first 5:'}
+                </p>
+                {importPreview.slice(0, 5).map((p, i) => (
+                  <p key={i} className="text-[11px] text-slate-300 font-mono">{p.code} · {p.datetime.slice(0, 16).replace('T', ' ')}</p>
+                ))}
+                <div className="flex gap-2 mt-2">
+                  <button disabled={importing} onClick={confirmImport}
+                    className="text-[11px] font-black rounded-lg px-4 py-1.5 bg-violet-500 hover:bg-violet-400 disabled:opacity-50 text-white">
+                    {importing ? '…' : `✅ ${ar ? 'تأكيد الاستيراد' : 'Confirm'}`}
+                  </button>
+                  <button onClick={() => setImportPreview(null)} className="text-[11px] text-slate-400 px-2">{ar ? 'إلغاء' : 'Cancel'}</button>
+                </div>
+              </div>
+            )}
             <div className="space-y-2">
               {attRows.slice(0, 60).map((r, i) => (
                 <div key={i} className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 flex items-center justify-between text-xs">
@@ -2109,6 +2337,80 @@ export default function HR() {
               </div>
               {employees.length === 0 && <p className="text-xs text-slate-500 mt-3">{ar ? 'لا بيانات فريق.' : 'No team data.'}</p>}
             </div>
+          </div>
+        )}
+
+        {/* ===== login tree: Android app accounts (second-password gate) ===== */}
+        {tab === 'tree' && (
+          <div className="mt-4">
+            {!treeUnlocked ? (
+              <div className="max-w-md rounded-2xl border border-yellow-500/40 bg-yellow-500/[0.06] p-5">
+                <h3 className="text-sm font-black text-yellow-300">🔒 {ar ? 'منطقة حساسة — أدخل الرقم الثاني' : 'Restricted area'}</h3>
+                <p className="text-[11px] text-slate-400 mt-1">{ar ? 'حسابات دخول الأندرويد — للموارد البشرية فقط.' : 'Android login accounts.'}</p>
+                <div className="flex gap-2 mt-3">
+                  <input value={treePass} onChange={(e) => setTreePass(e.target.value)} inputMode="tel"
+                    onKeyDown={(e) => { if (e.key === 'Enter') unlockTree(); }}
+                    placeholder={ar ? 'الرقم الثاني' : 'Second password'}
+                    className="flex-1 bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" />
+                  <button onClick={unlockTree} className="text-[11px] font-black rounded-lg px-4 py-1.5 bg-yellow-500/20 border border-yellow-500/50 text-yellow-200">
+                    {ar ? 'فتح' : 'Unlock'}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div>
+                <div className="flex flex-wrap items-center gap-2 mb-3">
+                  <label className="text-[11px] text-slate-400 font-bold">{ar ? 'الشركة' : 'Company'}
+                    <input value={treeCompany} onChange={(e) => setTreeCompany(e.target.value)}
+                      className="mt-0.5 block bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none min-w-[160px]" /></label>
+                  <button disabled={busy === 'tree'} onClick={() => loadTree()}
+                    className="self-end text-[11px] font-black rounded-lg px-4 py-1.5 border border-sky-500/50 bg-sky-500/15 text-sky-300 disabled:opacity-50">
+                    {busy === 'tree' ? '…' : (ar ? 'تحميل الحسابات' : 'Load')}
+                  </button>
+                  <button onClick={() => { setTreeForm({ email: '', phone: '', role: '', password: '' }); setEditingTree(null); }}
+                    className="self-end text-[11px] font-black rounded-lg px-3 py-1.5 border border-white/15 text-slate-300">
+                    ➕ {ar ? 'حساب جديد' : 'New'}
+                  </button>
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-3 mb-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+                    <label className="text-[11px] text-slate-400 font-bold">{ar ? 'الإيميل / الدخول' : 'Login'}
+                      <input value={treeForm.email} onChange={(e) => setTreeForm({ ...treeForm, email: e.target.value })}
+                        className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
+                    <label className="text-[11px] text-slate-400 font-bold">{ar ? 'الجوال' : 'Phone'}
+                      <input value={treeForm.phone} onChange={(e) => setTreeForm({ ...treeForm, phone: e.target.value })} inputMode="tel"
+                        className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
+                    <label className="text-[11px] text-slate-400 font-bold">{ar ? 'الدور' : 'Role'}
+                      <select value={treeForm.role} onChange={(e) => setTreeForm({ ...treeForm, role: e.target.value })}
+                        className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none">
+                        <option value="">—</option>
+                        {TREE_ROLES.map((r) => <option key={r.key} value={r.key}>{r.ar}</option>)}
+                      </select></label>
+                    <label className="text-[11px] text-slate-400 font-bold">{ar ? 'كلمة سر جديدة (فاضية = إبقاء)' : 'New password'}
+                      <input type="password" value={treeForm.password} onChange={(e) => setTreeForm({ ...treeForm, password: e.target.value })}
+                        className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
+                  </div>
+                  <button disabled={busy === 'treesave'} onClick={saveTreeAccount}
+                    className="mt-2 bg-sky-500 hover:bg-sky-400 disabled:opacity-50 text-white text-xs font-black rounded-lg px-6 py-2">
+                    {busy === 'treesave' ? '…' : `✅ ${editingTree !== null ? (ar ? 'حفظ التعديل' : 'Save') : (ar ? 'إضافة' : 'Add')}`}
+                  </button>
+                </div>
+                {treeAccounts.length === 0 && <p className="text-xs text-slate-500">{ar ? 'لا حسابات.' : 'No accounts.'}</p>}
+                <div className="space-y-1">
+                  {treeAccounts.map((a, i) => (
+                    <div key={i} className="flex items-center justify-between text-xs border-b border-white/5 py-1.5">
+                      <span className="font-bold text-slate-200">{a.email || a.phone} <span className="text-slate-500">· {a.roleAr ?? a.role}</span></span>
+                      <span className="flex gap-1 shrink-0">
+                        <button onClick={() => { setEditingTree(i); setTreeForm({ email: a.email ?? '', phone: a.phone ?? '', role: a.role ?? '', password: '' }); }}
+                          className="text-[10px] font-black rounded px-2 py-1 border border-sky-500/40 text-sky-300">✏️</button>
+                        <button disabled={busy === 'treedel' + i} onClick={() => delTreeAccount(i)}
+                          className="text-[10px] font-black rounded px-2 py-1 border border-red-500/40 text-red-300 disabled:opacity-50">🗑️</button>
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>

@@ -4,6 +4,7 @@ import { api } from '../api/client';
 export interface TenantBranding {
   code: string;
   companyName: string;
+  plantName?: string | null;
   logoUrl: string | null;
 }
 

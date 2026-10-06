@@ -36,6 +36,7 @@ export async function GET(req: NextRequest) {
     .select({
       code: tenants.tenantCode,
       companyName: tenants.companyName,
+      plantName: tenants.primaryPlantName,
       logoUrl: tenants.logoUrl,
     })
     .from(tenants)
@@ -78,6 +79,6 @@ export async function PUT(req: NextRequest) {
     .update(tenants)
     .set(patch)
     .where(eq(tenants.id, auth.user.tenantId))
-    .returning({ code: tenants.tenantCode, companyName: tenants.companyName, logoUrl: tenants.logoUrl });
+    .returning({ code: tenants.tenantCode, companyName: tenants.companyName, plantName: tenants.primaryPlantName, logoUrl: tenants.logoUrl });
   return successResponse({ branding: updated }, "تم حفظ بيانات الشركة");
 }
