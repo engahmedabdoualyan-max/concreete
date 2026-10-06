@@ -3,6 +3,7 @@ import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { useLang } from '../context/LangContext';
 import LangSelector from '../components/LangSelector';
+import { downloadExcel, openPrintPDF, type ExportColumn, type ExportRow } from '../lib/exportReports';
 
 /**
  * HR — منظومة الموارد البشرية (مدير الـHR).
@@ -21,6 +22,28 @@ function nameOf(e: any): string {
   return e.fullName ?? e.full_name ?? e.name ?? e.email ?? e.employeeCode ?? '—';
 }
 
+function ExportBar({ title, subtitle, fileBase, columns, rows }: {
+  title: string; subtitle: string; fileBase: string; columns: ExportColumn[]; rows: ExportRow[];
+}) {
+  const stamp = new Date().toISOString().slice(0, 10);
+  return (
+    <div className="flex flex-wrap gap-2">
+      <button
+        onClick={() => openPrintPDF({ title, subtitle: `${subtitle} — ${stamp}`, columns, rows })}
+        className="text-[11px] font-black rounded-lg px-3 py-1.5 border border-white/15 bg-white/[0.05] text-slate-200 hover:border-sky-400/60"
+      >
+        🖨️ طباعة / PDF
+      </button>
+      <button
+        onClick={() => downloadExcel(`${fileBase}-${stamp}`, [{ name: title.slice(0, 31), columns, rows }])}
+        className="text-[11px] font-black rounded-lg px-3 py-1.5 border border-emerald-500/40 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20"
+      >
+        📊 إكسل
+      </button>
+    </div>
+  );
+}
+
 export default function HR() {
   const { currentUser } = useAuth();
   const { lang } = useLang();
@@ -32,16 +55,13 @@ export default function HR() {
   const [employees, setEmployees] = useState<any[]>([]);
   const [search, setSearch] = useState('');
   const [attRows, setAttRows] = useState<any[]>([]);
-  const [attRange] = useState(() => {
-    const to = new Date().toISOString().slice(0, 10);
-    const from = new Date(Date.now() - 6 * 864e5).toISOString().slice(0, 10);
-    return { from, to };
-  });
   const [casts, setCasts] = useState<any[]>([]);
   const [runs, setRuns] = useState<any[]>([]);
   const [note, setNote] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState('');
   const [msg, setMsg] = useState('');
+  const [fromDate, setFromDate] = useState(() => new Date(Date.now() - 6 * 864e5).toISOString().slice(0, 10));
+  const [toDate, setToDate] = useState(() => new Date().toISOString().slice(0, 10));
 
   const load = useCallback(async () => {
     try {
@@ -53,7 +73,7 @@ export default function HR() {
       setEmployees(Array.isArray(e?.employees) ? e.employees : []);
     } catch { setEmployees([]); }
     try {
-      const a = await api.get<any[]>(`/api/hr/attendance?from=${attRange.from}&to=${attRange.to}`);
+      const a = await api.get<any[]>(`/api/hr/attendance?from=${fromDate}&to=${toDate}`);
       setAttRows(Array.isArray(a) ? a : (a as any)?.rows ?? []);
     } catch { setAttRows([]); }
     try {
@@ -64,15 +84,14 @@ export default function HR() {
       const p = await api.get<{ runs?: any[] }>('/api/hr/payroll/runs');
       setRuns(Array.isArray(p?.runs) ? p.runs : []);
     } catch { setRuns([]); }
-  }, [filter, attRange]);
+  }, [filter, fromDate, toDate]);
 
   useEffect(() => {
     if (!currentUser) return;
     load();
   }, [currentUser, load]);
 
-  const review = async (id: string, decision: 'APPROVED' | 'REJECTED') => {
-    setBusy(id + decision);
+  const review = async (id: string, decision: 'APPROVED' | 'REJECTED') => {    setBusy(id + decision);
     setMsg('');
     try {
       await api.post(`/api/hr/requests/${id}/review`, { decision, reviewNote: note[id] || undefined });
@@ -137,13 +156,32 @@ export default function HR() {
         {/* ===== requests ===== */}
         {tab === 'requests' && (
           <div className="mt-4">
-            <div className="flex gap-2 mb-3">
-              {['PENDING', 'APPROVED', 'REJECTED', 'ALL'].map((f) => (
-                <button key={f} onClick={() => setFilter(f)}
-                  className={`text-[11px] font-black rounded-lg px-3 py-1.5 border ${filter === f ? 'bg-white text-black border-white' : 'text-slate-400 border-white/10'}`}>
-                  {STATUS_AR[f] ?? f}
-                </button>
-              ))}
+            <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+              <div className="flex gap-2">
+                {['PENDING', 'APPROVED', 'REJECTED', 'ALL'].map((f) => (
+                  <button key={f} onClick={() => setFilter(f)}
+                    className={`text-[11px] font-black rounded-lg px-3 py-1.5 border ${filter === f ? 'bg-white text-black border-white' : 'text-slate-400 border-white/10'}`}>
+                    {STATUS_AR[f] ?? f}
+                  </button>
+                ))}
+              </div>
+              <ExportBar
+                title={ar ? 'طلبات الموارد البشرية' : 'HR requests'}
+                subtitle={`${STATUS_AR[filter] ?? filter}`}
+                fileBase="hr-requests"
+                columns={[
+                  { header: 'الموظف', key: 'name' },
+                  { header: 'الكود', key: 'code' },
+                  { header: 'النوع', key: 'type' },
+                  { header: 'الحالة', key: 'status' },
+                  { header: 'التفاصيل', key: 'detail' },
+                ]}
+                rows={requests.map((r) => ({
+                  name: nameOf(r), code: r.employeeCode ?? '',
+                  type: TYPE_AR[r.type] ?? r.type, status: STATUS_AR[r.status] ?? r.status,
+                  detail: [r.amountSar ? `${r.amountSar} ر.س` : '', r.daysCount ? `${r.daysCount} يوم` : '', r.reason ?? ''].filter(Boolean).join(' · '),
+                }))}
+              />
             </div>
             {requests.length === 0 && <p className="text-xs text-slate-500">{ar ? 'لا طلبات.' : 'No requests.'}</p>}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -188,9 +226,26 @@ export default function HR() {
         {/* ===== team ===== */}
         {tab === 'team' && (
           <div className="mt-4">
-            <input value={search} onChange={(e) => setSearch(e.target.value)}
-              placeholder={ar ? '🔍 بحث بالاسم / الكود / الجوال…' : 'Search name / code / phone…'}
-              className="w-full max-w-md bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2 text-sm text-white outline-none mb-3" />
+            <div className="flex flex-wrap items-center gap-2 mb-3">
+              <input value={search} onChange={(e) => setSearch(e.target.value)}
+                placeholder={ar ? '🔍 بحث بالاسم / الكود / الجوال…' : 'Search name / code / phone…'}
+                className="flex-1 min-w-[200px] max-w-md bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2 text-sm text-white outline-none" />
+              <ExportBar
+                title={ar ? 'فريق العمل' : 'Team'}
+                subtitle={`${team.length} ${ar ? 'موظف' : 'employees'}`}
+                fileBase="hr-team"
+                columns={[
+                  { header: 'الاسم', key: 'name' },
+                  { header: 'الكود', key: 'code' },
+                  { header: 'المسمى', key: 'title' },
+                  { header: 'القسم', key: 'dept' },
+                ]}
+                rows={team.map((e) => ({
+                  name: nameOf(e), code: e.employeeCode ?? '',
+                  title: e.role ?? e.jobTitle ?? '', dept: e.department ?? '',
+                }))}
+              />
+            </div>
             <p className="text-[11px] text-slate-500 mb-2">{team.length} {ar ? 'موظف' : 'employees'}</p>
             {team.length === 0 && <p className="text-xs text-slate-500">{ar ? 'لا بيانات فريق.' : 'No team data.'}</p>}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -214,7 +269,29 @@ export default function HR() {
         {/* ===== attendance ===== */}
         {tab === 'attendance' && (
           <div className="mt-4">
-            <p className="text-[11px] text-slate-500 mb-2">{attRange.from} → {attRange.to}</p>
+            <div className="flex flex-wrap items-center gap-2 mb-3">
+              <label className="text-[11px] text-slate-400 font-bold">{ar ? 'من' : 'From'}</label>
+              <input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)}
+                className="bg-white/[0.04] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" />
+              <label className="text-[11px] text-slate-400 font-bold">{ar ? 'إلى' : 'To'}</label>
+              <input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)}
+                className="bg-white/[0.04] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" />
+              <ExportBar
+                title={ar ? 'تقرير الحضور' : 'Attendance report'}
+                subtitle={`${fromDate} → ${toDate}`}
+                fileBase={`hr-attendance-${fromDate}-to-${toDate}`}
+                columns={[
+                  { header: 'الموظف', key: 'name' },
+                  { header: 'التاريخ', key: 'date' },
+                  { header: 'ساعات العمل', key: 'hours' },
+                ]}
+                rows={attRows.map((r) => ({
+                  name: r.fullName ?? r.name ?? '',
+                  date: r.workDate ?? r.date ?? '',
+                  hours: typeof r.minutesWorked === 'number' ? `${Math.floor(r.minutesWorked / 60)}h ${r.minutesWorked % 60}m` : (r.hours ?? ''),
+                }))}
+              />
+            </div>
             {attRows.length === 0 && <p className="text-xs text-slate-500">{ar ? 'لا سجلات حضور.' : 'No attendance records.'}</p>}
             <div className="space-y-2">
               {attRows.slice(0, 60).map((r, i) => (
