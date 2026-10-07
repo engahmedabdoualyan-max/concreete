@@ -20,7 +20,8 @@ export async function GET(req: NextRequest) {
   if ("status" in auth) return auth;
 
   try {
-    const employees = await listEmployees(auth.user.tenantId);
+    const includeInactive = new URL(req.url).searchParams.get("includeInactive") === "1";
+    const employees = await listEmployees(auth.user.tenantId, !includeInactive);
     return successResponse({ employees }, `${employees.length} employee(s)`);
   } catch (err) {
     console.error("[GET /api/hr/employees]", err);

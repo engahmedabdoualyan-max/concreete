@@ -50,6 +50,16 @@ function nameOf(e: any): string {
   return e.fullName ?? e.full_name ?? e.name ?? e.email ?? e.employeeCode ?? '—';
 }
 
+function DelBtn({ onDel, busy }: { onDel: () => void; busy: boolean }) {
+  return (
+    <button disabled={busy} onClick={() => { if (window.confirm('حذف هذا السجل؟')) onDel(); }}
+      title="حذف"
+      className="text-[11px] font-black rounded-lg px-2 py-1 border border-red-500/50 bg-red-500/15 text-red-300 hover:bg-red-500/25 disabled:opacity-50">
+      {busy ? '…' : '✕'}
+    </button>
+  );
+}
+
 function fmtMoney(n: number | undefined | null): string {
   if (n === undefined || n === null || Number.isNaN(n)) return '—';
   return Number(n).toLocaleString('ar-EG', { maximumFractionDigits: 0 });
@@ -221,6 +231,26 @@ export default function HR() {
   const [requests, setRequests] = useState<any[]>([]);
   const [employees, setEmployees] = useState<any[]>([]);
   const [search, setSearch] = useState('');
+  const [showInactive, setShowInactive] = useState(false);
+
+  const toggleActive = async (e: any) => {
+    const toActive = !e.isActive;
+    if (!toActive && !window.confirm(`إيقاف ${nameOf(e)}؟ (يختفي من القوائم)`)) return;
+    setBusy('active' + e.id);
+    try {
+      if (toActive) {
+        await api.put(`/api/hr/employees/${e.id}`, { isActive: true });
+      } else {
+        await api.del(`/api/hr/employees/${e.id}`);
+      }
+      setMsg(toActive ? '✅ تم التفعيل' : '✅ تم الإيقاف');
+      await load();
+    } catch (err: any) {
+      setMsg(`❌ ${err?.message ?? 'فشل'}`);
+    } finally {
+      setBusy('');
+    }
+  };
   const [attRows, setAttRows] = useState<any[]>([]);
   const [casts, setCasts] = useState<any[]>([]);
   const [runs, setRuns] = useState<any[]>([]);
@@ -276,6 +306,21 @@ export default function HR() {
   const [custFiles, setCustFiles] = useState<Record<string, any[]>>({});
   const [custFilesOpen, setCustFilesOpen] = useState<Record<string, boolean>>({});
   const [uploadingCdoc, setUploadingCdoc] = useState(false);
+  const [delBusy, setDelBusy] = useState('');
+  const [editingEmp, setEditingEmp] = useState<string | null>(null);
+
+  const delRecord = async (table: string, id: string) => {
+    setDelBusy(table + id);
+    try {
+      await api.del(`/api/hr/records?table=${table}&id=${id}`);
+      setMsg('✅ تم الحذف');
+      await load();
+    } catch (e: any) {
+      setMsg(`❌ ${e?.message ?? 'فشل الحذف'}`);
+    } finally {
+      setDelBusy('');
+    }
+  };
 
 function ageOf(raw: unknown): number | null {
   if (!raw) return null;
@@ -367,8 +412,7 @@ function ageOf(raw: unknown): number | null {
     setMsg('');
     try {
       const num = (v: string) => (v.trim() === '' ? undefined : Number(v));
-      await api.post('/api/hr/employees', {
-        employeeCode: form.employeeCode.trim(),
+      const payload: Record<string, unknown> = {
         fullName: form.fullName.trim(),
         nationalId: form.nationalId.trim() || undefined,
         nationality: form.countryCode === 'SA' ? 'SAUDI' : 'NON_SAUDI',
@@ -392,16 +436,43 @@ function ageOf(raw: unknown): number | null {
         vehiclePlate: form.vehiclePlate.trim() || undefined,
         vehicleOwnership: (form.vehicleOwnership || undefined) as 'PRIVATE' | 'COMPANY' | undefined,
         photoUrl: form.photoUrl || undefined,
-      });
-      setMsg('✅ تمت إضافة الموظف');
+      };
+      if (editingEmp) {
+        await api.put(`/api/hr/employees/${editingEmp}`, payload);
+        setMsg('✅ تم حفظ التعديل');
+      } else {
+        await api.post('/api/hr/employees', { employeeCode: form.employeeCode.trim(), ...payload });
+        setMsg('✅ تمت إضافة الموظف');
+      }
       setForm({ employeeCode: '', fullName: '', nationalId: '', countryCode: '', jobTitle: '', department: '', baseSalarySar: '', housingAllowanceSar: '', transportAllowanceSar: '', bankIban: '', bankName: '', hireDate: '', contactPhone: '', emergencyContactName: '', emergencyContactPhone: '', lastVacationDate: '', lastResumptionDate: '', medicalInsuranceNo: '', medicalInsuranceExpiry: '', vehiclePlate: '', vehicleOwnership: '', iqamaExpiry: '', photoUrl: '' });
+      setEditingEmp(null);
       setShowAdd(false);
       await load();
     } catch (e: any) {
-      setMsg(`❌ ${e?.message ?? 'فشل الإضافة'}`);
+      setMsg(`❌ ${e?.message ?? 'فشل الحفظ'}`);
     } finally {
       setBusy('');
     }
+  };
+
+  const startEditEmp = (e: any) => {
+    const iso = (v: unknown) => (v ? String(v).slice(0, 10) : '');
+    setForm({
+      employeeCode: e.employeeCode ?? '', fullName: e.fullName ?? e.full_name ?? '',
+      nationalId: e.nationalId ?? '', countryCode: e.countryCode ?? '',
+      jobTitle: e.jobTitle ?? e.role ?? '', department: e.department ?? '',
+      baseSalarySar: e.baseSalarySar ?? '', housingAllowanceSar: e.housingAllowanceSar ?? '',
+      transportAllowanceSar: e.transportAllowanceSar ?? '', bankIban: e.bankIban ?? '',
+      bankName: e.bankName ?? '', hireDate: iso(e.hireDate),
+      contactPhone: e.contactPhone ?? e.phone ?? '',
+      emergencyContactName: e.emergencyContactName ?? '', emergencyContactPhone: e.emergencyContactPhone ?? '',
+      lastVacationDate: iso(e.lastVacationDate), lastResumptionDate: iso(e.lastResumptionDate),
+      medicalInsuranceNo: e.medicalInsuranceNo ?? '', medicalInsuranceExpiry: iso(e.medicalInsuranceExpiry),
+      vehiclePlate: e.vehiclePlate ?? '', vehicleOwnership: e.vehicleOwnership ?? '',
+      iqamaExpiry: iso(e.iqamaExpiry), photoUrl: e.photoUrl ?? '',
+    });
+    setEditingEmp(e.id);
+    setShowAdd(true);
   };
 
   const loadDocs = async (employeeId: string, name: string) => {
@@ -1202,7 +1273,7 @@ function ageOf(raw: unknown): number | null {
       setRequests(Array.isArray(r?.requests) ? r.requests : []);
     } catch { setRequests([]); }
     try {
-      const e = await api.get<{ employees?: any[] }>('/api/hr/employees');
+      const e = await api.get<{ employees?: any[] }>(`/api/hr/employees${showInactive ? '?includeInactive=1' : ''}`);
       setEmployees(Array.isArray(e?.employees) ? e.employees : []);
     } catch { setEmployees([]); }
     try {
@@ -1270,7 +1341,7 @@ function ageOf(raw: unknown): number | null {
       const ec = await api.get<{ claims?: any[] }>(`/api/hr/expenses${claimFilter === 'ALL' ? '' : `?status=${claimFilter}`}`);
       setClaims(Array.isArray(ec?.claims) ? ec.claims : []);
     } catch { setClaims([]); }
-  }, [filter, fromDate, toDate, actionFilter, invFilter, custodyFilter, dedPeriod, otFilter, claimFilter]);
+  }, [filter, fromDate, toDate, actionFilter, invFilter, custodyFilter, dedPeriod, otFilter, claimFilter, showInactive]);
 
   useEffect(() => {
     if (!currentUser) return;
@@ -1462,8 +1533,11 @@ function ageOf(raw: unknown): number | null {
                 <div key={r.id} className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-black text-white">{TYPE_AR[r.type] ?? r.type}</span>
-                    <span className={`text-[10px] font-black rounded px-2 py-0.5 ${r.status === 'PENDING' ? 'bg-yellow-500/15 text-yellow-300' : r.status === 'APPROVED' ? 'bg-emerald-500/15 text-emerald-300' : 'bg-red-500/15 text-red-300'}`}>
-                      {STATUS_AR[r.status] ?? r.status}
+                    <span className="flex items-center gap-1">
+                      <span className={`text-[10px] font-black rounded px-2 py-0.5 ${r.status === 'PENDING' ? 'bg-yellow-500/15 text-yellow-300' : r.status === 'APPROVED' ? 'bg-emerald-500/15 text-emerald-300' : 'bg-red-500/15 text-red-300'}`}>
+                        {STATUS_AR[r.status] ?? r.status}
+                      </span>
+                      <DelBtn onDel={() => delRecord('requests', r.id)} busy={delBusy === 'requests' + r.id} />
                     </span>
                   </div>
                   <p className="text-xs text-slate-400 mt-1">{nameOf(r)} {r.employeeCode ? `· ${r.employeeCode}` : ''}</p>
@@ -1518,9 +1592,13 @@ function ageOf(raw: unknown): number | null {
               <input value={search} onChange={(e) => setSearch(e.target.value)}
                 placeholder={ar ? '🔍 بحث بالاسم / الكود / الجوال…' : 'Search name / code / phone…'}
                 className="flex-1 min-w-[200px] max-w-md bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2 text-sm text-white outline-none" />
-              <button onClick={() => setShowAdd((v) => !v)}
+              <button onClick={() => { setEditingEmp(null); setShowAdd((v) => !v); }}
                 className="text-[11px] font-black rounded-lg px-3 py-2 border border-sky-500/50 bg-sky-500/15 text-sky-300 hover:bg-sky-500/25">
                 ➕ {ar ? 'إضافة موظف' : 'Add employee'}
+              </button>
+              <button onClick={() => setShowInactive((v) => !v)}
+                className={`text-[11px] font-black rounded-lg px-3 py-2 border ${showInactive ? 'bg-white text-black border-white' : 'text-slate-400 border-white/10'}`}>
+                {ar ? 'الموقوفون' : 'Inactive'}
               </button>
               <ExportBar
                 title={ar ? 'فريق العمل' : 'Team'}
@@ -1541,7 +1619,7 @@ function ageOf(raw: unknown): number | null {
             </div>
             {showAdd && (
               <div className="rounded-2xl border border-sky-500/30 bg-sky-500/[0.06] p-4 mb-3">
-                <h3 className="text-sm font-black text-white mb-3">➕ {ar ? 'بيانات الموظف الجديد' : 'New employee'}</h3>
+                <h3 className="text-sm font-black text-white mb-3">{editingEmp ? `✏️ ${ar ? 'تعديل بيانات الموظف' : 'Edit employee'}` : `➕ ${ar ? 'بيانات الموظف الجديد' : 'New employee'}`}</h3>
                 <div className="flex items-center gap-3 mb-3 rounded-xl border border-white/10 bg-white/[0.03] p-2">
                   {form.photoUrl ? (
                     <img src={form.photoUrl} alt="" className="w-14 h-14 rounded-full object-cover border border-sky-500/40" />
@@ -1648,7 +1726,7 @@ function ageOf(raw: unknown): number | null {
             {team.length === 0 && <p className="text-xs text-slate-500">{ar ? 'لا بيانات فريق.' : 'No team data.'}</p>}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               {team.map((e, i) => (
-                <div key={e.id ?? i} className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 flex items-center gap-3">
+                <div key={e.id ?? i} className={`rounded-2xl border border-white/10 bg-white/[0.03] p-4 flex items-center gap-3 ${e.isActive === false ? 'opacity-55' : ''}`}>
                   <div className="relative shrink-0">
                     {e.photoUrl ? (
                       <img src={e.photoUrl} alt={nameOf(e)} className="w-11 h-11 rounded-full object-cover border border-sky-500/40" />
@@ -1686,11 +1764,23 @@ function ageOf(raw: unknown): number | null {
                     )}
                   </div>
                   {e.id && (
-                    <button onClick={() => (docsEmp?.id === e.id ? setDocsEmp(null) : loadDocs(e.id, nameOf(e)))}
-                      title={ar ? 'مستندات الموظف' : 'Documents'}
-                      className="shrink-0 text-lg rounded-lg border border-white/10 bg-white/[0.04] w-9 h-9 hover:border-sky-400/60">
-                      📁
-                    </button>
+                    <span className="flex gap-1 shrink-0">
+                      <button onClick={() => startEditEmp(e)}
+                        title={ar ? 'تعديل بيانات الموظف' : 'Edit'}
+                        className="text-lg rounded-lg border border-white/10 bg-white/[0.04] w-9 h-9 hover:border-amber-400/60">
+                        ✏️
+                      </button>
+                      <button onClick={() => toggleActive(e)} disabled={busy === 'active' + e.id}
+                        title={e.isActive === false ? (ar ? 'تفعيل' : 'Activate') : (ar ? 'إيقاف' : 'Deactivate')}
+                        className="text-lg rounded-lg border border-white/10 bg-white/[0.04] w-9 h-9 hover:border-red-400/60 disabled:opacity-50">
+                        {busy === 'active' + e.id ? '…' : e.isActive === false ? '🟢' : '🔴'}
+                      </button>
+                      <button onClick={() => (docsEmp?.id === e.id ? setDocsEmp(null) : loadDocs(e.id, nameOf(e)))}
+                        title={ar ? 'مستندات الموظف' : 'Documents'}
+                        className="text-lg rounded-lg border border-white/10 bg-white/[0.04] w-9 h-9 hover:border-sky-400/60">
+                        📁
+                      </button>
+                    </span>
                   )}
                 </div>
               ))}
@@ -1706,10 +1796,11 @@ function ageOf(raw: unknown): number | null {
                   <div key={d.id ?? i} className="flex items-center justify-between text-xs border-b border-white/5 py-1.5 last:border-0">
                     <span className="font-bold text-slate-200">{d.title ?? DOC_KIND_AR[d.kind] ?? d.kind} · {d.fileName}</span>
                     {d.storageUrl ? (
-                      <span className="flex gap-2 shrink-0">
+                      <span className="flex gap-2 shrink-0 items-center">
                         <button onClick={() => printDoc(d)} className="text-slate-300 font-black hover:text-white">🖨️ {ar ? 'طباعة' : 'Print'}</button>
                         <a href={d.storageUrl} download={d.fileName} className="text-emerald-300 font-black">⬇ {ar ? 'تنزيل' : 'Save'}</a>
                         <a href={d.storageUrl} target="_blank" rel="noreferrer" className="text-sky-400 font-black">{ar ? 'فتح' : 'Open'}</a>
+                        <DelBtn onDel={() => delRecord('documents', d.id)} busy={delBusy === 'documents' + d.id} />
                       </span>
                     ) : (
                       <span className="text-slate-500">{String(d.createdAt ?? '').slice(0, 10)}</span>
@@ -1845,10 +1936,13 @@ function ageOf(raw: unknown): number | null {
               <div key={b.id ?? i} className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
                 <div className="flex items-center justify-between gap-2">
                   <p className="text-sm font-black text-white">{b.title ?? b.subject ?? (ar ? 'إعلان' : 'Broadcast')}</p>
-                  <span className="text-[10px] text-slate-400 font-bold shrink-0">
-                    {Array.isArray(b.audience) && b.audience.length
-                      ? `🎯 ${[...new Set(b.audience.flatMap((r: string) => Object.entries(DEPT_ROLES).filter(([, roles]) => roles.includes(r)).map(([d]) => d)))].join('، ') || b.audience.join(', ')}`
-                      : `🌍 ${ar ? 'الكل' : 'All'}`}
+                  <span className="flex items-center gap-1 shrink-0">
+                    <span className="text-[10px] text-slate-400 font-bold">
+                      {Array.isArray(b.audience) && b.audience.length
+                        ? `🎯 ${[...new Set(b.audience.flatMap((r: string) => Object.entries(DEPT_ROLES).filter(([, roles]) => roles.includes(r)).map(([d]) => d)))].join('، ') || b.audience.join(', ')}`
+                        : `🌍 ${ar ? 'الكل' : 'All'}`}
+                    </span>
+                    <DelBtn onDel={() => delRecord('broadcasts', b.id)} busy={delBusy === 'broadcasts' + b.id} />
                   </span>
                 </div>
                 {(b.body ?? b.message) && <p className="text-xs text-slate-300 mt-1 whitespace-pre-wrap">{b.body ?? b.message}</p>}
@@ -1945,7 +2039,10 @@ function ageOf(raw: unknown): number | null {
                 <div key={a.id ?? i} className={`rounded-xl border px-3 py-2 text-xs ${a.kind === 'PENALTY' ? 'border-red-500/30 bg-red-500/[0.06]' : 'border-emerald-500/30 bg-emerald-500/[0.06]'}`}>
                   <div className="flex items-center justify-between">
                     <span className="font-black text-white">{a.kind === 'PENALTY' ? '⚠️' : '🏅'} {ACTION_KIND_AR[a.subKind] ?? a.subKind}</span>
-                    <span className="text-slate-400">{String(a.issuedAt ?? '').slice(0, 10)}</span>
+                    <span className="flex items-center gap-1">
+                      <span className="text-slate-400">{String(a.issuedAt ?? '').slice(0, 10)}</span>
+                      <DelBtn onDel={() => delRecord(a.kind === 'PENALTY' ? 'penalties' : 'rewards', a.id)} busy={delBusy === (a.kind === 'PENALTY' ? 'penalties' : 'rewards') + a.id} />
+                    </span>
                   </div>
                   <p className="text-slate-300 mt-0.5">{a.reason}</p>
                   <p className="text-slate-500 mt-0.5">
@@ -2002,8 +2099,11 @@ function ageOf(raw: unknown): number | null {
                 <div key={v.id ?? i} className={`rounded-xl border px-3 py-2 text-xs ${v.status === 'OPEN' ? 'border-yellow-500/40 bg-yellow-500/[0.06]' : 'border-white/10 bg-white/[0.03]'}`}>
                   <div className="flex items-center justify-between">
                     <span className="font-black text-white">{v.subject}</span>
-                    <span className={`text-[10px] font-black rounded px-2 py-0.5 ${v.status === 'OPEN' ? 'bg-yellow-500/15 text-yellow-300' : 'bg-white/10 text-slate-400'}`}>
-                      {v.status === 'OPEN' ? (ar ? '🔴 مفتوح' : 'OPEN') : (ar ? 'مغلق' : 'CLOSED')}
+                    <span className="flex items-center gap-1">
+                      <span className={`text-[10px] font-black rounded px-2 py-0.5 ${v.status === 'OPEN' ? 'bg-yellow-500/15 text-yellow-300' : 'bg-white/10 text-slate-400'}`}>
+                        {v.status === 'OPEN' ? (ar ? '🔴 مفتوح' : 'OPEN') : (ar ? 'مغلق' : 'CLOSED')}
+                      </span>
+                      <DelBtn onDel={() => delRecord('investigations', v.id)} busy={delBusy === 'investigations' + v.id} />
                     </span>
                   </div>
                   {v.details && <p className="text-slate-400 mt-1">{v.details}</p>}
@@ -2103,6 +2203,7 @@ function ageOf(raw: unknown): number | null {
                     <p className="text-slate-500 text-[10px]">{String(c.handedAt ?? '').slice(0, 10)}</p>
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
+                    <DelBtn onDel={() => delRecord('custody', c.id)} busy={delBusy === 'custody' + c.id} />
                     <button onClick={() => toggleCustFiles(c)} title={ar ? 'صور وأوراق العهدة' : 'Files'}
                       className="text-[11px] font-black rounded-lg px-2 py-1.5 border border-white/15 bg-white/[0.04] text-slate-200 hover:border-sky-400/60">
                       📎{Array.isArray(custFiles[c.id]) ? ` ${custFiles[c.id].length}` : ''}
@@ -2207,6 +2308,7 @@ function ageOf(raw: unknown): number | null {
                   {vios.slice(0, 10).map((v, i) => (
                     <div key={v.id ?? i} className="flex items-center justify-between text-xs border-b border-white/5 py-1">
                       <span className="text-slate-300">{v.amountSar} {ar ? 'ر.س' : 'SAR'} · {String(v.violationDate ?? '').slice(0, 10)} {v.location ? `· ${v.location}` : ''}</span>
+                      <span className="flex gap-1 items-center">
                       {v.paid ? (
                         <span className="text-[10px] text-emerald-300 font-bold">{ar ? 'مدفوعة' : 'Paid'}</span>
                       ) : (
@@ -2215,6 +2317,8 @@ function ageOf(raw: unknown): number | null {
                           {busy === 'pay' + v.id ? '…' : (ar ? 'تحصيل' : 'Collect')}
                         </button>
                       )}
+                      <DelBtn onDel={() => delRecord('violations', v.id)} busy={delBusy === 'violations' + v.id} />
+                      </span>
                     </div>
                   ))}
                 </div>
@@ -2401,6 +2505,10 @@ function ageOf(raw: unknown): number | null {
                             className="text-[10px] font-black rounded px-2 py-1 border border-emerald-500/40 text-emerald-300 disabled:opacity-50">
                             {busy === 'settle' + f.id ? '…' : (ar ? 'تصفية' : 'Settle')}
                           </button>
+                          <DelBtn onDel={async () => {
+                            try { await api.del(`/api/hr/petty-cash?id=${f.id}`); setMsg('✅ تم الحذف'); await load(); }
+                            catch (e: any) { setMsg(`❌ ${e?.message ?? 'فشل الحذف'}`); }
+                          }} busy={false} />
                         </>
                       ) : (
                         <span className="text-[10px] text-slate-500 font-bold">✅ {f.settleNote ?? (ar ? 'مصفّاة' : 'Settled')}</span>
@@ -2470,8 +2578,11 @@ function ageOf(raw: unknown): number | null {
                 return (
                   <div key={b.id ?? i} className="flex items-center justify-between text-xs border-b border-white/5 py-1.5">
                     <span className="font-bold text-slate-200">{b.year} · {left} {ar ? 'متبقي' : 'left'}</span>
-                    <span className={`font-black ${left < 0 ? 'text-red-400' : 'text-emerald-300'}`}>
-                      {ar ? 'المستخدم' : 'Used'} {b.used} / {b.allocated}
+                    <span className="flex items-center gap-1">
+                      <span className={`font-black ${left < 0 ? 'text-red-400' : 'text-emerald-300'}`}>
+                        {ar ? 'المستخدم' : 'Used'} {b.used} / {b.allocated}
+                      </span>
+                      <DelBtn onDel={() => delRecord('leave-balances', b.id)} busy={delBusy === 'leave-balances' + b.id} />
                     </span>
                   </div>
                 );
@@ -2520,7 +2631,10 @@ function ageOf(raw: unknown): number | null {
               {vlogs.slice(0, 40).map((l, i) => (
                 <div key={l.id ?? i} className="flex items-center justify-between text-xs border-b border-white/5 py-1.5">
                   <span className="font-bold text-slate-200">{String(l.logDate).slice(0, 10)}</span>
-                  <span className="text-slate-400">{l.odometerKm ? `${l.odometerKm} كم` : ''} {l.fuelLitres ? `· ⛽ ${l.fuelLitres} لتر` : ''}</span>
+                  <span className="flex items-center gap-1">
+                    <span className="text-slate-400">{l.odometerKm ? `${l.odometerKm} كم` : ''} {l.fuelLitres ? `· ⛽ ${l.fuelLitres} لتر` : ''}</span>
+                    <DelBtn onDel={() => delRecord('vehicle-logs', l.id)} busy={delBusy === 'vehicle-logs' + l.id} />
+                  </span>
                 </div>
               ))}
             </div>
@@ -2577,6 +2691,8 @@ function ageOf(raw: unknown): number | null {
               {otList.slice(0, 40).map((o, i) => (
                 <div key={o.id ?? i} className="flex items-center justify-between text-xs border-b border-white/5 py-1.5">
                   <span className="font-bold text-slate-200">{o.hours}h · {String(o.workDate).slice(0, 10)} {o.rateSar ? `· ${o.rateSar} ر.س/س` : ''}</span>
+                  <span className="flex items-center gap-1">
+                  <DelBtn onDel={() => delRecord('overtime', o.id)} busy={delBusy === 'overtime' + o.id} />
                   {o.status === 'PENDING' ? (
                     <span className="flex gap-1">
                       <button disabled={busy === 'otr' + o.id} onClick={() => reviewOt(o.id, 'APPROVED')}
@@ -2587,6 +2703,7 @@ function ageOf(raw: unknown): number | null {
                   ) : (
                     <span className={`text-[10px] font-bold ${o.status === 'APPROVED' ? 'text-emerald-300' : 'text-slate-500'}`}>{o.status}</span>
                   )}
+                  </span>
                 </div>
               ))}
             </div>
@@ -2648,6 +2765,8 @@ function ageOf(raw: unknown): number | null {
               {claims.slice(0, 40).map((c, i) => (
                 <div key={c.id ?? i} className="flex items-center justify-between text-xs border-b border-white/5 py-1.5">
                   <span className="font-bold text-slate-200">{c.amountSar} {ar ? 'ر.س' : 'SAR'} · {String(c.expenseDate).slice(0, 10)} {c.notes ? `· ${c.notes}` : ''}</span>
+                  <span className="flex items-center gap-1">
+                  <DelBtn onDel={() => delRecord('expenses', c.id)} busy={delBusy === 'expenses' + c.id} />
                   {c.status === 'PENDING' ? (
                     <span className="flex gap-1">
                       <button disabled={busy === 'clr' + c.id} onClick={() => reviewClaim(c.id, 'APPROVED')}
@@ -2663,6 +2782,7 @@ function ageOf(raw: unknown): number | null {
                   ) : (
                     <span className="text-[10px] text-slate-500 font-bold">{c.status}</span>
                   )}
+                  </span>
                 </div>
               ))}
             </div>
