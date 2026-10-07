@@ -253,6 +253,13 @@
       "when": 1791317417601,
       "tag": "0035_soft_frightful_four",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1791340047424,
+      "tag": "0036_closed_warlock",
+      "breakpoints": true
     }
   ]
 }

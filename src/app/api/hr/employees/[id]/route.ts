@@ -39,6 +39,8 @@ const UpdateEmployeeSchema = z.object({
   bankName: z.string().max(80).optional(),
   isActive: z.boolean().optional(),
   photoUrl: z.string().min(1).max(1_500_000).optional(),
+  dateOfBirth: z.string().min(1).optional(),
+  bloodGroup: z.string().max(5).optional(),
 });
 
 export async function PUT(

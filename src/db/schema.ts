@@ -3717,6 +3717,10 @@ export const payrollEmployees = pgTable(
     medicalInsuranceExpiry: timestamp("medical_insurance_expiry"),
     /** Employee photo (data URI, small) — shown on the file */
     photoUrl: text("photo_url"),
+    /** Date of birth — age auto-computed in the UI */
+    dateOfBirth: timestamp("date_of_birth"),
+    /** Blood group for emergencies (A+, O-…) */
+    bloodGroup: varchar("blood_group", { length: 5 }),
     /** Iqama (residence) expiry — drives the 60-day renewal watch */
     iqamaExpiry: timestamp("iqama_expiry"),
     /** Employee's car plate + whether it is PRIVATE or COMPANY custody */
@@ -4257,6 +4261,42 @@ export const hrPettyExpenses = pgTable(
   (t) => [
     index("idx_hr_pe_tenant").on(t.tenantId),
     index("idx_hr_pe_fund").on(t.fundId),
+  ]
+);
+
+/**
+ * hr_separations — employee exit & clearance.
+ * Opening records the exit; clearing requires HR to confirm. The clearance
+ * checklist (open custody, unpaid violations, open investigations) is
+ * computed live from sibling tables — nothing is duplicated here.
+ * Types: RESIGNATION | TERMINATION | END_CONTRACT. Status: OPEN | CLEARED.
+ */
+export const hrSeparations = pgTable(
+  "hr_separations",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    employeeId: uuid("employee_id")
+      .notNull()
+      .references(() => payrollEmployees.id, { onDelete: "restrict" }),
+    /** RESIGNATION | TERMINATION | END_CONTRACT */
+    type: varchar("type", { length: 20 }).notNull(),
+    lastWorkingDate: varchar("last_working_date", { length: 10 }).notNull(),
+    reason: text("reason"),
+    /** OPEN | CLEARED */
+    status: varchar("status", { length: 16 }).notNull().default("OPEN"),
+    clearanceNote: text("clearance_note"),
+    openedById: uuid("opened_by_id").references(() => users.id, { onDelete: "set null" }),
+    clearedById: uuid("cleared_by_id").references(() => users.id, { onDelete: "set null" }),
+    clearedAt: timestamp("cleared_at"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("idx_hr_sep_tenant").on(t.tenantId),
+    index("idx_hr_sep_employee").on(t.employeeId),
+    index("idx_hr_sep_status").on(t.status),
   ]
 );
 

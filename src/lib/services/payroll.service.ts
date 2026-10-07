@@ -142,6 +142,8 @@ export async function createEmployee(
     iqamaExpiry?: string;
     vehiclePlate?: string;
     vehicleOwnership?: string;
+    dateOfBirth?: string;
+    bloodGroup?: string;
   }
 ) {
   const [created] = await db
@@ -174,6 +176,8 @@ export async function createEmployee(
       iqamaExpiry: input.iqamaExpiry ? new Date(input.iqamaExpiry) : null,
       vehiclePlate: input.vehiclePlate,
       vehicleOwnership: input.vehicleOwnership,
+      dateOfBirth: input.dateOfBirth ? new Date(input.dateOfBirth) : null,
+      bloodGroup: input.bloodGroup,
     })
     .returning();
   return created;
@@ -197,12 +201,14 @@ export async function updateEmployee(
     bankName: string;
     isActive: boolean;
     photoUrl?: string;
+    dateOfBirth?: string;
+    bloodGroup?: string;
   }>
 ) {
   const patch: Record<string, unknown> = { updatedAt: new Date() };
   for (const k of [
     "fullName", "nationalId", "jobTitle", "department", "bankIban", "bankName",
-    "photoUrl",
+    "photoUrl", "bloodGroup",
   ] as const) {
     if (input[k] !== undefined) patch[k] = input[k];
   }
@@ -216,6 +222,8 @@ export async function updateEmployee(
     if (input[k] !== undefined) patch[k] = String(input[k]);
   }
   if (input.isActive !== undefined) patch.isActive = input.isActive;
+  if (input.dateOfBirth !== undefined)
+    patch.dateOfBirth = input.dateOfBirth ? new Date(input.dateOfBirth) : null;
 
   const [updated] = await db
     .update(payrollEmployees)

@@ -18,7 +18,7 @@ import { downloadExcel, openPrintPDF, type ExportColumn, type ExportRow } from '
  * (HR_READ / HR_WRITE); every tab degrades independently.
  */
 
-type Tab = 'requests' | 'team' | 'attendance' | 'broadcasts' | 'payroll' | 'actions' | 'investigations' | 'custody' | 'vehicles' | 'deductions' | 'company' | 'petty' | 'leave' | 'vlog' | 'overtime' | 'expenses' | 'modules' | 'org' | 'tree';
+type Tab = 'requests' | 'team' | 'attendance' | 'broadcasts' | 'payroll' | 'actions' | 'investigations' | 'custody' | 'vehicles' | 'deductions' | 'company' | 'petty' | 'leave' | 'vlog' | 'overtime' | 'expenses' | 'modules' | 'org' | 'tree' | 'exit';
 
 const COUNTRIES = [
   { code: 'SA', ar: 'السعودية', flag: '🇸🇦' }, { code: 'EG', ar: 'مصر', flag: '🇪🇬' },
@@ -197,6 +197,22 @@ export default function HR() {
   const [custFiles, setCustFiles] = useState<Record<string, any[]>>({});
   const [custFilesOpen, setCustFilesOpen] = useState<Record<string, boolean>>({});
   const [uploadingCdoc, setUploadingCdoc] = useState(false);
+  const [seps, setSeps] = useState<any[]>([]);
+  const [sepFilter, setSepFilter] = useState('ALL');
+  const [showSepForm, setShowSepForm] = useState(false);
+  const [sepForm, setSepForm] = useState({ employeeId: '', type: 'RESIGNATION', lastWorkingDate: '', reason: '' });
+  const [sepNote, setSepNote] = useState<Record<string, string>>({});
+
+function ageOf(raw: unknown): number | null {
+  if (!raw) return null;
+  const t = new Date(String(raw)).getTime();
+  if (Number.isNaN(t)) return null;
+  const d = new Date(t);
+  const n = new Date();
+  let age = n.getFullYear() - d.getFullYear();
+  if (n.getMonth() < d.getMonth() || (n.getMonth() === d.getMonth() && n.getDate() < d.getDate())) age--;
+  return age;
+}
   const [uploadingPhoto, setUploadingPhoto] = useState('');
 
   const uploadPhoto = async (employeeId: string, file: File | undefined) => {
