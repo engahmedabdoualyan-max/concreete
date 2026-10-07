@@ -270,6 +270,11 @@ export default function HR() {
   const [showInvForm, setShowInvForm] = useState(false);
   const [invForm, setInvForm] = useState({ employeeId: '', subject: '', details: '' });
   const [closeNote, setCloseNote] = useState<Record<string, string>>({});
+  const [seps, setSeps] = useState<any[]>([]);
+  const [sepFilter, setSepFilter] = useState('ALL');
+  const [showSepForm, setShowSepForm] = useState(false);
+  const [sepForm, setSepForm] = useState({ employeeId: '', type: 'RESIGNATION', lastWorkingDate: '', reason: '' });
+  const [sepNote, setSepNote] = useState<Record<string, string>>({});
   const [invFiles, setInvFiles] = useState<Record<string, any[]>>({});
   const [invFilesOpen, setInvFilesOpen] = useState<Record<string, boolean>>({});
   const [docsEmp, setDocsEmp] = useState<{ id: string; name: string } | null>(null);
@@ -1176,6 +1181,43 @@ function ageOf(raw: unknown): number | null {
     }
   };
 
+  const openSep = async () => {
+    if (!sepForm.employeeId || !sepForm.lastWorkingDate) {
+      setMsg('❌ اختر الموظف وآخر يوم عمل');
+      return;
+    }
+    setBusy('sep');
+    try {
+      await api.post('/api/hr/separations', {
+        employeeId: sepForm.employeeId,
+        type: sepForm.type,
+        lastWorkingDate: sepForm.lastWorkingDate,
+        reason: sepForm.reason.trim() || undefined,
+      });
+      setMsg('✅ تم فتح ملف الخروج');
+      setSepForm({ employeeId: '', type: 'RESIGNATION', lastWorkingDate: '', reason: '' });
+      setShowSepForm(false);
+      await load();
+    } catch (e: any) {
+      setMsg(`❌ ${e?.message ?? 'فشل الفتح'}`);
+    } finally {
+      setBusy('');
+    }
+  };
+
+  const clearSep = async (id: string) => {
+    setBusy('clrsep' + id);
+    try {
+      await api.post(`/api/hr/separations/${id}/clear`, { clearanceNote: sepNote[id]?.trim() || undefined });
+      setMsg('✅ تم إخلاء الطرف');
+      await load();
+    } catch (e: any) {
+      setMsg(`❌ ${e?.message ?? 'فشل الإخلاء'}`);
+    } finally {
+      setBusy('');
+    }
+  };
+
   const toggleInvFiles = async (inv: any) => {
     const open = !invFilesOpen[inv.id];
     setInvFilesOpen((p) => ({ ...p, [inv.id]: open }));
@@ -1297,6 +1339,10 @@ function ageOf(raw: unknown): number | null {
       setInvs(Array.isArray(iv?.investigations) ? iv.investigations : []);
     } catch { setInvs([]); }
     try {
+      const sp = await api.get<{ separations?: any[] }>('/api/hr/separations');
+      setSeps(Array.isArray(sp?.separations) ? sp.separations : []);
+    } catch { setSeps([]); }
+    try {
       const cu = await api.get<{ custody?: any[] }>(`/api/hr/custody${custodyFilter === 'ALL' ? '' : `?status=${custodyFilter}`}`);
       setCustody(Array.isArray(cu?.custody) ? cu.custody : []);
     } catch { setCustody([]); }
@@ -1386,6 +1432,7 @@ function ageOf(raw: unknown): number | null {
     { id: 'petty', ar: '💰 العهدة المالية', en: 'Petty cash', mod: 'petty' },
     { id: 'org', ar: '🏢 الهيكل الوظيفي', en: 'Org chart', mod: 'org' },
     { id: 'tree', ar: '🌳 حسابات الدخول', en: 'Login tree', mod: 'tree' },
+    { id: 'exit', ar: '🚪 إخلاء الطرف', en: 'Exit', mod: 'exit' },
     { id: 'leave', ar: '🏖️ الأرصدة', en: 'Balances', mod: 'leaveBalances' },
     { id: 'vlog', ar: '⛽ سجل المركبات', en: 'Logbook', mod: 'vehicleLog' },
     { id: 'overtime', ar: '⏰ الإضافي', en: 'Overtime', mod: 'overtime' },
@@ -1399,7 +1446,7 @@ function ageOf(raw: unknown): number | null {
     investigations: 'التحقيقات', custody: 'العهد', vehicles: 'المركبات والمخالفات',
     deductions: 'كشف الخصومات', company: 'أوراق الشركة', petty: 'العهدة المالية',
     leaveBalances: 'أرصدة الإجازات', vehicleLog: 'سجل المركبات', overtime: 'الأجر الإضافي',
-    expenses: 'مطالبات المصاريف', org: 'الهيكل الوظيفي', tree: 'حسابات الدخول',
+    expenses: 'مطالبات المصاريف', org: 'الهيكل الوظيفي', tree: 'حسابات الدخول', exit: 'إخلاء الطرف',
   };
 
   const team = employees.filter((e) => {
@@ -2146,6 +2193,90 @@ function ageOf(raw: unknown): number | null {
                   )}
                 </div>
               ))}
+            </div>
+          </div>
+        )}
+
+        {/* ===== exit: separation + clearance ===== */}
+        {tab === 'exit' && (
+          <div className="mt-4">
+            <div className="flex flex-wrap items-center gap-2 mb-3">
+              <div className="flex gap-2">
+                {['ALL', 'OPEN', 'CLEARED'].map((f) => (
+                  <button key={f} onClick={() => setSepFilter(f)}
+                    className={`text-[11px] font-black rounded-lg px-3 py-1.5 border ${sepFilter === f ? 'bg-white text-black border-white' : 'text-slate-400 border-white/10'}`}>
+                    {f === 'ALL' ? (ar ? 'الكل' : 'All') : f === 'OPEN' ? (ar ? '🔴 مفتوحة' : 'Open') : (ar ? 'مخلى' : 'Cleared')}
+                  </button>
+                ))}
+              </div>
+              <button onClick={() => setShowSepForm((v) => !v)}
+                className="text-[11px] font-black rounded-lg px-3 py-1.5 border border-sky-500/50 bg-sky-500/15 text-sky-300 hover:bg-sky-500/25">
+                ➕ {ar ? 'فتح ملف خروج' : 'Open exit'}
+              </button>
+            </div>
+            {showSepForm && (
+              <div className="rounded-2xl border border-sky-500/30 bg-sky-500/[0.06] p-4 mb-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <label className="text-[11px] text-slate-400 font-bold">{ar ? 'الموظف *' : 'Employee *'}
+                    <select value={sepForm.employeeId} onChange={(e) => setSepForm({ ...sepForm, employeeId: e.target.value })}
+                      className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none">
+                      <option value="">—</option>
+                      {employees.map((e) => <option key={e.id} value={e.id}>{nameOf(e)} · {e.employeeCode}</option>)}
+                    </select></label>
+                  <label className="text-[11px] text-slate-400 font-bold">{ar ? 'النوع' : 'Type'}
+                    <select value={sepForm.type} onChange={(e) => setSepForm({ ...sepForm, type: e.target.value })}
+                      className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none">
+                      <option value="RESIGNATION">{ar ? 'استقالة' : 'Resignation'}</option>
+                      <option value="TERMINATION">{ar ? 'فصل' : 'Termination'}</option>
+                      <option value="END_CONTRACT">{ar ? 'نهاية عقد' : 'End of contract'}</option>
+                    </select></label>
+                  <label className="text-[11px] text-slate-400 font-bold">{ar ? 'آخر يوم عمل *' : 'Last day *'}
+                    <input type="date" value={sepForm.lastWorkingDate} onChange={(e) => setSepForm({ ...sepForm, lastWorkingDate: e.target.value })}
+                      className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
+                  <label className="text-[11px] text-slate-400 font-bold">{ar ? 'السبب' : 'Reason'}
+                    <input value={sepForm.reason} onChange={(e) => setSepForm({ ...sepForm, reason: e.target.value })}
+                      className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
+                </div>
+                <button disabled={busy === 'sep'} onClick={openSep}
+                  className="mt-3 bg-sky-500 hover:bg-sky-400 disabled:opacity-50 text-white text-xs font-black rounded-lg px-6 py-2">
+                  {busy === 'sep' ? '…' : `✅ ${ar ? 'فتح' : 'Open'}`}
+                </button>
+              </div>
+            )}
+            {seps.filter((s) => sepFilter === 'ALL' || s.status === sepFilter).length === 0 && (
+              <p className="text-xs text-slate-500">{ar ? 'لا ملفات خروج.' : 'No exits.'}</p>
+            )}
+            <div className="space-y-2">
+              {seps.filter((s) => sepFilter === 'ALL' || s.status === sepFilter).map((s, i) => {
+                const cl = s.clearance ?? { openCustody: 0, unpaidViolations: 0, openInvestigations: 0 };
+                const blocked = (cl.openCustody + cl.unpaidViolations + cl.openInvestigations) > 0;
+                return (
+                  <div key={s.id ?? i} className={`rounded-xl border px-3 py-2 text-xs ${s.status === 'OPEN' ? 'border-yellow-500/40 bg-yellow-500/[0.06]' : 'border-white/10 bg-white/[0.03]'}`}>
+                    <div className="flex items-center justify-between">
+                      <span className="font-black text-white">{s.type} · {String(s.lastWorkingDate).slice(0, 10)}</span>
+                      <span className={`text-[10px] font-black rounded px-2 py-0.5 ${s.status === 'OPEN' ? 'bg-yellow-500/15 text-yellow-300' : 'bg-emerald-500/15 text-emerald-300'}`}>
+                        {s.status === 'OPEN' ? (ar ? '🔴 مفتوح' : 'OPEN') : (ar ? 'مخلى' : 'CLEARED')}
+                      </span>
+                    </div>
+                    {s.reason && <p className="text-slate-400 mt-1">{s.reason}</p>}
+                    <p className={`text-[11px] mt-1 font-bold ${blocked ? 'text-yellow-300' : 'text-emerald-300'}`}>
+                      {ar ? 'المخالصة' : 'Clearance'}: 🎒 {cl.openCustody} · 🚨 {cl.unpaidViolations} · 🔍 {cl.openInvestigations}
+                      {!blocked && (ar ? ' — جاهز للإخلاء' : ' — ready')}
+                    </p>
+                    {s.status === 'OPEN' && (
+                      <div className="flex gap-2 mt-2">
+                        <input value={sepNote[s.id] ?? ''} onChange={(e) => setSepNote((n) => ({ ...n, [s.id]: e.target.value }))}
+                          placeholder={ar ? 'ملاحظة الإخلاء…' : 'Note…'}
+                          className="flex-1 bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" />
+                        <button disabled={busy === 'clrsep' + s.id} onClick={() => clearSep(s.id)}
+                          className="bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-xs font-black rounded-lg px-4 disabled:opacity-50">
+                          {busy === 'clrsep' + s.id ? '…' : (ar ? 'إخلاء' : 'Clear')}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}

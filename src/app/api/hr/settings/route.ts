@@ -26,7 +26,7 @@ export const dynamic = "force-dynamic";
 const MODULES = [
   "requests", "team", "attendance", "broadcasts", "payroll", "actions",
   "investigations", "custody", "vehicles", "deductions", "company", "petty",
-  "leaveBalances", "vehicleLog", "overtime", "expenses", "org", "tree",
+  "leaveBalances", "vehicleLog", "overtime", "expenses", "org", "tree", "exit",
 ] as const;
 type ModuleKey = (typeof MODULES)[number];
 
