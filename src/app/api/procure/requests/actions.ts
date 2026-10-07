@@ -55,6 +55,7 @@ async function setStatus(
 const QuoteSchema = z.object({
   supplierName: z.string().min(1).max(200),
   amountSar: z.number().positive(),
+  slotNo: z.number().int().min(1).max(3).optional(),
   fileName: z.string().min(1).max(255).optional(),
   mimeType: z.string().max(100).optional(),
   sizeBytes: z.number().int().nonnegative().optional(),
@@ -96,6 +97,18 @@ export async function quotes(
         ? d.fileData
         : `data:${d.mimeType ?? "application/octet-stream"};base64,${d.fileData}`
       : null);
+  // Same slot twice replaces the previous quote (re-upload corrected invoice).
+  if (d.slotNo !== undefined) {
+    await db
+      .delete(procureQuotes)
+      .where(
+        and(
+          eq(procureQuotes.requestId, id),
+          eq(procureQuotes.tenantId, auth.user.tenantId),
+          eq(procureQuotes.slotNo, d.slotNo)
+        )
+      );
+  }
   const [created] = await db
     .insert(procureQuotes)
     .values({
@@ -103,6 +116,7 @@ export async function quotes(
       requestId: id,
       supplierName: d.supplierName.trim(),
       amountSar: String(d.amountSar),
+      slotNo: d.slotNo ?? null,
       fileName: d.fileName ?? null,
       mimeType: d.mimeType ?? null,
       sizeBytes: d.sizeBytes ?? null,
@@ -124,13 +138,14 @@ export async function submit(
   const row = await own(auth.user.tenantId, id);
   if (!row) return errorResponse("REQUEST_NOT_FOUND", "Request not found", 404);
   const n = await db
-    .select({ id: procureQuotes.id })
+    .select({ slotNo: procureQuotes.slotNo })
     .from(procureQuotes)
     .where(
       and(eq(procureQuotes.requestId, id), eq(procureQuotes.tenantId, auth.user.tenantId))
     );
-  if (n.length < 3) {
-    return errorResponse("QUOTES_REQUIRED", `3 عروض مطلوبة — الحالي ${n.length}`, 409);
+  const slots = new Set(n.map((q) => q.slotNo));
+  if (!(slots.has(1) && slots.has(2) && slots.has(3))) {
+    return errorResponse("QUOTES_REQUIRED", "العروض الثلاثة (1 و2 و3) مطلوبة", 409);
   }
   const r = await setStatus(auth.user.tenantId, id, ["DRAFT"], "SUBMITTED");
   if ("error" in r) return r.error;

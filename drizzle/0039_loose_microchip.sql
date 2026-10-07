@@ -1,0 +1,1 @@
+ALTER TABLE "procure_quotes" ADD COLUMN "slot_no" integer;

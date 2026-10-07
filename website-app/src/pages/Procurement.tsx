@@ -33,6 +33,8 @@ export default function Procurement() {
   const [form, setForm] = useState({ itemName: '', quantity: '', unit: '', reason: '', workshopRef: '' });
   const [quoteForm, setQuoteForm] = useState({ supplierName: '', amountSar: '' });
   const [quoteFile, setQuoteFile] = useState<File | null>(null);
+  const [quoteSlot, setQuoteSlot] = useState<1 | 2 | 3>(1);
+  const [branding, setBranding] = useState<{ companyName?: string; logoDataUrl?: string } | null>(null);
   const [uploading, setUploading] = useState(false);
   const [note, setNote] = useState('');
   const [quotePick, setQuotePick] = useState('');
@@ -58,10 +60,42 @@ export default function Procurement() {
         const a = await api.get<{ attachments?: any[] }>(`/api/procure/requests/${id}/attachments`);
         setAttachs(Array.isArray(a?.attachments) ? a.attachments : []);
       } catch { setAttachs([]); }
+      try {
+        const b = await api.get<{ branding?: { companyName?: string; logoUrl?: string } }>('/api/tenant/branding');
+        if (b?.branding) setBranding({ companyName: b.branding.companyName, logoDataUrl: b.branding.logoUrl ?? undefined });
+      } catch { /* keep previous */ }
     } catch (e: any) {
       setMsg(`❌ ${e?.message ?? ''}`);
     }
   }, []);
+
+  const printDoc = (kind: 'request' | 'order') => {
+    if (!sel) return;
+    const w = window.open('', '_blank', 'width=900,height=700');
+    if (!w) return;
+    const logo = branding?.logoDataUrl ? `<img src="${branding.logoDataUrl}" style="height:54px;object-fit:contain;" />` : '';
+    const co = branding?.companyName ?? '';
+    const qs = quotes.map((q, i) => `<tr><td>${i + 1}</td><td>${q.supplierName}</td><td>${q.amountSar}</td><td>${q.slotNo ?? ''}</td></tr>`).join('');
+    const trail = approvals.map((a) => `<tr><td>${a.stage}</td><td>${a.decision}</td><td>${a.note ?? ''}</td></tr>`).join('');
+    const title = kind === 'request' ? 'مستند طلب شراء' : 'مستند أمر شراء';
+    const chosen = quotes.find((q) => q.id === sel.chosenQuoteId);
+    w.document.write(`<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>${title} - ${sel.itemName}</title>
+    <style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:'Segoe UI',Tahoma;padding:28px;color:#111}.head{display:flex;align-items:center;gap:14px;margin-bottom:6px}h1{font-size:22px}.sub{font-size:12px;color:#555;margin-bottom:14px}table{width:100%;border-collapse:collapse;font-size:12px;margin:10px 0}th{background:#0f172a;color:#fff;padding:6px 8px;text-align:right}td{padding:5px 8px;border-bottom:1px solid #ddd}h2{font-size:15px;margin:14px 0 4px}.foot{margin-top:18px;font-size:11px;color:#555;display:flex;gap:40px}.sig{border-top:1px solid #999;padding-top:4px;min-width:140px;text-align:center}@media print{body{padding:10mm}}</style></head><body>
+    <div class="head">${logo}<div><div style="font-size:18px;font-weight:800;">${co}</div><h1>${title}</h1></div></div>
+    <div class="sub">التاريخ: ${new Date().toISOString().slice(0, 10)} · الحالة: ${sel.status}</div>
+    <h2>بيانات الطلب</h2>
+    <table><tr><th>الصنف</th><td>${sel.itemName}</td><th>الكمية</th><td>${sel.quantity} ${sel.unit ?? ''}</td></tr>
+    <tr><th>سبب الطلب</th><td>${sel.reason ?? '—'}</td><th>مرجع الورشة</th><td>${sel.workshopRef ?? '—'}</td></tr>
+    ${kind === 'order' ? `<tr><th>المبلغ المصروف</th><td>${sel.disbursedSar ?? '—'} ر.س</td><th>العرض الفائز</th><td>${chosen ? `${chosen.supplierName} (${chosen.amountSar})` : '—'}</td></tr>` : ''}
+    </table>
+    <h2>عروض الأسعار (3)</h2>
+    <table><thead><tr><th>#</th><th>المورد</th><th>المبلغ</th><th>الخانة</th></tr></thead><tbody>${qs || '<tr><td colspan=4>—</td></tr>'}</tbody></table>
+    <h2>ملاحظات الاعتمادات</h2>
+    <table><thead><tr><th>المرحلة</th><th>القرار</th><th>ملاحظة</th></tr></thead><tbody>${trail || '<tr><td colspan=3>—</td></tr>'}</tbody></table>
+    <div class="foot"><div class="sig">توقيع المراجع</div><div class="sig">توقيع مدير المشتريات</div><div class="sig">توقيع المستلم</div></div>
+    <script>window.onload=()=>setTimeout(()=>window.print(),400);<\/script></body></html>`);
+    w.document.close();
+  };
 
   const attachFile = async (file: File | undefined) => {
     if (!sel || !file) return;
@@ -169,6 +203,7 @@ export default function Procurement() {
       await api.post(`/api/procure/requests/${sel.id}/quotes`, {
         supplierName: quoteForm.supplierName.trim(),
         amountSar: Number(quoteForm.amountSar),
+        slotNo: quoteSlot,
         fileName, mimeType, sizeBytes, storageUrl,
       });
       setQuoteForm({ supplierName: '', amountSar: '' });
@@ -262,15 +297,41 @@ export default function Procurement() {
                 </div>
 
                 <div>
-                  <h4 className="text-[11px] font-black text-slate-300 mb-1">{ar ? 'العروض' : 'Quotes'} ({quotes.length}/3)</h4>
-                  {quotes.map((q, i) => (
-                    <div key={q.id ?? i} className="flex items-center justify-between text-[11px] border-b border-white/5 py-1">
-                      <span className="text-slate-200 font-bold">{q.supplierName} · {q.amountSar} {ar ? 'ر.س' : 'SAR'}</span>
-                      {q.storageUrl && <a href={q.storageUrl} target="_blank" rel="noreferrer" className="text-sky-400 font-black">⬇</a>}
-                    </div>
-                  ))}
+                  <div className="flex items-center justify-between mb-1">
+                    <h4 className="text-[11px] font-black text-slate-300">{ar ? 'العروض (3 خانات)' : 'Quotes'}</h4>
+                    <span className="flex gap-1">
+                      <button onClick={() => printDoc('request')} className="text-[10px] font-black rounded px-2 py-1 border border-white/15 text-slate-200">🖨️ {ar ? 'مستند طلب' : 'Request'}</button>
+                      <button onClick={() => printDoc('order')} className="text-[10px] font-black rounded px-2 py-1 border border-white/15 text-slate-200">🖨️ {ar ? 'مستند أمر' : 'Order'}</button>
+                    </span>
+                  </div>
+                  {[1, 2, 3].map((slot) => {
+                    const q = quotes.find((x) => Number(x.slotNo) === slot);
+                    return (
+                      <div key={slot} className="rounded-lg border border-white/10 bg-white/[0.02] p-2 mb-1.5">
+                        <p className="text-[10px] font-black text-slate-400 mb-1">{ar ? `العرض ${slot}` : `Quote ${slot}`}</p>
+                        {q ? (
+                          <div className="flex items-center justify-between text-[11px]">
+                            <span className="text-slate-200 font-bold">{q.supplierName} · {q.amountSar} {ar ? 'ر.س' : 'SAR'}</span>
+                            {q.storageUrl && <a href={q.storageUrl} target="_blank" rel="noreferrer" className="text-sky-400 font-black">⬇</a>}
+                          </div>
+                        ) : sel.status === 'DRAFT' ? (
+                          <p className="text-[10px] text-slate-500">{ar ? 'فارغة — ارفع من الأسفل برقم الخانة' : 'Empty'}</p>
+                        ) : (
+                          <p className="text-[10px] text-slate-500">—</p>
+                        )}
+                      </div>
+                    );
+                  })}
                   {sel.status === 'DRAFT' && (
-                    <div className="grid grid-cols-2 gap-1 mt-2">
+                    <div className="grid grid-cols-3 gap-1 mt-2">
+                      <div className="flex gap-1 col-span-3">
+                        {[1, 2, 3].map((s) => (
+                          <button key={s} onClick={() => setQuoteSlot(s as 1 | 2 | 3)}
+                            className={`flex-1 text-[11px] font-black rounded-lg px-2 py-1.5 border ${quoteSlot === s ? 'bg-sky-500 text-white border-sky-400' : 'text-slate-400 border-white/10'}`}>
+                            {ar ? `خانة ${s}` : `Slot ${s}`}
+                          </button>
+                        ))}
+                      </div>
                       <input value={quoteForm.supplierName} onChange={(e) => setQuoteForm({ ...quoteForm, supplierName: e.target.value })}
                         placeholder={ar ? 'المورد *' : 'Supplier *'}
                         className="bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-[11px] text-white outline-none" />

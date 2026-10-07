@@ -4348,6 +4348,8 @@ export const procureQuotes = pgTable(
       .references(() => procureRequests.id, { onDelete: "cascade" }),
     supplierName: varchar("supplier_name", { length: 200 }).notNull(),
     amountSar: decimal("amount_sar", { precision: 12, scale: 2 }).notNull(),
+    /** Fixed slot 1|2|3 — the three-quote policy, not just any three rows */
+    slotNo: integer("slot_no"),
     fileName: varchar("file_name", { length: 255 }),
     mimeType: varchar("mime_type", { length: 100 }),
     sizeBytes: integer("size_bytes"),
