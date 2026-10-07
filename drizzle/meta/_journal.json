@@ -260,6 +260,13 @@
       "when": 1791340047424,
       "tag": "0036_closed_warlock",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1791355686458,
+      "tag": "0037_little_firelord",
+      "breakpoints": true
     }
   ]
 }

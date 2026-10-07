@@ -163,6 +163,14 @@ export const PERMISSIONS = {
   /** Mint, print and retire QR labels (sticker stock is a controlled thing). */
   QR_LABEL_PRINT: "qr:label_print",
 
+  // ── Procurement (المشتريات: طلب + 3 عروض + اعتمادان + توريد) ──
+  /** Raise a purchase request and attach supplier quotes. */
+  PROCURE_REQUEST: "procure:request",
+  /** First approval: reviewer (finance) signs the chosen quote. */
+  PROCURE_REVIEW: "procure:review",
+  /** Final approval + disbursement (procurement manager / plant owner). */
+  PROCURE_APPROVE: "procure:approve",
+
   // ── Warehouse: Spares (قطع الغيار) + Scrap (الهالك) ───────────
   WAREHOUSE_READ: "warehouse:read",
   WAREHOUSE_WRITE: "warehouse:write",
@@ -227,6 +235,8 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     PERMISSIONS.ORDER_REJECT_FINANCE,
     PERMISSIONS.ORDER_CANCEL,
     PERMISSIONS.FINANCE_READ,
+    PERMISSIONS.PROCURE_REQUEST,
+    PERMISSIONS.PROCURE_REVIEW, // reviewer: first approval
     PERMISSIONS.FINANCE_CLIENT_UPDATE,
     PERMISSIONS.FINANCE_INVOICE_MANAGE,
     PERMISSIONS.FLEET_READ,
@@ -283,6 +293,9 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     PERMISSIONS.WEIGHBRIDGE_READ,
     PERMISSIONS.FUEL_LOG_READ,
     PERMISSIONS.FINANCE_READ,
+    PERMISSIONS.PROCURE_REQUEST,
+    PERMISSIONS.PROCURE_REVIEW,
+    PERMISSIONS.PROCURE_APPROVE,
     PERMISSIONS.SYSTEM_SETTINGS,
     PERMISSIONS.AUDIT_LOG_READ,
     PERMISSIONS.RND_READ,     // Plant manager sees R&D plans & progress
@@ -451,6 +464,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     PERMISSIONS.FLEET_STATUS_MUTATION,
     PERMISSIONS.FLEET_SPARES_INVENTORY,
     PERMISSIONS.WORKSHOP_READ,
+    PERMISSIONS.PROCURE_REQUEST,
     PERMISSIONS.WORKSHOP_CREATE_ORDER,
     PERMISSIONS.WORKSHOP_UPDATE_ORDER,
     PERMISSIONS.WORKSHOP_CLOSE_ORDER,
@@ -561,6 +575,9 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     PERMISSIONS.ORDER_REJECT_FINANCE,
     PERMISSIONS.ORDER_CANCEL,
     PERMISSIONS.FINANCE_READ,
+    PERMISSIONS.PROCURE_REQUEST,
+    PERMISSIONS.PROCURE_REVIEW,
+    PERMISSIONS.PROCURE_APPROVE, // procurement manager: final + disburse
     PERMISSIONS.FINANCE_CLIENT_UPDATE,
     PERMISSIONS.FINANCE_INVOICE_MANAGE,
     PERMISSIONS.FLEET_READ,
@@ -614,6 +631,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     PERMISSIONS.LAB_ENV_COMPENSATION,
     PERMISSIONS.MIX_READ,
     PERMISSIONS.WORKSHOP_READ,
+    PERMISSIONS.PROCURE_REQUEST,
     PERMISSIONS.FUEL_LOG_READ,
     PERMISSIONS.QR_SCAN,
     PERMISSIONS.FLEET_READ,
@@ -634,6 +652,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     PERMISSIONS.LAB_READ,
     PERMISSIONS.LAB_ENV_COMPENSATION,
     PERMISSIONS.MIX_READ,
+    PERMISSIONS.PROCURE_REQUEST,
     PERMISSIONS.MIX_DESIGN_MANAGE,
     PERMISSIONS.INVENTORY_READ,
     PERMISSIONS.WEIGHBRIDGE_READ,
@@ -671,6 +690,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     PERMISSIONS.INVENTORY_ADJUST,
     PERMISSIONS.WAREHOUSE_READ,
     PERMISSIONS.WAREHOUSE_WRITE,
+    PERMISSIONS.PROCURE_REQUEST, // purchase rep: raises requests + quotes
     PERMISSIONS.WAREHOUSE_SCRAP,
     PERMISSIONS.QR_SCAN,
     PERMISSIONS.FLEET_READ,

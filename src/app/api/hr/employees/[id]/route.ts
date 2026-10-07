@@ -41,6 +41,18 @@ const UpdateEmployeeSchema = z.object({
   photoUrl: z.string().min(1).max(1_500_000).optional(),
   dateOfBirth: z.string().min(1).optional(),
   bloodGroup: z.string().max(5).optional(),
+  hireDate: z.string().min(1).optional(),
+  countryCode: z.string().max(4).optional(),
+  contactPhone: z.string().max(20).optional(),
+  emergencyContactName: z.string().max(120).optional(),
+  emergencyContactPhone: z.string().max(20).optional(),
+  lastVacationDate: z.string().min(1).optional(),
+  lastResumptionDate: z.string().min(1).optional(),
+  medicalInsuranceNo: z.string().max(60).optional(),
+  medicalInsuranceExpiry: z.string().min(1).optional(),
+  iqamaExpiry: z.string().min(1).optional(),
+  vehiclePlate: z.string().max(20).optional(),
+  vehicleOwnership: z.enum(["PRIVATE", "COMPANY"]).optional(),
 });
 
 export async function PUT(

@@ -4301,6 +4301,94 @@ export const hrSeparations = pgTable(
 );
 
 /**
+ * procure_requests — workshop purchase requisitions.
+ * Flow: DRAFT → SUBMITTED (needs ≥3 quotes) → UNDER_REVIEW →
+ * APPROVED (final + disbursed) → RECEIVED (warehouse + QR) →
+ * ISSUED (to workshop) → CLOSED. REJECTED at review or final.
+ */
+export const procureRequests = pgTable(
+  "procure_requests",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    itemName: varchar("item_name", { length: 200 }).notNull(),
+    quantity: decimal("quantity", { precision: 12, scale: 2 }).notNull(),
+    unit: varchar("unit", { length: 20 }).notNull().default("قطعة"),
+    reason: text("reason"),
+    workshopRef: varchar("workshop_ref", { length: 120 }),
+    /** DRAFT|SUBMITTED|UNDER_REVIEW|APPROVED|REJECTED|RECEIVED|ISSUED|CLOSED */
+    status: varchar("status", { length: 16 }).notNull().default("DRAFT"),
+    chosenQuoteId: uuid("chosen_quote_id"),
+    disbursedSar: decimal("disbursed_sar", { precision: 12, scale: 2 }),
+    requestedById: uuid("requested_by_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("idx_proc_req_tenant").on(t.tenantId),
+    index("idx_proc_req_status").on(t.status),
+  ]
+);
+
+/**
+ * procure_quotes — supplier quotes attached to a request (PDF invoices).
+ * Policy: at least 3 quotes before a request can be submitted.
+ */
+export const procureQuotes = pgTable(
+  "procure_quotes",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    requestId: uuid("request_id")
+      .notNull()
+      .references(() => procureRequests.id, { onDelete: "cascade" }),
+    supplierName: varchar("supplier_name", { length: 200 }).notNull(),
+    amountSar: decimal("amount_sar", { precision: 12, scale: 2 }).notNull(),
+    fileName: varchar("file_name", { length: 255 }),
+    mimeType: varchar("mime_type", { length: 100 }),
+    sizeBytes: integer("size_bytes"),
+    storageUrl: text("storage_url"),
+    createdById: uuid("created_by_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("idx_proc_q_tenant").on(t.tenantId),
+    index("idx_proc_q_request").on(t.requestId),
+  ]
+);
+
+/**
+ * procure_approvals — the two-stage trail: REVIEW then FINAL.
+ */
+export const procureApprovals = pgTable(
+  "procure_approvals",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    requestId: uuid("request_id")
+      .notNull()
+      .references(() => procureRequests.id, { onDelete: "cascade" }),
+    /** REVIEW | FINAL */
+    stage: varchar("stage", { length: 16 }).notNull(),
+    /** APPROVED | REJECTED */
+    decision: varchar("decision", { length: 16 }).notNull(),
+    note: text("note"),
+    decidedById: uuid("decided_by_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("idx_proc_a_tenant").on(t.tenantId),
+    index("idx_proc_a_request").on(t.requestId),
+  ]
+);
+
+/**
  * hr_broadcasts — HR → employees announcements (role-targeted or all).
  */
 export const hrBroadcasts = pgTable(

@@ -43,12 +43,12 @@ export function treeModsForRole(key: string): string[] {
  * Dashboard modules per API role (see user_role enum in src/db/schema.ts).
  * Fail-closed: a role missing here sees no cards, same as before.
  */
-const API_ALL = ALL_MODS.filter(m => m !== 'hr');
+const API_ALL = [...ALL_MODS.filter(m => m !== 'hr'), 'procurement'];
 
 const API_ROLE_MODS: Record<string, string[]> = {
   SUPER_ADMIN: API_ALL,
   PLANT_MGR: API_ALL,
-  ACCOUNTANT: ['orders', 'evaluation', 'finance'],
+  ACCOUNTANT: ['orders', 'evaluation', 'finance', 'procurement'],
   LAB_TECH: ['mixing', 'evaluation', 'rnd', 'materials'],
   LAB_TECHNICIAN: ['mixing', 'evaluation', 'rnd', 'materials'],
   LAB_MGR: ['mixing', 'evaluation', 'rnd', 'materials'],
@@ -60,15 +60,15 @@ const API_ROLE_MODS: Record<string, string[]> = {
   // QuickJump limits DRIVER to ['/', '/operations'] — keep it that way.
   DRIVER: ['operations', 'orders'],
   FINANCE: ['orders', 'evaluation', 'finance', 'governance'],
-  CFO: ['orders', 'evaluation', 'finance', 'governance'],
+  CFO: ['orders', 'evaluation', 'finance', 'governance', 'procurement'],
   DISPATCHER: ['operations', 'schedule', 'orders'],
   SCHEDULE_MGR: ['schedule', 'orders'],
-  OPERATIONS_MGR: ['operations', 'schedule', 'orders', 'multiplant'],
-  PRODUCTION_MGR: ['production', 'mixing', 'workshop', 'multiplant'],
-  WORKSHOP_MGR: ['workshop', 'production'],
+  OPERATIONS_MGR: ['operations', 'schedule', 'orders', 'multiplant', 'procurement'],
+  PRODUCTION_MGR: ['production', 'mixing', 'workshop', 'multiplant', 'procurement'],
+  WORKSHOP_MGR: ['workshop', 'production', 'procurement'],
   WORKSHOP_MECHANIC: ['workshop'],
   MECHANIC: ['workshop'],
-  STOREKEEPER: ['production', 'orders', 'materials'],
+  STOREKEEPER: ['production', 'orders', 'materials', 'procurement'],
   STATION_TECH: ['workshop', 'mixing', 'multiplant'],
   RND_MANAGER: ['rnd', 'evaluation', 'orders'],
   // '/hr' exists (HR command page), so HR roles get a working card.

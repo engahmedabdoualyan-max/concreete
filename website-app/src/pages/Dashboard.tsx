@@ -144,6 +144,7 @@ const MODULES: ModuleDef[] = [
   { access: 'rnd', path: 'rnd', labelKey: 'modRnd', descKey: 'modRndDesc', icon: ICON.atom },
   { access: 'multiplant', path: 'multiplant', labelKey: 'modMultiPlant', descKey: 'modMultiPlantDesc', icon: ICON.grid },
   { access: 'hr', path: 'hr', en: 'HR', ar: 'الموارد البشرية', desc: 'الإجازات والسلف وفريق العمل', icon: ICON.person },
+  { access: 'procurement', path: 'procurement', en: 'Procurement', ar: 'المشتريات', desc: 'طلبات الشراء والاعتمادات', icon: ICON.box },
 ];
 
 const DEFAULT_TRIPS: Trip[] = [
@@ -631,9 +632,9 @@ export default function Dashboard() {
             )}
           </div>
 
-          {/* RIGHT column — Maintenance & Quality: Workshop · Mixing & Quality · Governance · R&D · HR */}
+          {/* RIGHT column — Maintenance & Quality: Workshop · Mixing & Quality · Governance · R&D · HR · Procurement */}
           <div className="order-3 flex flex-col gap-6 w-full">
-            {[eff(4), eff(5), eff(6), eff(10), eff(12)].filter(m => m && canAccess(m.access)).map(m => (
+            {[eff(4), eff(5), eff(6), eff(10), eff(12), eff(13)].filter(m => m && canAccess(m.access)).map(m => (
               <ModuleButton key={m!.path} m={m!} onGo={() => go(m!.path)} showDesc className="flex-1 min-h-[130px] lg:min-h-[150px]" />
             ))}
           </div>

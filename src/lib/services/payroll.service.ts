@@ -205,12 +205,26 @@ export async function updateEmployee(
     photoUrl?: string;
     dateOfBirth?: string;
     bloodGroup?: string;
+    hireDate?: string;
+    countryCode?: string;
+    contactPhone?: string;
+    emergencyContactName?: string;
+    emergencyContactPhone?: string;
+    lastVacationDate?: string;
+    lastResumptionDate?: string;
+    medicalInsuranceNo?: string;
+    medicalInsuranceExpiry?: string;
+    iqamaExpiry?: string;
+    vehiclePlate?: string;
+    vehicleOwnership?: string;
   }>
 ) {
   const patch: Record<string, unknown> = { updatedAt: new Date() };
   for (const k of [
     "fullName", "nationalId", "jobTitle", "department", "bankIban", "bankName",
-    "photoUrl", "bloodGroup",
+    "photoUrl", "bloodGroup", "countryCode", "contactPhone",
+    "emergencyContactName", "emergencyContactPhone", "medicalInsuranceNo",
+    "vehiclePlate", "vehicleOwnership",
   ] as const) {
     if (input[k] !== undefined) patch[k] = input[k];
   }
@@ -226,6 +240,13 @@ export async function updateEmployee(
   if (input.isActive !== undefined) patch.isActive = input.isActive;
   if (input.dateOfBirth !== undefined)
     patch.dateOfBirth = input.dateOfBirth ? new Date(input.dateOfBirth) : null;
+  if (input.hireDate !== undefined)
+    patch.hireDate = input.hireDate ? new Date(input.hireDate) : null;
+  for (const k of [
+    "lastVacationDate", "lastResumptionDate", "medicalInsuranceExpiry", "iqamaExpiry",
+  ] as const) {
+    if (input[k] !== undefined) patch[k] = input[k] ? new Date(input[k] as string) : null;
+  }
 
   const [updated] = await db
     .update(payrollEmployees)
