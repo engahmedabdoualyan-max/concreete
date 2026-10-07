@@ -27,6 +27,8 @@ export default function Procurement() {
   const [sel, setSel] = useState<any | null>(null);
   const [quotes, setQuotes] = useState<any[]>([]);
   const [approvals, setApprovals] = useState<any[]>([]);
+  const [attachs, setAttachs] = useState<any[]>([]);
+  const [uploadingAtt, setUploadingAtt] = useState(false);
   const [showNew, setShowNew] = useState(false);
   const [form, setForm] = useState({ itemName: '', quantity: '', unit: '', reason: '', workshopRef: '' });
   const [quoteForm, setQuoteForm] = useState({ supplierName: '', amountSar: '' });
@@ -52,10 +54,58 @@ export default function Procurement() {
       setSel(d?.request ?? null);
       setQuotes(Array.isArray(d?.quotes) ? d.quotes : []);
       setApprovals(Array.isArray(d?.approvals) ? d.approvals : []);
+      try {
+        const a = await api.get<{ attachments?: any[] }>(`/api/procure/requests/${id}/attachments`);
+        setAttachs(Array.isArray(a?.attachments) ? a.attachments : []);
+      } catch { setAttachs([]); }
     } catch (e: any) {
       setMsg(`❌ ${e?.message ?? ''}`);
     }
   }, []);
+
+  const attachFile = async (file: File | undefined) => {
+    if (!sel || !file) return;
+    if (file.size > 8 * 1024 * 1024) {
+      setMsg('❌ الملف أكبر من 8MB');
+      return;
+    }
+    if (!/pdf|image/i.test(file.type) && !/\.(pdf|png|jpe?g|webp)$/i.test(file.name)) {
+      setMsg('❌ PDF أو صور فقط');
+      return;
+    }
+    setUploadingAtt(true);
+    try {
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const r = new FileReader();
+        r.onload = () => resolve(String(r.result));
+        r.onerror = reject;
+        r.readAsDataURL(file);
+      });
+      await api.post(`/api/procure/requests/${sel.id}/attachments`, {
+        fileName: file.name,
+        mimeType: file.type || 'application/octet-stream',
+        sizeBytes: file.size,
+        fileData: dataUrl.startsWith('data:') ? dataUrl : `data:${file.type};base64,${dataUrl}`,
+      });
+      setMsg('✅ تم إرفاق الملف');
+      await loadDetail(sel.id);
+    } catch (e: any) {
+      setMsg(`❌ ${e?.message ?? 'فشل'}`);
+    } finally {
+      setUploadingAtt(false);
+    }
+  };
+
+  const delAttach = async (id: string) => {
+    if (!window.confirm('حذف المرفق؟')) return;
+    try {
+      await api.del(`/api/procure/requests/x/attachments?id=${id}`);
+      setMsg('✅ تم الحذف');
+      if (sel) await loadDetail(sel.id);
+    } catch (e: any) {
+      setMsg(`❌ ${e?.message ?? 'فشل'}`);
+    }
+  };
 
   useEffect(() => {
     if (!currentUser) return;
@@ -238,6 +288,24 @@ export default function Procurement() {
                       </button>
                     </div>
                   )}
+                </div>
+
+                <div>
+                  <h4 className="text-[11px] font-black text-slate-300 mb-1">{ar ? '📎 مرفقات الطلب (PDF)' : 'Attachments'}</h4>
+                  {attachs.map((a, i) => (
+                    <div key={a.id ?? i} className="flex items-center justify-between text-[11px] border-b border-white/5 py-1">
+                      <span className="text-slate-200 font-bold truncate">{a.fileName}</span>
+                      <span className="flex gap-2 shrink-0">
+                        <a href={a.storageUrl} target="_blank" rel="noreferrer" className="text-sky-400 font-black">⬇</a>
+                        <button onClick={() => delAttach(a.id)} className="text-red-400 font-black">✕</button>
+                      </span>
+                    </div>
+                  ))}
+                  <label className="block mt-1 text-[11px] font-black rounded-lg px-2 py-1.5 border border-white/15 text-slate-300 cursor-pointer text-center">
+                    📎 {uploadingAtt ? '…' : (ar ? 'إرفاق PDF/صورة' : 'Attach')}
+                    <input type="file" accept="application/pdf,image/*" className="hidden" disabled={uploadingAtt}
+                      onChange={(e) => { attachFile(e.target.files?.[0]); e.target.value = ''; }} />
+                  </label>
                 </div>
 
                 {sel.status === 'DRAFT' && (

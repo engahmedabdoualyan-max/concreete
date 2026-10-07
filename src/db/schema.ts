@@ -4389,6 +4389,33 @@ export const procureApprovals = pgTable(
 );
 
 /**
+ * procure_attachments — files pinned to the request itself (workshop
+ * request paper, approvals scans…). Quote invoices live on quotes.
+ */
+export const procureAttachments = pgTable(
+  "procure_attachments",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    requestId: uuid("request_id")
+      .notNull()
+      .references(() => procureRequests.id, { onDelete: "cascade" }),
+    fileName: varchar("file_name", { length: 255 }).notNull(),
+    mimeType: varchar("mime_type", { length: 100 }),
+    sizeBytes: integer("size_bytes"),
+    storageUrl: text("storage_url").notNull(),
+    uploadedById: uuid("uploaded_by_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("idx_proc_att_tenant").on(t.tenantId),
+    index("idx_proc_att_request").on(t.requestId),
+  ]
+);
+
+/**
  * hr_broadcasts — HR → employees announcements (role-targeted or all).
  */
 export const hrBroadcasts = pgTable(

@@ -267,6 +267,13 @@
       "when": 1791355686458,
       "tag": "0037_little_firelord",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1791358910350,
+      "tag": "0038_tidy_sleeper",
+      "breakpoints": true
     }
   ]
 }
