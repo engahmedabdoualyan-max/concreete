@@ -63,34 +63,40 @@ export const REFRESH_KEY = "fimto_refresh_token";
 export const SESSION_KEY = "fimto_user_session";
 
 /**
- * Keep web tokens out of persistent localStorage in production. This is not a
- * replacement for HttpOnly cookies, but it reduces the lifetime of a token
- * stolen by a later XSS/extension issue. Mobile uses SecureStore separately.
- *
- * Exception: the Tauri desktop app. It is a single-user native container, not
- * a shared browser — sessionStorage dies on every app restart, which left a
- * restored (looks-logged-in) session with no token behind, so every /api call
- * failed with "Authorization header with Bearer token is required". persisted
- * tokens there auto-renew via the 7-day refresh token like everywhere else.
+ * Token storage: persistent localStorage everywhere (web included).
+ * An earlier version kept web tokens in sessionStorage to shrink the theft
+ * window, but in practice it logged users out on every new tab and every
+ * browser restart — the DB showed ~47 fresh sessions in 48h, i.e. users
+ * re-logging hourly while 100+ orphaned sessions piled up. Server-side
+ * protection stays in place instead: 15-minute access tokens, rotating
+ * 7-day refresh with revocation, and logout clearing everything.
+ * Mobile uses SecureStore separately.
  */
-function isTauri(): boolean {
-  if (typeof window === 'undefined') return false;
-  return '__TAURI_INTERNALS__' in window || '__TAURI__' in window;
-}
-
 function webStorage(): Storage {
   if (typeof window === 'undefined') {
     throw new Error('Web storage is unavailable during SSR');
   }
-  if (import.meta.env.PROD && !isTauri()) return window.sessionStorage;
   return window.localStorage;
 }
 
 function removeLegacyPersistentTokens(): void {
-  if (typeof window === 'undefined' || !import.meta.env.PROD || isTauri()) return;
-  for (const key of [TOKEN_KEY, REFRESH_KEY, SESSION_KEY]) {
-    window.localStorage.removeItem(key);
+  // No-op now: localStorage IS the token store. Kept so old call sites and
+  // the sessionStorage→localStorage migration below keep working.
+}
+
+// One-time migration: users logged in under the old sessionStorage regime
+// keep their session instead of being logged out by this very change.
+try {
+  if (typeof window !== 'undefined' && window.sessionStorage && window.localStorage) {
+    for (const key of [TOKEN_KEY, REFRESH_KEY, SESSION_KEY]) {
+      if (!window.localStorage.getItem(key)) {
+        const v = window.sessionStorage.getItem(key);
+        if (v) window.localStorage.setItem(key, v);
+      }
+    }
   }
+} catch {
+  /* storage unavailable — login flow will handle it */
 }
 
 export interface SessionUser {
