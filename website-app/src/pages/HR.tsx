@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { useLang } from '../context/LangContext';
@@ -53,6 +53,85 @@ function nameOf(e: any): string {
 function fmtMoney(n: number | undefined | null): string {
   if (n === undefined || n === null || Number.isNaN(n)) return '—';
   return Number(n).toLocaleString('ar-EG', { maximumFractionDigits: 0 });
+}
+
+/** Read an image file as a ≤1MB data URL (shared by upload + camera). */
+function readImageFile(file: File): Promise<string> {
+  if (!file.type.startsWith('image/')) return Promise.reject(new Error('image-only'));
+  if (file.size > 1024 * 1024) return Promise.reject(new Error('too-big'));
+  return new Promise<string>((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(String(r.result));
+    r.onerror = reject;
+    r.readAsDataURL(file);
+  });
+}
+
+/** Live camera capture modal — for HR desks with a camera attached. */
+function CameraModal({ ar, onClose, onCapture }: { ar: boolean; onClose: () => void; onCapture: (dataUrl: string) => void }) {
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const [error, setError] = useState('');
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    let stream: MediaStream | null = null;
+    let alive = true;
+    (async () => {
+      try {
+        if (!navigator.mediaDevices?.getUserMedia) throw new Error('no-camera');
+        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: { ideal: 640 } }, audio: false });
+        if (!alive) {
+          stream.getTracks().forEach((t) => t.stop());
+          return;
+        }
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          await videoRef.current.play().catch(() => {});
+          setReady(true);
+        }
+      } catch {
+        if (alive) setError(ar ? 'تعذر فتح الكاميرا — تأكد من السماح بالوصول' : 'Camera unavailable');
+      }
+    })();
+    return () => {
+      alive = false;
+      stream?.getTracks().forEach((t) => t.stop());
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const shoot = () => {
+    const v = videoRef.current;
+    if (!v || !v.videoWidth) return;
+    const scale = Math.min(1, 512 / v.videoWidth);
+    const c = document.createElement('canvas');
+    c.width = Math.round(v.videoWidth * scale);
+    c.height = Math.round(v.videoHeight * scale);
+    c.getContext('2d')?.drawImage(v, 0, 0, c.width, c.height);
+    onCapture(c.toDataURL('image/jpeg', 0.85));
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/75 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="rounded-2xl border border-white/15 bg-[#0B111E] p-4 max-w-md w-full" onClick={(e) => e.stopPropagation()}>
+        <h3 className="text-sm font-black text-white mb-2">🎥 {ar ? 'تصوير الموظف' : 'Capture'}</h3>
+        {error ? (
+          <p className="text-xs text-red-300 font-bold py-4 text-center">{error}</p>
+        ) : (
+          <>
+            <video ref={videoRef} playsInline muted className="w-full rounded-xl bg-black aspect-[4/3] object-cover" />
+            <div className="flex gap-2 mt-3">
+              <button disabled={!ready} onClick={shoot}
+                className="flex-1 bg-sky-500 hover:bg-sky-400 disabled:opacity-50 text-white text-xs font-black rounded-lg py-2">
+                📸 {ar ? 'التقاط' : 'Capture'}
+              </button>
+              <button onClick={onClose} className="text-xs text-slate-400 px-3">{ar ? 'إلغاء' : 'Cancel'}</button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
 }
 
 function daysUntil(raw: unknown): number | null {
@@ -151,7 +230,7 @@ export default function HR() {
   const [fromDate, setFromDate] = useState(() => new Date(Date.now() - 6 * 864e5).toISOString().slice(0, 10));
   const [toDate, setToDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [showAdd, setShowAdd] = useState(false);
-  const [form, setForm] = useState({ employeeCode: '', fullName: '', nationalId: '', countryCode: '', jobTitle: '', department: '', baseSalarySar: '', housingAllowanceSar: '', transportAllowanceSar: '', bankIban: '', bankName: '', hireDate: '', contactPhone: '', emergencyContactName: '', emergencyContactPhone: '', lastVacationDate: '', lastResumptionDate: '', medicalInsuranceNo: '', medicalInsuranceExpiry: '', vehiclePlate: '', vehicleOwnership: '', iqamaExpiry: '' });
+  const [form, setForm] = useState({ employeeCode: '', fullName: '', nationalId: '', countryCode: '', jobTitle: '', department: '', baseSalarySar: '', housingAllowanceSar: '', transportAllowanceSar: '', bankIban: '', bankName: '', hireDate: '', contactPhone: '', emergencyContactName: '', emergencyContactPhone: '', lastVacationDate: '', lastResumptionDate: '', medicalInsuranceNo: '', medicalInsuranceExpiry: '', vehiclePlate: '', vehicleOwnership: '', iqamaExpiry: '', photoUrl: '' });
   const [actions, setActions] = useState<any[]>([]);
   const [actionFilter, setActionFilter] = useState('ALL');
   const [showActionForm, setShowActionForm] = useState(false);
@@ -197,11 +276,6 @@ export default function HR() {
   const [custFiles, setCustFiles] = useState<Record<string, any[]>>({});
   const [custFilesOpen, setCustFilesOpen] = useState<Record<string, boolean>>({});
   const [uploadingCdoc, setUploadingCdoc] = useState(false);
-  const [seps, setSeps] = useState<any[]>([]);
-  const [sepFilter, setSepFilter] = useState('ALL');
-  const [showSepForm, setShowSepForm] = useState(false);
-  const [sepForm, setSepForm] = useState({ employeeId: '', type: 'RESIGNATION', lastWorkingDate: '', reason: '' });
-  const [sepNote, setSepNote] = useState<Record<string, string>>({});
 
 function ageOf(raw: unknown): number | null {
   if (!raw) return null;
@@ -214,33 +288,34 @@ function ageOf(raw: unknown): number | null {
   return age;
 }
   const [uploadingPhoto, setUploadingPhoto] = useState('');
+  const [camFor, setCamFor] = useState<{ employeeId: string } | { form: true } | null>(null);
+
+  const usePhotoFile = async (file: File | undefined, target: { employeeId: string } | { form: true }) => {
+    if (!file) return;
+    try {
+      const dataUrl = await readImageFile(file);
+      if ('form' in target) {
+        setForm((f) => ({ ...f, photoUrl: dataUrl }));
+        setMsg('✅ تم اختيار الصورة — احفظ الموظف');
+      } else {
+        setUploadingPhoto(target.employeeId);
+        try {
+          await api.put(`/api/hr/employees/${target.employeeId}`, { photoUrl: dataUrl });
+          setMsg('✅ تم تحديث الصورة');
+          await load();
+        } finally {
+          setUploadingPhoto('');
+        }
+      }
+    } catch (e: any) {
+      const m = e?.message === 'too-big' ? 'الصورة أكبر من 1MB' : e?.message === 'image-only' ? 'صور فقط' : (e?.message ?? 'فشل');
+      setMsg(`❌ ${m}`);
+    }
+  };
 
   const uploadPhoto = async (employeeId: string, file: File | undefined) => {
     if (!file) return;
-    if (!file.type.startsWith('image/')) {
-      setMsg('❌ صور فقط');
-      return;
-    }
-    if (file.size > 1024 * 1024) {
-      setMsg('❌ الصورة أكبر من 1MB');
-      return;
-    }
-    setUploadingPhoto(employeeId);
-    try {
-      const dataUrl = await new Promise<string>((resolve, reject) => {
-        const r = new FileReader();
-        r.onload = () => resolve(String(r.result));
-        r.onerror = reject;
-        r.readAsDataURL(file);
-      });
-      await api.put(`/api/hr/employees/${employeeId}`, { photoUrl: dataUrl });
-      setMsg('✅ تم تحديث الصورة');
-      await load();
-    } catch (e: any) {
-      setMsg(`❌ ${e?.message ?? 'فشل الرفع'}`);
-    } finally {
-      setUploadingPhoto('');
-    }
+    await usePhotoFile(file, { employeeId });
   };
   const [funds, setFunds] = useState<any[]>([]);
   const [showFundForm, setShowFundForm] = useState(false);
@@ -316,9 +391,10 @@ function ageOf(raw: unknown): number | null {
         iqamaExpiry: form.iqamaExpiry || undefined,
         vehiclePlate: form.vehiclePlate.trim() || undefined,
         vehicleOwnership: (form.vehicleOwnership || undefined) as 'PRIVATE' | 'COMPANY' | undefined,
+        photoUrl: form.photoUrl || undefined,
       });
       setMsg('✅ تمت إضافة الموظف');
-      setForm({ employeeCode: '', fullName: '', nationalId: '', countryCode: '', jobTitle: '', department: '', baseSalarySar: '', housingAllowanceSar: '', transportAllowanceSar: '', bankIban: '', bankName: '', hireDate: '', contactPhone: '', emergencyContactName: '', emergencyContactPhone: '', lastVacationDate: '', lastResumptionDate: '', medicalInsuranceNo: '', medicalInsuranceExpiry: '', vehiclePlate: '', vehicleOwnership: '', iqamaExpiry: '' });
+      setForm({ employeeCode: '', fullName: '', nationalId: '', countryCode: '', jobTitle: '', department: '', baseSalarySar: '', housingAllowanceSar: '', transportAllowanceSar: '', bankIban: '', bankName: '', hireDate: '', contactPhone: '', emergencyContactName: '', emergencyContactPhone: '', lastVacationDate: '', lastResumptionDate: '', medicalInsuranceNo: '', medicalInsuranceExpiry: '', vehiclePlate: '', vehicleOwnership: '', iqamaExpiry: '', photoUrl: '' });
       setShowAdd(false);
       await load();
     } catch (e: any) {
@@ -1466,6 +1542,24 @@ function ageOf(raw: unknown): number | null {
             {showAdd && (
               <div className="rounded-2xl border border-sky-500/30 bg-sky-500/[0.06] p-4 mb-3">
                 <h3 className="text-sm font-black text-white mb-3">➕ {ar ? 'بيانات الموظف الجديد' : 'New employee'}</h3>
+                <div className="flex items-center gap-3 mb-3 rounded-xl border border-white/10 bg-white/[0.03] p-2">
+                  {form.photoUrl ? (
+                    <img src={form.photoUrl} alt="" className="w-14 h-14 rounded-full object-cover border border-sky-500/40" />
+                  ) : (
+                    <div className="w-14 h-14 rounded-full bg-white/10 border border-white/10 flex items-center justify-center text-xl">👤</div>
+                  )}
+                  <div className="flex gap-2">
+                    <label className="text-[11px] font-black rounded-lg px-3 py-1.5 border border-white/15 bg-white/[0.05] text-slate-200 cursor-pointer hover:border-sky-400/60">
+                      📁 {ar ? 'رفع صورة' : 'Upload'}
+                      <input type="file" accept="image/*" className="hidden"
+                        onChange={(e) => { usePhotoFile(e.target.files?.[0], { form: true }); e.target.value = ''; }} />
+                    </label>
+                    <button type="button" onClick={() => setCamFor({ form: true })}
+                      className="text-[11px] font-black rounded-lg px-3 py-1.5 border border-sky-500/50 bg-sky-500/15 text-sky-300 hover:bg-sky-500/25">
+                      🎥 {ar ? 'تصوير' : 'Camera'}
+                    </button>
+                  </div>
+                </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
                   <label className="text-[11px] text-slate-400 font-bold">{ar ? 'كود الموظف *' : 'Code *'}
                     <input value={form.employeeCode} onChange={(e) => setForm({ ...form, employeeCode: e.target.value })}
@@ -1564,16 +1658,23 @@ function ageOf(raw: unknown): number | null {
                       </div>
                     )}
                     {e.id && (
-                      <label title={ar ? 'رفع الصورة' : 'Upload photo'}
-                        className="absolute -bottom-1 -left-1 w-5 h-5 rounded-full bg-white text-[10px] flex items-center justify-center cursor-pointer shadow hover:scale-110 transition">
-                        {uploadingPhoto === e.id ? '…' : '📷'}
-                        <input type="file" accept="image/*" className="hidden" disabled={!!uploadingPhoto}
-                          onChange={(ev) => { uploadPhoto(e.id, ev.target.files?.[0]); ev.target.value = ''; }} />
-                      </label>
+                      <>
+                        <label title={ar ? 'رفع الصورة' : 'Upload photo'}
+                          className="absolute -bottom-1 -left-1 w-5 h-5 rounded-full bg-white text-[10px] flex items-center justify-center cursor-pointer shadow hover:scale-110 transition">
+                          {uploadingPhoto === e.id ? '…' : '📷'}
+                          <input type="file" accept="image/*" className="hidden" disabled={!!uploadingPhoto}
+                            onChange={(ev) => { uploadPhoto(e.id, ev.target.files?.[0]); ev.target.value = ''; }} />
+                        </label>
+                        <button title={ar ? 'تصوير بالكاميرا' : 'Camera'}
+                          onClick={() => setCamFor({ employeeId: e.id })}
+                          className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-sky-500 text-[10px] flex items-center justify-center shadow hover:scale-110 transition">
+                          🎥
+                        </button>
+                      </>
                     )}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm font-black text-white truncate">{nameOf(e)}</p>
+                    <p className="text-sm font-black text-white truncate">{nameOf(e)}{ageOf(e.dateOfBirth) !== null ? <span className="text-[10px] font-bold text-slate-400"> · {ageOf(e.dateOfBirth)} {ar ? 'سنة' : 'y'}</span> : null}</p>
                     <p className="text-[11px] text-slate-400 truncate">
                       {[e.role ?? e.jobTitle, e.department, e.employeeCode, e.phone ?? e.contactPhone].filter(Boolean).join(' · ')}
                     </p>
@@ -2708,6 +2809,28 @@ function ageOf(raw: unknown): number | null {
           </div>
         )}
       </div>
+      {camFor && (
+        <CameraModal
+          ar={ar}
+          onClose={() => setCamFor(null)}
+          onCapture={(dataUrl) => {
+            if ('form' in camFor) {
+              setForm((f) => ({ ...f, photoUrl: dataUrl }));
+              setMsg('✅ تم التقاط الصورة — احفظ الموظف');
+            } else {
+              setUploadingPhoto(camFor.employeeId);
+              api.put(`/api/hr/employees/${camFor.employeeId}`, { photoUrl: dataUrl })
+                .then(() => {
+                  setMsg('✅ تم تحديث الصورة');
+                  return load();
+                })
+                .catch((e: any) => setMsg(`❌ ${e?.message ?? 'فشل الحفظ'}`))
+                .finally(() => setUploadingPhoto(''));
+            }
+            setCamFor(null);
+          }}
+        />
+      )}
     </div>
   );
 }

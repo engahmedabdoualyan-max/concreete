@@ -144,6 +144,7 @@ export async function createEmployee(
     vehicleOwnership?: string;
     dateOfBirth?: string;
     bloodGroup?: string;
+    photoUrl?: string;
   }
 ) {
   const [created] = await db
@@ -178,6 +179,7 @@ export async function createEmployee(
       vehicleOwnership: input.vehicleOwnership,
       dateOfBirth: input.dateOfBirth ? new Date(input.dateOfBirth) : null,
       bloodGroup: input.bloodGroup,
+      photoUrl: input.photoUrl,
     })
     .returning();
   return created;
