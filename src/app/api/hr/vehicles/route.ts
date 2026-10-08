@@ -42,6 +42,9 @@ export async function GET(req: NextRequest) {
       istimaraExpiry: fleetVehicles.istimaraExpiry,
       insuranceExpiresAt: fleetVehicles.insuranceExpiresAt,
       inspectionDueAt: fleetVehicles.inspectionDueAt,
+      istimaraRenewedAt: fleetVehicles.istimaraRenewedAt,
+      insuranceRenewedAt: fleetVehicles.insuranceRenewedAt,
+      inspectionRenewedAt: fleetVehicles.inspectionRenewedAt,
       deviceSerial: telematicsDevices.serialNumber,
     })
     .from(fleetVehicles)

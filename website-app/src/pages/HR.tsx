@@ -298,7 +298,7 @@ export default function HR() {
     w.document.close();
   };
   const [fleet, setFleet] = useState<any[]>([]);
-  const [editVeh, setEditVeh] = useState<Record<string, { istimara: string; insurance: string; inspection: string }>>({});
+  const [editVeh, setEditVeh] = useState<Record<string, { istimara: string; istimaraLast: string; insurance: string; insuranceLast: string; inspection: string; inspectionLast: string }>>({});
   const [editVehInfo, setEditVehInfo] = useState<Record<string, { code: string; plate: string; type: string; make: string; model: string; year: string }>>({});
   const VEH_TYPES = [
     { v: 'MIXER_TRUCK', ar: 'خلاطة', en: 'Mixer' },
@@ -320,6 +320,33 @@ export default function HR() {
   const [cdocs, setCdocs] = useState<any[]>([]);
   const [showCdocForm, setShowCdocForm] = useState(false);
   const [cdocForm, setCdocForm] = useState({ title: '', kind: 'COMMERCIAL_REG', expiryDate: '' });
+  const [cdocView, setCdocView] = useState<any | null>(null);
+
+  const cdocIsPdf = (d: any) => /pdf/i.test(d?.mimeType ?? '') || /\.pdf$/i.test(d?.fileName ?? '');
+
+  const downloadCdoc = async (d: any) => {
+    if (!d?.storageUrl) return;
+    setBusy('cdocdl' + d.id);
+    try {
+      const res = await fetch(d.storageUrl);
+      if (!res.ok) throw new Error('bad response');
+      const blob = await res.blob();
+      if (blob.size === 0) throw new Error('empty file');
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = d.fileName || `${d.title || 'document'}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+      setMsg('✅ تم بدء التنزيل');
+    } catch {
+      setMsg('❌ تعذر تنزيل الملف — البيانات تالفة');
+    } finally {
+      setBusy('');
+    }
+  };
   const [custFiles, setCustFiles] = useState<Record<string, any[]>>({});
   const [custFilesOpen, setCustFilesOpen] = useState<Record<string, boolean>>({});
   const [uploadingCdoc, setUploadingCdoc] = useState(false);
@@ -581,8 +608,11 @@ function ageOf(raw: unknown): number | null {
     try {
       await api.put(`/api/hr/vehicles/${id}/renewals`, {
         istimaraExpiry: f.istimara || null,
+        istimaraRenewedAt: f.istimaraLast || null,
         insuranceExpiresAt: f.insurance || null,
+        insuranceRenewedAt: f.insuranceLast || null,
         inspectionDueAt: f.inspection || null,
+        inspectionRenewedAt: f.inspectionLast || null,
       });
       setMsg('✅ تم حفظ تواريخ التجديد');
       await load();
@@ -2574,15 +2604,26 @@ function ageOf(raw: unknown): number | null {
                       {busy === 'vehinfo' + v.id ? '…' : (ar ? 'حفظ بيانات المركبة' : 'Save vehicle')}
                     </button>
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-2">
-                      {([['istimara', 'الاستمارة', v.istimaraExpiry], ['insurance', 'التأمين', v.insuranceExpiresAt], ['inspection', 'الفحص', v.inspectionDueAt]] as const).map(([k, label, cur]) => (
-                        <label key={k} className="text-[10px] text-slate-400 font-bold">{label} {cur ? `(${String(cur).slice(0, 10)})` : ''}
-                          <span className="flex gap-1 mt-0.5">
+                      {([
+                        ['istimara', 'الاستمارة', v.istimaraExpiry, v.istimaraRenewedAt],
+                        ['insurance', 'التأمين', v.insuranceExpiresAt, v.insuranceRenewedAt],
+                        ['inspection', 'الفحص', v.inspectionDueAt, v.inspectionRenewedAt],
+                      ] as const).map(([k, label, cur, last]) => (
+                        <div key={k} className="rounded-lg border border-white/10 p-1.5">
+                          <p className="text-[10px] text-slate-300 font-black mb-1">{label}</p>
+                          <label className="block text-[10px] text-slate-400 font-bold">{ar ? 'آخر تجديد' : 'Last'} {last ? `(${String(last).slice(0, 10)})` : ''}
+                            <input type="date"
+                              value={f?.[`${k}Last` as keyof typeof f] ?? ''}
+                              onChange={(e) => setEditVeh((p) => ({ ...p, [v.id]: Object.assign({ istimara: '', istimaraLast: '', insurance: '', insuranceLast: '', inspection: '', inspectionLast: '' }, p[v.id], { [`${k}Last`]: e.target.value }) }))}
+                              className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1 text-xs text-white outline-none" />
+                          </label>
+                          <label className="block text-[10px] text-slate-400 font-bold mt-1">{ar ? 'التجديد القادم (للتنبيه)' : 'Next (alert)'} {cur ? `(${String(cur).slice(0, 10)})` : ''}
                             <input type="date"
                               value={f?.[k] ?? ''}
-                              onChange={(e) => setEditVeh((p) => ({ ...p, [v.id]: Object.assign({ istimara: '', insurance: '', inspection: '' }, p[v.id], { [k]: e.target.value }) }))}
-                              className="flex-1 bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1 text-xs text-white outline-none" />
-                          </span>
-                        </label>
+                              onChange={(e) => setEditVeh((p) => ({ ...p, [v.id]: Object.assign({ istimara: '', istimaraLast: '', insurance: '', insuranceLast: '', inspection: '', inspectionLast: '' }, p[v.id], { [k]: e.target.value }) }))}
+                              className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1 text-xs text-white outline-none" />
+                          </label>
+                        </div>
                       ))}
                     </div>
                     <button disabled={busy === 'veh' + v.id} onClick={() => saveVehDates(v.id)}
@@ -2756,12 +2797,31 @@ function ageOf(raw: unknown): number | null {
                 <div key={d.id ?? i} className="flex items-center justify-between text-xs border-b border-white/5 py-1.5">
                   <span className="font-bold text-slate-200">{d.title} <span className="text-slate-500">· {d.fileName}{d.expiryDate ? ` · ${ar ? 'ينتهي' : 'exp'} ${String(d.expiryDate).slice(0, 10)}` : ''}</span></span>
                   <span className="flex gap-2 shrink-0">
-                    <a href={d.storageUrl} target="_blank" rel="noreferrer" className="text-sky-400 font-black">⬇ {ar ? 'فتح' : 'Open'}</a>
+                    <button onClick={() => setCdocView(d)} className="text-[11px] font-black rounded px-2 py-1 border border-sky-500/40 text-sky-300">👁 {ar ? 'قراءة' : 'Read'}</button>
+                    <button disabled={busy === 'cdocdl' + d.id} onClick={() => downloadCdoc(d)} className="text-[11px] font-black rounded px-2 py-1 border border-emerald-500/40 text-emerald-300 disabled:opacity-50">⬇ {ar ? 'تنزيل' : 'Save'}</button>
                     <button onClick={() => deleteCdoc(d.id)} className="text-red-400 font-black">{ar ? 'حذف' : 'Del'}</button>
                   </span>
                 </div>
               ))}
             </div>
+            {cdocView && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={() => setCdocView(null)}>
+                <div className="w-full max-w-3xl rounded-2xl border border-white/15 bg-slate-900 p-3" onClick={(e) => e.stopPropagation()}>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-black text-white">📄 {cdocView.title} <span className="text-slate-500">· {cdocView.fileName}</span></span>
+                    <span className="flex gap-2">
+                      <button onClick={() => downloadCdoc(cdocView)} className="text-[11px] font-black rounded px-3 py-1.5 border border-emerald-500/40 text-emerald-300">⬇ {ar ? 'تنزيل' : 'Save'}</button>
+                      <button onClick={() => setCdocView(null)} className="text-[11px] font-black rounded px-3 py-1.5 border border-white/20 text-slate-200">✕ {ar ? 'إغلاق' : 'Close'}</button>
+                    </span>
+                  </div>
+                  {cdocIsPdf(cdocView) ? (
+                    <embed src={cdocView.storageUrl} type="application/pdf" className="w-full rounded-lg bg-white" style={{ height: '70vh' }} />
+                  ) : (
+                    <img src={cdocView.storageUrl} alt={cdocView.title} className="w-full rounded-lg object-contain" style={{ maxHeight: '70vh' }} />
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         )}
 

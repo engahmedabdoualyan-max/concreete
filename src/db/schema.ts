@@ -804,6 +804,12 @@ export const fleetVehicles = pgTable(
     inspectionDueAt: timestamp("inspection_due_at"),
     /** Vehicle registration (istimara) expiry */
     istimaraExpiry: timestamp("istimara_expiry"),
+    /** Last istimara renewal (HR paperwork) — informational, next date drives alerts */
+    istimaraRenewedAt: timestamp("istimara_renewed_at"),
+    /** Last insurance renewal (HR paperwork) */
+    insuranceRenewedAt: timestamp("insurance_renewed_at"),
+    /** Last inspection renewal (HR paperwork) */
+    inspectionRenewedAt: timestamp("inspection_renewed_at"),
     /**
      * LIVE GPS TELEMETRY — last known position pushed either by the driver app
      * (Socket.io) or by a third-party GPS vendor via /api/v1/fleet/gps-webhook.

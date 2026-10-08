@@ -19,6 +19,9 @@ const RenewalsSchema = z.object({
   istimaraExpiry: z.string().min(1).nullable().optional(),
   insuranceExpiresAt: z.string().min(1).nullable().optional(),
   inspectionDueAt: z.string().min(1).nullable().optional(),
+  istimaraRenewedAt: z.string().min(1).nullable().optional(),
+  insuranceRenewedAt: z.string().min(1).nullable().optional(),
+  inspectionRenewedAt: z.string().min(1).nullable().optional(),
 });
 
 export async function PUT(
@@ -39,7 +42,14 @@ export async function PUT(
   const parsed = RenewalsSchema.safeParse(body);
   if (!parsed.success) return errorResponse("VALIDATION_ERROR", "Invalid dates payload", 400);
   const d = parsed.data;
-  if (d.istimaraExpiry === undefined && d.insuranceExpiresAt === undefined && d.inspectionDueAt === undefined) {
+  if (
+    d.istimaraExpiry === undefined &&
+    d.insuranceExpiresAt === undefined &&
+    d.inspectionDueAt === undefined &&
+    d.istimaraRenewedAt === undefined &&
+    d.insuranceRenewedAt === undefined &&
+    d.inspectionRenewedAt === undefined
+  ) {
     return errorResponse("VALIDATION_ERROR", "Nothing to update", 400);
   }
 
@@ -47,6 +57,9 @@ export async function PUT(
   if (d.istimaraExpiry !== undefined) patch.istimaraExpiry = d.istimaraExpiry ? new Date(d.istimaraExpiry) : null;
   if (d.insuranceExpiresAt !== undefined) patch.insuranceExpiresAt = d.insuranceExpiresAt ? new Date(d.insuranceExpiresAt) : null;
   if (d.inspectionDueAt !== undefined) patch.inspectionDueAt = d.inspectionDueAt ? new Date(d.inspectionDueAt) : null;
+  if (d.istimaraRenewedAt !== undefined) patch.istimaraRenewedAt = d.istimaraRenewedAt ? new Date(d.istimaraRenewedAt) : null;
+  if (d.insuranceRenewedAt !== undefined) patch.insuranceRenewedAt = d.insuranceRenewedAt ? new Date(d.insuranceRenewedAt) : null;
+  if (d.inspectionRenewedAt !== undefined) patch.inspectionRenewedAt = d.inspectionRenewedAt ? new Date(d.inspectionRenewedAt) : null;
 
   const [updated] = await db
     .update(fleetVehicles)
