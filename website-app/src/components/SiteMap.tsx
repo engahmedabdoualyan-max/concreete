@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import { api } from '../api/client';
 
 /**
  * SiteMap — the plant and its branches, drawn on a map.
@@ -171,7 +172,45 @@ export default function SiteMap({ sites, vehicles = [], className = '' }: Props)
     setPicked(null);
     setFocused(null);
     setFollowId(null);
+    setTrail([]);
   };
+  // Today's path behind the focused truck (Uber-style trail).
+  const [trail, setTrail] = useState<Array<{ latitude: number; longitude: number }>>([]);
+  useEffect(() => {
+    if (!focused) {
+      setTrail([]);
+      return;
+    }
+    let dead = false;
+    api
+      .get<{ points?: Array<{ latitude: number; longitude: number }> }>(
+        `/api/fleet/vehicles/${focused.vehicleId}/trail?hours=24`
+      )
+      .then((d) => {
+        if (!dead) setTrail(Array.isArray(d?.points) ? d.points : []);
+      })
+      .catch(() => {
+        if (!dead) setTrail([]);
+      });
+    return () => {
+      dead = true;
+    };
+  }, [focused]);
+  const trailRef = useRef<L.Polyline | null>(null);
+  useEffect(() => {
+    const m = map.current;
+    if (!m) return;
+    if (trailRef.current) {
+      trailRef.current.remove();
+      trailRef.current = null;
+    }
+    if (trail.length > 1) {
+      trailRef.current = L.polyline(
+        trail.map((p) => [p.latitude, p.longitude] as [number, number]),
+        { color: '#38bdf8', weight: 3, opacity: 0.85 }
+      ).addTo(m);
+    }
+  }, [trail]);
 
   // Create the map once. Leaflet throws if you initialise a container twice, so
   // this deliberately does not depend on `sites`.
