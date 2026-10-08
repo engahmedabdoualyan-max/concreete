@@ -66,7 +66,21 @@ function sessionUserToUserSession(user: SessionUser, fallbackUsername = ''): Use
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [currentUser, setCurrentUser] = useState<UserSession | null>(null);
+  // Optimistic restore: show the saved user instantly on refresh instead of
+  // flashing "login first" while /me revalidates (cold starts take ~50s).
+  // A truly dead session is still cleared when /me answers 401/403 below.
+  const [currentUser, setCurrentUser] = useState<UserSession | null>(() => {
+    try {
+      if (import.meta.env.PROD) {
+        const s = loadSession();
+        return s ? sessionUserToUserSession(s) : null;
+      }
+      const raw = localStorage.getItem('currentUserSession');
+      return raw ? (JSON.parse(raw) as UserSession) : null;
+    } catch {
+      return null;
+    }
+  });
   const [registeredUsers] = useState<UserSession[]>([]);
   const [generatedCode, setGeneratedCode] = useState('');
   const [tempUser, setTempUser] = useState<UserSession | null>(null);

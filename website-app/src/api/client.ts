@@ -208,27 +208,52 @@ async function request<T>(path: string, opts: RequestOptions = {}): Promise<T> {
   return json.data as T;
 }
 
+let refreshInflight: Promise<boolean> | null = null;
+
 async function tryRefresh(): Promise<boolean> {
   const refreshToken = getRefreshToken();
   if (!refreshToken) return false;
+  // Single-flight: N parallel 401s (a page fires ~15 calls on load) must
+  // share ONE rotation. Without this, the first rotation revokes the token
+  // the others are holding, they all fail, and the user is thrown back to
+  // "login first" on every refresh with an expired access token.
+  if (refreshInflight) return refreshInflight;
+  refreshInflight = doRefresh(refreshToken);
+  try {
+    return await refreshInflight;
+  } finally {
+    refreshInflight = null;
+  }
+}
+
+async function doRefresh(refreshToken: string): Promise<boolean> {
+  let res: Response;
   try {
     // Raw fetch (not `request`) so a 401 here cannot re-enter the refresh logic.
-    const res = await fetch(`${resolveApiBase()}/api/auth/refresh`, {
+    res = await fetch(`${resolveApiBase()}/api/auth/refresh`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ refreshToken }),
     });
-    const json = await res.json().catch(() => ({}));
-    if (!res.ok || !json?.data?.accessToken) {
-      clearSession();
-      return false;
-    }
-    setTokens(json.data.accessToken, json.data.refreshToken);
-    return true;
   } catch {
-    clearSession();
+    // Network error (cold start, offline, deploy restart): the tokens may
+    // still be valid — NEVER wipe the session on a fetch failure.
     return false;
   }
+  let json: any = {};
+  try {
+    json = await res.json();
+  } catch {
+    return false;
+  }
+  if (!res.ok || !json?.data?.accessToken) {
+    // Only an explicit rejection means the session is dead. A 500/deploy
+    // hiccup keeps the tokens so the next call retries instead of logging out.
+    if (res.status === 401 || res.status === 403) clearSession();
+    return false;
+  }
+  setTokens(json.data.accessToken, json.data.refreshToken);
+  return true;
 }
 
 export const api = {
