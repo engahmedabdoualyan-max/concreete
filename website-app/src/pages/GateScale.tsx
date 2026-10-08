@@ -26,6 +26,26 @@ const OUT_CATS = [
 const CAT_AR: Record<string, string> = {};
 for (const c of [...IN_CATS, ...OUT_CATS]) CAT_AR[c.v] = c.ar;
 
+/**
+ * Loose bulk densities (t/m³) — industry standards for weight↔volume
+ * conversion at the gate. Concrete 2.4, aggregates ~1.55, sand 1.6,
+ * bulk cement ~1.44, water 1.0, liquid admixture ~1.1.
+ */
+const DENSITY: Record<string, number> = {
+  RAW_CEMENT: 1.44,
+  RAW_SAND: 1.6,
+  RAW_GRAVEL_10: 1.55,
+  RAW_GRAVEL_20: 1.55,
+  RAW_GRAVEL_40: 1.55,
+  RAW_WATER: 1.0,
+  RAW_ADMIXTURE: 1.1,
+  CONCRETE: 2.4,
+};
+const kgToM3 = (kg: number, cat: string) =>
+  DENSITY[cat] ? kg / 1000 / DENSITY[cat] : null;
+const m3ToTon = (m3: number, cat: string) =>
+  DENSITY[cat] ? (m3 * DENSITY[cat]) : null;
+
 export default function GateScale() {
   const { currentUser } = useAuth();
   const { lang } = useLang();
@@ -66,6 +86,26 @@ export default function GateScale() {
   }, [currentUser, load]);
 
   const set = (k: string, v: string) => setF((p) => ({ ...p, [k]: v }));
+
+  const convPreview = () => {
+    const parts: string[] = [];
+    const e = parseFloat(f.entryWeightKg);
+    const x = parseFloat(f.exitWeightKg);
+    if (!Number.isNaN(e) && !Number.isNaN(x)) {
+      const net = Math.abs(e - x);
+      const m3 = kgToM3(net, f.category);
+      if (m3 !== null) parts.push(`${L('الصافي', 'Net')} ${(net / 1000).toFixed(2)} ${L('طن', 't')} ≈ ${m3.toFixed(2)} ${L('م³', 'm³')}`);
+    } else if (!Number.isNaN(e)) {
+      const m3 = kgToM3(e, f.category);
+      if (m3 !== null) parts.push(`${(e / 1000).toFixed(2)} ${L('طن', 't')} ≈ ${m3.toFixed(2)} ${L('م³', 'm³')}`);
+    }
+    const q = parseFloat(f.quantity);
+    if (!Number.isNaN(q) && dir === 'OUT' && f.category === 'CONCRETE') {
+      const t = m3ToTon(q, 'CONCRETE');
+      if (t !== null) parts.push(`${q} ${L('م³', 'm³')} ≈ ${t.toFixed(2)} ${L('طن', 't')}`);
+    }
+    return parts.join(' · ') || '—';
+  };
 
   const open = async () => {
     if (!f.vehicleId && !f.externalPlate.trim()) {
@@ -231,6 +271,11 @@ export default function GateScale() {
             <label className="text-[11px] text-slate-400 font-bold">{L('ملاحظات', 'Notes')}
               <input value={f.notes} onChange={(e) => set('notes', e.target.value)} className={inputCls} /></label>
           </div>
+          {(DENSITY[f.category] && (f.entryWeightKg.trim() || f.quantity.trim())) && (
+            <p className="text-[11px] text-sky-300 font-bold mt-2">
+              ⚖️ {L('تحويل', 'Convert')}: {convPreview()}
+            </p>
+          )}
           <button disabled={busy === 'open'} onClick={open}
             className="mt-3 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-white text-xs font-black rounded-lg px-6 py-2">
             {busy === 'open' ? '…' : `✅ ${L('فتح التذكرة', 'Open ticket')}`}
@@ -253,6 +298,8 @@ export default function GateScale() {
                 {[t.partyName, t.driverName, t.orderRef].filter(Boolean).join(' · ')}
                 {` · ${L('دخول', 'in')} ${t.entryWeightKg ?? '—'} ${L('خروج', 'out')} ${t.exitWeightKg ?? '—'}${t.netWeightKg != null ? ` · ${L('الصافي', 'net')} ${Number(t.netWeightKg).toLocaleString()} ${L('كجم', 'kg')}` : ''}`}
                 {t.quantity != null && ` · ${t.quantity} ${t.quantityUnit ?? ''}`}
+                {t.netWeightKg != null && DENSITY[t.category] != null && ` · ≈ ${(Number(t.netWeightKg) / 1000 / DENSITY[t.category]).toFixed(2)} ${L('م³', 'm³')}`}
+                {t.category === 'CONCRETE' && t.quantity != null && ` · ≈ ${(Number(t.quantity) * DENSITY.CONCRETE).toFixed(2)} ${L('طن', 't')}`}
               </p>
               {t.status === 'OPEN' && (
                 <div className="flex gap-2 mt-2">
