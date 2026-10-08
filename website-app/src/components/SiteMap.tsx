@@ -64,6 +64,10 @@ export interface MapVehicle {
   detailLabel?: string;
   /** ISO instant of the last fix, e.g. for the cluster detail card. */
   capturedAt?: string;
+  /** Heading from the two newest fixes. Drives the direction arrow. */
+  headingDeg?: number | null;
+  /** Fresh fix with speed — rendered as a moving arrow, Uber-style. */
+  moving?: boolean;
 }
 
 interface Props {
@@ -115,26 +119,34 @@ function pinIcon(site: MapSite): L.DivIcon {
  * which is a different problem with a different fix; greying it says "we know
  * where it was, and we know that was a while ago".
  */
-function vehicleIcon(v: MapVehicle): L.DivIcon {
+function vehicleIcon(v: MapVehicle, showLabel = true): L.DivIcon {
   const inside = v.isInsidePrimaryGeofence && !v.isStale;
   const color = inside ? '#34d399' : v.isStale ? '#64748b' : '#60a5fa';
   const size = 14;
   const code = escapeHtml(v.vehicleCode || '');
+  // Moving trucks get a heading arrow (Traccar-style); parked ones keep the
+  // dot so direction is never implied from a single stationary fix.
+  const arrow = v.moving && typeof v.headingDeg === 'number'
+    ? `<div style="position:absolute;bottom:0;left:50%;width:22px;height:22px;transform:translateX(-50%) rotate(${v.headingDeg}deg);">` +
+      `<div style="width:0;height:0;margin:0 auto;border-left:7px solid transparent;border-right:7px solid transparent;border-bottom:14px solid ${color};filter:drop-shadow(0 0 3px ${color});"></div></div>`
+    : `<div style="position:absolute;bottom:0;left:50%;transform:translateX(-50%);` +
+      `width:${size}px;height:${size}px;border-radius:${inside ? '9999px' : '3px'};` +
+      `background:${v.isStale ? 'transparent' : color};` +
+      `border:2px solid ${color};` +
+      `${inside ? `box-shadow:0 0 0 4px ${color}40;` : ''}"></div>`;
   // Permanent code label above the dot so the TV screen reads without clicks.
   // Overlapping labels at the depot separate as soon as you zoom in.
   return L.divIcon({
     className: '',
-    html: `<div style="position:relative;width:72px;height:36px;">` +
-      `<div style="position:absolute;top:0;left:50%;transform:translateX(-50%);white-space:nowrap;` +
-      `background:rgba(2,6,16,.88);color:#fff;font-size:10px;font-weight:800;line-height:1.5;` +
-      `padding:0 7px;border-radius:9999px;border:1px solid ${color};">${code}</div>` +
-      `<div style="position:absolute;bottom:0;left:50%;transform:translateX(-50%);` +
-      `width:${size}px;height:${size}px;border-radius:${inside ? '9999px' : '3px'};` +
-      `background:${v.isStale ? 'transparent' : color};` +
-      `border:2px solid ${color};` +
-      `${inside ? `box-shadow:0 0 0 4px ${color}40;` : ''}"></div></div>`,
-    iconSize: [72, 36],
-    iconAnchor: [36, 36],
+    html: `<div style="position:relative;width:72px;height:40px;">` +
+      (showLabel
+        ? `<div style="position:absolute;top:0;left:50%;transform:translateX(-50%);white-space:nowrap;` +
+          `background:rgba(2,6,16,.88);color:#fff;font-size:10px;font-weight:800;line-height:1.5;` +
+          `padding:0 7px;border-radius:9999px;border:1px solid ${color};">${code}</div>`
+        : '') +
+      arrow + `</div>`,
+    iconSize: [72, 40],
+    iconAnchor: [36, 40],
   });
 }
 
@@ -146,6 +158,20 @@ export default function SiteMap({ sites, vehicles = [], className = '' }: Props)
   // list is tappable/scrollable on the TV screen.
   const [picked, setPicked] = useState<MapVehicle[] | null>(null);
   const [focused, setFocused] = useState<MapVehicle | null>(null);
+  // Uber-style follow: the map glides after the picked truck on every refresh.
+  const [followId, setFollowId] = useState<string | null>(null);
+  useEffect(() => {
+    if (!followId || !map.current) return;
+    const v = vehicles.find((x) => x.vehicleId === followId);
+    if (v && Number.isFinite(v.latitude) && Number.isFinite(v.longitude)) {
+      map.current.panTo([v.latitude, v.longitude], { animate: true });
+    }
+  }, [vehicles, followId]);
+  const closeCard = () => {
+    setPicked(null);
+    setFocused(null);
+    setFollowId(null);
+  };
 
   // Create the map once. Leaflet throws if you initialise a container twice, so
   // this deliberately does not depend on `sites`.
@@ -157,21 +183,31 @@ export default function SiteMap({ sites, vehicles = [], className = '' }: Props)
       attribution: '&copy; OpenStreetMap contributors',
     }).addTo(m);
     map.current = m;
+    // Re-cluster on every zoom: badges split into labelled dots and back.
+    const onZoom = () => drawInto(m);
+    m.on('zoomend', onZoom);
+    drawInto(m);
     return () => {
+      m.off('zoomend', onZoom);
       m.remove();
       map.current = null;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // (Re)draw markers whenever either set changes.
-  useEffect(() => {
-    const m = map.current;
-    if (!m) return;
+  // Latest props for the zoom handler (registered once below).
+  const dataRef = useRef({ sites, vehicles });
+  dataRef.current = { sites, vehicles };
+  const fittedRef = useRef(false);
+
+  // Draw everything into an existing map instance.
+  const drawInto = (m: L.Map) => {
     m.eachLayer((layer) => {
       if (layer instanceof L.Marker) layer.remove();
     });
 
-    const usable = sites.filter(
+    const { sites: ds, vehicles: dv } = dataRef.current;
+    const usable = ds.filter(
       (s) => Number.isFinite(s.latitude) && Number.isFinite(s.longitude)
     );
     usable.forEach((s) => {
@@ -184,17 +220,35 @@ export default function SiteMap({ sites, vehicles = [], className = '' }: Props)
         );
     });
 
-    const usableVehicles = vehicles.filter(
+    const usableVehicles = dv.filter(
       (v) => Number.isFinite(v.latitude) && Number.isFinite(v.longitude)
     );
-    // Group dots that share a ~100 m cell: twenty trucks parked at the depot
-    // are one tappable badge, not twenty unreachable markers under each other.
-    const groups = new Map<string, MapVehicle[]>();
-    for (const v of usableVehicles) {
-      const k = `${v.latitude.toFixed(3)},${v.longitude.toFixed(3)}`;
-      const g = groups.get(k);
-      if (g) g.push(v);
-      else groups.set(k, [v]);
+    // Zoom-based clustering (Traccar-style): dots closer than ~52 px on screen
+    // become one count badge, so labels never stack on each other. Zooming in
+    // past level 11 splits them back into labelled dots automatically.
+    const zoom = m.getZoom();
+    const showLabels = zoom >= 11;
+    const R = 52;
+    const pts = usableVehicles.map((v) => ({
+      v,
+      p: m.latLngToContainerPoint([v.latitude, v.longitude]),
+      taken: false,
+    }));
+    const groups: MapVehicle[][] = [];
+    for (const pt of pts) {
+      if (pt.taken) continue;
+      pt.taken = true;
+      const gv: MapVehicle[] = [pt.v];
+      for (const q of pts) {
+        if (q.taken) continue;
+        const dx = q.p.x - pt.p.x;
+        const dy = q.p.y - pt.p.y;
+        if (dx * dx + dy * dy <= R * R) {
+          q.taken = true;
+          gv.push(q.v);
+        }
+      }
+      groups.push(gv);
     }
     const vehiclePopup = (v: MapVehicle) => {
       const label = [v.vehicleCode, v.plateNumber].filter(Boolean).join(' · ');
@@ -211,7 +265,7 @@ export default function SiteMap({ sites, vehicles = [], className = '' }: Props)
     groups.forEach((gv) => {
       const first = gv[0];
       if (gv.length === 1) {
-        L.marker([first.latitude, first.longitude], { icon: vehicleIcon(first), title: first.vehicleCode })
+        L.marker([first.latitude, first.longitude], { icon: vehicleIcon(first, showLabels), title: first.vehicleCode })
           .addTo(m)
           .bindPopup(vehiclePopup(first));
         return;
@@ -239,18 +293,24 @@ export default function SiteMap({ sites, vehicles = [], className = '' }: Props)
         });
     });
 
-    // Fit to sites AND trucks. Fitting to the sites only would leave a truck
-    // 800 km away (correctly) invisible at the edge of the viewport, which reads
-    // as "no truck is out there" rather than "one is, and it is off-screen".
-    const points: [number, number][] = [
-      ...usable.map((s) => [s.latitude, s.longitude] as [number, number]),
-      ...usableVehicles.map((v) => [v.latitude, v.longitude] as [number, number]),
-    ];
-    // Only when we actually have some — fitting to an empty set throws, and there
-    // is nothing useful to show anyway.
-    if (points.length > 0) {
-      m.fitBounds(L.latLngBounds(points), { padding: [40, 40], maxZoom: 12 });
+    // Frame sites + trucks once. Never re-fit on poll: that would yank the
+    // viewport (and the user's zoom) back every 30 seconds.
+    if (!fittedRef.current) {
+      const points: [number, number][] = [
+        ...usable.map((s) => [s.latitude, s.longitude] as [number, number]),
+        ...usableVehicles.map((v) => [v.latitude, v.longitude] as [number, number]),
+      ];
+      if (points.length > 0) {
+        m.fitBounds(L.latLngBounds(points), { padding: [40, 40], maxZoom: 12 });
+        fittedRef.current = true;
+      }
     }
+  };
+
+  // (Re)draw markers whenever either set changes.
+  useEffect(() => {
+    if (map.current) drawInto(map.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sites, vehicles]);
 
   const fmtTime = (iso?: string) => {
@@ -272,7 +332,7 @@ export default function SiteMap({ sites, vehicles = [], className = '' }: Props)
         }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
             <b style={{ fontSize: 12 }}>🚛 {picked.length} مركبات هنا</b>
-            <button onClick={() => { setPicked(null); setFocused(null); }}
+            <button onClick={closeCard}
               style={{ border: '1px solid rgba(255,255,255,.2)', borderRadius: 8, padding: '2px 8px', fontSize: 11, color: '#fff', background: 'transparent' }}>✕</button>
           </div>
           {!focused ? (
@@ -310,6 +370,18 @@ export default function SiteMap({ sites, vehicles = [], className = '' }: Props)
                   {focused.detailLabel || '⇢'}
                 </a>
               )}
+              <button onClick={() => {
+                  setFollowId((f) => (f === focused.vehicleId ? null : focused.vehicleId));
+                  if (map.current) map.current.panTo([focused.latitude, focused.longitude], { animate: true });
+                }}
+                style={{
+                  marginTop: 6, width: '100%', borderRadius: 10, padding: '6px 0', fontSize: 12, fontWeight: 900,
+                  border: `1px solid ${followId === focused.vehicleId ? '#f59e0b' : 'rgba(255,255,255,.2)'}`,
+                  background: followId === focused.vehicleId ? 'rgba(245,158,11,.2)' : 'rgba(255,255,255,.05)',
+                  color: '#fff',
+                }}>
+                {followId === focused.vehicleId ? '⏸ إيقاف التتبع' : '🎯 تتبع السيارة'}
+              </button>
             </div>
           )}
         </div>
