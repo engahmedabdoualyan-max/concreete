@@ -62,7 +62,10 @@ export default function GateScale() {
   const [f, setF] = useState({
     category: 'RAW_CEMENT', vehicleId: '', externalPlate: '', partyName: '',
     driverName: '', entryWeightKg: '', exitWeightKg: '', quantity: '', notes: '',
+    officer: '', docName: '',
   });
+  const [docFile, setDocFile] = useState<File | null>(null);
+  const [docView, setDocView] = useState<{ name: string; url: string } | null>(null);
   const [closeW, setCloseW] = useState<Record<string, string>>({});
 
   const cats = dir === 'IN' ? IN_CATS : OUT_CATS;
@@ -118,6 +121,17 @@ export default function GateScale() {
     }
     setBusy('open');
     try {
+      let docData: string | undefined;
+      if (docFile) {
+        if (docFile.size > 8 * 1024 * 1024) throw new Error(L('المستند أكبر من 8MB', 'Document over 8MB'));
+        docData = await new Promise<string>((resolve, reject) => {
+          const r = new FileReader();
+          r.onload = () => resolve(String(r.result));
+          r.onerror = reject;
+          r.readAsDataURL(docFile);
+        });
+      }
+      const officer = f.officer.trim() || (currentUser as any)?.fullName || '';
       const r = await api.post<{ ticketNo?: string }>('/api/gate', {
         direction: dir,
         category: f.category,
@@ -129,11 +143,15 @@ export default function GateScale() {
         ...(f.exitWeightKg.trim() ? { exitWeightKg: Number(f.exitWeightKg) } : {}),
         ...(f.quantity.trim() ? { quantity: Number(f.quantity), quantityUnit: dir === 'IN' ? 'KG' : f.category === 'CONCRETE' ? 'M3' : 'UNIT' } : {}),
         ...(f.notes.trim() ? { notes: f.notes.trim() } : {}),
+        ...(officer ? { officerName: officer } : {}),
+        ...(docData ? { docName: docFile?.name ?? 'document', docData } : {}),
       });
       setMsg(`✅ ${L('تم فتح التذكرة', 'Ticket opened')} ${r?.ticketNo ?? ''}`);
+      setDocFile(null);
       setF({
         category: dir === 'IN' ? 'RAW_CEMENT' : 'CONCRETE', vehicleId: '', externalPlate: '',
         partyName: '', driverName: '', entryWeightKg: '', exitWeightKg: '', quantity: '', notes: '',
+        officer: '', docName: '',
       });
       await load();
     } catch (e: any) {
@@ -159,6 +177,40 @@ export default function GateScale() {
       setMsg(`❌ ${e?.message ?? L('فشل الإغلاق', 'Failed')}`);
     } finally {
       setBusy('');
+    }
+  };
+
+  const openDoc = async (t: any) => {
+    setBusy('doc' + t.id);
+    try {
+      const d = await api.get<{ docName?: string; docUrl?: string }>(`/api/gate/${t.id}`);
+      if (!d?.docUrl) {
+        setMsg(`❌ ${L('لا مستند مرفق', 'No document')}`);
+        return;
+      }
+      setDocView({ name: d.docName ?? t.docName ?? 'document', url: d.docUrl });
+    } catch (e: any) {
+      setMsg(`❌ ${e?.message ?? L('تعذر الفتح', 'Failed')}`);
+    } finally {
+      setBusy('');
+    }
+  };
+
+  const downloadDoc = async () => {
+    if (!docView) return;
+    try {
+      const res = await fetch(docView.url);
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = docView.name;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+    } catch {
+      setMsg(`❌ ${L('تعذر التنزيل', 'Failed')}`);
     }
   };
 
@@ -270,6 +322,11 @@ export default function GateScale() {
             )}
             <label className="text-[11px] text-slate-400 font-bold">{L('ملاحظات', 'Notes')}
               <input value={f.notes} onChange={(e) => set('notes', e.target.value)} className={inputCls} /></label>
+            <label className="text-[11px] text-slate-400 font-bold">👮 {L('مسئول البوابة', 'Gate officer')}
+              <input value={f.officer} placeholder={(currentUser as any)?.fullName ?? ''} onChange={(e) => set('officer', e.target.value)} className={inputCls} /></label>
+            <label className="text-[11px] text-slate-400 font-bold">📎 {L('مستند الاستلام (PDF/صورة)', 'Receipt doc')}
+              <input type="file" accept="application/pdf,image/*" onChange={(e) => setDocFile(e.target.files?.[0] ?? null)}
+                className="mt-0.5 w-full text-[11px] text-slate-300 file:bg-white/10 file:border file:border-white/10 file:rounded-lg file:px-2 file:py-1 file:text-white file:text-[11px]" /></label>
           </div>
           {(DENSITY[f.category] && (f.entryWeightKg.trim() || f.quantity.trim())) && (
             <p className="text-[11px] text-sky-300 font-bold mt-2">
@@ -301,6 +358,15 @@ export default function GateScale() {
                 {t.netWeightKg != null && DENSITY[t.category] != null && ` · ≈ ${(Number(t.netWeightKg) / 1000 / DENSITY[t.category]).toFixed(2)} ${L('م³', 'm³')}`}
                 {t.category === 'CONCRETE' && t.quantity != null && ` · ≈ ${(Number(t.quantity) * DENSITY.CONCRETE).toFixed(2)} ${L('طن', 't')}`}
               </p>
+              <p className="text-slate-500 mt-0.5">
+                👮 {t.officerName ?? t.operatorName ?? '—'}
+                {t.hasDoc && (
+                  <button disabled={busy === 'doc' + t.id} onClick={() => openDoc(t)}
+                    className="mr-2 text-[11px] font-black rounded px-2 py-0.5 border border-sky-500/40 text-sky-300 disabled:opacity-50">
+                    {busy === 'doc' + t.id ? '…' : `📎 ${t.docName ?? L('المستند', 'Doc')}`}
+                  </button>
+                )}
+              </p>
               {t.status === 'OPEN' && (
                 <div className="flex gap-2 mt-2">
                   <input value={closeW[t.id] ?? ''} inputMode="decimal"
@@ -317,6 +383,24 @@ export default function GateScale() {
           ))}
         </div>
       </div>
+      {docView && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={() => setDocView(null)}>
+          <div className="w-full max-w-3xl rounded-2xl border border-white/15 bg-slate-900 p-3" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-black text-white">📎 {docView.name}</span>
+              <span className="flex gap-2">
+                <button onClick={downloadDoc} className="text-[11px] font-black rounded px-3 py-1.5 border border-emerald-500/40 text-emerald-300">⬇ {L('تنزيل', 'Save')}</button>
+                <button onClick={() => setDocView(null)} className="text-[11px] font-black rounded px-3 py-1.5 border border-white/20 text-slate-200">✕ {L('إغلاق', 'Close')}</button>
+              </span>
+            </div>
+            {/pdf/i.test(docView.name) || docView.url.startsWith('data:application/pdf') ? (
+              <embed src={docView.url} type="application/pdf" className="w-full rounded-lg bg-white" style={{ height: '70vh' }} />
+            ) : (
+              <img src={docView.url} alt={docView.name} className="w-full rounded-lg object-contain" style={{ maxHeight: '70vh' }} />
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

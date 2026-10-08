@@ -4631,6 +4631,12 @@ export const gatePasses = pgTable(
     operatorId: uuid("operator_id").references(() => users.id, {
       onDelete: "set null",
     }),
+    /** Gate officer on shift (defaults to the operator's name). */
+    officerName: varchar("officer_name", { length: 120 }),
+    /** Receiving-document file name (supplier note / weight card photo). */
+    docName: varchar("doc_name", { length: 255 }),
+    /** Receiving document bytes as data URI (8 MB cap, like company docs). */
+    docUrl: text("doc_url"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     closedAt: timestamp("closed_at"),
   },

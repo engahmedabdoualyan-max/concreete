@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { db } from "@/db";
-import { fleetVehicles, gatePasses, mixDesigns } from "@/db/schema";
+import { fleetVehicles, gatePasses, mixDesigns, users } from "@/db/schema";
 import { and, desc, eq, gte, lte, sql } from "drizzle-orm";
 import { z } from "zod";
 import {
@@ -52,6 +52,9 @@ const OpenSchema = z
     mixDesignId: z.string().uuid().optional(),
     orderRef: z.string().trim().max(60).optional(),
     notes: z.string().trim().max(500).optional(),
+    officerName: z.string().trim().max(120).optional(),
+    docName: z.string().trim().min(1).max(255).optional(),
+    docData: z.string().min(1).max(11_000_000).optional(),
   })
   .refine((d) => d.vehicleId || d.externalPlate, {
     message: "vehicleId or externalPlate required",
@@ -109,10 +112,16 @@ export async function GET(req: NextRequest) {
       quantityUnit: gatePasses.quantityUnit,
       orderRef: gatePasses.orderRef,
       status: gatePasses.status,
+      officerName: gatePasses.officerName,
+      operatorName: users.fullName,
+      docName: gatePasses.docName,
+      // Bytes excluded from the list (multi-MB data URIs); fetched per ticket.
+      hasDoc: sql<boolean>`(${gatePasses.docUrl} IS NOT NULL)`,
       createdAt: gatePasses.createdAt,
     })
     .from(gatePasses)
     .leftJoin(fleetVehicles, eq(fleetVehicles.id, gatePasses.vehicleId))
+    .leftJoin(users, eq(users.id, gatePasses.operatorId))
     .where(and(...conds))
     .orderBy(desc(gatePasses.createdAt))
     .limit(300);
@@ -173,6 +182,17 @@ export async function POST(req: NextRequest) {
       ? Math.abs(d.entryWeightKg - d.exitWeightKg)
       : null;
 
+  // Receiving-document bytes: data URI preferred, raw base64 tolerated.
+  let docUrl: string | null = null;
+  if (d.docData) {
+    if (!d.docName) return errorResponse("VALIDATION_ERROR", "اسم المستند مطلوب مع الملف", 400);
+    docUrl = d.docData.startsWith("data:")
+      ? d.docData
+      : `data:application/octet-stream;base64,${d.docData}`;
+  } else if (d.docName) {
+    return errorResponse("VALIDATION_ERROR", "ملف المستند مطلوب مع الاسم", 400);
+  }
+
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
       const [row] = await db
@@ -196,6 +216,9 @@ export async function POST(req: NextRequest) {
           notes: d.notes || null,
           status: both ? "CLOSED" : "OPEN",
           operatorId: auth.user.sub,
+          officerName: d.officerName || null,
+          docName: d.docName || null,
+          docUrl,
           closedAt: both ? new Date() : null,
         })
         .returning({ id: gatePasses.id, ticketNo: gatePasses.ticketNo });
