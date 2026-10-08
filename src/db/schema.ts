@@ -114,6 +114,7 @@ export const userRoleEnum = pgEnum("user_role", [
   // appended to the database after the others.
   "HR_MANAGER",           // مدير الموارد البشرية — owns the employee master: adds workers,
                           //   creates employee cards, issues their QR codes, edits the record
+  "GATE_OPERATOR",        // مسئول البوابة والميزان — gate & scale tickets only
 ]);
 
 /** Order lifecycle states — maps directly to the Sales Pipeline module */

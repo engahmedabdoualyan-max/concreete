@@ -36,6 +36,9 @@ const ROLE_ACCESS: Record<string, string[]> = {
   // truck are the ones who move it to another truck. DISPATCHER/WORKSHOP_MGR and
   // SUPER_ADMIN reach it via ALL_PAGES.
   PRODUCTION_OP: ['/', '/workshop', '/fleet/coding', '/mixing', '/production', '/materials', '/gate'],
+  // Gate officer: home + gate only. Deliberately NOT the STOREKEEPER set —
+  // the gate account must not see procurement, finance or HR cards.
+  GATE_OPERATOR: ['/', '/gate'],
   DRIVER: ['/', '/operations'],
 };
 

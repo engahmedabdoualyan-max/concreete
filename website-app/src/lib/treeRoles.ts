@@ -73,6 +73,9 @@ const API_ROLE_MODS: Record<string, string[]> = {
   RND_MANAGER: ['rnd', 'evaluation', 'orders'],
   // '/hr' exists (HR command page), so HR roles get a working card.
   HR_OFFICER: ['hr', 'orders'],
+  // Gate officer: the gate card alone. Narrow by design — this account must
+  // never wander into procurement, finance or HR.
+  GATE_OPERATOR: ['gate'],
   HR_MANAGER: ['hr', 'orders', 'evaluation'],
 };
 

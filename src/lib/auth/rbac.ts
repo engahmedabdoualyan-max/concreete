@@ -704,6 +704,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     PERMISSIONS.INVENTORY_ADJUST,
     PERMISSIONS.WAREHOUSE_READ,
     PERMISSIONS.WAREHOUSE_WRITE,
+    PERMISSIONS.ORDER_READ, // read-only order context (reorder screen reads mixes)
     PERMISSIONS.PROCURE_REQUEST, // purchase rep: raises requests + quotes
     PERMISSIONS.WAREHOUSE_SCRAP,
     PERMISSIONS.QR_SCAN,
@@ -711,6 +712,18 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     PERMISSIONS.SITE_READ,
     PERMISSIONS.WEIGHBRIDGE_READ,
     PERMISSIONS.WEIGHBRIDGE_RECORD, // gate & scale tickets: open + close weighings
+  ],
+
+  // ── Gate operator (مسئول البوابة والميزان) ─────────────────────────────
+  // Owns the gate scale and nothing else: open/close weighbridge tickets with
+  // a receiving document. Reads fleet + sites only for context (which truck,
+  // which plant). Cannot touch inventory, procurement, workshop or HR — the
+  // dashboard shows the gate card alone.
+  GATE_OPERATOR: [
+    PERMISSIONS.WEIGHBRIDGE_READ,
+    PERMISSIONS.WEIGHBRIDGE_RECORD,
+    PERMISSIONS.FLEET_READ, // pick the fleet truck on a ticket (read-only)
+    PERMISSIONS.SITE_READ, // plant context (read-only)
   ],
 
   MECHANIC: [
