@@ -32,7 +32,9 @@ export default function Procurement() {
   const [attachs, setAttachs] = useState<any[]>([]);
   const [uploadingAtt, setUploadingAtt] = useState(false);
   const [showNew, setShowNew] = useState(false);
-  const [form, setForm] = useState({ itemName: '', quantity: '', unit: '', reason: '', workshopRef: '' });
+  const [form, setForm] = useState({ itemName: '', itemCode: '', vehicleId: '', quantity: '', unit: '', reason: '', workshopRef: '' });
+  const [regItems, setRegItems] = useState<any[]>([]);
+  const [fleetList, setFleetList] = useState<any[]>([]);
   const [quoteForm, setQuoteForm] = useState({ supplierName: '', amountSar: '' });
   const [quoteFile, setQuoteFile] = useState<File | null>(null);
   const [quoteSlot, setQuoteSlot] = useState<1 | 2 | 3>(1);
@@ -50,6 +52,14 @@ export default function Procurement() {
       const r = await api.get<{ requests?: any[] }>(`/api/procure/requests${filter === 'ALL' ? '' : `?status=${filter}`}`);
       setRequests(Array.isArray(r?.requests) ? r.requests : []);
     } catch { setRequests([]); }
+    try {
+      const it = await api.get<any[]>(`/api/warehouse/items`);
+      setRegItems(Array.isArray(it) ? it : (it as any)?.items ?? []);
+    } catch { /* registry optional */ }
+    try {
+      const fl = await api.get<any[]>(`/api/fleet`);
+      setFleetList(Array.isArray(fl) ? fl : (fl as any)?.vehicles ?? []);
+    } catch { /* fleet optional */ }
   }, [filter]);
 
   const loadDetail = useCallback(async (id: string) => {
@@ -86,8 +96,9 @@ export default function Procurement() {
     <div class="head">${logo}<div><div style="font-size:18px;font-weight:800;">${co}</div><h1>${title}</h1></div></div>
     <div class="sub">التاريخ: ${new Date().toISOString().slice(0, 10)} · الحالة: ${sel.status}</div>
     <h2>بيانات الطلب</h2>
-    <table><tr><th>الصنف</th><td>${sel.itemName}</td><th>الكمية</th><td>${sel.quantity} ${sel.unit ?? ''}</td></tr>
-    <tr><th>سبب الطلب</th><td>${sel.reason ?? '—'}</td><th>مرجع الورشة</th><td>${sel.workshopRef ?? '—'}</td></tr>
+    <table><tr><th>الصنف</th><td>${sel.itemCode ? `[${sel.itemCode}] ` : ''}${sel.itemName}</td><th>الكمية</th><td>${sel.quantity} ${sel.unit ?? ''}</td></tr>
+    <tr><th>المركبة</th><td>${sel.vehicleCode ? `${sel.vehicleCode}${sel.plateNumber ? ` · ${sel.plateNumber}` : ''}` : '—'}</td><th>مرجع الورشة</th><td>${sel.workshopRef ?? '—'}</td></tr>
+    <tr><th>سبب الطلب</th><td colspan="3">${sel.reason ?? '—'}</td></tr>
     ${kind === 'order' ? `<tr><th>المبلغ المصروف</th><td>${sel.disbursedSar ?? '—'} ر.س</td><th>العرض الفائز</th><td>${chosen ? `${chosen.supplierName} (${chosen.amountSar})` : '—'}</td></tr>` : ''}
     </table>
     <h2>عروض الأسعار (3)</h2>
@@ -168,12 +179,14 @@ export default function Procurement() {
       if (!form.itemName.trim() || !form.quantity.trim()) throw new Error(ar ? 'الصنف والكمية مطلوبة' : 'required');
       await api.post('/api/procure/requests', {
         itemName: form.itemName.trim(),
+        ...(form.itemCode.trim() ? { itemCode: form.itemCode.trim() } : {}),
+        ...(form.vehicleId ? { vehicleId: form.vehicleId } : {}),
         quantity: Number(form.quantity),
         unit: form.unit.trim() || undefined,
         reason: form.reason.trim() || undefined,
         workshopRef: form.workshopRef.trim() || undefined,
       });
-      setForm({ itemName: '', quantity: '', unit: '', reason: '', workshopRef: '' });
+      setForm({ itemName: '', itemCode: '', vehicleId: '', quantity: '', unit: '', reason: '', workshopRef: '' });
       setShowNew(false);
     }, ar ? 'تم إنشاء الطلب' : 'Created', 'new');
 
@@ -255,9 +268,39 @@ export default function Procurement() {
         {showNew && (
           <div className="rounded-2xl border border-sky-500/30 bg-sky-500/[0.06] p-4 mt-3">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-              <label className="text-[11px] text-slate-400 font-bold">{ar ? 'الصنف *' : 'Item *'}
-                <input value={form.itemName} onChange={(e) => setForm({ ...form, itemName: e.target.value })}
-                  className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
+              <label className="text-[11px] text-slate-400 font-bold">{ar ? 'الصنف * (ابحث بالكود أو الاسم)' : 'Item * (search code/name)'}
+                <input value={form.itemName} list="proc-reg-items"
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    const hit = regItems.find((it: any) =>
+                      v === (it.itemCode ?? it.code) || v === (it.name ?? it.itemName) ||
+                      v === `${it.itemCode ?? it.code} · ${it.name ?? it.itemName}`);
+                    setForm({
+                      ...form,
+                      itemName: hit ? (hit.name ?? hit.itemName ?? v) : v,
+                      itemCode: hit ? (hit.itemCode ?? hit.code ?? '') : (/^[A-Za-z0-9-]+$/.test(v.trim()) ? v.trim() : form.itemCode),
+                      unit: hit?.unit && !form.unit ? (hit.unit ?? '') : form.unit,
+                    });
+                  }}
+                  className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" />
+                <datalist id="proc-reg-items">
+                  {regItems.slice(0, 200).map((it: any, i: number) => (
+                    <option key={it.id ?? i} value={`${it.itemCode ?? it.code} · ${it.name ?? it.itemName}`} />
+                  ))}
+                </datalist></label>
+              {form.itemCode ? (
+                <p className="-mt-1 text-[10px] text-emerald-300 font-black">🔖 {ar ? 'كود الصنف' : 'Code'}: <span dir="ltr">{form.itemCode}</span></p>
+              ) : null}
+              <label className="text-[11px] text-slate-400 font-bold">{ar ? 'المركبة (رقم/كود)' : 'Vehicle'}
+                <select value={form.vehicleId} onChange={(e) => setForm({ ...form, vehicleId: e.target.value })}
+                  className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none">
+                  <option value="">—</option>
+                  {fleetList.map((v: any) => (
+                    <option key={v.id ?? v.vehicleId} value={v.id ?? v.vehicleId}>
+                      {v.vehicleCode ?? v.code} · {v.plateNumber ?? v.plate}
+                    </option>
+                  ))}
+                </select></label>
               <label className="text-[11px] text-slate-400 font-bold">{ar ? 'الكمية *' : 'Qty *'}
                 <input value={form.quantity} onChange={(e) => setForm({ ...form, quantity: e.target.value })} inputMode="decimal"
                   className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
@@ -285,7 +328,10 @@ export default function Procurement() {
               <button key={r.id} onClick={() => loadDetail(r.id)}
                 className={`w-full text-right rounded-xl border px-3 py-2 text-xs ${sel?.id === r.id ? 'border-sky-500/60 bg-sky-500/10' : 'border-white/10 bg-white/[0.03]'}`}>
                 <div className="flex items-center justify-between">
-                  <span className="font-black text-white">{r.itemName} · {r.quantity} {r.unit}</span>
+                  <span className="font-black text-white">
+                    {r.itemCode ? <span dir="ltr" className="text-emerald-300">[{r.itemCode}] </span> : ''}{r.itemName} · {r.quantity} {r.unit}
+                    {r.vehicleCode ? <span className="text-sky-300"> · 🚛 {r.vehicleCode}</span> : ''}
+                  </span>
                   <span className="text-[10px] font-black rounded px-2 py-0.5 bg-white/10 text-slate-300">{STATUS_AR[r.status] ?? r.status}</span>
                 </div>
                 <p className="text-slate-500 text-[10px] mt-0.5">{ar ? 'العروض' : 'Quotes'}: {r.quotes}/3</p>
@@ -298,9 +344,14 @@ export default function Procurement() {
             {sel && (
               <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-4 space-y-3">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-black text-white">{sel.itemName}</h3>
+                  <h3 className="text-sm font-black text-white">
+                    {sel.itemCode ? <span dir="ltr" className="text-emerald-300">[{sel.itemCode}] </span> : ''}{sel.itemName}
+                  </h3>
                   <span className="text-[10px] font-black rounded px-2 py-0.5 bg-sky-500/15 text-sky-300">{STATUS_AR[sel.status] ?? sel.status}</span>
                 </div>
+                {sel.vehicleCode && (
+                  <p className="text-[11px] text-sky-300 font-black">🚛 {sel.vehicleCode}{sel.plateNumber ? ` · ${sel.plateNumber}` : ''}</p>
+                )}
 
                 <div>
                   <div className="flex items-center justify-between mb-1">

@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { db } from "@/db";
-import { procureApprovals, procureQuotes, procureRequests } from "@/db/schema";
+import { fleetVehicles, procureApprovals, procureQuotes, procureRequests } from "@/db/schema";
 import { and, desc, eq } from "drizzle-orm";
 import { z } from "zod";
 import {
@@ -24,10 +24,12 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 async function own(tenantId: string, id: string) {
   if (!UUID_RE.test(id)) return null;
   const rows = await db
-    .select()
+    .select({ req: procureRequests, vehicleCode: fleetVehicles.vehicleCode, plateNumber: fleetVehicles.plateNumber })
     .from(procureRequests)
+    .leftJoin(fleetVehicles, eq(fleetVehicles.id, procureRequests.vehicleId))
     .where(and(eq(procureRequests.id, id), eq(procureRequests.tenantId, tenantId)));
-  return rows[0] ?? null;
+  const r = rows[0];
+  return r ? { ...r.req, vehicleCode: r.vehicleCode, plateNumber: r.plateNumber } : null;
 }
 
 async function setStatus(

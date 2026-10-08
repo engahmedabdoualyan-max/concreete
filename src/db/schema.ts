@@ -4321,6 +4321,12 @@ export const procureRequests = pgTable(
       .notNull()
       .references(() => tenants.id, { onDelete: "restrict" }),
     itemName: varchar("item_name", { length: 200 }).notNull(),
+    /** Coded link to warehouse_items.item_code (registry search in the form). */
+    itemCode: varchar("item_code", { length: 30 }),
+    /** Vehicle the part/material is for (code + plate shown everywhere). */
+    vehicleId: uuid("vehicle_id").references(() => fleetVehicles.id, {
+      onDelete: "set null",
+    }),
     quantity: decimal("quantity", { precision: 12, scale: 2 }).notNull(),
     unit: varchar("unit", { length: 20 }).notNull().default("قطعة"),
     reason: text("reason"),
