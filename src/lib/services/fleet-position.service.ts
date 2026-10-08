@@ -81,6 +81,8 @@ export type FleetPosition = {
   latitude: number;
   longitude: number;
   speedKmh: number | null;
+  /** Heading from the two newest fixes (null when parked/unknown). */
+  headingDeg: number | null;
   source: string;
   capturedAt: string;
   /** Whole minutes since the fix. 0 = this minute. */
@@ -132,11 +134,22 @@ export async function getFleetPositions(
       r.speed_kmh,
       r.source,
       r.captured_at,
+      r.prev_lat,
+      r.prev_lng,
       EXTRACT(EPOCH FROM (now() - r.captured_at)) / 60.0 AS age_minutes
     FROM fleet_vehicles v
-    JOIN telematics_readings r
-      ON r.vehicle_id = v.id
-     AND r.tenant_id = v.tenant_id
+    JOIN LATERAL (
+      SELECT t.latitude, t.longitude, t.speed_kmh, t.source, t.captured_at,
+        lag(t.latitude) OVER (ORDER BY t.captured_at DESC) AS prev_lat,
+        lag(t.longitude) OVER (ORDER BY t.captured_at DESC) AS prev_lng
+      FROM telematics_readings t
+      WHERE t.vehicle_id = v.id
+        AND t.tenant_id = v.tenant_id
+        AND t.latitude IS NOT NULL
+        AND t.longitude IS NOT NULL
+      ORDER BY t.captured_at DESC
+      LIMIT 1
+    ) r ON true
     WHERE v.tenant_id = ${tenantId}
       AND v.is_active = true
       AND r.latitude IS NOT NULL
@@ -162,6 +175,8 @@ export async function getFleetPositions(
     source: string;
     captured_at: string;
     age_minutes: string | number;
+    prev_lat: string | number | null;
+    prev_lng: string | number | null;
   }[];
 
   const primaryLat = primary ? Number(primary.latitude) : null;
@@ -217,6 +232,15 @@ export async function getFleetPositions(
       latitude: lat,
       longitude: lng,
       speedKmh: r.speed_kmh === null ? null : Number(r.speed_kmh),
+      // Heading from the two newest fixes (Traccar-style). Null when the
+      // truck hasn't moved between them — a parked truck has no heading.
+      headingDeg: (() => {
+        if (r.prev_lat === null || r.prev_lng === null) return null;
+        const plat = Number(r.prev_lat);
+        const plng = Number(r.prev_lng);
+        if (plat === lat && plng === lng) return null;
+        return Math.round(bearingDegrees(plat, plng, lat, lng));
+      })(),
       source: r.source,
       capturedAt: capturedAt.toISOString(),
       ageMinutes,

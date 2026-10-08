@@ -187,6 +187,8 @@ export default function CommandCenter() {
               detailHref: '#/operations',
               detailLabel: ar ? 'رحلاتها ←' : 'Trips →',
               capturedAt: typeof p.capturedAt === 'string' ? p.capturedAt : undefined,
+              headingDeg: typeof p.headingDeg === 'number' ? p.headingDeg : null,
+              moving: !p.isStale && typeof p.speedKmh === 'number' && p.speedKmh > 5,
               distanceLine: '',
               ageLine: typeof p.ageMinutes === 'number'
                 ? (p.isStale
