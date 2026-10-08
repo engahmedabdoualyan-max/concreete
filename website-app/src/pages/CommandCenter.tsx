@@ -16,14 +16,14 @@ import SiteMap, { type MapSite, type MapVehicle } from '../components/SiteMap';
  * The big number is the DAILY GOAL achievement % (concrete m³ + block units
  * blended), set by the plant owner with the 🎯 editor. Read-only otherwise:
  * it never POSTs/PUTs anything except the owner's own goal. Lists refresh
- * every 3 minutes.
+ * every 30 seconds.
  *
  * Each section degrades independently — a role without INVENTORY_READ still
  * sees the map, and a role without FLEET_POSITION_READ (drivers) never sees
  * vehicle positions, same rule as the Sites page.
  */
 
-const POLL_MS = 180000;
+const POLL_MS = 30000;
 
 interface BoardSummary {
   orders?: number;
@@ -291,7 +291,7 @@ export default function CommandCenter() {
             <h1 className="text-base sm:text-lg font-black text-white tracking-tight leading-tight">
               CONCRETE PLANT <span className="text-sky-400">COMMAND CENTER</span>
             </h1>
-            <p className="text-[10px] text-slate-500">{L('بث الشاشة — تحديث تلقائي كل ٣ دقائق', 'Screen cast — auto-refresh every 3 min')}</p>
+            <p className="text-[10px] text-slate-500">{L('بث الشاشة — تحديث تلقائي كل ٣٠ ثانية', 'Screen cast — auto-refresh every 30 sec')}</p>
           </div>
         </div>
         <div className="flex items-center gap-2">

@@ -117,16 +117,22 @@ function vehicleIcon(v: MapVehicle): L.DivIcon {
   const inside = v.isInsidePrimaryGeofence && !v.isStale;
   const color = inside ? '#34d399' : v.isStale ? '#64748b' : '#60a5fa';
   const size = 14;
+  const code = escapeHtml(v.vehicleCode || '');
+  // Permanent code label above the dot so the TV screen reads without clicks.
+  // Overlapping labels at the depot separate as soon as you zoom in.
   return L.divIcon({
     className: '',
-    html: `<div style="
-      width:${size}px;height:${size}px;border-radius:${inside ? '9999px' : '3px'};
-      background:${v.isStale ? 'transparent' : color};
-      border:2px solid ${color};
-      ${inside ? `box-shadow:0 0 0 4px ${color}40;` : ''}
-    "></div>`,
-    iconSize: [size, size],
-    iconAnchor: [size / 2, size / 2],
+    html: `<div style="position:relative;width:72px;height:36px;">` +
+      `<div style="position:absolute;top:0;left:50%;transform:translateX(-50%);white-space:nowrap;` +
+      `background:rgba(2,6,16,.88);color:#fff;font-size:10px;font-weight:800;line-height:1.5;` +
+      `padding:0 7px;border-radius:9999px;border:1px solid ${color};">${code}</div>` +
+      `<div style="position:absolute;bottom:0;left:50%;transform:translateX(-50%);` +
+      `width:${size}px;height:${size}px;border-radius:${inside ? '9999px' : '3px'};` +
+      `background:${v.isStale ? 'transparent' : color};` +
+      `border:2px solid ${color};` +
+      `${inside ? `box-shadow:0 0 0 4px ${color}40;` : ''}"></div></div>`,
+    iconSize: [72, 36],
+    iconAnchor: [36, 36],
   });
 }
 
