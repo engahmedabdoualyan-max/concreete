@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { db } from "@/db";
-import { fleetVehicles } from "@/db/schema";
+import { fleetVehicles, users } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import {
@@ -40,6 +40,8 @@ const UpdateVehicleSchema = z.object({
   make: z.string().trim().max(80).nullable().optional(),
   model: z.string().trim().max(80).nullable().optional(),
   year: z.number().int().min(1990).max(2100).nullable().optional(),
+  /** Link/unlink the primary driver. Null clears the link. */
+  assignedDriverId: z.string().uuid().nullable().optional(),
 });
 
 export async function PUT(
@@ -66,9 +68,19 @@ export async function PUT(
     d.vehicleType === undefined &&
     d.make === undefined &&
     d.model === undefined &&
-    d.year === undefined
+    d.year === undefined &&
+    d.assignedDriverId === undefined
   ) {
     return errorResponse("VALIDATION_ERROR", "Nothing to update", 400);
+  }
+
+  if (d.assignedDriverId) {
+    const drv = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(and(eq(users.id, d.assignedDriverId), eq(users.tenantId, auth.user.tenantId)))
+      .limit(1);
+    if (!drv[0]) return errorResponse("DRIVER_NOT_FOUND", "السائق غير موجود", 404);
   }
 
   const patch: Record<string, string | number | null> = {};
@@ -78,6 +90,7 @@ export async function PUT(
   if (d.make !== undefined) patch.make = d.make || null;
   if (d.model !== undefined) patch.model = d.model || null;
   if (d.year !== undefined) patch.year = d.year;
+  if (d.assignedDriverId !== undefined) patch.assignedDriverId = d.assignedDriverId;
 
   try {
     const [updated] = await db

@@ -311,6 +311,8 @@ export default function HR() {
   const vehTypeAr = (t: string) => VEH_TYPES.find((x) => x.v === t)?.ar ?? t;
   const [vios, setVios] = useState<any[]>([]);
   const [showVioForm, setShowVioForm] = useState(false);
+  const [showVehForm, setShowVehForm] = useState(false);
+  const [vehForm, setVehForm] = useState({ code: '', plate: '', type: 'MIXER_TRUCK', make: '', model: '', year: '', driverId: '', deviceSerial: '' });
   const [vioForm, setVioForm] = useState({ employeeId: '', vehicleId: '', amountSar: '', violationDate: '', location: '', notes: '' });
   const [dedPeriod, setDedPeriod] = useState(() => new Date().toISOString().slice(0, 7));
   const [dedRows, setDedRows] = useState<any[]>([]);
@@ -613,6 +615,47 @@ function ageOf(raw: unknown): number | null {
       await load();
     } catch (e: any) {
       setMsg(`❌ ${e?.message ?? 'فشل الحفظ'}`);
+    } finally {
+      setBusy('');
+    }
+  };
+
+  const addVehicle = async () => {
+    if (!vehForm.code.trim() || !vehForm.plate.trim()) {
+      setMsg('❌ اكتب كود المركبة ورقم اللوحة');
+      return;
+    }
+    setBusy('vehadd');
+    try {
+      await api.post('/api/hr/vehicles', {
+        vehicleCode: vehForm.code.trim(),
+        plateNumber: vehForm.plate.trim(),
+        vehicleType: vehForm.type,
+        ...(vehForm.make.trim() ? { make: vehForm.make.trim() } : {}),
+        ...(vehForm.model.trim() ? { model: vehForm.model.trim() } : {}),
+        ...(vehForm.year.trim() ? { year: Number(vehForm.year.trim()) } : {}),
+        ...(vehForm.driverId ? { assignedDriverId: vehForm.driverId } : {}),
+        ...(vehForm.deviceSerial.trim() ? { deviceSerial: vehForm.deviceSerial.trim() } : {}),
+      });
+      setMsg('✅ تمت إضافة المركبة');
+      setVehForm({ code: '', plate: '', type: 'MIXER_TRUCK', make: '', model: '', year: '', driverId: '', deviceSerial: '' });
+      setShowVehForm(false);
+      await load();
+    } catch (e: any) {
+      setMsg(`❌ ${e?.message ?? 'فشل الإضافة'}`);
+    } finally {
+      setBusy('');
+    }
+  };
+
+  const assignDriver = async (id: string, driverId: string) => {
+    setBusy('vehdrv' + id);
+    try {
+      await api.put(`/api/hr/vehicles/${id}`, { assignedDriverId: driverId || null });
+      setMsg('✅ تم تحديث السائق');
+      await load();
+    } catch (e: any) {
+      setMsg(`❌ ${e?.message ?? 'فشل الربط'}`);
     } finally {
       setBusy('');
     }
@@ -2431,6 +2474,51 @@ function ageOf(raw: unknown): number | null {
               </div>
             )}
             {fleet.length === 0 && <p className="text-xs text-slate-500">{ar ? 'لا مركبات.' : 'No vehicles.'}</p>}
+            <div className="flex flex-wrap items-center gap-2 mb-3">
+              <button onClick={() => setShowVehForm((v) => !v)}
+                className="text-[11px] font-black rounded-lg px-3 py-1.5 border border-emerald-500/50 bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25">
+                ➕ {ar ? 'إضافة مركبة' : 'Add vehicle'}
+              </button>
+            </div>
+            {showVehForm && (
+              <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/[0.06] p-4 mb-3">
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+                  <label className="text-[11px] text-slate-400 font-bold">{ar ? 'كود المركبة *' : 'Code *'}
+                    <input value={vehForm.code} onChange={(e) => setVehForm({ ...vehForm, code: e.target.value })}
+                      className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
+                  <label className="text-[11px] text-slate-400 font-bold">{ar ? 'رقم اللوحة *' : 'Plate *'}
+                    <input value={vehForm.plate} onChange={(e) => setVehForm({ ...vehForm, plate: e.target.value })}
+                      className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
+                  <label className="text-[11px] text-slate-400 font-bold">{ar ? 'النوع *' : 'Type *'}
+                    <select value={vehForm.type} onChange={(e) => setVehForm({ ...vehForm, type: e.target.value })}
+                      className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none">
+                      {VEH_TYPES.map((t) => <option key={t.v} value={t.v}>{t.ar}</option>)}
+                    </select></label>
+                  <label className="text-[11px] text-slate-400 font-bold">{ar ? 'السائق' : 'Driver'}
+                    <select value={vehForm.driverId} onChange={(e) => setVehForm({ ...vehForm, driverId: e.target.value })}
+                      className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none">
+                      <option value="">—</option>
+                      {employees.filter((e) => e.userId).map((e) => <option key={e.id} value={e.userId}>{nameOf(e)} · {e.employeeCode}</option>)}
+                    </select></label>
+                  <label className="text-[11px] text-slate-400 font-bold">{ar ? 'الشركة المصنعة' : 'Make'}
+                    <input value={vehForm.make} onChange={(e) => setVehForm({ ...vehForm, make: e.target.value })}
+                      className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
+                  <label className="text-[11px] text-slate-400 font-bold">{ar ? 'الموديل' : 'Model'}
+                    <input value={vehForm.model} onChange={(e) => setVehForm({ ...vehForm, model: e.target.value })}
+                      className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
+                  <label className="text-[11px] text-slate-400 font-bold">{ar ? 'السنة' : 'Year'}
+                    <input value={vehForm.year} inputMode="numeric" onChange={(e) => setVehForm({ ...vehForm, year: e.target.value })}
+                      className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
+                  <label className="text-[11px] text-slate-400 font-bold">{ar ? 'IMEI الجهاز (اختياري)' : 'IMEI (optional)'}
+                    <input value={vehForm.deviceSerial} inputMode="numeric" dir="ltr" onChange={(e) => setVehForm({ ...vehForm, deviceSerial: e.target.value })}
+                      className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none font-mono" /></label>
+                </div>
+                <button disabled={busy === 'vehadd'} onClick={addVehicle}
+                  className="mt-3 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-white text-xs font-black rounded-lg px-6 py-2">
+                  {busy === 'vehadd' ? '…' : `✅ ${ar ? 'إضافة' : 'Add'}`}
+                </button>
+              </div>
+            )}
             <div className="space-y-2">
               {fleet.map((v, i) => {
                 const f = editVeh[v.id];
@@ -2441,7 +2529,13 @@ function ageOf(raw: unknown): number | null {
                   <div key={v.id ?? i} className="rounded-xl border border-white/10 bg-white/[0.03] p-3 text-xs">
                     <div className="flex items-center justify-between flex-wrap gap-1">
                       <span className="font-black text-white">🚛 {v.vehicleCode} · {v.plateNumber} · {vehTypeAr(v.vehicleType)}</span>
-                      <span className="text-slate-400">{v.driverName ?? (ar ? 'بدون سائق' : 'No driver')}</span>
+                      <label className="flex items-center gap-1 text-[11px] text-slate-400 font-bold">{ar ? 'السائق' : 'Driver'}
+                        <select value={v.assignedDriverId ?? ''} disabled={busy === 'vehdrv' + v.id}
+                          onChange={(e) => assignDriver(v.id, e.target.value)}
+                          className="bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1 text-xs text-white outline-none disabled:opacity-50">
+                          <option value="">{ar ? 'بدون سائق' : 'No driver'}</option>
+                          {employees.filter((e) => e.userId).map((e) => <option key={e.id} value={e.userId}>{nameOf(e)}</option>)}
+                        </select></label>
                     </div>
                     <div className="mt-1 text-[11px] text-slate-400">
                       📡 {ar ? 'كود الجهاز (IMEI)' : 'Device IMEI'}: <span className="font-mono font-bold text-slate-200" dir="ltr">{v.deviceSerial ?? '—'}</span>
