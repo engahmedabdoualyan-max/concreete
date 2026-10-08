@@ -18,7 +18,7 @@ import { downloadExcel, openPrintPDF, type ExportColumn, type ExportRow } from '
  * (HR_READ / HR_WRITE); every tab degrades independently.
  */
 
-type Tab = 'requests' | 'team' | 'attendance' | 'broadcasts' | 'payroll' | 'actions' | 'investigations' | 'custody' | 'vehicles' | 'deductions' | 'company' | 'petty' | 'leave' | 'vlog' | 'overtime' | 'expenses' | 'modules' | 'org' | 'tree' | 'exit';
+type Tab = 'requests' | 'team' | 'attendance' | 'broadcasts' | 'payroll' | 'actions' | 'investigations' | 'custody' | 'vehicles' | 'violations' | 'deductions' | 'company' | 'petty' | 'leave' | 'vlog' | 'overtime' | 'expenses' | 'modules' | 'org' | 'tree' | 'exit';
 
 const COUNTRIES = [
   { code: 'SA', ar: 'السعودية', flag: '🇸🇦' }, { code: 'EG', ar: 'مصر', flag: '🇪🇬' },
@@ -299,6 +299,16 @@ export default function HR() {
   };
   const [fleet, setFleet] = useState<any[]>([]);
   const [editVeh, setEditVeh] = useState<Record<string, { istimara: string; insurance: string; inspection: string }>>({});
+  const [editVehInfo, setEditVehInfo] = useState<Record<string, { code: string; plate: string; type: string; make: string; model: string; year: string }>>({});
+  const VEH_TYPES = [
+    { v: 'MIXER_TRUCK', ar: 'خلاطة', en: 'Mixer' },
+    { v: 'CONCRETE_PUMP', ar: 'بمب خرسانة', en: 'Pump' },
+    { v: 'TRANSIT_MIXER', ar: 'خلاطة ترانزيت', en: 'Transit' },
+    { v: 'TIPPER_TRUCK', ar: 'قلاب', en: 'Tipper' },
+    { v: 'WATER_TANKER', ar: 'تانكر ماء', en: 'Tanker' },
+    { v: 'SERVICE_TRUCK', ar: 'خدمة / ونش', en: 'Service' },
+  ];
+  const vehTypeAr = (t: string) => VEH_TYPES.find((x) => x.v === t)?.ar ?? t;
   const [vios, setVios] = useState<any[]>([]);
   const [showVioForm, setShowVioForm] = useState(false);
   const [vioForm, setVioForm] = useState({ employeeId: '', vehicleId: '', amountSar: '', violationDate: '', location: '', notes: '' });
@@ -573,6 +583,33 @@ function ageOf(raw: unknown): number | null {
         inspectionDueAt: f.inspection || null,
       });
       setMsg('✅ تم حفظ تواريخ التجديد');
+      await load();
+    } catch (e: any) {
+      setMsg(`❌ ${e?.message ?? 'فشل الحفظ'}`);
+    } finally {
+      setBusy('');
+    }
+  };
+
+  const saveVehInfo = async (id: string) => {
+    const f = editVehInfo[id];
+    if (!f) return;
+    setBusy('vehinfo' + id);
+    try {
+      await api.put(`/api/hr/vehicles/${id}`, {
+        ...(f.code.trim() ? { vehicleCode: f.code.trim() } : {}),
+        ...(f.plate.trim() ? { plateNumber: f.plate.trim() } : {}),
+        ...(f.type ? { vehicleType: f.type } : {}),
+        ...(f.make.trim() ? { make: f.make.trim() } : {}),
+        ...(f.model.trim() ? { model: f.model.trim() } : {}),
+        ...(f.year.trim() ? { year: Number(f.year.trim()) } : {}),
+      });
+      setMsg('✅ تم حفظ بيانات المركبة');
+      setEditVehInfo((p) => {
+        const n = { ...p };
+        delete n[id];
+        return n;
+      });
       await load();
     } catch (e: any) {
       setMsg(`❌ ${e?.message ?? 'فشل الحفظ'}`);
@@ -1103,9 +1140,9 @@ function ageOf(raw: unknown): number | null {
     const next = { ...modules, [key]: !(modules[key] !== false) };
     setModules(next);
     if (next[key] === false) {
-      const tabMod: Record<string, string> = { requests: 'requests', team: 'team', attendance: 'attendance', broadcasts: 'broadcasts', payroll: 'payroll', actions: 'actions', investigations: 'investigations', custody: 'custody', vehicles: 'vehicles', deductions: 'deductions', company: 'company', petty: 'petty', leave: 'leaveBalances', vlog: 'vehicleLog', overtime: 'overtime', expenses: 'expenses', org: 'org', tree: 'tree' };
+      const tabMod: Record<string, string> = { requests: 'requests', team: 'team', attendance: 'attendance', broadcasts: 'broadcasts', payroll: 'payroll', actions: 'actions', investigations: 'investigations', custody: 'custody', vehicles: 'vehicles', violations: 'violations', deductions: 'deductions', company: 'company', petty: 'petty', leave: 'leaveBalances', vlog: 'vehicleLog', overtime: 'overtime', expenses: 'expenses', org: 'org', tree: 'tree' };
       if (tabMod[tab] === key) {
-        const fallback = (['requests', 'team', 'leave', 'vlog', 'overtime', 'expenses', 'attendance', 'broadcasts', 'payroll', 'actions', 'investigations', 'custody', 'vehicles', 'deductions', 'company', 'petty', 'org', 'tree'] as Tab[]).find((t) => (tabMod[t] ? next[tabMod[t]] !== false : true));
+        const fallback = (['requests', 'team', 'leave', 'vlog', 'overtime', 'expenses', 'attendance', 'broadcasts', 'payroll', 'actions', 'investigations', 'custody', 'vehicles', 'violations', 'deductions', 'company', 'petty', 'org', 'tree'] as Tab[]).find((t) => (tabMod[t] ? next[tabMod[t]] !== false : true));
         if (fallback) setTab(fallback);
       }
     }
@@ -1426,7 +1463,8 @@ function ageOf(raw: unknown): number | null {
     { id: 'actions', ar: '⚖️ الجزاءات والمكافآت', en: 'Actions', mod: 'actions' },
     { id: 'investigations', ar: '🔍 التحقيقات', en: 'Investigations', mod: 'investigations' },
     { id: 'custody', ar: '🎒 العهد', en: 'Custody', mod: 'custody' },
-    { id: 'vehicles', ar: '🚛 المركبات والمخالفات', en: 'Vehicles', mod: 'vehicles' },
+    { id: 'vehicles', ar: '🚛 المركبات', en: 'Vehicles', mod: 'vehicles' },
+    { id: 'violations', ar: '🚨 المخالفات', en: 'Violations', mod: 'violations' },
     { id: 'deductions', ar: '🧾 كشف الخصومات', en: 'Deductions', mod: 'deductions' },
     { id: 'company', ar: '📂 أوراق الشركة', en: 'Company docs', mod: 'company' },
     { id: 'petty', ar: '💰 العهدة المالية', en: 'Petty cash', mod: 'petty' },
@@ -1443,7 +1481,7 @@ function ageOf(raw: unknown): number | null {
   const MOD_AR: Record<string, string> = {
     requests: 'الطلبات', team: 'فريق العمل', attendance: 'الحضور والتقارير',
     broadcasts: 'الإعلانات', payroll: 'الرواتب', actions: 'الجزاءات والمكافآت',
-    investigations: 'التحقيقات', custody: 'العهد', vehicles: 'المركبات والمخالفات',
+    investigations: 'التحقيقات', custody: 'العهد', vehicles: 'المركبات', violations: 'المخالفات',
     deductions: 'كشف الخصومات', company: 'أوراق الشركة', petty: 'العهدة المالية',
     leaveBalances: 'أرصدة الإجازات', vehicleLog: 'سجل المركبات', overtime: 'الأجر الإضافي',
     expenses: 'مطالبات المصاريف', org: 'الهيكل الوظيفي', tree: 'حسابات الدخول', exit: 'إخلاء الطرف',
@@ -2374,7 +2412,7 @@ function ageOf(raw: unknown): number | null {
           </div>
         )}
 
-        {/* ===== vehicles: renewals + violations ===== */}
+        {/* ===== vehicles: master data + renewals (violations live in their own tab) ===== */}
         {tab === 'vehicles' && (
           <div className="mt-4">
             {vehWatch.length > 0 && (
@@ -2392,6 +2430,81 @@ function ageOf(raw: unknown): number | null {
                 ))}
               </div>
             )}
+            {fleet.length === 0 && <p className="text-xs text-slate-500">{ar ? 'لا مركبات.' : 'No vehicles.'}</p>}
+            <div className="space-y-2">
+              {fleet.map((v, i) => {
+                const f = editVeh[v.id];
+                const fi = editVehInfo[v.id] ?? { code: '', plate: '', type: '', make: '', model: '', year: '' };
+                const setFi = (k: string, val: string) =>
+                  setEditVehInfo((p) => ({ ...p, [v.id]: { ...(p[v.id] ?? { code: '', plate: '', type: '', make: '', model: '', year: '' }), [k]: val } }));
+                return (
+                  <div key={v.id ?? i} className="rounded-xl border border-white/10 bg-white/[0.03] p-3 text-xs">
+                    <div className="flex items-center justify-between flex-wrap gap-1">
+                      <span className="font-black text-white">🚛 {v.vehicleCode} · {v.plateNumber} · {vehTypeAr(v.vehicleType)}</span>
+                      <span className="text-slate-400">{v.driverName ?? (ar ? 'بدون سائق' : 'No driver')}</span>
+                    </div>
+                    <div className="mt-1 text-[11px] text-slate-400">
+                      📡 {ar ? 'كود الجهاز (IMEI)' : 'Device IMEI'}: <span className="font-mono font-bold text-slate-200" dir="ltr">{v.deviceSerial ?? '—'}</span>
+                      <span className="text-slate-600"> {ar ? '(غير قابل للتعديل من هنا — التكويد من شاشة تكويد الأسطول)' : '(read-only)'}</span>
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-2">
+                      <label className="text-[10px] text-slate-400 font-bold">{ar ? 'كود المركبة' : 'Code'}
+                        <input value={fi.code} placeholder={v.vehicleCode ?? ''}
+                          onChange={(e) => setFi('code', e.target.value)}
+                          className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1 text-xs text-white outline-none" /></label>
+                      <label className="text-[10px] text-slate-400 font-bold">{ar ? 'رقم اللوحة' : 'Plate'}
+                        <input value={fi.plate} placeholder={v.plateNumber ?? ''}
+                          onChange={(e) => setFi('plate', e.target.value)}
+                          className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1 text-xs text-white outline-none" /></label>
+                      <label className="text-[10px] text-slate-400 font-bold">{ar ? 'النوع' : 'Type'}
+                        <select value={fi.type} onChange={(e) => setFi('type', e.target.value)}
+                          className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1 text-xs text-white outline-none">
+                          <option value="">{vehTypeAr(v.vehicleType)} ✓</option>
+                          {VEH_TYPES.map((t) => <option key={t.v} value={t.v}>{t.ar}</option>)}
+                        </select></label>
+                      <label className="text-[10px] text-slate-400 font-bold">{ar ? 'الشركة المصنعة' : 'Make'}
+                        <input value={fi.make} placeholder={v.make ?? ''}
+                          onChange={(e) => setFi('make', e.target.value)}
+                          className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1 text-xs text-white outline-none" /></label>
+                      <label className="text-[10px] text-slate-400 font-bold">{ar ? 'الموديل' : 'Model'}
+                        <input value={fi.model} placeholder={v.model ?? ''}
+                          onChange={(e) => setFi('model', e.target.value)}
+                          className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1 text-xs text-white outline-none" /></label>
+                      <label className="text-[10px] text-slate-400 font-bold">{ar ? 'السنة' : 'Year'}
+                        <input value={fi.year} placeholder={v.year ? String(v.year) : ''} inputMode="numeric"
+                          onChange={(e) => setFi('year', e.target.value)}
+                          className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1 text-xs text-white outline-none" /></label>
+                    </div>
+                    <button disabled={busy === 'vehinfo' + v.id} onClick={() => saveVehInfo(v.id)}
+                      className="mt-2 text-[11px] font-black rounded-lg px-4 py-1.5 border border-emerald-500/50 bg-emerald-500/15 text-emerald-300 disabled:opacity-50">
+                      {busy === 'vehinfo' + v.id ? '…' : (ar ? 'حفظ بيانات المركبة' : 'Save vehicle')}
+                    </button>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-2">
+                      {([['istimara', 'الاستمارة', v.istimaraExpiry], ['insurance', 'التأمين', v.insuranceExpiresAt], ['inspection', 'الفحص', v.inspectionDueAt]] as const).map(([k, label, cur]) => (
+                        <label key={k} className="text-[10px] text-slate-400 font-bold">{label} {cur ? `(${String(cur).slice(0, 10)})` : ''}
+                          <span className="flex gap-1 mt-0.5">
+                            <input type="date"
+                              value={f?.[k] ?? ''}
+                              onChange={(e) => setEditVeh((p) => ({ ...p, [v.id]: Object.assign({ istimara: '', insurance: '', inspection: '' }, p[v.id], { [k]: e.target.value }) }))}
+                              className="flex-1 bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1 text-xs text-white outline-none" />
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                    <button disabled={busy === 'veh' + v.id} onClick={() => saveVehDates(v.id)}
+                      className="mt-2 text-[11px] font-black rounded-lg px-4 py-1.5 border border-sky-500/50 bg-sky-500/15 text-sky-300 disabled:opacity-50">
+                      {busy === 'veh' + v.id ? '…' : (ar ? 'حفظ التواريخ' : 'Save dates')}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* ===== violations: driver fines (split out of the vehicles tab) ===== */}
+        {tab === 'violations' && (
+          <div className="mt-4">
             <div className="flex flex-wrap items-center gap-2 mb-3">
               <button onClick={() => setShowVioForm((v) => !v)}
                 className="text-[11px] font-black rounded-lg px-3 py-1.5 border border-red-500/50 bg-red-500/15 text-red-300 hover:bg-red-500/25">
@@ -2432,58 +2545,24 @@ function ageOf(raw: unknown): number | null {
                 </button>
               </div>
             )}
-            {vios.length > 0 && (
-              <div className="mb-3">
-                <h3 className="text-xs font-black text-slate-300 mb-1">{ar ? 'المخالفات المسجلة' : 'Recorded violations'}</h3>
-                <div className="space-y-1">
-                  {vios.slice(0, 10).map((v, i) => (
-                    <div key={v.id ?? i} className="flex items-center justify-between text-xs border-b border-white/5 py-1">
-                      <span className="text-slate-300">{v.amountSar} {ar ? 'ر.س' : 'SAR'} · {String(v.violationDate ?? '').slice(0, 10)} {v.location ? `· ${v.location}` : ''}</span>
-                      <span className="flex gap-1 items-center">
-                      {v.paid ? (
-                        <span className="text-[10px] text-emerald-300 font-bold">{ar ? 'مدفوعة' : 'Paid'}</span>
-                      ) : (
-                        <button disabled={busy === 'pay' + v.id} onClick={() => payVio(v.id)}
-                          className="text-[10px] font-black rounded px-2 py-1 border border-emerald-500/40 text-emerald-300 disabled:opacity-50">
-                          {busy === 'pay' + v.id ? '…' : (ar ? 'تحصيل' : 'Collect')}
-                        </button>
-                      )}
-                      <DelBtn onDel={() => delRecord('violations', v.id)} busy={delBusy === 'violations' + v.id} />
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-            {fleet.length === 0 && <p className="text-xs text-slate-500">{ar ? 'لا مركبات.' : 'No vehicles.'}</p>}
-            <div className="space-y-2">
-              {fleet.map((v, i) => {
-                const f = editVeh[v.id];
-                return (
-                  <div key={v.id ?? i} className="rounded-xl border border-white/10 bg-white/[0.03] p-3 text-xs">
-                    <div className="flex items-center justify-between">
-                      <span className="font-black text-white">🚛 {v.vehicleCode} · {v.plateNumber}</span>
-                      <span className="text-slate-400">{v.driverName ?? (ar ? 'بدون سائق' : 'No driver')}</span>
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-2">
-                      {([['istimara', 'الاستمارة', v.istimaraExpiry], ['insurance', 'التأمين', v.insuranceExpiresAt], ['inspection', 'الفحص', v.inspectionDueAt]] as const).map(([k, label, cur]) => (
-                        <label key={k} className="text-[10px] text-slate-400 font-bold">{label} {cur ? `(${String(cur).slice(0, 10)})` : ''}
-                          <span className="flex gap-1 mt-0.5">
-                            <input type="date"
-                              value={f?.[k] ?? ''}
-                              onChange={(e) => setEditVeh((p) => ({ ...p, [v.id]: Object.assign({ istimara: '', insurance: '', inspection: '' }, p[v.id], { [k]: e.target.value }) }))}
-                              className="flex-1 bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1 text-xs text-white outline-none" />
-                          </span>
-                        </label>
-                      ))}
-                    </div>
-                    <button disabled={busy === 'veh' + v.id} onClick={() => saveVehDates(v.id)}
-                      className="mt-2 text-[11px] font-black rounded-lg px-4 py-1.5 border border-sky-500/50 bg-sky-500/15 text-sky-300 disabled:opacity-50">
-                      {busy === 'veh' + v.id ? '…' : (ar ? 'حفظ التواريخ' : 'Save dates')}
+            {vios.length === 0 && <p className="text-xs text-slate-500">{ar ? 'لا مخالفات مسجلة.' : 'No violations.'}</p>}
+            <div className="space-y-1">
+              {vios.slice(0, 20).map((v, i) => (
+                <div key={v.id ?? i} className="flex items-center justify-between text-xs border-b border-white/5 py-1">
+                  <span className="text-slate-300">{v.amountSar} {ar ? 'ر.س' : 'SAR'} · {String(v.violationDate ?? '').slice(0, 10)} {v.location ? `· ${v.location}` : ''}</span>
+                  <span className="flex gap-1 items-center">
+                  {v.paid ? (
+                    <span className="text-[10px] text-emerald-300 font-bold">{ar ? 'مدفوعة' : 'Paid'}</span>
+                  ) : (
+                    <button disabled={busy === 'pay' + v.id} onClick={() => payVio(v.id)}
+                      className="text-[10px] font-black rounded px-2 py-1 border border-emerald-500/40 text-emerald-300 disabled:opacity-50">
+                      {busy === 'pay' + v.id ? '…' : (ar ? 'تحصيل' : 'Collect')}
                     </button>
-                  </div>
-                );
-              })}
+                  )}
+                  <DelBtn onDel={() => delRecord('violations', v.id)} busy={delBusy === 'violations' + v.id} />
+                  </span>
+                </div>
+              ))}
             </div>
           </div>
         )}

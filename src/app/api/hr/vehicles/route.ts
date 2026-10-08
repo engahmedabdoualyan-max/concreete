@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { db } from "@/db";
-import { fleetVehicles, users } from "@/db/schema";
+import { fleetVehicles, telematicsDevices, users } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import {
@@ -31,15 +31,26 @@ export async function GET(req: NextRequest) {
       vehicleCode: fleetVehicles.vehicleCode,
       plateNumber: fleetVehicles.plateNumber,
       vehicleType: fleetVehicles.vehicleType,
+      make: fleetVehicles.make,
+      model: fleetVehicles.model,
+      year: fleetVehicles.year,
       currentStatus: fleetVehicles.currentStatus,
       assignedDriverId: fleetVehicles.assignedDriverId,
       driverName: users.fullName,
       istimaraExpiry: fleetVehicles.istimaraExpiry,
       insuranceExpiresAt: fleetVehicles.insuranceExpiresAt,
       inspectionDueAt: fleetVehicles.inspectionDueAt,
+      deviceSerial: telematicsDevices.serialNumber,
     })
     .from(fleetVehicles)
     .leftJoin(users, eq(users.id, fleetVehicles.assignedDriverId))
+    .leftJoin(
+      telematicsDevices,
+      and(
+        eq(telematicsDevices.vehicleId, fleetVehicles.id),
+        eq(telematicsDevices.isActive, true)
+      )
+    )
     .where(eq(fleetVehicles.tenantId, auth.user.tenantId))
     .orderBy(fleetVehicles.vehicleCode);
   return successResponse({ vehicles: rows }, `${rows.length} vehicle(s)`);
