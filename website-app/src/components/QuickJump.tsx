@@ -11,6 +11,7 @@ const ALL_PAGES = [
   { path: '/sites', label: '🛰️ Sites & Fleet Map' },
   { path: '/command', label: '📺 بث الشاشة' },
   { path: '/hr', label: '👔 الموارد البشرية' },
+  { path: '/gate', label: '⚖️ البوابة والميزان' },
   { path: '/procurement', label: '🧾 المشتريات' },
   { path: '/mixing', label: '🎛️ Mixing & Quality' },
   { path: '/production', label: '🏭 Production & Inventory' },

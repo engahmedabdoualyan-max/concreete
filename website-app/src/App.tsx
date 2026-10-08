@@ -43,6 +43,7 @@ import FleetCoding from './pages/FleetCoding';
 import Sites from './pages/Sites';
 import CommandCenter from './pages/CommandCenter';
 import HR from './pages/HR';
+import GateScale from './pages/GateScale';
 import Procurement from './pages/Procurement';
 import FieldBackButton from './field/FieldBackButton';
 import { useLocation } from 'react-router-dom';
@@ -94,6 +95,7 @@ export default function App() {
           <Route path="/sites" element={<Sites />} />
           <Route path="/command" element={<CommandCenter />} />
           <Route path="/hr" element={<HR />} />
+          <Route path="/gate" element={<GateScale />} />
           <Route path="/procurement" element={<Procurement />} />
           <Route path="/mixing" element={<MixingQuality />} />
           <Route path="/quality" element={<MixingQuality />} />

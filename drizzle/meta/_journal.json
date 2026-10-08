@@ -295,6 +295,13 @@
       "when": 1791431295973,
       "tag": "0041_premium_domino",
       "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1791484336539,
+      "tag": "0042_regular_electro",
+      "breakpoints": true
     }
   ]
 }

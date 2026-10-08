@@ -4567,6 +4567,80 @@ export const hrBroadcastsRelations = relations(hrBroadcasts, ({ many }) => ({
 }));
 
 // ─── GEOFENCE ATTENDANCE (Epic 12b — حضور وانصراف باللوكيشن) ─────────────────
+/**
+ * gate_passes — Gate & scale tickets (البوابة والميزان), one row per crossing.
+ *
+ * IN  = raw materials & supplies arriving (cement/sand/gravel/water/spare/supply):
+ *       truck weighed full on entry, weighed empty on exit, net = delivered qty.
+ * IN  passes credit inventory (silo/indirect) when closed.
+ * OUT = concrete (m³) and blocks (units) leaving to customers: mixer weighed
+ *       against its tare (or loaded qty declared), ticket proves the load left.
+ *
+ * Two-step flow matches the physical gate: POST opens with the first weighing,
+ * PUT …/close stamps the second and computes net. Single-step (known tare) is
+ * allowed by sending both weights at open.
+ */
+export const gateDirectionEnum = pgEnum("gate_direction", ["IN", "OUT"]);
+export const gateCategoryEnum = pgEnum("gate_category", [
+  "RAW_CEMENT",
+  "RAW_SAND",
+  "RAW_GRAVEL_10",
+  "RAW_GRAVEL_20",
+  "RAW_GRAVEL_40",
+  "RAW_WATER",
+  "RAW_ADMIXTURE",
+  "SPARE_PART",
+  "SUPPLY_OTHER",
+  "CONCRETE",
+  "BLOCK",
+]);
+export const gateStatusEnum = pgEnum("gate_status", ["OPEN", "CLOSED", "VOID"]);
+
+export const gatePasses = pgTable(
+  "gate_passes",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    /** Human ticket, e.g. G-000123. Sequential per tenant. */
+    ticketNo: varchar("ticket_no", { length: 20 }).notNull(),
+    direction: gateDirectionEnum("direction").notNull(),
+    category: gateCategoryEnum("category").notNull(),
+    /** Fleet truck when known; external haulers go in externalPlate. */
+    vehicleId: uuid("vehicle_id").references(() => fleetVehicles.id, {
+      onDelete: "set null",
+    }),
+    externalPlate: varchar("external_plate", { length: 30 }),
+    /** Supplier (IN) or customer/site (OUT). */
+    partyName: varchar("party_name", { length: 160 }),
+    driverName: varchar("driver_name", { length: 120 }),
+    entryWeightKg: decimal("entry_weight_kg", { precision: 10, scale: 3 }),
+    exitWeightKg: decimal("exit_weight_kg", { precision: 10, scale: 3 }),
+    /** |entry − exit|, set on close. Never hand-typed. */
+    netWeightKg: decimal("net_weight_kg", { precision: 10, scale: 3 }),
+    /** Declared qty for OUT loads: m³ of concrete or block units. */
+    quantity: decimal("quantity", { precision: 12, scale: 3 }),
+    quantityUnit: varchar("quantity_unit", { length: 10 }),
+    mixDesignId: uuid("mix_design_id").references(() => mixDesigns.id, {
+      onDelete: "set null",
+    }),
+    orderRef: varchar("order_ref", { length: 60 }),
+    notes: varchar("notes", { length: 500 }),
+    status: gateStatusEnum("status").notNull().default("OPEN"),
+    operatorId: uuid("operator_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    closedAt: timestamp("closed_at"),
+  },
+  (t) => [
+    uniqueIndex("gate_passes_tenant_ticket_unique").on(t.tenantId, t.ticketNo),
+    index("gate_passes_tenant_idx").on(t.tenantId),
+    index("gate_passes_tenant_day_idx").on(t.tenantId, t.createdAt),
+  ]
+);
+
 //
 //  Location-based attendance like dedicated attendance apps:
 //   • hr_zones — work geofences (factory + sites): lat/lng + radius

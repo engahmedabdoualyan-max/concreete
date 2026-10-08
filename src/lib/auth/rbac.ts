@@ -708,6 +708,8 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     PERMISSIONS.QR_SCAN,
     PERMISSIONS.FLEET_READ,
     PERMISSIONS.SITE_READ,
+    PERMISSIONS.WEIGHBRIDGE_READ,
+    PERMISSIONS.WEIGHBRIDGE_RECORD, // gate & scale tickets: open + close weighings
   ],
 
   MECHANIC: [
