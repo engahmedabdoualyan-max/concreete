@@ -281,6 +281,13 @@
       "when": 1791393044105,
       "tag": "0039_loose_microchip",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1791426687183,
+      "tag": "0040_quiet_impossible_man",
+      "breakpoints": true
     }
   ]
 }
