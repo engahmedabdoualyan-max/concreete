@@ -528,6 +528,13 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     PERMISSIONS.ORDER_READ,      // Read-only delivery context (no mutation)
     PERMISSIONS.TRIP_READ,
     PERMISSIONS.QR_SCAN,         // Redacted scans only — no full vehicle record
+    // Command-center broadcast (TV screen): read-only sections degrade by 403,
+    // so these four complete the map + KPIs. No mutation: target editing stays
+    // SITE_WRITE (plant owner), workshop/finance actions untouched.
+    PERMISSIONS.SITE_READ,           // plant + branches on the broadcast map
+    PERMISSIONS.FLEET_POSITION_READ, // vehicles on the map (plate/code only, no driver identity)
+    PERMISSIONS.INVENTORY_READ,      // silo levels on the broadcast
+    PERMISSIONS.WORKSHOP_READ,       // open tickets + fuel anomalies on the broadcast
   ],
 
   // ── Primary role: HR Manager (مدير الموارد البشرية) ───────────────────────
@@ -550,6 +557,11 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     PERMISSIONS.FLEET_READ,       // read-only fleet context (driver ↔ vehicle)
     PERMISSIONS.TRIP_READ,
     PERMISSIONS.ORDER_READ,
+    // Same broadcast grant as HR_OFFICER (read-only TV screen).
+    PERMISSIONS.SITE_READ,
+    PERMISSIONS.FLEET_POSITION_READ,
+    PERMISSIONS.INVENTORY_READ,
+    PERMISSIONS.WORKSHOP_READ,
   ],
 
   // ══════════════════════════════════════════════════════════════════════════

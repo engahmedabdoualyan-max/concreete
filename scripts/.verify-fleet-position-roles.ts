@@ -40,6 +40,8 @@ const ALLOW = [
   "SCHEDULE_MGR",
   "PRODUCTION_MGR",
   "LAB_MGR",
+  "HR_OFFICER",
+  "HR_MANAGER",
 ];
 
 async function main() {
