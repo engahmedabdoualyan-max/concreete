@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { db } from "@/db";
 import { fleetVehicles, telematicsReadings } from "@/db/schema";
-import { and, asc, eq, gte, isNotNull, lte } from "drizzle-orm";
+import { and, asc, eq, gte, isNotNull, lte, sql } from "drizzle-orm";
 import {
   requirePermission,
   errorResponse,
@@ -49,9 +49,12 @@ export async function GET(req: NextRequest) {
   const day = q && /^\d{4}-\d{2}-\d{2}$/.test(q) ? q : todayRiyadh();
   // Riyadh is UTC+3 year-round (no DST): day bounds are exact.
   const from = new Date(`${day}T00:00:00+03:00`);
-  const to = new Date(`${day}T00:00:00+03:00`);
-  to.setUTCDate(to.getUTCDate() + 1);
+  const to = new Date(from.getTime() + 24 * 3600_000);
 
+  // to_char (not the raw timestamp): node-postgres hands timestamp columns
+  // back as Date objects parsed in the SERVER timezone, which corrupts the
+  // naive-UTC instant on any non-UTC host. Text keeps the wall time exact and
+  // the 'Z' below re-asserts it as UTC — same convention as fleet positions.
   const rows = await db
     .select({
       vehicleId: telematicsReadings.vehicleId,
@@ -59,7 +62,7 @@ export async function GET(req: NextRequest) {
       plate: fleetVehicles.plateNumber,
       lat: telematicsReadings.latitude,
       lng: telematicsReadings.longitude,
-      at: telematicsReadings.capturedAt,
+      at: sql<string>`to_char(${telematicsReadings.capturedAt}, 'YYYY-MM-DD HH24:MI:SS')`,
     })
     .from(telematicsReadings)
     .innerJoin(fleetVehicles, eq(fleetVehicles.id, telematicsReadings.vehicleId))
@@ -146,11 +149,7 @@ export async function GET(req: NextRequest) {
 }
 
 function todayRiyadh(): string {
-  const f = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Riyadh",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  });
-  return f.format(new Date());
+  // Riyadh is UTC+3 year-round (no DST): shift and read the UTC calendar.
+  // Pure arithmetic — no Intl, so behavior is identical on every runtime.
+  return new Date(Date.now() + 3 * 3600_000).toISOString().slice(0, 10);
 }

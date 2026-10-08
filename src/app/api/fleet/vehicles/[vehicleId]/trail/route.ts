@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { db } from "@/db";
 import { fleetVehicles, telematicsReadings } from "@/db/schema";
-import { and, asc, eq, gte, isNotNull } from "drizzle-orm";
+import { and, asc, eq, gte, isNotNull, sql } from "drizzle-orm";
 import {
   requirePermission,
   errorResponse,
@@ -47,7 +47,7 @@ export async function GET(
       lat: telematicsReadings.latitude,
       lng: telematicsReadings.longitude,
       speed: telematicsReadings.speedKmh,
-      at: telematicsReadings.capturedAt,
+      at: sql<string>`to_char(${telematicsReadings.capturedAt}, 'YYYY-MM-DD HH24:MI:SS')`,
     })
     .from(telematicsReadings)
     .where(
