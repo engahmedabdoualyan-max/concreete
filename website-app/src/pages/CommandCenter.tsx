@@ -75,13 +75,14 @@ function fmt(n: number | undefined | null, lang: string): string {
   return Number(n).toLocaleString(lang === 'ar' ? 'ar-EG' : 'en-US', { maximumFractionDigits: 1 });
 }
 
-function MiniTile({ label, value, alert }: { label: string; value: string; alert?: boolean }) {
-  return (
-    <div className={`rounded-xl border px-2 py-1.5 text-center ${alert ? 'border-red-500/60 bg-red-500/10' : 'border-white/10 bg-white/[0.03]'}`}>
+function MiniTile({ label, value, alert, to }: { label: string; value: string; alert?: boolean; to?: string }) {
+  const body = (
+    <div className={`rounded-xl border px-2 py-1.5 text-center ${alert ? 'border-red-500/60 bg-red-500/10' : 'border-white/10 bg-white/[0.03]'} ${to ? 'hover:border-sky-400/60 cursor-pointer' : ''}`}>
       <p className="text-[10px] text-slate-400 font-bold truncate">{label}</p>
       <p className={`text-xl font-black leading-tight ${alert ? 'text-red-400' : 'text-white'}`}>{value}</p>
     </div>
   );
+  return to ? <Link to={to} style={{ textDecoration: 'none' }}>{body}</Link> : body;
 }
 
 const RAIL: Array<{ to: string; icon: string; ar: string; en: string; fleet?: boolean }> = [
@@ -345,14 +346,14 @@ export default function CommandCenter() {
 
       {/* ===== KPI strip: concrete + blocks + fleet, one row ===== */}
       <div className="px-4 pt-2 grid grid-cols-4 lg:grid-cols-8 gap-2 shrink-0">
-        <MiniTile label={L('خرسانة اليوم م³', 'Concrete m³')} value={fmt(board?.deliveredTodayM3, lang)} />
-        <MiniTile label={L('إنتاج البلك 🧱', 'Blocks made')} value={fmt(blocks.producedUnits, lang)} />
-        <MiniTile label={L('مبيعات البلك 🧾', 'Blocks sold')} value={fmt(blocks.salesOrders, lang)} />
-        <MiniTile label={L('رحلات نشطة', 'Active trips')} value={fmt(board?.activeTrips, lang)} />
-        <MiniTile label={L('متعثرة', 'Stalled')} value={fmt(board?.stalledTrips, lang)} alert={(board?.stalledTrips ?? 0) > 0} />
-        <MiniTile label={L('أسطول نشط', 'Fleet live')} value={canFleet ? `${fmt(liveCount, lang)}/${fmt(vehicles.length, lang)}` : '—'} />
-        <MiniTile label={L('أعطال اليوم', "Today's faults")} value={fmt(faults, lang)} alert={faults > 0} />
-        <MiniTile label={L('مخزون حرج', 'Low stock')} value={fmt(lowStock, lang)} alert={lowStock > 0} />
+        <MiniTile label={L('خرسانة اليوم م³', 'Concrete m³')} value={fmt(board?.deliveredTodayM3, lang)} to="/operations" />
+        <MiniTile label={L('إنتاج البلك 🧱', 'Blocks made')} value={fmt(blocks.producedUnits, lang)} to="/production" />
+        <MiniTile label={L('مبيعات البلك 🧾', 'Blocks sold')} value={fmt(blocks.salesOrders, lang)} to="/production" />
+        <MiniTile label={L('رحلات نشطة', 'Active trips')} value={fmt(board?.activeTrips, lang)} to="/operations" />
+        <MiniTile label={L('متعثرة', 'Stalled')} value={fmt(board?.stalledTrips, lang)} alert={(board?.stalledTrips ?? 0) > 0} to="/operations" />
+        <MiniTile label={L('أسطول نشط', 'Fleet live')} value={canFleet ? `${fmt(liveCount, lang)}/${fmt(vehicles.length, lang)}` : '—'} to="/sites" />
+        <MiniTile label={L('أعطال اليوم', "Today's faults")} value={fmt(faults, lang)} alert={faults > 0} to="/workshop" />
+        <MiniTile label={L('مخزون حرج', 'Low stock')} value={fmt(lowStock, lang)} alert={lowStock > 0} to="/materials" />
       </div>
 
       {/* ===== main row: map + goal column + rail (fills the rest, never scrolls) ===== */}

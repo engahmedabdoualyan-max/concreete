@@ -22,6 +22,14 @@ const DICT: PageDict = {
   tabRegister: { en: '➕ Code a Device', ar: '➕ تكويد جهاز', ru: '➕ Code a Device', de: '➕ Code a Device', it: '➕ Code a Device', hi: '➕ Code a Device', ur: '➕ Code a Device', ja: '➕ Code a Device', zh: '➕ Code a Device' },
   tabRegistry: { en: '📋 Registry', ar: '📋 السجل', ru: '📋 Registry', de: '📋 Registry', it: '📋 Registry', hi: '📋 Registry', ur: '📋 Registry', ja: '📋 Registry', zh: '📋 Registry' },
   tabLookup: { en: '🔍 Find by IMEI', ar: '🔍 بحث بالرقم التسلسلي', ru: '🔍 Find by IMEI', de: '🔍 Find by IMEI', it: '🔍 Find by IMEI', hi: '🔍 Find by IMEI', ur: '🔍 Find by IMEI', ja: '🔍 Find by IMEI', zh: '🔍 Find by IMEI' },
+  tabTrips: { en: '🚚 Trip report', ar: '🚚 تقرير الرحلات', ru: '🚚 Trip report', de: '🚚 Trip report', it: '🚚 Trip report', hi: '🚚 Trip report', ur: '🚚 Trip report', ja: '🚚 Trip report', zh: '🚚 Trip report' },
+  tripsTitle: { en: 'Trips per vehicle — gate exit to gate entry', ar: 'رحلات كل سيارة — من خروجها من المحطة حتى عودتها', ru: 'Trips per vehicle', de: 'Trips per vehicle', it: 'Trips per vehicle', hi: 'Trips per vehicle', ur: 'Trips per vehicle', ja: 'Trips per vehicle', zh: 'Trips per vehicle' },
+  tripsHint: { en: 'A trip starts when the truck leaves the plant fence and ends when it returns. Under 3 minutes is ignored as fence-edge wobble.', ar: 'الرحلة تبدأ بخروج الشاحنة من سور المصنع وتنتهي بعودتها. أقل من 3 دقائق يُتجاهل.', ru: 'Trips per vehicle', de: 'Trips per vehicle', it: 'Trips per vehicle', hi: 'Trips per vehicle', ur: 'Trips per vehicle', ja: 'Trips per vehicle', zh: 'Trips per vehicle' },
+  tripsLoad: { en: 'Show', ar: 'عرض', ru: 'Show', de: 'Show', it: 'Show', hi: 'Show', ur: 'Show', ja: 'Show', zh: 'Show' },
+  tripsTotal: { en: 'trips', ar: 'رحلة', ru: 'trips', de: 'trips', it: 'trips', hi: 'trips', ur: 'trips', ja: 'trips', zh: 'trips' },
+  tripsOpen: { en: 'out now', ar: 'خارج الآن', ru: 'out now', de: 'out now', it: 'out now', hi: 'out now', ur: 'out now', ja: 'out now', zh: 'out now' },
+  tripsNone: { en: 'No trips this day — devices must report regularly for trips to appear.', ar: 'لا رحلات في هذا اليوم — يجب أن ترسل الأجهزة بانتظام لتظهر الرحلات.', ru: 'No trips', de: 'No trips', it: 'No trips', hi: 'No trips', ur: 'No trips', ja: 'No trips', zh: 'No trips' },
+  tripsMinOut: { en: 'min out', ar: 'دقيقة خارجاً', ru: 'min out', de: 'min out', it: 'min out', hi: 'min out', ur: 'min out', ja: 'min out', zh: 'min out' },
 
   // form
   formTitle: { en: 'Code a device onto a vehicle', ar: 'تكويد جهاز على مركبة', ru: 'Code a device onto a vehicle', de: 'Code a device onto a vehicle', it: 'Code a device onto a vehicle', hi: 'Code a device onto a vehicle', ur: 'Code a device onto a vehicle', ja: 'Code a device onto a vehicle', zh: 'Code a device onto a vehicle' },

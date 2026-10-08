@@ -55,7 +55,7 @@ interface CodedDevice {
   lastSeenAt: string | null;
 }
 
-type Tab = 'register' | 'registry' | 'lookup';
+type Tab = 'register' | 'registry' | 'lookup' | 'trips';
 
 function when(iso: string | null): string {
   if (!iso) return '—';
@@ -88,6 +88,28 @@ export default function FleetCoding() {
   const [lookupSerial, setLookupSerial] = useState('');
   const [lookupResult, setLookupResult] = useState<CodedDevice | null>(null);
   const [lookupError, setLookupError] = useState('');
+  const [tripDate, setTripDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [tripRows, setTripRows] = useState<any[]>([]);
+  const [tripTotal, setTripTotal] = useState(0);
+  const [tripBusy, setTripBusy] = useState(false);
+  const [tripMsg, setTripMsg] = useState('');
+
+  const loadTrips = async () => {
+    setTripBusy(true);
+    setTripMsg('');
+    try {
+      const d = await api.get<{ vehicles?: any[]; totalTrips?: number }>(
+        `/api/fleet/trip-report?date=${tripDate}`
+      );
+      setTripRows(Array.isArray(d?.vehicles) ? d.vehicles.filter((v) => v.tripsCount > 0) : []);
+      setTripTotal(d?.totalTrips ?? 0);
+    } catch (e) {
+      setTripMsg(e instanceof ApiError ? e.message : String(e));
+      setTripRows([]);
+    } finally {
+      setTripBusy(false);
+    }
+  };
 
   // move-to dialog
   const [movingId, setMovingId] = useState<string | null>(null);
@@ -230,6 +252,7 @@ export default function FleetCoding() {
     { id: 'register', label: t('tabRegister') },
     { id: 'registry', label: t('tabRegistry') },
     { id: 'lookup', label: t('tabLookup') },
+    { id: 'trips', label: t('tabTrips') },
   ];
 
   return (
@@ -524,6 +547,55 @@ export default function FleetCoding() {
                 </p>
               </div>
             )}
+          </div>
+        )}
+
+        {/* ── trips ──────────────────────────────────────────────────── */}
+        {tab === 'trips' && (
+          <div className="bg-white/[0.04] border border-white/10 rounded-2xl p-6 backdrop-blur-xl space-y-4">
+            <h3 className="text-lg font-bold text-white">{t('tripsTitle')}</h3>
+            <p className="text-xs text-slate-400">{t('tripsHint')}</p>
+            <div className="flex gap-3 flex-wrap items-center">
+              <input
+                type="date"
+                value={tripDate}
+                onChange={(e) => setTripDate(e.target.value)}
+                className={`${inputCls} max-w-[200px]`}
+              />
+              <button
+                onClick={loadTrips}
+                disabled={tripBusy || !tripDate}
+                className="bg-sky-500 hover:bg-sky-400 disabled:opacity-40 text-white font-bold px-6 py-2 rounded-lg text-sm"
+              >
+                {tripBusy ? '…' : `${t('tripsLoad')} (${tripTotal} ${t('tripsTotal')})`}
+              </button>
+            </div>
+            {tripMsg && <p className="text-sm text-amber-400">{tripMsg}</p>}
+            {tripRows.length === 0 && !tripBusy && !tripMsg && (
+              <p className="text-xs text-slate-500">{t('tripsNone')}</p>
+            )}
+            <div className="space-y-2">
+              {tripRows.map((v) => (
+                <div key={v.vehicleId} className="rounded-xl border border-white/10 bg-white/[0.03] p-3 text-xs">
+                  <div className="flex items-center justify-between flex-wrap gap-1">
+                    <span className="font-black text-white">🚛 {v.vehicleCode} · {v.plateNumber}</span>
+                    <span className="text-slate-300">
+                      {v.tripsCount} {t('tripsTotal')} · {v.minutesOut} {t('tripsMinOut')}
+                      {v.openTrips > 0 && <span className="text-amber-300 font-black"> · 🟡 {t('tripsOpen')}</span>}
+                    </span>
+                  </div>
+                  <div className="mt-1 space-y-0.5">
+                    {v.trips.map((tr: any, i: number) => (
+                      <p key={i} className="text-slate-400" dir="ltr">
+                        {when(tr.startedAt)} → {tr.endedAt ? when(tr.endedAt) : '…'}
+                        {tr.durationMinutes != null && ` · ${tr.durationMinutes} min`}
+                        {` · ${(tr.maxDistanceMetres / 1000).toFixed(1)} km`}
+                      </p>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         )}
       </main>
