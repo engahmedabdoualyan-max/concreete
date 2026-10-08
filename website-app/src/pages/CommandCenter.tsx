@@ -186,6 +186,7 @@ export default function CommandCenter() {
               statusLine: statusBits,
               detailHref: '#/operations',
               detailLabel: ar ? 'رحلاتها ←' : 'Trips →',
+              capturedAt: typeof p.capturedAt === 'string' ? p.capturedAt : undefined,
               distanceLine: '',
               ageLine: typeof p.ageMinutes === 'number'
                 ? (p.isStale

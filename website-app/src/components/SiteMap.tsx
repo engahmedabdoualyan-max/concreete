@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
@@ -62,6 +62,8 @@ export interface MapVehicle {
   detailHref?: string;
   /** Label for the deep-link. Defaults to "⇢". */
   detailLabel?: string;
+  /** ISO instant of the last fix, e.g. for the cluster detail card. */
+  capturedAt?: string;
 }
 
 interface Props {
@@ -139,6 +141,11 @@ function vehicleIcon(v: MapVehicle): L.DivIcon {
 export default function SiteMap({ sites, vehicles = [], className = '' }: Props) {
   const holder = useRef<HTMLDivElement | null>(null);
   const map = useRef<L.Map | null>(null);
+  // Cluster picked by tapping a stacked dot: list its vehicles, then drill
+  // into one for its last fix. Lives in React (not a Leaflet popup) so the
+  // list is tappable/scrollable on the TV screen.
+  const [picked, setPicked] = useState<MapVehicle[] | null>(null);
+  const [focused, setFocused] = useState<MapVehicle | null>(null);
 
   // Create the map once. Leaflet throws if you initialise a container twice, so
   // this deliberately does not depend on `sites`.
@@ -180,19 +187,56 @@ export default function SiteMap({ sites, vehicles = [], className = '' }: Props)
     const usableVehicles = vehicles.filter(
       (v) => Number.isFinite(v.latitude) && Number.isFinite(v.longitude)
     );
-    usableVehicles.forEach((v) => {
+    // Group dots that share a ~100 m cell: twenty trucks parked at the depot
+    // are one tappable badge, not twenty unreachable markers under each other.
+    const groups = new Map<string, MapVehicle[]>();
+    for (const v of usableVehicles) {
+      const k = `${v.latitude.toFixed(3)},${v.longitude.toFixed(3)}`;
+      const g = groups.get(k);
+      if (g) g.push(v);
+      else groups.set(k, [v]);
+    }
+    const vehiclePopup = (v: MapVehicle) => {
       const label = [v.vehicleCode, v.plateNumber].filter(Boolean).join(' · ');
-      L.marker([v.latitude, v.longitude], { icon: vehicleIcon(v), title: label })
+      return (
+        `<div style="direction:rtl;text-align:right"><b dir="ltr">${escapeHtml(label)}</b>` +
+        `<br/>${escapeHtml(v.nearestLine)}` +
+        (v.statusLine ? `<br/>${escapeHtml(v.statusLine)}` : '') +
+        `<br/>${escapeHtml(v.distanceLine)}` +
+        `<br/><span style="opacity:.7">${escapeHtml(v.ageLine)}</span>` +
+        (v.detailHref ? `<br/><a href="${escapeHtml(v.detailHref)}" style="color:#38bdf8;font-weight:bold">${escapeHtml(v.detailLabel || '⇢')}</a>` : '') +
+        `</div>`
+      );
+    };
+    groups.forEach((gv) => {
+      const first = gv[0];
+      if (gv.length === 1) {
+        L.marker([first.latitude, first.longitude], { icon: vehicleIcon(first), title: first.vehicleCode })
+          .addTo(m)
+          .bindPopup(vehiclePopup(first));
+        return;
+      }
+      // Stacked badge: count + tap opens the React list card (see below).
+      const staleAll = gv.every((v) => v.isStale);
+      const n = gv.length;
+      const badge = L.divIcon({
+        className: '',
+        html: `<div style="position:relative;width:72px;height:40px;">` +
+          `<div style="position:absolute;top:0;left:50%;transform:translateX(-50%);white-space:nowrap;` +
+          `background:#f59e0b;color:#000;font-size:11px;font-weight:900;line-height:1.6;` +
+          `padding:0 8px;border-radius:9999px;">${n} 🚛</div>` +
+          `<div style="position:absolute;bottom:0;left:50%;transform:translateX(-50%);` +
+          `width:18px;height:18px;border-radius:9999px;` +
+          `background:${staleAll ? 'transparent' : '#f59e0b'};border:3px solid #f59e0b;"></div></div>`,
+        iconSize: [72, 40],
+        iconAnchor: [36, 40],
+      });
+      L.marker([first.latitude, first.longitude], { icon: badge, title: `${n} مركبات` })
         .addTo(m)
-        .bindPopup(
-          `<div style="direction:rtl;text-align:right"><b dir="ltr">${escapeHtml(label)}</b>` +
-          `<br/>${escapeHtml(v.nearestLine)}` +
-          (v.statusLine ? `<br/>${escapeHtml(v.statusLine)}` : '') +
-          `<br/>${escapeHtml(v.distanceLine)}` +
-          `<br/><span style="opacity:.7">${escapeHtml(v.ageLine)}</span>` +
-          (v.detailHref ? `<br/><a href="${escapeHtml(v.detailHref)}" style="color:#38bdf8;font-weight:bold">${escapeHtml(v.detailLabel || '⇢')}</a>` : '') +
-          `</div>`
-        );
+        .on('click', () => {
+          setFocused(null);
+          setPicked([...gv].sort((a, b) => a.vehicleCode.localeCompare(b.vehicleCode, 'ar')));
+        });
     });
 
     // Fit to sites AND trucks. Fitting to the sites only would leave a truck
@@ -209,7 +253,69 @@ export default function SiteMap({ sites, vehicles = [], className = '' }: Props)
     }
   }, [sites, vehicles]);
 
-  return <div ref={holder} className={className} />;
+  const fmtTime = (iso?: string) => {
+    if (!iso) return '';
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return '';
+    return d.toLocaleString('ar-EG', { dateStyle: 'medium', timeStyle: 'short' });
+  };
+
+  return (
+    <div className={className} style={{ position: 'relative' }}>
+      <div ref={holder} style={{ width: '100%', height: '100%' }} />
+      {picked && (
+        <div dir="rtl" style={{
+          position: 'absolute', top: 8, right: 8, zIndex: 500,
+          width: 250, maxHeight: '75%', overflowY: 'auto',
+          background: 'rgba(2,6,16,.94)', border: '1px solid rgba(255,255,255,.15)',
+          borderRadius: 14, padding: 10, color: '#fff',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+            <b style={{ fontSize: 12 }}>🚛 {picked.length} مركبات هنا</b>
+            <button onClick={() => { setPicked(null); setFocused(null); }}
+              style={{ border: '1px solid rgba(255,255,255,.2)', borderRadius: 8, padding: '2px 8px', fontSize: 11, color: '#fff', background: 'transparent' }}>✕</button>
+          </div>
+          {!focused ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {picked.map((v) => (
+                <button key={v.vehicleId} onClick={() => setFocused(v)}
+                  style={{
+                    textAlign: 'right', background: 'rgba(255,255,255,.05)', color: '#fff',
+                    border: '1px solid rgba(255,255,255,.1)', borderRadius: 10, padding: '6px 8px', fontSize: 12,
+                  }}>
+                  <b dir="ltr">{v.vehicleCode}</b>
+                  <span style={{ color: '#94a3b8' }}> · {v.plateNumber}</span>
+                  <br />
+                  <span style={{ fontSize: 10, color: v.isStale ? '#94a3b8' : '#34d399' }}>
+                    {v.isStale ? '⚪ ' : '🟢 '}{v.ageLine}
+                  </span>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <div style={{ fontSize: 12 }}>
+              <button onClick={() => setFocused(null)}
+                style={{ color: '#38bdf8', fontSize: 11, background: 'transparent', border: 'none', marginBottom: 4 }}>→ رجوع للقائمة</button>
+              <p style={{ fontWeight: 900, fontSize: 14 }}><span dir="ltr">{focused.vehicleCode}</span> · {focused.plateNumber}</p>
+              {focused.statusLine && <p style={{ color: '#cbd5e1', marginTop: 2 }}>{focused.statusLine}</p>}
+              <p style={{ color: '#cbd5e1', marginTop: 4 }}>📡 آخر إشارة: <b>{focused.ageLine}</b></p>
+              {focused.capturedAt && <p dir="ltr" style={{ color: '#94a3b8', fontSize: 11 }}>{fmtTime(focused.capturedAt)}</p>}
+              <p style={{ color: '#cbd5e1', marginTop: 4 }}>📍 {focused.nearestLine}</p>
+              {focused.distanceLine && <p style={{ color: '#94a3b8', fontSize: 11 }}>{focused.distanceLine}</p>}
+              <p dir="ltr" style={{ color: '#94a3b8', fontSize: 11, marginTop: 4 }}>
+                {focused.latitude.toFixed(5)}, {focused.longitude.toFixed(5)}
+              </p>
+              {focused.detailHref && (
+                <a href={focused.detailHref} style={{ color: '#38bdf8', fontWeight: 800, display: 'block', marginTop: 6 }}>
+                  {focused.detailLabel || '⇢'}
+                </a>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
 }
 
 /** Site names are operator-typed; never interpolate them into popup HTML raw. */
