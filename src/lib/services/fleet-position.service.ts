@@ -134,25 +134,20 @@ export async function getFleetPositions(
       r.captured_at,
       EXTRACT(EPOCH FROM (now() - r.captured_at)) / 60.0 AS age_minutes
     FROM fleet_vehicles v
-    JOIN LATERAL (
-      SELECT t.latitude, t.longitude, t.speed_kmh, t.source, t.captured_at
-      FROM telematics_readings t
-      WHERE t.vehicle_id = v.id
-        AND t.tenant_id = ${tenantId}
-        AND t.latitude IS NOT NULL
-        AND t.longitude IS NOT NULL
-      ORDER BY t.captured_at DESC
-      LIMIT 1
-    ) r ON true
+    JOIN telematics_readings r
+      ON r.vehicle_id = v.id
+     AND r.tenant_id = v.tenant_id
     WHERE v.tenant_id = ${tenantId}
       AND v.is_active = true
+      AND r.latitude IS NOT NULL
+      AND r.longitude IS NOT NULL
       ${options.vehicleIds?.length
         ? sql`AND v.id IN (${sql.join(
             options.vehicleIds.map((id) => sql`${id}::uuid`),
             sql`, `
           )})`
         : sql``}
-    ORDER BY v.id
+    ORDER BY v.id, r.captured_at DESC
   `);
 
   const rows = (latest.rows ?? []) as {
