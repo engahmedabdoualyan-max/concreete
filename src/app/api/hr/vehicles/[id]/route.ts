@@ -9,6 +9,7 @@ import {
   successResponse,
 } from "@/lib/auth/middleware";
 import { PERMISSIONS } from "@/lib/auth/rbac";
+import { isUniqueViolation, violationName } from "@/lib/db/pg-errors";
 
 export const dynamic = "force-dynamic";
 
@@ -87,11 +88,14 @@ export async function PUT(
     if (!updated) return errorResponse("VEHICLE_NOT_FOUND", "Vehicle not found", 404);
     return successResponse({ id: updated.id }, "تم حفظ بيانات المركبة");
   } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : "";
-    if (msg.includes("fleet_vehicles_vehicle_code_unique"))
-      return errorResponse("DUPLICATE_CODE", "كود المركبة مستخدم بالفعل", 409);
-    if (msg.includes("fleet_vehicles_plate_number_unique"))
-      return errorResponse("DUPLICATE_PLATE", "رقم اللوحة مستخدم بالفعل", 409);
+    if (isUniqueViolation(e)) {
+      const name = violationName(e) ?? "";
+      if (name.includes("vehicle_code"))
+        return errorResponse("DUPLICATE_CODE", "كود المركبة مستخدم بالفعل", 409);
+      if (name.includes("plate_number"))
+        return errorResponse("DUPLICATE_PLATE", "رقم اللوحة مستخدم بالفعل", 409);
+      return errorResponse("DUPLICATE_VEHICLE", "بيانات المركبة مكررة", 409);
+    }
     throw e;
   }
 }
