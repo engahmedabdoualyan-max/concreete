@@ -6,6 +6,7 @@ import { useAdminDict } from '../i18n/adminDict';
 import type { Translations } from '../context/translations';
 import { useNavigate } from 'react-router-dom';
 import LangSelector from '../components/LangSelector';
+import QuickJump from '../components/QuickJump';
 import { loadPlantGPS, savePlantGPS, getAllPlantsSummary, loadPlantLogo, savePlantLogo, loadPlants, loadBlockPlants, getAllUsers, getAllCompanyTrees, isOnline, type PlantSummary, type CompanyTree } from '../firebase/firestore';
 import FactoryData from '../components/FactoryData';
 import PlantsManager from '../components/PlantsManager';
@@ -399,7 +400,7 @@ export default function AdminPanel() {
             <p className="text-slate-400">{t('adminPanelSubtitle')}</p>
           </div>
           <div className="flex items-center gap-3">
-            <LangSelector />
+            <Link to="/" className="text-slate-400 text-xs border border-white/10 px-2 py-1 rounded hover:text-white">🏠</Link> <QuickJump /> <LangSelector />
             <button
               onClick={() => navigate('/')}
               className="bg-white/[0.06] hover:bg-white/[0.1] text-white px-5 py-2.5 rounded-lg font-bold transition-all duration-300"

@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { useLang } from '../context/LangContext';
 import LangSelector from '../components/LangSelector';
+import QuickJump from '../components/QuickJump';
 import { useTenant } from '../hooks/useTenant';
 import { TREE_ROLES } from '../lib/treeRoles';
 import { hashPassword } from '../lib/passwords';
@@ -1692,7 +1694,7 @@ function ageOf(raw: unknown): number | null {
                 {now.toLocaleDateString(ar ? 'ar-EG' : 'en-US', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
               </span>
             </span>
-            <LangSelector />
+            <Link to="/" className="text-slate-400 text-xs border border-white/10 px-2 py-1 rounded hover:text-white">🏠</Link> <QuickJump /> <LangSelector />
           </div>
         </div>
 

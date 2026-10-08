@@ -4,6 +4,7 @@ import { api, resolveApiBase, getToken } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import BrandLogo from '../components/BrandLogo';
 import LangSelector from '../components/LangSelector';
+import QuickJump from '../components/QuickJump';
 
 /**
  * ============================================================
@@ -162,7 +163,7 @@ export default function Payroll() {
         <div className="flex items-center gap-3">
           <BrandLogo width={56} />
           <Link to="/" className="text-slate-400 text-xs border border-white/10 px-2 py-1 rounded hover:text-white">← Dashboard</Link>
-          <LangSelector />
+          <QuickJump /> <LangSelector />
           <h1 className="text-sm font-bold text-white">💵 GCC Payroll (GOSI + Mudad)</h1>
         </div>
         <div className="flex gap-2">

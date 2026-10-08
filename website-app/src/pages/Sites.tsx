@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import { useSitesDict } from '../i18n/sitesDict';
 import BrandLogo from '../components/BrandLogo';
 import LangSelector from '../components/LangSelector';
+import QuickJump from '../components/QuickJump';
 import SiteMap from '../components/SiteMap';
 import FleetPositions from '../components/FleetPositions';
 
@@ -244,7 +245,7 @@ export default function Sites() {
           <Link to="/" className="text-slate-400 text-xs border border-white/10 px-2 py-1 rounded hover:text-white">
             {t('backToDashboard')}
           </Link>
-          <LangSelector />
+          <QuickJump /> <LangSelector />
           <div>
             <h1 className="text-sm font-bold text-white">{t('pageTitle')}</h1>
             <p className="text-[11px] text-slate-400">{t('subtitle')}</p>

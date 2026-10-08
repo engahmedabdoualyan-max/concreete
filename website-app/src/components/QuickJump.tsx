@@ -35,7 +35,7 @@ const ROLE_ACCESS: Record<string, string[]> = {
   // Device coding is a fleet action — the same people who code a probe onto a
   // truck are the ones who move it to another truck. DISPATCHER/WORKSHOP_MGR and
   // SUPER_ADMIN reach it via ALL_PAGES.
-  PRODUCTION_OP: ['/', '/workshop', '/fleet/coding', '/mixing', '/production', '/materials'],
+  PRODUCTION_OP: ['/', '/workshop', '/fleet/coding', '/mixing', '/production', '/materials', '/gate'],
   DRIVER: ['/', '/operations'],
 };
 

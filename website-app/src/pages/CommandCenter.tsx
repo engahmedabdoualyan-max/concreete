@@ -4,6 +4,7 @@ import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { useLang } from '../context/LangContext';
 import LangSelector from '../components/LangSelector';
+import QuickJump from '../components/QuickJump';
 import BrandLogo from '../components/BrandLogo';
 import SiteMap, { type MapSite, type MapVehicle } from '../components/SiteMap';
 
@@ -309,7 +310,7 @@ export default function CommandCenter() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <LangSelector />
+          <Link to="/" className="text-slate-400 text-xs border border-white/10 px-2 py-1 rounded hover:text-white">🏠</Link> <QuickJump /> <LangSelector />
           <button
             onClick={() => setShowEmergency((v) => !v)}
             className={`flex items-center gap-1.5 text-xs font-black rounded-lg px-3 py-2 border transition ${

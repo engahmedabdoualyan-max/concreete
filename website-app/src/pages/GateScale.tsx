@@ -4,6 +4,7 @@ import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { useLang } from '../context/LangContext';
 import LangSelector from '../components/LangSelector';
+import QuickJump from '../components/QuickJump';
 import BrandLogo from '../components/BrandLogo';
 
 type Dir = 'IN' | 'OUT';
@@ -240,7 +241,7 @@ export default function GateScale() {
           </div>
           <div className="flex items-center gap-2">
             <Link to="/" className="text-slate-400 text-xs border border-white/10 px-2 py-1 rounded hover:text-white">🏠</Link>
-            <LangSelector />
+            <QuickJump /> <LangSelector />
           </div>
         </div>
 

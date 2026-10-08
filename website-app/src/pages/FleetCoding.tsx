@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import { useFleetCodingDict } from '../i18n/fleetCodingDict';
 import BrandLogo from '../components/BrandLogo';
 import LangSelector from '../components/LangSelector';
+import QuickJump from '../components/QuickJump';
 
 /**
  * ============================================================
@@ -266,7 +267,7 @@ export default function FleetCoding() {
           >
             {t('backToDashboard')}
           </Link>
-          <LangSelector />
+          <QuickJump /> <LangSelector />
           <div>
             <h1 className="text-sm font-bold text-white">{t('pageTitle')}</h1>
             <p className="text-[11px] text-slate-400">{t('subtitle')}</p>

@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
+import QuickJump from '../components/QuickJump';
 import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { useLang } from '../context/LangContext';
@@ -230,6 +232,10 @@ export default function Procurement() {
       <div className="max-w-[1200px] mx-auto px-4 sm:px-6 py-6">
         <h1 className="text-xl sm:text-2xl font-black text-white">🧾 {ar ? 'إدارة المشتريات' : 'Procurement'}</h1>
         <p className="text-xs text-slate-500 mt-1">{ar ? 'طلب الورشة ← 3 عروض ← مراجعة ← اعتماد وصرف ← مخزن ← صرف للورشة ← QR' : 'Workshop → quotes → review → approve → warehouse → workshop → QR'}</p>
+        <div className="flex flex-wrap items-center gap-2 mt-3">
+          <Link to="/" className="text-slate-400 text-xs border border-white/10 px-2 py-1 rounded hover:text-white">🏠</Link>
+          <QuickJump />
+        </div>
 
         <div className="flex flex-wrap gap-2 mt-4">
           {['ALL', 'DRAFT', 'SUBMITTED', 'UNDER_REVIEW', 'APPROVED', 'RECEIVED', 'ISSUED', 'CLOSED', 'REJECTED'].map((f) => (

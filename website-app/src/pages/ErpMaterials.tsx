@@ -12,6 +12,7 @@ import { useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
 import ExportButtons from '../components/ExportButtons';
 import BrandLogo from '../components/BrandLogo';
+import QuickJump from '../components/QuickJump';
 import { useAuth } from '../context/AuthContext';
 import { useMaterialsDict } from '../i18n/materialsDict';
 
@@ -186,6 +187,7 @@ export default function ErpMaterials() {
         <div className="flex flex-wrap items-center gap-3">
           <BrandLogo width={56} />
           <button onClick={() => navigate('/')} className="text-slate-400 text-xs border border-white/10 px-2.5 py-1 rounded hover:text-white transition">← Dashboard</button>
+          <QuickJump />
           <h1 className="text-sm font-black tracking-tight text-white">{t('titleMain')}</h1>
         </div>
         <div className="flex flex-wrap items-center gap-3">
