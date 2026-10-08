@@ -4533,6 +4533,35 @@ export const hrAttendance = pgTable(
   ]
 );
 
+/**
+ * hr_absences — manual absence registration by HR, one row per employee per day.
+ * Tied to payroll_employees (the HR roster, including workers without logins),
+ * NOT to users — hr_attendance covers login accounts via geofence instead.
+ * The broadcast manpower tile reads: present = active roster − absent today.
+ */
+export const hrAbsences = pgTable(
+  "hr_absences",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    employeeId: uuid("employee_id")
+      .notNull()
+      .references(() => payrollEmployees.id, { onDelete: "cascade" }),
+    workDate: varchar("work_date", { length: 10 }).notNull(), // YYYY-MM-DD
+    reason: varchar("reason", { length: 200 }),
+    recordedById: uuid("recorded_by_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("idx_hr_abs_tenant").on(t.tenantId),
+    uniqueIndex("idx_hr_abs_emp_day").on(t.employeeId, t.workDate),
+  ]
+);
+
 export const hrBroadcastsRelations = relations(hrBroadcasts, ({ many }) => ({
   reads: many(hrBroadcastReads),
 }));

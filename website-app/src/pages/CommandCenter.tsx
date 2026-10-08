@@ -108,6 +108,7 @@ export default function CommandCenter() {
   const [lowStock, setLowStock] = useState(0);
   const [openWO, setOpenWO] = useState<any[]>([]);
   const [fuelAnom, setFuelAnom] = useState<any[]>([]);
+  const [manpower, setManpower] = useState<{ present: number; total: number } | null>(null);
   const [sites, setSites] = useState<MapSite[]>([]);
   const [vehicles, setVehicles] = useState<MapVehicle[]>([]);
   const [canFleet, setCanFleet] = useState(false);
@@ -155,6 +156,15 @@ export default function CommandCenter() {
       setOpenWO(Array.isArray(w?.openWorkOrders) ? w.openWorkOrders : []);
       setFuelAnom(Array.isArray(w?.fuelAnomalies) ? w.fuelAnomalies : []);
     } catch { /* section stays empty */ }
+    // Manpower today (HR absence register: present/total).
+    try {
+      const mp = await api.get<{ present?: number; total?: number }>('/api/hr/absences');
+      setManpower(
+        typeof mp?.present === 'number' && typeof mp?.total === 'number'
+          ? { present: mp.present, total: mp.total }
+          : null
+      );
+    } catch { setManpower(null); }
     // Sites (plant + branches).
     try {
       const s = await api.get<{ sites?: Array<MapSite & { latitude: number; longitude: number }> }>('/api/sites');
@@ -344,8 +354,9 @@ export default function CommandCenter() {
         </div>
       )}
 
-      {/* ===== KPI strip: concrete + blocks + fleet, one row ===== */}
-      <div className="px-4 pt-2 grid grid-cols-4 lg:grid-cols-8 gap-2 shrink-0">
+      {/* ===== KPI strip: concrete + blocks + fleet + manpower, one row ===== */}
+      <div className="px-4 pt-2 grid grid-cols-4 lg:grid-cols-9 gap-2 shrink-0">
+        <MiniTile label={L('القوة البشرية 👷', 'Manpower')} value={manpower ? `${fmt(manpower.present, lang)}/${fmt(manpower.total, lang)}` : '—'} to="/hr" />
         <MiniTile label={L('خرسانة اليوم م³', 'Concrete m³')} value={fmt(board?.deliveredTodayM3, lang)} to="/operations" />
         <MiniTile label={L('إنتاج البلك 🧱', 'Blocks made')} value={fmt(blocks.producedUnits, lang)} to="/production" />
         <MiniTile label={L('مبيعات البلك 🧾', 'Blocks sold')} value={fmt(blocks.salesOrders, lang)} to="/production" />

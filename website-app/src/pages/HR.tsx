@@ -252,6 +252,57 @@ export default function HR() {
     }
   };
   const [attRows, setAttRows] = useState<any[]>([]);
+  const [absDate, setAbsDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [absEmp, setAbsEmp] = useState('');
+  const [absReason, setAbsReason] = useState('');
+  const [absList, setAbsList] = useState<any[]>([]);
+  const [absSummary, setAbsSummary] = useState({ total: 0, absent: 0, present: 0 });
+
+  const loadAbs = async (date?: string) => {
+    try {
+      const d = await api.get<{ absences?: any[]; total?: number; absent?: number; present?: number }>(
+        `/api/hr/absences?date=${date ?? absDate}`
+      );
+      setAbsList(Array.isArray(d?.absences) ? d.absences : []);
+      setAbsSummary({ total: d?.total ?? 0, absent: d?.absent ?? 0, present: d?.present ?? 0 });
+    } catch { setAbsList([]); }
+  };
+
+  const markAbsent = async () => {
+    if (!absEmp) {
+      setMsg('❌ اختر الموظف');
+      return;
+    }
+    setBusy('absadd');
+    try {
+      await api.post('/api/hr/absences', {
+        employeeId: absEmp,
+        date: absDate,
+        ...(absReason.trim() ? { reason: absReason.trim() } : {}),
+      });
+      setMsg('✅ تم تسجيل الغياب');
+      setAbsEmp('');
+      setAbsReason('');
+      await loadAbs();
+    } catch (e: any) {
+      setMsg(`❌ ${e?.message ?? 'فشل التسجيل'}`);
+    } finally {
+      setBusy('');
+    }
+  };
+
+  const unmarkAbsent = async (id: string) => {
+    setBusy('absdel' + id);
+    try {
+      await api.del(`/api/hr/absences?id=${id}`);
+      setMsg('✅ تم إلغاء الغياب');
+      await loadAbs();
+    } catch (e: any) {
+      setMsg(`❌ ${e?.message ?? 'فشل الإلغاء'}`);
+    } finally {
+      setBusy('');
+    }
+  };
   const [casts, setCasts] = useState<any[]>([]);
   const [runs, setRuns] = useState<any[]>([]);
   const [note, setNote] = useState<Record<string, string>>({});
@@ -1504,6 +1555,11 @@ function ageOf(raw: unknown): number | null {
     load();
   }, [currentUser, load]);
 
+  useEffect(() => {
+    if (tab === 'attendance') loadAbs();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab]);
+
   const review = async (id: string, decision: 'APPROVED' | 'REJECTED') => {    setBusy(id + decision);
     setMsg('');
     try {
@@ -1989,6 +2045,47 @@ function ageOf(raw: unknown): number | null {
         {/* ===== attendance ===== */}
         {tab === 'attendance' && (
           <div className="mt-4">
+            <div className="rounded-2xl border border-amber-500/30 bg-amber-500/[0.06] p-4 mb-3">
+              <div className="flex items-center justify-between flex-wrap gap-2 mb-2">
+                <h3 className="text-xs font-black text-amber-300">📝 {ar ? 'تسجيل غياب' : 'Mark absence'}</h3>
+                <span className="text-xs font-black text-white">
+                  👷 {ar ? 'القوة الحاضرة' : 'Present'}: {absSummary.present}/{absSummary.total}
+                </span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+                <label className="text-[11px] text-slate-400 font-bold">{ar ? 'الموظف *' : 'Employee *'}
+                  <select value={absEmp} onChange={(e) => setAbsEmp(e.target.value)}
+                    className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none">
+                    <option value="">—</option>
+                    {employees.map((e) => <option key={e.id} value={e.id}>{nameOf(e)} · {e.employeeCode}</option>)}
+                  </select></label>
+                <label className="text-[11px] text-slate-400 font-bold">{ar ? 'التاريخ' : 'Date'}
+                  <input type="date" value={absDate} onChange={(e) => { setAbsDate(e.target.value); loadAbs(e.target.value); }}
+                    className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
+                <label className="text-[11px] text-slate-400 font-bold">{ar ? 'السبب' : 'Reason'}
+                  <input value={absReason} onChange={(e) => setAbsReason(e.target.value)}
+                    className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
+                <div className="flex items-end">
+                  <button disabled={busy === 'absadd'} onClick={markAbsent}
+                    className="w-full bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-black text-xs font-black rounded-lg px-4 py-2">
+                    {busy === 'absadd' ? '…' : `✅ ${ar ? 'تسجيل' : 'Mark'}`}
+                  </button>
+                </div>
+              </div>
+              {absList.length > 0 && (
+                <div className="mt-2 space-y-1">
+                  {absList.map((a) => (
+                    <div key={a.id} className="flex items-center justify-between text-xs border-b border-white/5 py-1">
+                      <span className="text-slate-300">🔴 {a.name} <span className="text-slate-500">· {a.code}</span>{a.reason ? ` · ${a.reason}` : ''}</span>
+                      <button disabled={busy === 'absdel' + a.id} onClick={() => unmarkAbsent(a.id)}
+                        className="text-[10px] font-black rounded px-2 py-1 border border-white/15 text-slate-300 disabled:opacity-50">
+                        {busy === 'absdel' + a.id ? '…' : (ar ? 'إلغاء' : 'Clear')}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
             <div className="flex flex-wrap items-center gap-2 mb-3">
               <label className={`text-[11px] font-black rounded-lg px-3 py-1.5 border cursor-pointer ${importing ? 'opacity-50' : 'border-violet-500/50 bg-violet-500/15 text-violet-300 hover:bg-violet-500/25'}`}>
                 📤 {importing ? '…' : (ar ? 'استيراد بصمة / إكسل' : 'Import')}
