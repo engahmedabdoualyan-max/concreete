@@ -332,7 +332,7 @@ export default function CommandCenter() {
 
       {/* ===== emergency overlay (never pushes layout — TV has no mouse to scroll back) ===== */}
       {showEmergency && (
-        <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-6" onClick={() => setShowEmergency(false)}>
+        <div className="fixed inset-0 z-[2000] bg-black/70 flex items-center justify-center p-6" onClick={() => setShowEmergency(false)}>
           <div className="max-w-3xl w-full max-h-[85vh] overflow-y-auto rounded-2xl border border-red-500/40 bg-[#120B0B] p-5" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-base font-black text-red-300">🚨 {L('مشاكل طارئة حسب القسم', 'Urgent issues by department')}</h2>
