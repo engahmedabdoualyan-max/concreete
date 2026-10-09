@@ -270,7 +270,9 @@ export function AdminProvider({ children }: { children: ReactNode }) {
     if (currentUser.status === 'GUEST') return true;
     if (currentUser.status === 'APP_ACCOUNT') {
       const role = String((currentUser as any).role || '');
-      return role === 'sysadmin' || role === 'owner' || role === 'manager';
+      if (role === 'sysadmin' || role === 'owner' || role === 'manager') return true;
+      // ERP backend roles: owner + plant/operations managers manage all plants.
+      if (role === 'SUPER_ADMIN' || role === 'PLANT_MGR' || role === 'OPERATIONS_MGR') return true;
     }
     const u = users.find(x => x.username.toLowerCase() === currentUser.username.toLowerCase());
     if (!u) return true;
