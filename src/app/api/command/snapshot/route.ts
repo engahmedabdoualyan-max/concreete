@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { db } from "@/db";
 import { broadcastSnapshots } from "@/db/schema";
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import {
   requirePermission,
   errorResponse,
@@ -13,12 +13,13 @@ import { takeSnapshot } from "@/lib/services/broadcast-snapshot.service";
 export const dynamic = "force-dynamic";
 
 /**
- * POST /api/command/snapshot — capture today's numbers (TRIP_READ).
+ * POST /api/command/snapshot — capture the current numbers (TRIP_READ).
  *
- * The broadcast calls this on load; throttled to one capture per 15 minutes
- * so the TV's 30s poll does not rewrite history mid-day. ?force=1 recaptures.
+ * The broadcast calls this on load; throttled to one capture per 5 minutes
+ * so intraday history has real resolution without spamming (the TV polls
+ * every 30s). ?force=1 recaptures.
  */
-const FIFTEEN_MIN = 15 * 60_000;
+const FIVE_MIN = 5 * 60_000;
 
 function today(): string {
   return new Date(Date.now() + 3 * 3600_000).toISOString().slice(0, 10);
@@ -31,7 +32,7 @@ export async function POST(req: NextRequest) {
 
   if (new URL(req.url).searchParams.get("force") !== "1") {
     const [row] = await db
-      .select({ updatedAt: broadcastSnapshots.updatedAt })
+      .select({ at: broadcastSnapshots.createdAt })
       .from(broadcastSnapshots)
       .where(
         and(
@@ -39,8 +40,9 @@ export async function POST(req: NextRequest) {
           eq(broadcastSnapshots.snapDate, day)
         )
       )
+      .orderBy(desc(broadcastSnapshots.createdAt))
       .limit(1);
-    if (row && Date.now() - new Date(row.updatedAt).getTime() < FIFTEEN_MIN)
+    if (row && Date.now() - new Date(String(row.at)).getTime() < FIVE_MIN)
       return successResponse({ date: day, throttled: true }, "لقطة اليوم محفوظة");
   }
 

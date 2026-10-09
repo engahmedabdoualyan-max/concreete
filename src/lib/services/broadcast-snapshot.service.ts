@@ -8,7 +8,7 @@ import {
   tenants,
   trips,
 } from "@/db/schema";
-import { and, eq, gte, lte, sql } from "drizzle-orm";
+import { and, desc, eq, gte, lte, sql } from "drizzle-orm";
 import { getFleetPositions } from "@/lib/services/fleet-position.service";
 import { getReadinessSummary } from "@/lib/services/readiness.service";
 
@@ -116,24 +116,39 @@ export async function takeSnapshot(tenantId: string, date: string): Promise<Broa
 
   await db.execute(sql`
     INSERT INTO broadcast_snapshots (tenant_id, snap_date, payload)
-    VALUES (${tenantId}, ${date}, ${JSON.stringify(payload)}::jsonb)
-    ON CONFLICT (tenant_id, snap_date) DO UPDATE SET
-      payload = EXCLUDED.payload, updated_at = now()`);
+    VALUES (${tenantId}, ${date}, ${JSON.stringify(payload)}::jsonb)`);
   return payload;
 }
 
-export async function getSnapshot(
-  tenantId: string,
-  date: string
-): Promise<{ payload: BroadcastSnapshot; updatedAt: string } | null> {
-  const [row] = await db
-    .select({ payload: broadcastSnapshots.payload, updatedAt: broadcastSnapshots.updatedAt })
+export async function getSnapshotTimes(tenantId: string, date: string): Promise<string[]> {
+  const rows = await db
+    .select({ at: broadcastSnapshots.createdAt })
     .from(broadcastSnapshots)
     .where(and(eq(broadcastSnapshots.tenantId, tenantId), eq(broadcastSnapshots.snapDate, date)))
+    .orderBy(broadcastSnapshots.createdAt);
+  return rows.map((r) => new Date(String(r.at)).toISOString());
+}
+
+/** Nearest capture at or before the given instant (or the latest of the day). */
+export async function getSnapshot(
+  tenantId: string,
+  date: string,
+  atIso?: string
+): Promise<{ payload: BroadcastSnapshot; updatedAt: string } | null> {
+  const conds = [eq(broadcastSnapshots.tenantId, tenantId), eq(broadcastSnapshots.snapDate, date)];
+  if (atIso) {
+    const at = new Date(atIso);
+    if (!Number.isNaN(at.getTime())) conds.push(lte(broadcastSnapshots.createdAt, at));
+  }
+  const [row] = await db
+    .select({ payload: broadcastSnapshots.payload, updatedAt: broadcastSnapshots.createdAt })
+    .from(broadcastSnapshots)
+    .where(and(...conds))
+    .orderBy(desc(broadcastSnapshots.createdAt))
     .limit(1);
   if (!row) return null;
   return {
     payload: row.payload as unknown as BroadcastSnapshot,
-    updatedAt: String(row.updatedAt),
+    updatedAt: new Date(String(row.updatedAt)).toISOString(),
   };
 }

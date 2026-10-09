@@ -112,7 +112,9 @@ export default function CommandCenter() {
   const [manpower, setManpower] = useState<{ present: number; total: number } | null>(null);
   const [readiness, setReadiness] = useState<Record<string, { total: number; working: number; idle: number; workshop: number; unmarked: number }> | null>(null);
   const [histDate, setHistDate] = useState('');
+  const [histTime, setHistTime] = useState('');
   const [hist, setHist] = useState<any | null>(null);
+  const [histAt, setHistAt] = useState('');
   const [histMsg, setHistMsg] = useState('');
   const TYPE_AR: Record<string, string> = { MIXER_TRUCK: 'خلاطات', CONCRETE_PUMP: 'بامب', TIPPER_TRUCK: 'قلاب', TRANSIT_MIXER: 'ترانزيت', WATER_TANKER: 'تانكر', SERVICE_TRUCK: 'خدمة' };
   const [sites, setSites] = useState<MapSite[]>([]);
@@ -231,19 +233,25 @@ export default function CommandCenter() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ar]);
 
-  const loadHistory = async (date: string) => {
+  const loadHistory = async (date: string, time?: string) => {
+    const t = time ?? histTime;
     setHistDate(date);
     if (!date) {
       setHist(null);
+      setHistAt('');
       setHistMsg('');
       return;
     }
     try {
-      const d = await api.get<{ snapshot?: any }>(`/api/command/history?date=${date}`);
+      const d = await api.get<{ snapshot?: any; updatedAt?: string }>(
+        `/api/command/history?date=${date}${t ? `&time=${t}` : ''}`
+      );
       setHist(d?.snapshot ?? null);
+      setHistAt(d?.updatedAt ? new Date(d.updatedAt).toLocaleString('ar-EG', { dateStyle: 'medium', timeStyle: 'short' }) : '');
       setHistMsg('');
     } catch (e: any) {
       setHist(null);
+      setHistAt('');
       setHistMsg(`❌ ${e?.message ?? ''}`);
     }
   };
@@ -426,13 +434,17 @@ export default function CommandCenter() {
         <div className="rounded-xl border border-white/10 bg-white/[0.02] px-3 py-1.5 flex flex-wrap items-center gap-2">
           <span className="text-[11px] font-black text-slate-300">🗓️ {L('أرشيف الأيام', 'Day archive')}</span>
           <input type="date" value={histDate} max={new Date().toISOString().slice(0, 10)}
-            onChange={(e) => void loadHistory(e.target.value)}
+            onChange={(e) => { setHistTime(''); void loadHistory(e.target.value, ''); }}
             className="bg-white/[0.04] border border-white/10 rounded-lg px-2 py-1 text-[11px] text-white outline-none" />
+          <input type="time" value={histTime} disabled={!histDate}
+            onChange={(e) => { setHistTime(e.target.value); void loadHistory(histDate, e.target.value); }}
+            className="bg-white/[0.04] border border-white/10 rounded-lg px-2 py-1 text-[11px] text-white outline-none disabled:opacity-40" />
           {histDate && (
-            <button onClick={() => void loadHistory('')} className="text-[11px] text-slate-400 border border-white/10 rounded-lg px-2 py-1">
+            <button onClick={() => { setHistTime(''); void loadHistory(''); }} className="text-[11px] text-slate-400 border border-white/10 rounded-lg px-2 py-1">
               {L('رجوع للمباشر', 'Back to live')}
             </button>
           )}
+          {histAt && <span className="text-[11px] text-sky-300 font-bold">📸 {histAt}</span>}
           {histMsg && <span className="text-[11px] font-bold">{histMsg}</span>}
         </div>
         {hist && (

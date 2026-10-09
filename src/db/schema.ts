@@ -4721,10 +4721,10 @@ export const fleetReadiness = pgTable(
 );
 
 /**
- * broadcast_snapshots — one JSON row per tenant per day: the numbers the TV
- * showed. The broadcast stays live, but every view upserts today's snapshot
- * (throttled), so the owner can later open any past day and see what the
- * plant looked like. History is read-only; only today is live.
+ * broadcast_snapshots — intraday time series of what the TV showed.
+ * One row per capture (every few minutes while anyone watches the broadcast),
+ * so the owner can open any day AND hour/minute and see the plant then.
+ * History is immutable; only the live screen changes with inputs.
  */
 export const broadcastSnapshots = pgTable(
   "broadcast_snapshots",
@@ -4739,7 +4739,7 @@ export const broadcastSnapshots = pgTable(
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },
   (t) => [
-    uniqueIndex("broadcast_snapshots_tenant_day_unique").on(t.tenantId, t.snapDate),
+    index("broadcast_snapshots_tenant_day_idx").on(t.tenantId, t.snapDate, t.createdAt),
     index("broadcast_snapshots_tenant_idx").on(t.tenantId),
   ]
 );

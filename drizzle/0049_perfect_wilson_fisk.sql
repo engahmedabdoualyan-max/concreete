@@ -1,0 +1,2 @@
+DROP INDEX "broadcast_snapshots_tenant_day_unique";--> statement-breakpoint
+CREATE INDEX "broadcast_snapshots_tenant_day_idx" ON "broadcast_snapshots" USING btree ("tenant_id","snap_date","created_at");
