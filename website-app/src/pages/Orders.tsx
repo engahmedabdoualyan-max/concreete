@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { api } from '../api/client';
 import { loadOrders, saveOrders, stampOrderTime } from '../firebase/firestore';
 import QuickJump from '../components/QuickJump';
 import LangSelector from '../components/LangSelector';
@@ -160,6 +161,131 @@ export default function Orders() {
 
   // Server-time audit stamps queued until the orders doc is saved
   const pendingStamps = useRef<{ id: string; field: 'createdAt' | 'approvedAt' | 'updatedAt' }[]>([]);
+
+  // ── ERP backend (central orders): clients, mixes, delivery sites ──
+  const [erpOrders, setErpOrders] = useState<any[]>([]);
+  const [erpClients, setErpClients] = useState<any[]>([]);
+  const [erpMixes, setErpMixes] = useState<any[]>([]);
+  const [erpSites, setErpSites] = useState<any[]>([]);
+  const [erpMsg, setErpMsg] = useState('');
+  const [erpBusy, setErpBusy] = useState('');
+  const [erpForm, setErpForm] = useState({ clientId: '', siteId: '', mixId: '', volume: '', price: '', date: new Date().toISOString().slice(0, 10), time: '08:00', notes: '' });
+  const [showClientAdd, setShowClientAdd] = useState(false);
+  const [newClient, setNewClient] = useState({ companyName: '', phone: '', vatNumber: '' });
+  const [showSiteAdd, setShowSiteAdd] = useState(false);
+  const [newSite, setNewSite] = useState({ siteName: '', city: '' });
+
+  const loadErp = async () => {
+    try {
+      const [c, m, o] = await Promise.all([
+        api.get<any[]>('/api/clients').catch(() => []),
+        api.get<any[]>('/api/mix-designs').catch(() => []),
+        api.get<{ orders?: any[] }>('/api/orders').catch(() => ({ orders: [] })),
+      ]);
+      setErpClients(Array.isArray(c) ? c : []);
+      setErpMixes(Array.isArray(m) ? m : (m as any)?.designs ?? []);
+      setErpOrders(Array.isArray((o as any)?.orders) ? (o as any).orders : []);
+    } catch { /* backend unreachable — legacy local mode stays */ }
+  };
+
+  const loadErpSites = async (clientId: string) => {
+    if (!clientId) {
+      setErpSites([]);
+      return;
+    }
+    try {
+      const s = await api.get<any[]>(`/api/clients/${clientId}/sites`);
+      setErpSites(Array.isArray(s) ? s : []);
+    } catch { setErpSites([]); }
+  };
+
+  useEffect(() => {
+    if (!currentUser) return;
+    loadErp();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser?.username]);
+
+  const erpSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!erpForm.clientId || !erpForm.siteId || !erpForm.mixId || !erpForm.volume) {
+      setErpMsg(t('fillRequired'));
+      return;
+    }
+    setErpBusy('create');
+    try {
+      await api.post('/api/orders', {
+        clientId: erpForm.clientId,
+        deliverySiteId: erpForm.siteId,
+        mixDesignId: erpForm.mixId,
+        totalVolumeM3: Number(erpForm.volume),
+        ...(erpForm.price.trim() ? { pricePerM3Sar: Math.round(Number(erpForm.price) * 100) } : {}),
+        scheduledDate: new Date(`${erpForm.date}T${erpForm.time}:00+03:00`).toISOString(),
+        ...(erpForm.notes.trim() ? { specialInstructions: erpForm.notes.trim() } : {}),
+      });
+      setErpMsg('✅');
+      setErpForm({ clientId: '', siteId: '', mixId: '', volume: '', price: '', date: new Date().toISOString().slice(0, 10), time: '08:00', notes: '' });
+      setErpSites([]);
+      await loadErp();
+    } catch (err: any) {
+      setErpMsg(`❌ ${err?.message ?? ''}`);
+    } finally {
+      setErpBusy('');
+    }
+  };
+
+  const erpFinance = async (orderId: string, decision: 'approve' | 'reject') => {
+    setErpBusy(decision + orderId);
+    try {
+      await api.post(`/api/finance/${decision}`, { orderId });
+      await loadErp();
+    } catch (err: any) {
+      setErpMsg(`❌ ${err?.message ?? ''}`);
+    } finally {
+      setErpBusy('');
+    }
+  };
+
+  const erpAddClient = async () => {
+    if (!newClient.companyName.trim()) return;
+    setErpBusy('client');
+    try {
+      const r = await api.post<{ id?: string }>('/api/clients', {
+        companyName: newClient.companyName.trim(),
+        ...(newClient.phone.trim() ? { phone: newClient.phone.trim() } : {}),
+        ...(newClient.vatNumber.trim() ? { vatNumber: newClient.vatNumber.trim() } : {}),
+      });
+      setNewClient({ companyName: '', phone: '', vatNumber: '' });
+      setShowClientAdd(false);
+      await loadErp();
+      if ((r as any)?.id) {
+        setErpForm((p) => ({ ...p, clientId: (r as any).id }));
+        loadErpSites((r as any).id);
+      }
+    } catch (err: any) {
+      setErpMsg(`❌ ${err?.message ?? ''}`);
+    } finally {
+      setErpBusy('');
+    }
+  };
+
+  const erpAddSite = async () => {
+    if (!erpForm.clientId || !newSite.siteName.trim()) return;
+    setErpBusy('site');
+    try {
+      const r = await api.post<{ id?: string }>(`/api/clients/${erpForm.clientId}/sites`, {
+        siteName: newSite.siteName.trim(),
+        ...(newSite.city.trim() ? { city: newSite.city.trim() } : {}),
+      });
+      setNewSite({ siteName: '', city: '' });
+      setShowSiteAdd(false);
+      await loadErpSites(erpForm.clientId);
+      if ((r as any)?.id) setErpForm((p) => ({ ...p, siteId: (r as any).id }));
+    } catch (err: any) {
+      setErpMsg(`❌ ${err?.message ?? ''}`);
+    } finally {
+      setErpBusy('');
+    }
+  };
 
   // Load orders from localStorage + Firestore
   useEffect(() => {
@@ -550,6 +676,122 @@ export default function Orders() {
           >
             {t('goToSchedule')}
           </Link>
+        </div>
+
+        {/* ===== Central ERP order (concrete) ===== */}
+        <div className="bg-emerald-500/[0.05] border border-emerald-500/20 rounded-xl p-4 mb-4">
+          <h3 className="text-sm font-black text-emerald-300 mb-1">🏭 {t('erpOrderTitle') ?? 'طلب مركزي (خرسانة)'}</h3>
+          <p className="text-[11px] text-slate-400 mb-3">
+            {t('erpOrderHint') ?? 'يُسجل في النظام المركزي: العميل + الموقع + الخلطة + المالية والتشغيل والبوابة.'}
+          </p>
+          {erpMsg && <p className="text-xs font-bold mb-2">{erpMsg}</p>}
+          <form onSubmit={erpSubmit} className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+            <label className="text-[11px] text-slate-400 font-bold">{t('thCustomer') ?? 'العميل'} *
+              <span className="flex gap-1 mt-0.5">
+                <select value={erpForm.clientId} onChange={(e) => { setErpForm({ ...erpForm, clientId: e.target.value, siteId: '' }); loadErpSites(e.target.value); }}
+                  className="flex-1 bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none">
+                  <option value="">—</option>
+                  {erpClients.map((c: any) => <option key={c.id} value={c.id}>{c.companyName} · {c.clientCode}</option>)}
+                </select>
+                <button type="button" onClick={() => setShowClientAdd((v) => !v)} title="+"
+                  className="border border-emerald-500/50 text-emerald-300 rounded-lg px-2 text-sm">+</button>
+              </span></label>
+            <label className="text-[11px] text-slate-400 font-bold">{t('thProject') ?? 'الموقع'} *
+              <span className="flex gap-1 mt-0.5">
+                <select value={erpForm.siteId} onChange={(e) => setErpForm({ ...erpForm, siteId: e.target.value })}
+                  className="flex-1 bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none">
+                  <option value="">—</option>
+                  {erpSites.map((s: any) => <option key={s.id} value={s.id}>{s.siteName}</option>)}
+                </select>
+                <button type="button" disabled={!erpForm.clientId} onClick={() => setShowSiteAdd((v) => !v)} title="+"
+                  className="border border-emerald-500/50 text-emerald-300 rounded-lg px-2 text-sm disabled:opacity-40">+</button>
+              </span></label>
+            <label className="text-[11px] text-slate-400 font-bold">{t('mixLabel') ?? 'الخلطة'} *
+              <select value={erpForm.mixId} onChange={(e) => setErpForm({ ...erpForm, mixId: e.target.value })}
+                className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none">
+                <option value="">—</option>
+                {erpMixes.map((m: any) => <option key={m.id} value={m.id}>{m.designCode} · {m.gradeDescription}</option>)}
+              </select></label>
+            <label className="text-[11px] text-slate-400 font-bold">{t('thQty') ?? 'م³'} *
+              <input value={erpForm.volume} inputMode="decimal" onChange={(e) => setErpForm({ ...erpForm, volume: e.target.value })}
+                className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
+            <label className="text-[11px] text-slate-400 font-bold">{t('priceLabel') ?? 'السعر/م³'} 
+              <input value={erpForm.price} inputMode="decimal" onChange={(e) => setErpForm({ ...erpForm, price: e.target.value })}
+                className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
+            <label className="text-[11px] text-slate-400 font-bold">{t('thDateTime') ?? 'الموعد'}
+              <span className="flex gap-1 mt-0.5">
+                <input type="date" value={erpForm.date} onChange={(e) => setErpForm({ ...erpForm, date: e.target.value })}
+                  className="flex-1 bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" />
+                <input type="time" value={erpForm.time} onChange={(e) => setErpForm({ ...erpForm, time: e.target.value })}
+                  className="w-20 bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" />
+              </span></label>
+          </form>
+          <input value={erpForm.notes} onChange={(e) => setErpForm({ ...erpForm, notes: e.target.value })}
+            placeholder={t('notesLabel') ?? 'ملاحظات'}
+            className="mt-2 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" />
+          <button onClick={erpSubmit} disabled={erpBusy === 'create'}
+            className="mt-2 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-white text-xs font-black rounded-lg px-6 py-2">
+            {erpBusy === 'create' ? '…' : `✅ ${t('saveOrder')}`}
+          </button>
+          {showClientAdd && (
+            <div className="mt-2 rounded-xl border border-emerald-500/30 bg-emerald-500/[0.06] p-3 grid grid-cols-1 sm:grid-cols-4 gap-2">
+              <input value={newClient.companyName} onChange={(e) => setNewClient({ ...newClient, companyName: e.target.value })}
+                placeholder={t('thCustomer') ?? 'العميل'} className="bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" />
+              <input value={newClient.phone} onChange={(e) => setNewClient({ ...newClient, phone: e.target.value })}
+                placeholder={t('phoneLabel') ?? 'الجوال'} className="bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" />
+              <input value={newClient.vatNumber} onChange={(e) => setNewClient({ ...newClient, vatNumber: e.target.value })}
+                placeholder={t('vatLabel') ?? 'الرقم الضريبي'} className="bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" />
+              <button onClick={erpAddClient} disabled={erpBusy === 'client'}
+                className="bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-white text-xs font-black rounded-lg px-4 py-1.5">
+                {erpBusy === 'client' ? '…' : `➕ ${t('thCustomer') ?? 'عميل'}`}
+              </button>
+            </div>
+          )}
+          {showSiteAdd && (
+            <div className="mt-2 rounded-xl border border-emerald-500/30 bg-emerald-500/[0.06] p-3 grid grid-cols-1 sm:grid-cols-3 gap-2">
+              <input value={newSite.siteName} onChange={(e) => setNewSite({ ...newSite, siteName: e.target.value })}
+                placeholder={t('thProject') ?? 'الموقع'} className="bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" />
+              <input value={newSite.city} onChange={(e) => setNewSite({ ...newSite, city: e.target.value })}
+                placeholder={t('cityLabel') ?? 'المدينة'} className="bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" />
+              <button onClick={erpAddSite} disabled={erpBusy === 'site'}
+                className="bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-white text-xs font-black rounded-lg px-4 py-1.5">
+                {erpBusy === 'site' ? '…' : `➕ ${t('thProject') ?? 'موقع'}`}
+              </button>
+            </div>
+          )}
+          {erpOrders.length > 0 && (
+            <div className="mt-3 overflow-x-auto">
+              <table className="w-full">
+                <thead><tr className="text-[10px] text-slate-400">
+                  <th className="text-right p-2">{t('thOrderNo')}</th>
+                  <th className="text-right p-2">{t('thCustomer')}</th>
+                  <th className="text-right p-2">{t('thProject')}</th>
+                  <th className="text-right p-2">{t('thQty')}</th>
+                  <th className="text-right p-2">{t('thStatus')}</th>
+                  <th className="text-right p-2">{t('thActions')}</th>
+                </tr></thead>
+                <tbody>
+                  {erpOrders.map((o: any) => (
+                    <tr key={o.id} className="border-t border-white/5 text-xs">
+                      <td className="p-2 font-mono" dir="ltr">{o.orderNumber}</td>
+                      <td className="p-2">{o.companyName ?? o.clientName ?? ''}</td>
+                      <td className="p-2">{o.siteName ?? ''}</td>
+                      <td className="p-2">{o.totalVolumeM3} م³</td>
+                      <td className="p-2"><span className="rounded px-2 py-0.5 bg-white/10 text-slate-200 text-[10px] font-black">{o.status}</span></td>
+                      <td className="p-2 flex gap-1">
+                        <button disabled={erpBusy === 'approve' + o.id} onClick={() => erpFinance(o.id, 'approve')}
+                          className="text-[10px] font-black rounded px-2 py-1 border border-emerald-500/40 text-emerald-300 disabled:opacity-50">
+                          {erpBusy === 'approve' + o.id ? '…' : (t('approveLabel') ?? 'اعتماد')}</button>
+                        <button disabled={erpBusy === 'reject' + o.id} onClick={() => erpFinance(o.id, 'reject')}
+                          className="text-[10px] font-black rounded px-2 py-1 border border-red-500/40 text-red-300 disabled:opacity-50">
+                          {erpBusy === 'reject' + o.id ? '…' : (t('rejectLabel') ?? 'رفض')}</button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
 
         {/* Order Form Modal */}
