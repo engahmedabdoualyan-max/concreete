@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
+import { useLang } from '../context/LangContext';
 import BrandLogo from '../components/BrandLogo';
 import LangSelector from '../components/LangSelector';
 import QuickJump from '../components/QuickJump';
@@ -42,6 +43,9 @@ interface Footprint {
 
 export default function Sustainability() {
   const { currentUser } = useAuth();
+  const { lang } = useLang();
+  const ar = lang === 'ar';
+  const L = (a: string, e: string) => (ar ? a : e);
   const [factors, setFactors] = useState<Factor[]>([]);
   const [summary, setSummary] = useState<Summary | null>(null);
   const [footprint, setFootprint] = useState<Footprint | null>(null);
@@ -84,7 +88,7 @@ export default function Sustainability() {
     setBusy(false);
   };
 
-  if (!currentUser) return <div className="min-h-screen bg-[#0B111E] flex items-center justify-center"><div className="text-center"><p className="text-red-400 text-xl mb-4">🔒 Access Denied</p><Link to="/" className="text-sky-400 underline">Back to Login</Link></div></div>;
+  if (!currentUser) return <div className="min-h-screen bg-[#0B111E] flex items-center justify-center"><div className="text-center"><p className="text-red-400 text-xl mb-4">🔒 Access Denied</p><Link to="/" className="text-sky-400 underline">{L('عودة للدخول', 'Back to Login')}</Link></div></div>;
 
   const inputCls = 'w-full bg-white/[0.04] border border-white/10 rounded-lg p-2 text-white text-xs';
 
@@ -105,9 +109,9 @@ export default function Sustainability() {
         {summary && (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div className="bg-white/[0.04] border-l-4 border-emerald-500 rounded-lg p-4"><p className="text-xs text-slate-400">Total CO₂e</p><p className="text-2xl font-bold text-white">{summary.totalTco2e} t</p></div>
-            <div className="bg-white/[0.04] border-l-4 border-sky-500 rounded-lg p-4"><p className="text-xs text-slate-400">Intensity</p><p className="text-2xl font-bold text-white">{summary.intensityKgco2ePerM3} kg/m³</p></div>
-            <div className="bg-white/[0.04] border-l-4 border-amber-500 rounded-lg p-4"><p className="text-xs text-slate-400">Orders measured</p><p className="text-2xl font-bold text-white">{summary.ordersCount}</p></div>
-            <div className="bg-white/[0.04] border-l-4 border-violet-500 rounded-lg p-4"><p className="text-xs text-slate-400">Volume</p><p className="text-2xl font-bold text-white">{summary.totalVolumeM3.toLocaleString()} m³</p></div>
+            <div className="bg-white/[0.04] border-l-4 border-sky-500 rounded-lg p-4"><p className="text-xs text-slate-400">{L('الكثافة', 'Intensity')}</p><p className="text-2xl font-bold text-white">{summary.intensityKgco2ePerM3} kg/m³</p></div>
+            <div className="bg-white/[0.04] border-l-4 border-amber-500 rounded-lg p-4"><p className="text-xs text-slate-400">{L('طلبات مقاسة', 'Orders measured')}</p><p className="text-2xl font-bold text-white">{summary.ordersCount}</p></div>
+            <div className="bg-white/[0.04] border-l-4 border-violet-500 rounded-lg p-4"><p className="text-xs text-slate-400">{L('الحجم', 'Volume')}</p><p className="text-2xl font-bold text-white">{summary.totalVolumeM3.toLocaleString()} m³</p></div>
           </div>
         )}
 

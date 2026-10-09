@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api, resolveApiBase, getToken } from '../api/client';
 import { useAuth } from '../context/AuthContext';
+import { useLang } from '../context/LangContext';
 import BrandLogo from '../components/BrandLogo';
 import LangSelector from '../components/LangSelector';
 import QuickJump from '../components/QuickJump';
@@ -53,6 +54,9 @@ const FIELD_HINTS: Record<string, string> = {
 
 export default function AccountingIntegrations() {
   const { currentUser } = useAuth();
+  const { lang } = useLang();
+  const ar = lang === 'ar';
+  const L = (a: string, e: string) => (ar ? a : e);
   const [connections, setConnections] = useState<Connection[]>([]);
   const [loading, setLoading] = useState(true);
   const [msg, setMsg] = useState('');
@@ -158,7 +162,7 @@ export default function AccountingIntegrations() {
     setBusy(false);
   };
 
-  if (!currentUser) return <div className="min-h-screen bg-[#0B111E] flex items-center justify-center"><div className="text-center"><p className="text-red-400 text-xl mb-4">🔒 Access Denied</p><Link to="/" className="text-sky-400 underline">Back to Login</Link></div></div>;
+  if (!currentUser) return <div className="min-h-screen bg-[#0B111E] flex items-center justify-center"><div className="text-center"><p className="text-red-400 text-xl mb-4">🔒 Access Denied</p><Link to="/" className="text-sky-400 underline">{L('عودة للدخول', 'Back to Login')}</Link></div></div>;
 
   const activeProvider = PROVIDERS.find(p => p.id === provider)!;
   const selected = connections.find(c => c.id === selectedId);
@@ -206,13 +210,13 @@ export default function AccountingIntegrations() {
           <h3 className="text-lg font-bold text-white mb-4">➕ Register Connection</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm text-slate-300 mb-1">Provider</label>
+              <label className="block text-sm text-slate-300 mb-1">{L('المزود', 'Provider')}</label>
               <select value={provider} onChange={e => { setProvider(e.target.value); setCreds({}); }} className={inputCls}>
                 {PROVIDERS.map(p => <option key={p.id} value={p.id}>{p.label}</option>)}
               </select>
             </div>
             <div>
-              <label className="block text-sm text-slate-300 mb-1">Name</label>
+              <label className="block text-sm text-slate-300 mb-1">{L('الاسم', 'Name')}</label>
               <input value={name} onChange={e => setName(e.target.value)} placeholder="Zoho — Main Books" className={inputCls} />
             </div>
             {activeProvider.fields.map(f => (
@@ -270,7 +274,7 @@ export default function AccountingIntegrations() {
                   {l.message && <p className="w-full text-[11px] text-slate-500">{l.message}</p>}
                 </div>
               ))}
-              {logs.length === 0 && <p className="text-slate-500 text-sm">No sync activity yet.</p>}
+              {logs.length === 0 && <p className="text-slate-500 text-sm">{L('لا نشاط مزامنة بعد.', 'No sync activity yet.')}</p>}
             </div>
           </div>
         )}

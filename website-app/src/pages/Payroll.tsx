@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { api, resolveApiBase, getToken } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import BrandLogo from '../components/BrandLogo';
+import { useLang } from '../context/LangContext';
 import LangSelector from '../components/LangSelector';
 import QuickJump from '../components/QuickJump';
 
@@ -54,6 +55,9 @@ interface PayRun {
 
 export default function Payroll() {
   const { currentUser } = useAuth();
+  const { lang } = useLang();
+  const ar = lang === 'ar';
+  const L = (a: string, e: string) => (ar ? a : e);
   const [tab, setTab] = useState<'employees' | 'runs' | 'attendance'>('employees');
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [runs, setRuns] = useState<PayRun[]>([]);
@@ -153,7 +157,7 @@ export default function Payroll() {
     setBusy(false);
   };
 
-  if (!currentUser) return <div className="min-h-screen bg-[#0B111E] flex items-center justify-center"><div className="text-center"><p className="text-red-400 text-xl mb-4">🔒 Access Denied</p><Link to="/" className="text-sky-400 underline">Back to Login</Link></div></div>;
+  if (!currentUser) return <div className="min-h-screen bg-[#0B111E] flex items-center justify-center"><div className="text-center"><p className="text-red-400 text-xl mb-4">{L('🔒 لا صلاحية', '🔒 Access Denied')}</p><Link to="/" className="text-sky-400 underline">{L('عودة للدخول', 'Back to Login')}</Link></div></div>;
 
   const inputCls = 'w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm';
 
@@ -164,12 +168,12 @@ export default function Payroll() {
           <BrandLogo width={56} />
           <Link to="/" className="text-slate-400 text-xs border border-white/10 px-2 py-1 rounded hover:text-white">← Dashboard</Link>
           <QuickJump /> <LangSelector />
-          <h1 className="text-sm font-bold text-white">💵 GCC Payroll (GOSI + Mudad)</h1>
+          <h1 className="text-sm font-bold text-white">{L('💵 الرواتب (التأمينات + مداد)', '💵 GCC Payroll (GOSI + Mudad)')}</h1>
         </div>
         <div className="flex gap-2">
-          <button onClick={() => setTab('employees')} className={`px-4 py-2 rounded-lg font-bold text-sm ${tab === 'employees' ? 'bg-sky-500 text-white' : 'text-slate-400 hover:text-sky-300'}`}>👥 Employees</button>
-          <button onClick={() => setTab('runs')} className={`px-4 py-2 rounded-lg font-bold text-sm ${tab === 'runs' ? 'bg-sky-500 text-white' : 'text-slate-400 hover:text-sky-300'}`}>🧾 Runs</button>
-          <button onClick={() => setTab('attendance')} className={`px-4 py-2 rounded-lg font-bold text-sm ${tab === 'attendance' ? 'bg-sky-500 text-white' : 'text-slate-400 hover:text-sky-300'}`}>🕐 Attendance</button>
+          <button onClick={() => setTab('employees')} className={`px-4 py-2 rounded-lg font-bold text-sm ${tab === 'employees' ? 'bg-sky-500 text-white' : 'text-slate-400 hover:text-sky-300'}`}>{L('👥 الموظفين', '👥 Employees')}</button>
+          <button onClick={() => setTab('runs')} className={`px-4 py-2 rounded-lg font-bold text-sm ${tab === 'runs' ? 'bg-sky-500 text-white' : 'text-slate-400 hover:text-sky-300'}`}>{L('🧾 المسيرات', '🧾 Runs')}</button>
+          <button onClick={() => setTab('attendance')} className={`px-4 py-2 rounded-lg font-bold text-sm ${tab === 'attendance' ? 'bg-sky-500 text-white' : 'text-slate-400 hover:text-sky-300'}`}>{L('🕐 الحضور', '🕐 Attendance')}</button>
         </div>
       </div>
 
@@ -179,28 +183,28 @@ export default function Payroll() {
         {tab === 'employees' && (
           <>
             <div className="bg-white/[0.04] border border-white/10 rounded-2xl p-6 backdrop-blur-xl">
-              <h3 className="text-lg font-bold text-white mb-4">➕ Add Employee</h3>
+              <h3 className="text-lg font-bold text-white mb-4">{L('➕ إضافة موظف', '➕ Add Employee')}</h3>
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <input value={eCode} onChange={e => setECode(e.target.value)} placeholder="Code (EMP-001)" className={inputCls} />
-                <input value={eName} onChange={e => setEName(e.target.value)} placeholder="Full name" className={inputCls} />
+                <input value={eCode} onChange={e => setECode(e.target.value)} placeholder={L('الكود (EMP-001)', 'Code (EMP-001)')} className={inputCls} />
+                <input value={eName} onChange={e => setEName(e.target.value)} placeholder={L('الاسم الكامل', 'Full name')} className={inputCls} />
                 <select value={eNat} onChange={e => setENat(e.target.value)} className={inputCls}>
                   <option value="NON_SAUDI">Non-Saudi (2% employer)</option>
-                  <option value="SAUDI">Saudi</option>
+                  <option value="SAUDI">{L('سعودي','Saudi')}</option>
                 </select>
                 <select value={eGosi} onChange={e => setEGosi(e.target.value)} className={inputCls} disabled={eNat !== 'SAUDI'}>
                   <option value="LEGACY">GOSI Legacy (pre-Jul-2024)</option>
-                  <option value="NEW">GOSI New system</option>
+                  <option value="NEW">{L('التأمينات النظام الجديد','GOSI New system')}</option>
                 </select>
-                <input value={eBase} onChange={e => setEBase(e.target.value)} placeholder="Base SAR" type="number" className={inputCls} />
-                <input value={eHousing} onChange={e => setEHousing(e.target.value)} placeholder="Housing SAR" type="number" className={inputCls} />
-                <input value={eIban} onChange={e => setEIban(e.target.value)} placeholder="IBAN (Mudad)" className={inputCls} />
-                <button onClick={addEmployee} disabled={busy} className="bg-sky-500 hover:bg-sky-400 disabled:opacity-50 text-white font-bold py-2.5 rounded-lg">➕ Add</button>
+                <input value={eBase} onChange={e => setEBase(e.target.value)} placeholder={L('الأساسي ر.س', 'Base SAR')} type="number" className={inputCls} />
+                <input value={eHousing} onChange={e => setEHousing(e.target.value)} placeholder={L('السكن ر.س', 'Housing SAR')} type="number" className={inputCls} />
+                <input value={eIban} onChange={e => setEIban(e.target.value)} placeholder={L('الآيبان (مداد)', 'IBAN (Mudad)')} className={inputCls} />
+                <button onClick={addEmployee} disabled={busy} className="bg-sky-500 hover:bg-sky-400 disabled:opacity-50 text-white font-bold py-2.5 rounded-lg">{L('➕ إضافة', '➕ Add')}</button>
               </div>
               <p className="text-[11px] text-slate-500 mt-3">GOSI track follows contribution history (LEGACY vs NEW) — never auto-derived from hire date. Base: basic + housing, capped 45,000.</p>
             </div>
 
             <div className="bg-white/[0.04] border border-white/10 rounded-2xl p-6 backdrop-blur-xl">
-              <h3 className="text-lg font-bold text-white mb-4">👥 Employees ({employees.length})</h3>
+              <h3 className="text-lg font-bold text-white mb-4">{L('👥 الموظفين', '👥 Employees')} ({employees.length})</h3>
               <div className="space-y-2">
                 {employees.map(e => (
                   <div key={e.id} className="bg-white/[0.02] border border-white/10 rounded-xl px-4 py-3 flex flex-wrap items-center gap-2">
@@ -210,7 +214,7 @@ export default function Payroll() {
                     </div>
                   </div>
                 ))}
-                {employees.length === 0 && <p className="text-slate-500 text-sm text-center py-4">No employees yet.</p>}
+                {employees.length === 0 && <p className="text-slate-500 text-sm text-center py-4">{L('لا موظفين.', 'No employees yet.')}</p>}
               </div>
             </div>
           </>
@@ -219,15 +223,15 @@ export default function Payroll() {
         {tab === 'runs' && (
           <>
             <div className="bg-white/[0.04] border border-white/10 rounded-2xl p-6 backdrop-blur-xl">
-              <h3 className="text-lg font-bold text-white mb-4">🧾 New Monthly Run</h3>
+              <h3 className="text-lg font-bold text-white mb-4">{L('🧾 مسير شهري جديد', '🧾 New Monthly Run')}</h3>
               <div className="flex gap-4">
                 <input value={period} onChange={e => setPeriod(e.target.value)} type="month" className={`${inputCls} [color-scheme:dark] max-w-[220px]`} />
-                <button onClick={createRun} disabled={busy} className="bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-white font-bold px-6 py-2.5 rounded-lg">⚙️ Draft {period || ''}</button>
+                <button onClick={createRun} disabled={busy} className="bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-white font-bold px-6 py-2.5 rounded-lg">{L('⚙️ مسودة', '⚙️ Draft')} {period || ''}</button>
               </div>
             </div>
 
             <div className="bg-white/[0.04] border border-white/10 rounded-2xl p-6 backdrop-blur-xl">
-              <h3 className="text-lg font-bold text-white mb-4">🧾 Runs ({runs.length})</h3>
+              <h3 className="text-lg font-bold text-white mb-4">{L('🧾 المسيرات', '🧾 Runs')} ({runs.length})</h3>
               <div className="space-y-2">
                 {runs.map(r => (
                   <button key={r.id} onClick={() => openRun(r.id)} className="w-full text-left bg-white/[0.02] border border-white/10 rounded-xl px-4 py-3 flex flex-wrap items-center gap-2 hover:border-sky-500/40">
@@ -236,7 +240,7 @@ export default function Payroll() {
                     <span className="text-[10px] px-2 py-0.5 rounded font-bold ml-auto bg-white/[0.05] text-slate-300">{r.status}</span>
                   </button>
                 ))}
-                {runs.length === 0 && <p className="text-slate-500 text-sm text-center py-4">No runs yet.</p>}
+                {runs.length === 0 && <p className="text-slate-500 text-sm text-center py-4">{L('لا مسيرات بعد.', 'No runs yet.')}</p>}
               </div>
             </div>
 
@@ -245,22 +249,22 @@ export default function Payroll() {
                 <div className="flex flex-wrap items-center gap-2 mb-2">
                   <h3 className="text-lg font-bold text-white">📅 {selected.period} <span className="text-xs text-slate-400">· {selected.status}</span></h3>
                   <div className="flex gap-2 ml-auto flex-wrap">
-                    {selected.status === 'DRAFT' && <button onClick={() => transition('APPROVE')} disabled={busy} className="text-xs bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-3 py-1.5 rounded-lg font-bold">✅ Approve</button>}
-                    {selected.status === 'APPROVED' && <button onClick={() => transition('PAY')} disabled={busy} className="text-xs bg-sky-500/20 text-sky-300 border border-sky-500/30 px-3 py-1.5 rounded-lg font-bold">💸 Mark Paid</button>}
-                    <button onClick={downloadMudad} disabled={busy} className="text-xs bg-white/[0.05] border border-white/10 px-3 py-1.5 rounded-lg font-bold hover:text-sky-300">📥 Mudad CSV</button>
+                    {selected.status === 'DRAFT' && <button onClick={() => transition('APPROVE')} disabled={busy} className="text-xs bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-3 py-1.5 rounded-lg font-bold">{L('✅ اعتماد', '✅ Approve')}</button>}
+                    {selected.status === 'APPROVED' && <button onClick={() => transition('PAY')} disabled={busy} className="text-xs bg-sky-500/20 text-sky-300 border border-sky-500/30 px-3 py-1.5 rounded-lg font-bold">{L('💸 مدفوع', '💸 Mark Paid')}</button>}
+                    <button onClick={downloadMudad} disabled={busy} className="text-xs bg-white/[0.05] border border-white/10 px-3 py-1.5 rounded-lg font-bold hover:text-sky-300">{L('📥 ملف مداد', '📥 Mudad CSV')}</button>
                     <button onClick={() => setSelected(null)} className="text-xs bg-white/[0.05] px-3 py-1.5 rounded-lg">✖</button>
                   </div>
                 </div>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3 my-4 text-center">
-                  <div className="bg-white/[0.03] rounded-xl p-3"><p className="text-[11px] text-slate-400">Gross</p><p className="text-white font-bold">{Number(selected.totalGrossSar).toLocaleString()}</p></div>
-                  <div className="bg-white/[0.03] rounded-xl p-3"><p className="text-[11px] text-slate-400">Employee GOSI</p><p className="text-amber-300 font-bold">{Number(selected.totalEmployeeGosiSar).toLocaleString()}</p></div>
-                  <div className="bg-white/[0.03] rounded-xl p-3"><p className="text-[11px] text-slate-400">Employer GOSI</p><p className="text-sky-300 font-bold">{Number(selected.totalEmployerGosiSar).toLocaleString()}</p></div>
-                  <div className="bg-white/[0.03] rounded-xl p-3"><p className="text-[11px] text-slate-400">Net</p><p className="text-emerald-400 font-bold text-xl">{Number(selected.totalNetSar).toLocaleString()}</p></div>
+                  <div className="bg-white/[0.03] rounded-xl p-3"><p className="text-[11px] text-slate-400">{L('الإجمالي','Gross')}</p><p className="text-white font-bold">{Number(selected.totalGrossSar).toLocaleString()}</p></div>
+                  <div className="bg-white/[0.03] rounded-xl p-3"><p className="text-[11px] text-slate-400">{L('تأمينات الموظف','Employee GOSI')}</p><p className="text-amber-300 font-bold">{Number(selected.totalEmployeeGosiSar).toLocaleString()}</p></div>
+                  <div className="bg-white/[0.03] rounded-xl p-3"><p className="text-[11px] text-slate-400">{L('تأمينات صاحب العمل','Employer GOSI')}</p><p className="text-sky-300 font-bold">{Number(selected.totalEmployerGosiSar).toLocaleString()}</p></div>
+                  <div className="bg-white/[0.03] rounded-xl p-3"><p className="text-[11px] text-slate-400">{L('الصافي','Net')}</p><p className="text-emerald-400 font-bold text-xl">{Number(selected.totalNetSar).toLocaleString()}</p></div>
                 </div>
                 <div className="overflow-x-auto">
                   <table className="w-full text-xs">
                     <thead><tr className="text-slate-400 text-left">
-                      <th className="p-2">Employee</th><th className="p-2">Days</th><th className="p-2">Gross</th><th className="p-2">GOSI wage</th><th className="p-2">Emp. GOSI</th><th className="p-2">Empr. GOSI</th><th className="p-2">Ded.</th><th className="p-2">Net</th>
+                      <th className="p-2">{L('الموظف', 'Employee')}</th><th className="p-2">{L('أيام', 'Days')}</th><th className="p-2">{L('الإجمالي', 'Gross')}</th><th className="p-2">{L('أجر التأمينات', 'GOSI wage')}</th><th className="p-2">{L('تأمينات الموظف', 'Emp. GOSI')}</th><th className="p-2">{L('تأمينات صاحب العمل', 'Empr. GOSI')}</th><th className="p-2">{L('خصم', 'Ded.')}</th><th className="p-2">{L('الصافي', 'Net')}</th>
                     </tr></thead>
                     <tbody>
                       {(selected.lines || []).map(l => (
@@ -318,6 +322,9 @@ interface HrZone {
 }
 
 function AttendanceTab() {
+  const { lang } = useLang();
+  const ar = lang === 'ar';
+  const L = (a: string, e: string) => (ar ? a : e);
   const [from, setFrom] = useState(new Date(Date.now() - 6 * 86400000).toISOString().slice(0, 10));
   const [to, setTo] = useState(new Date().toISOString().slice(0, 10));
   const [rows, setRows] = useState<AttRow[]>([]);
@@ -397,7 +404,7 @@ function AttendanceTab() {
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
             <thead><tr className="text-slate-400 text-left">
-              <th className="p-2">Employee</th><th className="p-2">Date</th><th className="p-2">In</th><th className="p-2">Out</th><th className="p-2">Worked</th>
+              <th className="p-2">{L('الموظف','Employee')}</th><th className="p-2">{L('التاريخ','Date')}</th><th className="p-2">In</th><th className="p-2">{L('خارج','Out')}</th><th className="p-2">{L('اشتغل','Worked')}</th>
             </tr></thead>
             <tbody>
               {rows.map((r, i) => (
@@ -411,7 +418,7 @@ function AttendanceTab() {
               ))}
             </tbody>
           </table>
-          {rows.length === 0 && <p className="text-slate-500 text-sm text-center py-4">No records in range.</p>}
+          {rows.length === 0 && <p className="text-slate-500 text-sm text-center py-4">{L('لا سجلات.', 'No records in range.')}</p>}
         </div>
       </div>
 
@@ -420,7 +427,7 @@ function AttendanceTab() {
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
             <thead><tr className="text-slate-400 text-left">
-              <th className="p-2">Driver</th><th className="p-2">Trips</th><th className="p-2">Delivered m³</th><th className="p-2">Attendance</th><th className="p-2">Overtime</th>
+              <th className="p-2">{L('السائق','Driver')}</th><th className="p-2">{L('الرحلات','Trips')}</th><th className="p-2">Delivered m³</th><th className="p-2">{L('الحضور','Attendance')}</th><th className="p-2">{L('إضافي','Overtime')}</th>
             </tr></thead>
             <tbody>
               {ot.map(d => (
@@ -434,7 +441,7 @@ function AttendanceTab() {
               ))}
             </tbody>
           </table>
-          {ot.length === 0 && <p className="text-slate-500 text-sm text-center py-4">No driver activity in range.</p>}
+          {ot.length === 0 && <p className="text-slate-500 text-sm text-center py-4">{L('لا نشاط.', 'No driver activity in range.')}</p>}
         </div>
       </div>
     </div>

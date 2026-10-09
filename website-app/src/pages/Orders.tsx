@@ -587,7 +587,7 @@ export default function Orders() {
       <div className="min-h-screen bg-[#0B111E] flex items-center justify-center">
         <div className="text-center">
           <p className="text-red-400 text-xl mb-4">🔒 Access Denied</p>
-          <Link to="/" className="text-sky-400 underline">Back to Login</Link>
+          <Link to="/" className="text-sky-400 underline">{t('backLogin')}</Link>
         </div>
       </div>
     );
@@ -1003,7 +1003,7 @@ export default function Orders() {
                             </select>
                           </div>
                           <div>
-                            <label className="text-xs text-slate-400 mb-1 block">Slump (cm)</label>
+                            <label className="text-xs text-slate-400 mb-1 block">{t('slumpCm')}</label>
                             <input
                               type="number"
                               name="slump"

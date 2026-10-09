@@ -63,7 +63,7 @@ export default function QuickJump() {
       >
         <option value="">🚀 Quick Jump...</option>
         {pages.map(p => (
-          <option key={p.path} value={p.path}>t(p.labelKey)</option>
+          <option key={p.path} value={p.path}>{t(p.labelKey)}</option>
         ))}
       </select>
       <button

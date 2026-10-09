@@ -372,7 +372,7 @@ export default function Finance() {
             <div className="flex items-center justify-between mb-4">
               <div>
                 <h3 className="text-lg font-black tracking-tight text-white">{t('accountingLink')} <DeviceStatusBadge id="accounting" /></h3>
-                <p className="text-xs text-slate-400">QuickBooks / Sage integration</p>
+                <p className="text-xs text-slate-400">{t('qbNote')}</p>
               </div>
               <button onClick={() => setShowAccounting(true)} className="bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold px-4 py-2 rounded-lg">
                 {t('accountingSetup')}
@@ -385,7 +385,7 @@ export default function Finance() {
           <div className="grid grid-cols-1 lg:grid-cols-[380px_1fr] gap-6">
             <div className="bg-white/[0.04] border border-white/10 rounded-xl p-6 backdrop-blur-xl">
               <h3 className="text-lg font-black tracking-tight text-white mb-1">💳 Payment Entry</h3>
-              <p className="text-xs text-slate-400 mb-4">Record client payments to the central ledger (POST /api/finance/ledger/entries).</p>
+              <p className="text-xs text-slate-400 mb-4">{t('devNoteLedger')}</p>
               {payError && <div className="text-xs text-red-400 bg-red-500/10 border border-red-500/30 rounded p-2 mb-3">{payError}</div>}
               <form onSubmit={addPayment} className="space-y-3">
                 <DatePicker value={pForm.date} onChange={v => setPForm({ ...pForm, date: v })} label="Date" />
@@ -399,7 +399,7 @@ export default function Finance() {
                     <option value="bank">🏦 Bank Transfer (IBAN)</option><option value="mada">💳 mada card</option><option value="visa">💳 Visa / Mastercard</option><option value="cash">💵 Cash</option><option value="cheque">📄 Cheque</option>
                   </select>
                 </div>
-                <div><label className="text-xs text-slate-400 font-semibold">Note</label><input value={pForm.note} onChange={e => setPForm({ ...pForm, note: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm" /></div>
+                <div><label className="text-xs text-slate-400 font-semibold">{t('noteLbl')}</label><input value={pForm.note} onChange={e => setPForm({ ...pForm, note: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm" /></div>
                 <button type="submit" disabled={payBusy} className="w-full bg-emerald-500 hover:bg-emerald-400 text-white font-bold py-3 rounded-lg shadow-[0_0_20px_rgba(56,189,248,0.3)] disabled:opacity-40">{payBusy ? 'Saving…' : '💳 Record Payment to Ledger'}</button>
                 <button type="button" onClick={generatePaymentRequest} className="w-full bg-sky-500 hover:bg-sky-400 text-white font-bold py-3 rounded-lg shadow-[0_0_20px_rgba(56,189,248,0.3)]">🔗 Generate Payment Request + QR (local simulation — no backend)</button>
               </form>
@@ -423,15 +423,15 @@ export default function Finance() {
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
                 <div className="bg-white/[0.04] rounded-xl p-4 border border-white/10 backdrop-blur-xl"><p className="text-xs text-slate-400">Collected (SAR)</p><p className="text-xl font-bold text-emerald-400">{totalPaid.toLocaleString()}</p><p className="text-[10px] text-slate-500">from GET /api/finance/ledger</p></div>
                 <div className="bg-white/[0.04] rounded-xl p-4 border border-white/10 backdrop-blur-xl"><p className="text-xs text-slate-400">Outstanding (SAR)</p><p className="text-xl font-bold text-yellow-400">{outstanding !== undefined && outstanding !== null ? Number(outstanding).toLocaleString() : '—'}</p><p className="text-[10px] text-slate-500">from GET /api/finance</p></div>
-                <div className="bg-white/[0.04] rounded-xl p-4 border border-white/10 backdrop-blur-xl"><p className="text-xs text-slate-400">Ledger entries</p><p className="text-xl font-bold text-white">{ledger?.entries.length ?? 0}</p></div>
-                <div className="bg-white/[0.04] rounded-xl p-4 border border-white/10 backdrop-blur-xl"><p className="text-xs text-slate-400">Open POs</p><p className="text-xl font-bold text-orange-400">{openPOs.length}</p></div>
+                <div className="bg-white/[0.04] rounded-xl p-4 border border-white/10 backdrop-blur-xl"><p className="text-xs text-slate-400">{t('ledgerEntriesLbl')}</p><p className="text-xl font-bold text-white">{ledger?.entries.length ?? 0}</p></div>
+                <div className="bg-white/[0.04] rounded-xl p-4 border border-white/10 backdrop-blur-xl"><p className="text-xs text-slate-400">{t('openPOsLbl')}</p><p className="text-xl font-bold text-orange-400">{openPOs.length}</p></div>
               </div>
-              {ledgerError && <div className="text-xs text-red-400 bg-red-500/10 border border-red-500/30 rounded p-2 mb-3">{ledgerError} <button onClick={loadLedger} className="underline">Retry</button></div>}
+              {ledgerError && <div className="text-xs text-red-400 bg-red-500/10 border border-red-500/30 rounded p-2 mb-3">{ledgerError} <button onClick={loadLedger} className="underline">{t('retryBtn')}</button></div>}
               {ledgerLoading && <div className="text-xs text-slate-400 py-4 text-center">Loading ledger…</div>}
               <div className="bg-white/[0.04] border border-white/10 rounded-xl overflow-hidden backdrop-blur-xl">
                 <div className="overflow-x-auto">
                   <table className="w-full text-xs text-slate-300">
-                    <thead className="bg-white/[0.04] text-slate-400 text-[10px]"><tr><th className="p-2 uppercase tracking-wider">Date</th><th className="p-2 uppercase tracking-wider">Counterparty</th><th className="p-2 uppercase tracking-wider">Reference</th><th className="p-2 uppercase tracking-wider">Type</th><th className="p-2 uppercase tracking-wider">Amount</th><th className="p-2 uppercase tracking-wider">Description</th></tr></thead>
+                    <thead className="bg-white/[0.04] text-slate-400 text-[10px]"><tr><th className="p-2 uppercase tracking-wider">{t('thDate')}</th><th className="p-2 uppercase tracking-wider">{t('thCounterparty')}</th><th className="p-2 uppercase tracking-wider">{t('thReference')}</th><th className="p-2 uppercase tracking-wider">{t('thType')}</th><th className="p-2 uppercase tracking-wider">{t('thAmount')}</th><th className="p-2 uppercase tracking-wider">{t('thDesc')}</th></tr></thead>
                     <tbody>
                       {incomeEntries.map(e => (
                         <tr key={e.id} className="border-b border-white/10">
@@ -445,7 +445,7 @@ export default function Finance() {
                       ))}
                     </tbody>
                   </table>
-                  {incomeEntries.length === 0 && !ledgerLoading && <p className="text-xs text-slate-500 text-center py-4">No income/sale ledger entries yet.</p>}
+                  {incomeEntries.length === 0 && !ledgerLoading && <p className="text-xs text-slate-500 text-center py-4">{t('noIncome')}</p>}
                 </div>
               </div>
               <div className="bg-white/[0.04] border border-white/10 rounded-xl p-4 mt-4 backdrop-blur-xl">
@@ -474,7 +474,7 @@ export default function Finance() {
               <p className="text-xs text-slate-400 mb-4">Local estimate from central-API stock + order volumes. Suggestions below are NOT posted and NOT saved — create real POs with the form above or in the Suppliers section.</p>
               {estimateNote && <div className="text-xs text-yellow-300 bg-yellow-500/10 border border-yellow-500/30 rounded p-2 mb-3">{estimateNote}</div>}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
-                <div className="bg-white/[0.02] rounded-xl p-4 border border-white/10"><p className="text-xs text-slate-400">Est. upcoming volume</p><p className="text-xl font-bold text-white">{demandM3.toFixed(0)} m³</p></div>
+                <div className="bg-white/[0.02] rounded-xl p-4 border border-white/10"><p className="text-xs text-slate-400">{t('estVol')}</p><p className="text-xl font-bold text-white">{demandM3.toFixed(0)} m³</p></div>
                 {(['cement', 'sand', 'gravel'] as const).map(k => {
                   const c = demandCoverage(k);
                   return (
@@ -498,7 +498,7 @@ export default function Finance() {
             <div className="grid grid-cols-1 lg:grid-cols-[380px_1fr] gap-6">
             <div className="bg-white/[0.04] border border-white/10 rounded-xl p-6 backdrop-blur-xl">
               <h3 className="text-lg font-black tracking-tight text-white mb-1">📦 Material Reorder Alerts <span className="text-[10px] font-bold bg-yellow-500/20 text-yellow-300 px-2 py-0.5 rounded ml-1">تقدير محلي</span></h3>
-              <p className="text-xs text-slate-400 mb-4">Checkbox suggestions are local estimates only. Real POs are created via POST /api/suppliers/purchase-orders in the form on the right.</p>
+              <p className="text-xs text-slate-400 mb-4">{t('devNotePO')}</p>
               <div className="space-y-3">
                 {MATERIALS.map(m => (
                   <label key={m.key} className="flex items-center gap-3 bg-white/[0.02] border border-white/10 rounded-lg p-3 cursor-pointer">
@@ -521,12 +521,12 @@ export default function Finance() {
                 {poError && <div className="text-xs text-red-400 bg-red-500/10 border border-red-500/30 rounded p-2 mb-3">{poError}</div>}
                 <form onSubmit={createPO} className="grid grid-cols-2 gap-2">
                   <select value={poForm.supplierId} onChange={e => setPoForm({ ...poForm, supplierId: e.target.value })} className="bg-white/[0.04] border border-white/10 rounded px-2 py-1.5 text-white text-xs col-span-2" required>
-                    <option value="">Select supplier (from GET /api/suppliers)</option>
+                    <option value="">{t('devNoteSup')}</option>
                     {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                   </select>
                   <input type="date" value={poForm.purchaseDate} onChange={e => setPoForm({ ...poForm, purchaseDate: e.target.value })} className="bg-white/[0.04] border border-white/10 rounded px-2 py-1.5 text-white text-xs" />
                   <select value={poForm.materialCategory} onChange={e => setPoForm({ ...poForm, materialCategory: e.target.value })} className="bg-white/[0.04] border border-white/10 rounded px-2 py-1.5 text-white text-xs">
-                    <option value="CEMENT">Cement</option><option value="SAND">Sand</option><option value="GRAVEL_10MM">Gravel 10mm</option><option value="GRAVEL_20MM">Gravel 20mm</option><option value="GRAVEL_40MM">Gravel 40mm</option><option value="ADMIXTURE_PLASTICIZER">Admixture</option>
+                    <option value="CEMENT">{t('matCement')}</option><option value="SAND">{t('matSand')}</option><option value="GRAVEL_10MM">{t('matGravel')} 10mm</option><option value="GRAVEL_20MM">{t('matGravel')} 20mm</option><option value="GRAVEL_40MM">{t('matGravel')} 40mm</option><option value="ADMIXTURE_PLASTICIZER">{t('matAdmix')}</option>
                   </select>
                   <input value={poForm.materialName} onChange={e => setPoForm({ ...poForm, materialName: e.target.value })} placeholder="Material name (optional)" className="bg-white/[0.04] border border-white/10 rounded px-2 py-1.5 text-white text-xs" />
                   <input type="number" step="0.01" value={poForm.quantityT} onChange={e => setPoForm({ ...poForm, quantityT: e.target.value })} placeholder="Qty (tonnes)" className="bg-white/[0.04] border border-white/10 rounded px-2 py-1.5 text-white text-xs" required />
@@ -536,15 +536,15 @@ export default function Finance() {
                 </form>
               </div>
               <div className="grid grid-cols-3 gap-3 mb-4">
-                <div className="bg-white/[0.04] rounded-xl p-4 border border-white/10 backdrop-blur-xl"><p className="text-xs text-slate-400">Open POs</p><p className="text-xl font-bold text-orange-400">{openPOs.length}</p></div>
+                <div className="bg-white/[0.04] rounded-xl p-4 border border-white/10 backdrop-blur-xl"><p className="text-xs text-slate-400">{t('openPOsLbl')}</p><p className="text-xl font-bold text-orange-400">{openPOs.length}</p></div>
                 <div className="bg-white/[0.04] rounded-xl p-4 border border-white/10 backdrop-blur-xl"><p className="text-xs text-slate-400">PO value (SAR)</p><p className="text-xl font-bold text-white">{poValue.toLocaleString()}</p></div>
-                <div className="bg-white/[0.04] rounded-xl p-4 border border-white/10 backdrop-blur-xl"><p className="text-xs text-slate-400">Received</p><p className="text-xl font-bold text-emerald-400">{pos.filter(po => po.status === 'RECEIVED' || po.inventoryUpdated).length}</p></div>
+                <div className="bg-white/[0.04] rounded-xl p-4 border border-white/10 backdrop-blur-xl"><p className="text-xs text-slate-400">{t('receivedLbl')}</p><p className="text-xl font-bold text-emerald-400">{pos.filter(po => po.status === 'RECEIVED' || po.inventoryUpdated).length}</p></div>
               </div>
               {poLoading && <div className="text-xs text-slate-400 py-4 text-center">Loading purchase orders…</div>}
               <div className="bg-white/[0.04] border border-white/10 rounded-xl overflow-hidden backdrop-blur-xl">
                 <div className="overflow-x-auto">
                   <table className="w-full text-xs text-slate-300">
-                    <thead className="bg-white/[0.04] text-slate-400 text-[10px]"><tr><th className="p-2 uppercase tracking-wider">PO #</th><th className="p-2 uppercase tracking-wider">Date</th><th className="p-2 uppercase tracking-wider">Supplier</th><th className="p-2 uppercase tracking-wider">Total (SAR)</th><th className="p-2 uppercase tracking-wider">Status</th><th className="p-2 uppercase tracking-wider"></th></tr></thead>
+                    <thead className="bg-white/[0.04] text-slate-400 text-[10px]"><tr><th className="p-2 uppercase tracking-wider">PO #</th><th className="p-2 uppercase tracking-wider">{t('thDate')}</th><th className="p-2 uppercase tracking-wider">{t('thSupplier')}</th><th className="p-2 uppercase tracking-wider">{t('thTotal')}</th><th className="p-2 uppercase tracking-wider">{t('thStatus')}</th><th className="p-2 uppercase tracking-wider"></th></tr></thead>
                     <tbody>
                       {pos.map(po => (
                         <tr key={po.id} className="border-b border-white/10">
@@ -559,12 +559,12 @@ export default function Finance() {
                                 ? <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-400">✅ Received</span>
                                 : <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-orange-500/20 text-orange-400">📦 {po.status}</span>}
                           </td>
-                          <td className="p-2">{!po.inventoryUpdated && po.status !== 'CANCELLED' && po.status !== 'RECEIVED' && <button onClick={() => receivePO(po.id)} disabled={poBusy} className="text-[10px] bg-emerald-500 hover:bg-emerald-400 text-white px-2 py-1 rounded font-bold disabled:opacity-40">Receive (POST receive)</button>}</td>
+                          <td className="p-2">{!po.inventoryUpdated && po.status !== 'CANCELLED' && po.status !== 'RECEIVED' && <button onClick={() => receivePO(po.id)} disabled={poBusy} className="text-[10px] bg-emerald-500 hover:bg-emerald-400 text-white px-2 py-1 rounded font-bold disabled:opacity-40">{t('devNoteRecv')}</button>}</td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
-                  {pos.length === 0 && !poLoading && <p className="text-xs text-slate-500 text-center py-4">No purchase orders yet.</p>}
+                  {pos.length === 0 && !poLoading && <p className="text-xs text-slate-500 text-center py-4">{t('noPOs')}</p>}
                 </div>
               </div>
             </div>

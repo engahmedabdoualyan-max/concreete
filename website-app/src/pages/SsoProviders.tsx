@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api, resolveApiBase } from '../api/client';
 import { useAuth } from '../context/AuthContext';
+import { useLang } from '../context/LangContext';
 import BrandLogo from '../components/BrandLogo';
 import LangSelector from '../components/LangSelector';
 import QuickJump from '../components/QuickJump';
@@ -25,6 +26,9 @@ interface Provider {
 
 export default function SsoProviders() {
   const { currentUser } = useAuth();
+  const { lang } = useLang();
+  const ar = lang === 'ar';
+  const L = (a: string, e: string) => (ar ? a : e);
   const [providers, setProviders] = useState<Provider[]>([]);
   const [msg, setMsg] = useState('');
   const [busy, setBusy] = useState(false);
@@ -87,7 +91,7 @@ export default function SsoProviders() {
     }
   };
 
-  if (!currentUser) return <div className="min-h-screen bg-[#0B111E] flex items-center justify-center"><div className="text-center"><p className="text-red-400 text-xl mb-4">🔒 Access Denied</p><Link to="/" className="text-sky-400 underline">Back to Login</Link></div></div>;
+  if (!currentUser) return <div className="min-h-screen bg-[#0B111E] flex items-center justify-center"><div className="text-center"><p className="text-red-400 text-xl mb-4">🔒 Access Denied</p><Link to="/" className="text-sky-400 underline">{L('عودة للدخول', 'Back to Login')}</Link></div></div>;
 
   const inputCls = 'w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm';
 
@@ -120,7 +124,7 @@ export default function SsoProviders() {
                 <button onClick={() => remove(p.id)} className="text-[11px] bg-red-500/15 text-red-400 border border-red-500/30 px-3 py-1.5 rounded-lg font-bold">🗑️</button>
               </div>
             ))}
-            {providers.length === 0 && <p className="text-slate-500 text-sm text-center py-4">No providers yet.</p>}
+            {providers.length === 0 && <p className="text-slate-500 text-sm text-center py-4">{L('لا مزودين بعد.', 'No providers yet.')}</p>}
           </div>
         </div>
 

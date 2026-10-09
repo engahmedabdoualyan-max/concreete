@@ -5,6 +5,9 @@ export function useOrdersDict() {
 }
 
 const DICT: PageDict = {
+  backLogin: { en: 'Back to Login', ar: 'عودة للدخول', ru: 'Back to Login', de: 'Back to Login', it: 'Back to Login', hi: 'Back to Login', ur: 'Back to Login', ja: 'Back to Login', zh: 'Back to Login' },
+  slumpCm: { en: 'Slump (cm)', ar: 'الهبوط (سم)', ru: 'Slump (cm)', de: 'Slump (cm)', it: 'Slump (cm)', hi: 'Slump (cm)', ur: 'Slump (cm)', ja: 'Slump (cm)', zh: 'Slump (cm)' },
+
   ordersSystem: { en: '📦 Orders System', ar: '📦 نظام الطلبات', ru: '📦 Система заказов', de: '📦 Bestellsystem', it: '📦 Sistema ordini', hi: '📦 आर्डर सिस्टम', ur: '📦 آرڈر سسٹم', ja: '📦 注文システム', zh: '📦 订单系统' },
   logout: { en: '🚪 Logout', ar: '🚪 خروج', ru: '🚪 Выйти', de: '🚪 Abmelden', it: '🚪 Esci', hi: '🚪 लॉगआउट', ur: '🚪 لاگ آؤٹ', ja: '🚪 ログアウト', zh: '🚪 退出' },
   manageCustomers: { en: '👥 Manage customers', ar: '👥 إدارة العملاء', ru: '👥 Управление клиентами', de: '👥 Kunden verwalten', it: '👥 Gestisci clienti', hi: '👥 ग्राहक प्रबंधित करें', ur: '👥 صارفین کا انتظام', ja: '👥 顧客管理', zh: '👥 管理客户' },

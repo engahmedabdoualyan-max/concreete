@@ -180,7 +180,7 @@ export default function ResearchDevelopment() {
   const deleteInnovation = (id: number) => { if (confirm('Delete?')) setInnovations(innovations.filter(i => i.id !== id)); };
   const deleteTraining = (id: number) => { if (confirm('Delete?')) setTrainings(trainings.filter(t => t.id !== id)); };
 
-  if (!currentUser) return <div className="min-h-screen bg-[#0B111E] flex items-center justify-center"><div className="text-center"><p className="text-red-400 text-xl mb-4">🔒 Access Denied</p><Link to="/" className="text-sky-400 underline">Back to Login</Link></div></div>;
+  if (!currentUser) return <div className="min-h-screen bg-[#0B111E] flex items-center justify-center"><div className="text-center"><p className="text-red-400 text-xl mb-4">🔒 Access Denied</p><Link to="/" className="text-sky-400 underline">{L('rdBackLogin')}</Link></div></div>;
 
   return (
     <div className="min-h-screen bg-[#0B111E] text-slate-200">
@@ -218,19 +218,19 @@ export default function ResearchDevelopment() {
             {/* Stats */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div className="bg-white/[0.04] border-l-4 border-sky-500 rounded-lg p-4 backdrop-blur-xl">
-                <p className="text-xs text-slate-400">Total Projects</p>
+                <p className="text-xs text-slate-400">{L('rdProjects')}</p>
                 <p className="text-2xl font-bold text-white">{projects.length}</p>
               </div>
               <div className="bg-white/[0.04] border-l-4 border-emerald-500 rounded-lg p-4 backdrop-blur-xl">
-                <p className="text-xs text-slate-400">In Progress</p>
+                <p className="text-xs text-slate-400">{L('rdInProg')}</p>
                 <p className="text-2xl font-bold text-white">{projects.filter(p => p.status === 'in_progress').length}</p>
               </div>
               <div className="bg-white/[0.04] border-l-4 border-sky-500 rounded-lg p-4 backdrop-blur-xl">
-                <p className="text-xs text-slate-400">Total Budget</p>
+                <p className="text-xs text-slate-400">{L('rdBudget')}</p>
                 <p className="text-2xl font-bold text-white">${projects.reduce((s, p) => s + p.budget, 0).toLocaleString()}</p>
               </div>
               <div className="bg-white/[0.04] border-l-4 border-yellow-500 rounded-lg p-4 backdrop-blur-xl">
-                <p className="text-xs text-slate-400">Completed</p>
+                <p className="text-xs text-slate-400">{L('rdCompleted')}</p>
                 <p className="text-2xl font-bold text-white">{projects.filter(p => p.status === 'completed').length}</p>
               </div>
             </div>
@@ -280,7 +280,7 @@ export default function ResearchDevelopment() {
                             <option value="completed">completed</option>
                           </select>
                         )}
-                        <button onClick={() => deleteProject(p.id)} className="bg-red-500/20 text-red-400 text-[10px] px-2 py-0.5 rounded hover:bg-red-500/30">Del</button>
+                        <button onClick={() => deleteProject(p.id)} className="bg-red-500/20 text-red-400 text-[10px] px-2 py-0.5 rounded hover:bg-red-500/30">{L('rdDel')}</button>
                       </div>
                     </div>
                     <p className="text-sm text-slate-300 mb-2">{p.description}</p>
@@ -300,15 +300,15 @@ export default function ResearchDevelopment() {
           <div className="space-y-6">
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
               <div className="bg-white/[0.04] border-l-4 border-yellow-500 rounded-lg p-4 backdrop-blur-xl">
-                <p className="text-xs text-slate-400">Total Ideas</p>
+                <p className="text-xs text-slate-400">{L('rdIdeas')}</p>
                 <p className="text-2xl font-bold text-white">{innovations.length}</p>
               </div>
               <div className="bg-white/[0.04] border-l-4 border-emerald-500 rounded-lg p-4 backdrop-blur-xl">
-                <p className="text-xs text-slate-400">Implemented</p>
+                <p className="text-xs text-slate-400">{L('rdImpl')}</p>
                 <p className="text-2xl font-bold text-white">{innovations.filter(i => i.status === 'implemented').length}</p>
               </div>
               <div className="bg-white/[0.04] border-l-4 border-sky-500 rounded-lg p-4 backdrop-blur-xl">
-                <p className="text-xs text-slate-400">High Impact</p>
+                <p className="text-xs text-slate-400">{L('rdHigh')}</p>
                 <p className="text-2xl font-bold text-white">{innovations.filter(i => i.impact === 'high').length}</p>
               </div>
             </div>
@@ -342,7 +342,7 @@ export default function ResearchDevelopment() {
                       <h4 className="font-bold text-white">{i.title}</h4>
                       <div className="flex gap-2">
                         <span className={`px-2 py-0.5 rounded text-xs font-bold ${i.impact === 'high' ? 'bg-red-500/20 text-red-400' : i.impact === 'medium' ? 'bg-yellow-500/20 text-yellow-400' : 'bg-emerald-500/20 text-emerald-400'}`}>{i.impact}</span>
-                        <button onClick={() => deleteInnovation(i.id)} className="bg-red-500/20 text-red-400 text-[10px] px-2 py-0.5 rounded hover:bg-red-500/30">Del</button>
+                        <button onClick={() => deleteInnovation(i.id)} className="bg-red-500/20 text-red-400 text-[10px] px-2 py-0.5 rounded hover:bg-red-500/30">{L('rdDel')}</button>
                       </div>
                     </div>
                     <p className="text-sm text-slate-300 mb-2">{i.description}</p>
@@ -363,15 +363,15 @@ export default function ResearchDevelopment() {
           <div className="space-y-6">
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
               <div className="bg-white/[0.04] border-l-4 border-sky-500 rounded-lg p-4 backdrop-blur-xl">
-                <p className="text-xs text-slate-400">Total Trainings</p>
+                <p className="text-xs text-slate-400">{L('rdTrainings')}</p>
                 <p className="text-2xl font-bold text-white">{trainings.length}</p>
               </div>
               <div className="bg-white/[0.04] border-l-4 border-emerald-500 rounded-lg p-4 backdrop-blur-xl">
-                <p className="text-xs text-slate-400">Completed</p>
+                <p className="text-xs text-slate-400">{L('rdCompleted')}</p>
                 <p className="text-2xl font-bold text-white">{trainings.filter(t => t.status === 'completed').length}</p>
               </div>
               <div className="bg-white/[0.04] border-l-4 border-yellow-500 rounded-lg p-4 backdrop-blur-xl">
-                <p className="text-xs text-slate-400">Planned</p>
+                <p className="text-xs text-slate-400">{L('rdPlanned')}</p>
                 <p className="text-2xl font-bold text-white">{trainings.filter(t => t.status === 'planned').length}</p>
               </div>
             </div>
@@ -406,7 +406,7 @@ export default function ResearchDevelopment() {
                       <h4 className="font-bold text-white">{t.title}</h4>
                       <div className="flex gap-2">
                         <span className={`px-2 py-0.5 rounded text-xs font-bold ${t.status === 'completed' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-yellow-500/20 text-yellow-400'}`}>{t.status}</span>
-                        <button onClick={() => deleteTraining(t.id)} className="bg-red-500/20 text-red-400 text-[10px] px-2 py-0.5 rounded hover:bg-red-500/30">Del</button>
+                        <button onClick={() => deleteTraining(t.id)} className="bg-red-500/20 text-red-400 text-[10px] px-2 py-0.5 rounded hover:bg-red-500/30">{L('rdDel')}</button>
                       </div>
                     </div>
                     <div className="flex gap-4 text-xs text-slate-400">

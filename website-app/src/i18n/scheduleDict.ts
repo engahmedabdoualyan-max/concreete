@@ -5,6 +5,24 @@ export function useScheduleDict() {
 }
 
 const DICT: PageDict = {
+  scBackLogin: { en: 'Back to Login', ar: 'عودة للدخول', ru: 'Back to Login', de: 'Back to Login', it: 'Back to Login', hi: 'Back to Login', ur: 'Back to Login', ja: 'Back to Login', zh: 'Back to Login' },
+  scCat: { en: 'Cat', ar: 'الفئة', ru: 'Cat', de: 'Cat', it: 'Cat', hi: 'Cat', ur: 'Cat', ja: 'Cat', zh: 'Cat' },
+  scCode: { en: 'Code', ar: 'الكود', ru: 'Code', de: 'Code', it: 'Code', hi: 'Code', ur: 'Code', ja: 'Code', zh: 'Code' },
+  scConcrete: { en: 'Concrete', ar: 'خرسانة', ru: 'Concrete', de: 'Concrete', it: 'Concrete', hi: 'Concrete', ur: 'Concrete', ja: 'Concrete', zh: 'Concrete' },
+  scCustomer: { en: 'Customer', ar: 'العميل', ru: 'Customer', de: 'Customer', it: 'Customer', hi: 'Customer', ur: 'Customer', ja: 'Customer', zh: 'Customer' },
+  scDistance: { en: 'Distance', ar: 'المسافة', ru: 'Distance', de: 'Distance', it: 'Distance', hi: 'Distance', ur: 'Distance', ja: 'Distance', zh: 'Distance' },
+  scDesigner: { en: 'Dr. Ahmad Abdo Alyan', ar: 'د. أحمد عبده عليان', ru: 'Dr. Ahmad Abdo Alyan', de: 'Dr. Ahmad Abdo Alyan', it: 'Dr. Ahmad Abdo Alyan', hi: 'Dr. Ahmad Abdo Alyan', ur: 'Dr. Ahmad Abdo Alyan', ja: 'Dr. Ahmad Abdo Alyan', zh: 'Dr. Ahmad Abdo Alyan' },
+  scDuration: { en: 'Duration', ar: 'المدة', ru: 'Duration', de: 'Duration', it: 'Duration', hi: 'Duration', ur: 'Duration', ja: 'Duration', zh: 'Duration' },
+  scElement: { en: 'Element', ar: 'العنصر', ru: 'Element', de: 'Element', it: 'Element', hi: 'Element', ur: 'Element', ja: 'Element', zh: 'Element' },
+  scPay: { en: 'Pay', ar: 'الدفع', ru: 'Pay', de: 'Pay', it: 'Pay', hi: 'Pay', ur: 'Pay', ja: 'Pay', zh: 'Pay' },
+  scPhone: { en: 'Phone', ar: 'الهاتف', ru: 'Phone', de: 'Phone', it: 'Phone', hi: 'Phone', ur: 'Phone', ja: 'Phone', zh: 'Phone' },
+  scPrio: { en: 'Prio', ar: 'الأولوية', ru: 'Prio', de: 'Prio', it: 'Prio', hi: 'Prio', ur: 'Prio', ja: 'Prio', zh: 'Prio' },
+  scProject: { en: 'Project', ar: 'المشروع', ru: 'Project', de: 'Project', it: 'Project', hi: 'Project', ur: 'Project', ja: 'Project', zh: 'Project' },
+  scQty: { en: 'Qty', ar: 'الكمية', ru: 'Qty', de: 'Qty', it: 'Qty', hi: 'Qty', ur: 'Qty', ja: 'Qty', zh: 'Qty' },
+  scSlump: { en: 'Slump', ar: 'الهبوط', ru: 'Slump', de: 'Slump', it: 'Slump', hi: 'Slump', ur: 'Slump', ja: 'Slump', zh: 'Slump' },
+  scTime: { en: 'Time', ar: 'الوقت', ru: 'Time', de: 'Time', it: 'Time', hi: 'Time', ur: 'Time', ja: 'Time', zh: 'Time' },
+  scType: { en: 'Type', ar: 'النوع', ru: 'Type', de: 'Type', it: 'Type', hi: 'Type', ur: 'Type', ja: 'Type', zh: 'Type' },
+
   logout: { en: 'Logout', ar: '🚪 خروج', ru: 'Выход', de: 'Abmelden', it: 'Esci', hi: 'लॉग आउट', ur: 'لاگ آؤٹ', ja: 'ログアウト', zh: '退出' },
   orders: { en: 'Orders', ar: 'الطلبات', ru: 'Заказы', de: 'Bestellungen', it: 'Ordini', hi: 'ऑर्डर', ur: 'آرڈرز', ja: '注文', zh: '订单' },
   noOrdersInSystem: { en: 'No orders in the system', ar: 'لا توجد طلبات في النظام', ru: 'В системе нет заказов', de: 'Keine Bestellungen im System', it: 'Nessun ordine nel sistema', hi: 'सिस्टम में कोई ऑर्डर नहीं', ur: 'سسٹم میں کوئی آرڈر نہیں', ja: 'システムに注文がありません', zh: '系统中没有订单' },

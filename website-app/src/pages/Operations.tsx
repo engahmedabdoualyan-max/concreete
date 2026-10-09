@@ -571,7 +571,7 @@ export default function Operations() {
   if (!currentUser) {
     return (
       <div className="min-h-screen bg-[#0B111E] flex items-center justify-center">
-        <div className="text-center"><p className="text-red-400 text-xl mb-4">🔒 Access Denied</p><Link to="/" className="text-sky-400 underline">Back to Login</Link></div>
+        <div className="text-center"><p className="text-red-400 text-xl mb-4">{L('accessDenied')}</p><Link to="/" className="text-sky-400 underline">{L('backToLogin')}</Link></div>
       </div>
     );
   }
@@ -583,27 +583,27 @@ export default function Operations() {
           <BrandLogo width={56} />
           <Link to="/" className="text-slate-400 text-xs border border-white/10 px-2.5 py-1 rounded hover:text-white transition">← Dashboard</Link>
           <QuickJump /> <LangSelector />
-          <h1 className="text-sm font-bold text-white">🚛 Mixer Truck & Concrete Operations Tracker</h1>
+          <h1 className="text-sm font-bold text-white">{L('hdrTitle')}</h1>
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <NotificationsBell />
           <PlantLogo username={currentUser.username} height={32} />
           <span className="bg-emerald-500/15 text-emerald-500 text-xs px-3 py-1.5 rounded-lg font-bold border border-emerald-500/30">🟢 {currentUser.plantName}</span>
           <button onClick={() => { logout(); navigate('/'); }} className="bg-white/[0.05] text-slate-300 text-xs px-3 py-1.5 rounded-lg font-bold border border-white/10 hover:border-red-400/60 hover:text-red-300 transition-colors">{L('logout')}</button>
-          <p className="text-[10px] text-emerald-500/80">Design by Dr. Ahmad Abdo Alyan</p>
+          <p className="text-[10px] text-emerald-500/80">{L('opDesigner')}</p>
         </div>
       </div>
 
       <header className="bg-[#0B111E]/80 backdrop-blur-xl border-b border-white/10 px-6 py-4 flex flex-col md:flex-row md:items-center justify-between gap-3">
-        <div><h1 className="text-lg font-bold text-white">Concrete Operations & Transit Tracker</h1><p className="text-xs text-emerald-500">Multi-Plant Operations & Fleet Efficiency Analyzer</p></div>
+        <div><h1 className="text-lg font-bold text-white">{L('pageTitle')}</h1><p className="text-xs text-emerald-500">{L('pageSub')}</p></div>
         <div className="flex gap-3 flex-wrap items-center">
-          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search truck code..." className="w-56 bg-white/[0.04] text-white text-sm px-4 py-2.5 rounded-lg border border-white/10 outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)] placeholder:text-slate-500" />
-          <button onClick={() => { const t = new Date().toISOString().split('T')[0]; setReportFrom(t); setReportTo(t); setShowReport(true); }} className="text-sm px-4 py-2.5 rounded-lg font-bold transition-all duration-300 bg-gradient-to-r from-sky-500 to-cyan-500 hover:from-sky-400 hover:to-cyan-400 text-white shadow-[0_0_20px_rgba(56,189,248,0.3)]">📂 Fleet Report</button>
-          <button onClick={() => setShowBatching(true)} className="text-sm px-4 py-2.5 rounded-lg font-bold transition-all duration-300 bg-white/[0.06] hover:bg-white/[0.1] text-white border border-white/10">🏭 Batching Panel</button>
-          <button onClick={() => setShowMap(true)} className="text-sm px-4 py-2.5 rounded-lg font-bold transition-all duration-300 bg-white/[0.06] hover:bg-white/[0.1] text-white border border-white/10">📍 Fleet Map</button>
-          <button onClick={() => setShowDispatch(true)} className="text-sm px-4 py-2.5 rounded-lg font-bold transition-all duration-300 bg-white/[0.06] hover:bg-white/[0.1] text-white border border-white/10">🧠 Smart Dispatch</button>
-          <button onClick={() => setShowLive(s => !s)} className={`text-sm px-4 py-2.5 rounded-lg font-bold transition-all duration-300 border ${showLive ? 'bg-emerald-600 text-white border-emerald-500/40' : 'bg-white/[0.06] hover:bg-white/[0.1] text-white border-white/10'}`}>📱 Driver Live</button>
-          <button onClick={openAdd} className="text-sm px-4 py-2.5 rounded-lg font-bold transition-all duration-300 bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 text-white shadow-[0_0_20px_rgba(56,189,248,0.3)]">➕ New Trip</button>
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder={L('searchPh')} className="w-56 bg-white/[0.04] text-white text-sm px-4 py-2.5 rounded-lg border border-white/10 outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)] placeholder:text-slate-500" />
+          <button onClick={() => { const t = new Date().toISOString().split('T')[0]; setReportFrom(t); setReportTo(t); setShowReport(true); }} className="text-sm px-4 py-2.5 rounded-lg font-bold transition-all duration-300 bg-gradient-to-r from-sky-500 to-cyan-500 hover:from-sky-400 hover:to-cyan-400 text-white shadow-[0_0_20px_rgba(56,189,248,0.3)]">{L('fleetReport')}</button>
+          <button onClick={() => setShowBatching(true)} className="text-sm px-4 py-2.5 rounded-lg font-bold transition-all duration-300 bg-white/[0.06] hover:bg-white/[0.1] text-white border border-white/10">{L('batchingPanel')}</button>
+          <button onClick={() => setShowMap(true)} className="text-sm px-4 py-2.5 rounded-lg font-bold transition-all duration-300 bg-white/[0.06] hover:bg-white/[0.1] text-white border border-white/10">{L('fleetMap')}</button>
+          <button onClick={() => setShowDispatch(true)} className="text-sm px-4 py-2.5 rounded-lg font-bold transition-all duration-300 bg-white/[0.06] hover:bg-white/[0.1] text-white border border-white/10">{L('smartDispatch')}</button>
+          <button onClick={() => setShowLive(s => !s)} className={`text-sm px-4 py-2.5 rounded-lg font-bold transition-all duration-300 border ${showLive ? 'bg-emerald-600 text-white border-emerald-500/40' : 'bg-white/[0.06] hover:bg-white/[0.1] text-white border-white/10'}`}>{L('driverLive')}</button>
+          <button onClick={openAdd} className="text-sm px-4 py-2.5 rounded-lg font-bold transition-all duration-300 bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 text-white shadow-[0_0_20px_rgba(56,189,248,0.3)]}">{L('newTrip')}</button>
         </div>
       </header>
 
@@ -710,7 +710,7 @@ export default function Operations() {
         {/* ── Archived local trips (localStorage/Firestore) — read-only, user data preserved ── */}
         <h2 className="text-base font-bold text-slate-300 mb-3">📦 أرشيف الرحلات المحلية <span className="text-[10px] font-normal text-slate-500 border border-white/10 rounded px-1.5 py-0.5">READ-ONLY ARCHIVE</span></h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-          {filtered.length === 0 && <p className="text-slate-500 text-center col-span-full py-20">No trips recorded yet or matching your search.</p>}
+          {filtered.length === 0 && <p className="text-slate-500 text-center col-span-full py-20">{L('opNoTrips')}</p>}
           {filtered.map(t => {
             const plantDur = cleanDur(t.stationArr, t.stationDep);
             const transitDur = cleanDur(t.stationDep, t.siteArr);
@@ -885,17 +885,17 @@ export default function Operations() {
             </div>
             <p className="text-xs text-slate-400 mb-4">AI analyses route congestion (traffic factor) and site distance to suggest the optimal time gap between mixers — preventing queueing and concrete setting on site.</p>
             <div className="flex flex-wrap items-center gap-2 mb-4 bg-[#0B111E] border border-white/10 rounded-lg p-3">
-              <div className="flex-1 min-w-[160px]"><label className="text-xs text-slate-400">Plant GPS (lat,lng)</label><input value={plantGeo} onChange={e => setPlantGeo(e.target.value)} placeholder="24.7136,46.6753" className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2 text-white text-sm" /></div>
+              <div className="flex-1 min-w-[160px]"><label className="text-xs text-slate-400">{L('opPlantGps')}</label><input value={plantGeo} onChange={e => setPlantGeo(e.target.value)} placeholder="24.7136,46.6753" className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2 text-white text-sm" /></div>
               <button onClick={applyAutoDistance} className="bg-sky-600 hover:bg-sky-700 text-white text-xs px-3 py-2 rounded-lg font-bold mt-4">📡 Auto-fill distance from GPS site</button>
               {autoSite && <span className="text-[10px] text-sky-300 mt-4">✔ {autoSite}</span>}
             </div>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
-              <div><label className="text-xs text-slate-400">Distance to site (km)</label><input type="number" value={dispatch.distance} onChange={e => setDispatch({ ...dispatch, distance: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2 text-white text-sm" /></div>
-              <div><label className="text-xs text-slate-400">Avg speed (km/h)</label><input type="number" value={dispatch.speed} onChange={e => setDispatch({ ...dispatch, speed: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2 text-white text-sm" /></div>
+              <div><label className="text-xs text-slate-400">{L('opDistSite')}</label><input type="number" value={dispatch.distance} onChange={e => setDispatch({ ...dispatch, distance: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2 text-white text-sm" /></div>
+              <div><label className="text-xs text-slate-400">{L('opAvgSpeed')}</label><input type="number" value={dispatch.speed} onChange={e => setDispatch({ ...dispatch, speed: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2 text-white text-sm" /></div>
               <div><label className="text-xs text-slate-400">Pour rate (m³/h)</label><input type="number" value={dispatch.pourRate} onChange={e => setDispatch({ ...dispatch, pourRate: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2 text-white text-sm" /></div>
               <div><label className="text-xs text-slate-400">Truck capacity (m³)</label><input type="number" value={dispatch.capacity} onChange={e => setDispatch({ ...dispatch, capacity: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2 text-white text-sm" /></div>
               <div><label className="text-xs text-slate-400">Total load (m³)</label><input type="number" value={dispatch.totalLoad} onChange={e => setDispatch({ ...dispatch, totalLoad: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2 text-white text-sm" /></div>
-              <div><label className="text-xs text-slate-400">Setting start (min)</label><input type="number" value={dispatch.settingTime} onChange={e => setDispatch({ ...dispatch, settingTime: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2 text-white text-sm" /></div>
+              <div><label className="text-xs text-slate-400">{L('opStartMin')}</label><input type="number" value={dispatch.settingTime} onChange={e => setDispatch({ ...dispatch, settingTime: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2 text-white text-sm" /></div>
               <div><label className="text-xs text-slate-400">Traffic factor (1–3)</label><input type="number" step="0.1" value={dispatch.traffic} onChange={e => setDispatch({ ...dispatch, traffic: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2 text-white text-sm" /></div>
             </div>
             <div className={`rounded-xl p-5 border mb-4 ${dispatchResult.feasible ? 'bg-sky-500/10 border-sky-500/40' : 'bg-red-500/10 border-red-500/40'}`}>
@@ -938,10 +938,10 @@ export default function Operations() {
                   🚀 Dispatch &amp; Link Trips
                 </button>
               </div>
-              {confirmedOrders.length === 0 && <p className="p-4 text-xs text-slate-500">No scheduled (confirmed) orders yet. Orders move here once approved for execution.</p>}
+              {confirmedOrders.length === 0 && <p className="p-4 text-xs text-slate-500">{L('opNoSched')}</p>}
               <div className="overflow-x-auto">
                 <table className="w-full text-xs text-slate-300">
-                  <thead className="bg-white/[0.04] text-slate-400 text-[10px]"><tr><th className="p-2">Order</th><th className="p-2">Qty</th><th className="p-2">Distance</th><th className="p-2">Gap</th><th className="p-2">Trucks</th><th className="p-2">Start → Finish</th><th className="p-2">Action</th></tr></thead>
+                  <thead className="bg-white/[0.04] text-slate-400 text-[10px]"><tr><th className="p-2">{L('thOrder')}</th><th className="p-2">{L('thQty')}</th><th className="p-2">{L('thDistance')}</th><th className="p-2">{L('thGap')}</th><th className="p-2">{L('thTrucks')}</th><th className="p-2">{L('thStartFinish')}</th><th className="p-2">{L('thAction')}</th></tr></thead>
                   <tbody>
                     {confirmedOrders.map((o, idx) => {
                       const qty = Number(o.quantity) || 0;
@@ -981,13 +981,13 @@ export default function Operations() {
               <button onClick={() => { stopBatch(); setShowBatching(false); }} className="bg-red-500 hover:bg-red-600 text-white w-7 h-7 rounded-full font-bold text-sm">✕</button>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
-              <div><label className="text-xs text-slate-400">Mix Design</label>
+              <div><label className="text-xs text-slate-400">{L('mixDesignLbl')}</label>
                 <select value={batch.recipe} onChange={e => setBatch({ ...batch, recipe: e.target.value })} disabled={batch.running} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2 text-white text-sm">
                   {BATCH_RECIPES.map(r => <option key={r.code} value={r.code}>{r.code}</option>)}
                 </select>
               </div>
               <div><label className="text-xs text-slate-400">Quantity (m³)</label><input type="number" min="1" value={batch.qty} onChange={e => setBatch({ ...batch, qty: e.target.value })} disabled={batch.running} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2 text-white text-sm" /></div>
-              <div><label className="text-xs text-slate-400">Dispatch Truck</label><input value={batch.truck} onChange={e => setBatch({ ...batch, truck: e.target.value })} disabled={batch.running} placeholder="m05" className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2 text-white text-sm" /></div>
+              <div><label className="text-xs text-slate-400">{L('dispatchTruckLbl')}</label><input value={batch.truck} onChange={e => setBatch({ ...batch, truck: e.target.value })} disabled={batch.running} placeholder="m05" className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2 text-white text-sm" /></div>
             </div>
             {batch.running && (
               <div className="bg-[#0B111E] border border-white/10 rounded-xl p-4 mb-4">
@@ -1062,7 +1062,7 @@ export default function Operations() {
                 </div>
               </>
             ) : (
-              <p className="text-slate-500 text-center py-12">No trucks with coordinates yet. Add coordinates in trip form to see them here.</p>
+              <p className="text-slate-500 text-center py-12">{L('opNoCoords')}</p>
             )}
           </div>
         </div>
@@ -1083,7 +1083,7 @@ export default function Operations() {
               <button onClick={() => setShowReport(false)} className="bg-red-500 hover:bg-red-600 text-white w-7 h-7 rounded-full font-bold text-sm">✕</button>
             </div>
             <div className="grid grid-cols-3 gap-3 mb-4">
-              <div><label className="text-xs text-slate-400">Plant</label><select value={reportPlant} onChange={e => setReportPlant(e.target.value)} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2 text-white text-sm"><option value="ALL">All</option><option value="PLANT-A">Plant A</option><option value="PLANT-B">Plant B</option></select></div>
+              <div><label className="text-xs text-slate-400">{L('opPlant')}</label><select value={reportPlant} onChange={e => setReportPlant(e.target.value)} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2 text-white text-sm"><option value="ALL">{L('opAll')}</option><option value="PLANT-A">Plant A</option><option value="PLANT-B">Plant B</option></select></div>
               <DatePicker value={reportFrom} onChange={setReportFrom} label="From" />
               <DatePicker value={reportTo} onChange={setReportTo} label="To" />
             </div>
@@ -1098,7 +1098,7 @@ export default function Operations() {
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm text-slate-300">
                 <thead className="bg-white/[0.04] text-slate-400 text-xs uppercase">
-                  <tr><th className="p-3">Truck</th><th className="p-3">Trips</th><th className="p-3">Load (m³)</th><th className="p-3">Avg Plant</th><th className="p-3">Avg Site</th><th className="p-3">Avg Transit</th><th className="p-3">Avg Total</th><th className="p-3">Notes</th></tr>
+                  <tr><th className="p-3">{L('opTruck')}</th><th className="p-3">{L('opTrips')}</th><th className="p-3">Load (m³)</th><th className="p-3">{L('opAvgPlant')}</th><th className="p-3">{L('opAvgSite')}</th><th className="p-3">{L('opAvgTransit')}</th><th className="p-3">{L('opAvgTotal')}</th><th className="p-3">{L('opNotes')}</th></tr>
                 </thead>
                 <tbody>
                   {Object.values(fleetData).map(fd => (

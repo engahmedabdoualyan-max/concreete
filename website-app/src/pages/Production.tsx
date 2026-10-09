@@ -306,7 +306,7 @@ export default function Production() {
     const blob = new Blob([csv], { type: 'text/csv' }); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'production_runs.csv'; a.click();
   };
 
-  if (!currentUser) return <div className="min-h-screen bg-[#0B111E] flex items-center justify-center"><div className="text-center"><p className="text-red-400 text-xl mb-4">🔒 Access Denied</p><Link to="/" className="text-sky-400 underline">Back to Login</Link></div></div>;
+  if (!currentUser) return <div className="min-h-screen bg-[#0B111E] flex items-center justify-center"><div className="text-center"><p className="text-red-400 text-xl mb-4">🔒 Access Denied</p><Link to="/" className="text-sky-400 underline">{t('pdBackLogin')}</Link></div></div>;
 
   return (
     <div className="min-h-screen bg-[#0B111E] text-slate-200">
@@ -323,7 +323,7 @@ export default function Production() {
           <NotificationsBell />
           <span className="bg-emerald-500/15 text-emerald-500 text-xs px-3 py-1.5 rounded-lg font-bold border border-emerald-500/30">🟢 {currentUser.plantName}</span>
           <button onClick={() => { logout(); navigate('/'); }} className="bg-white/[0.05] text-slate-300 text-xs px-3 py-1.5 rounded-lg font-bold border border-white/10 hover:border-red-400/60 hover:text-red-300 transition-colors">{t('logout')}</button>
-          <p className="text-[10px] text-emerald-500/80">Design by Dr. Ahmad Abdo Alyan</p>
+          <p className="text-[10px] text-emerald-500/80">{t('pdDesigner')}</p>
         </div>
       </div>
 
@@ -370,7 +370,7 @@ export default function Production() {
             <form onSubmit={addDelivery} className="space-y-3">
               <div><label className="text-xs text-slate-400 font-semibold">الصومعة</label><select value={delivForm.siloId} onChange={e => setDelivForm({ ...delivForm, siloId: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm" required><option value="">— اختر الصومعة —</option>{silos.map(s => <option key={s.id} value={s.id}>{s.siloName} ({s.siloCode})</option>)}</select></div>
               <div><label className="text-xs text-slate-400 font-semibold">الكمية (كجم)</label><input type="number" step="0.01" min="0" value={delivForm.qtyKg} onChange={e => setDelivForm({ ...delivForm, qtyKg: e.target.value })} placeholder="5000" className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm" required /></div>
-              <div><label className="text-xs text-slate-400 font-semibold">Invoice</label><input value={delivForm.invoice} onChange={e => setDelivForm({ ...delivForm, invoice: e.target.value })} placeholder="INV-8879" className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm" /></div>
+              <div><label className="text-xs text-slate-400 font-semibold">{t('pdInvoice')}</label><input value={delivForm.invoice} onChange={e => setDelivForm({ ...delivForm, invoice: e.target.value })} placeholder="INV-8879" className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm" /></div>
               <div><label className="text-xs text-slate-400 font-semibold">ملاحظات</label><input value={delivForm.notes} onChange={e => setDelivForm({ ...delivForm, notes: e.target.value })} placeholder="ملاحظات التوريد" className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm" /></div>
               <button type="submit" disabled={busy} className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3 rounded-lg disabled:opacity-40">💾 Record Delivery</button>
             </form>
@@ -391,7 +391,7 @@ export default function Production() {
             {/* 🧱 إنتاج البلوك */}
             <h3 className="text-lg font-black tracking-tight text-white mt-8 mb-4 pb-2 border-b border-white/10">🧱 Produce Blocks</h3>
             <form onSubmit={produceBlocks} className="space-y-3">
-              <div><label className="text-xs text-slate-400 font-semibold">Block Type</label>
+              <div><label className="text-xs text-slate-400 font-semibold">{t('pdBlockType')}</label>
                 <select value={blockProdForm.mixDesignId} onChange={e => setBlockProdForm({ ...blockProdForm, mixDesignId: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm">
                   <option value="">-- بدون خلطة (بدون خصم) --</option>
                   {mixes.map(m => (
@@ -400,7 +400,7 @@ export default function Production() {
                 </select>
                 <p className="text-[10px] text-slate-500 mt-1">كتالوج الأصناف: {blocks.map(b => `${b.code} (${b.name})`).join('، ')}</p>
               </div>
-              <div><label className="text-xs text-slate-400 font-semibold">Quantity (Blocks)</label><input type="number" min="1" step="1" value={blockProdForm.quantity} onChange={e => setBlockProdForm({ ...blockProdForm, quantity: e.target.value })} placeholder="1000" className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm" required /></div>
+              <div><label className="text-xs text-slate-400 font-semibold">{t('prodQtyBlocks')}</label><input type="number" min="1" step="1" value={blockProdForm.quantity} onChange={e => setBlockProdForm({ ...blockProdForm, quantity: e.target.value })} placeholder="1000" className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm" required /></div>
               <div><label className="text-xs text-slate-400 font-semibold">ملاحظات</label><input value={blockProdForm.notes} onChange={e => setBlockProdForm({ ...blockProdForm, notes: e.target.value })} placeholder="ملاحظات الإنتاج" className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm" /></div>
               <button type="submit" disabled={busy} className="w-full bg-sky-500 hover:bg-sky-400 text-white font-bold py-3 rounded-lg disabled:opacity-40">🧱 Produce Blocks</button>
             </form>
@@ -440,19 +440,19 @@ export default function Production() {
             <h3 className="text-lg font-black tracking-tight text-white mb-4 pb-2 border-b border-white/10">📊 Silo Status vs Reorder Level</h3>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
               <div className="bg-[#0B111E] rounded-lg p-4">
-                <p className="text-xs text-slate-400">Total Poured</p>
+                <p className="text-xs text-slate-400">{t('prodPoured')}</p>
                 <p className="text-lg font-bold text-white">{totalPoured.toFixed(1)} m³</p>
               </div>
               <div className="bg-[#0B111E] rounded-lg p-4">
-                <p className="text-xs text-slate-400">Runs</p>
+                <p className="text-xs text-slate-400">{t('prodRuns')}</p>
                 <p className="text-lg font-bold text-white">{runs.length}</p>
               </div>
               <div className="bg-[#0B111E] rounded-lg p-4">
-                <p className="text-xs text-slate-400">Silos</p>
+                <p className="text-xs text-slate-400">{t('prodSilos')}</p>
                 <p className="text-lg font-bold text-white">{silos.length}</p>
               </div>
               <div className="bg-[#0B111E] rounded-lg p-4">
-                <p className="text-xs text-slate-400">Low Stock</p>
+                <p className="text-xs text-slate-400">{t('pdLowStock')}</p>
                 <p className="text-lg font-bold text-white">{lowCount}</p>
               </div>
             </div>
@@ -473,26 +473,26 @@ export default function Production() {
           <div className="bg-white/[0.04] border border-white/10 rounded-xl p-6 shadow-lg">
             <div className="flex justify-between items-center mb-4 pb-2 border-b border-white/10">
               <h3 className="text-lg font-black tracking-tight text-white">📋 Reconciliation Logs</h3>
-              <div className="flex gap-2"><button onClick={exportCSV} className="bg-yellow-500 text-slate-900 text-xs px-3 py-1.5 rounded font-bold">Excel</button><button onClick={() => window.print()} className="bg-sky-500 text-white text-xs px-3 py-1.5 rounded font-bold">Print</button></div>
+              <div className="flex gap-2"><button onClick={exportCSV} className="bg-yellow-500 text-slate-900 text-xs px-3 py-1.5 rounded font-bold">{t('pdExcel')}</button><button onClick={() => window.print()} className="bg-sky-500 text-white text-xs px-3 py-1.5 rounded font-bold">{t('prodPrint')}</button></div>
             </div>
             <div className="grid grid-cols-2 gap-3 mb-4"><DatePicker value={fromDate} onChange={setFromDate} label="From" /><DatePicker value={toDate} onChange={setToDate} label="To" /></div>
 
             <h4 className="text-xs text-slate-400 uppercase mb-2">📥 Recent Deliveries</h4>
             <div className="overflow-x-auto mb-6">
-              <table className="w-full text-left text-sm text-slate-300"><thead className="bg-white/[0.04] text-slate-400 text-xs uppercase"><tr><th className="p-3">Date</th><th className="p-3">Silo</th><th className="p-3">Qty</th><th className="p-3">Balance</th><th className="p-3">Status</th></tr></thead>
-                <tbody>{filteredDeliv.slice(0, 5).map((d) => <tr key={d.id} className="border-b border-white/10"><td className="p-3">{new Date(d.createdAt).toLocaleDateString()}</td><td className="p-3 uppercase font-bold">{d.siloName}</td><td className="p-3">+{num(d.quantityKg).toFixed(0)} كجم</td><td className="p-3">{num(d.balanceAfterKg).toFixed(0)} كجم</td><td className="p-3"><span className="bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded text-xs font-bold">Verified</span></td></tr>)}</tbody></table>
+              <table className="w-full text-left text-sm text-slate-300"><thead className="bg-white/[0.04] text-slate-400 text-xs uppercase"><tr><th className="p-3">{t('prodDate')}</th><th className="p-3">{t('prodSilo')}</th><th className="p-3">{t('prodQty')}</th><th className="p-3">{t('pdBalance')}</th><th className="p-3">{t('prodStatus')}</th></tr></thead>
+                <tbody>{filteredDeliv.slice(0, 5).map((d) => <tr key={d.id} className="border-b border-white/10"><td className="p-3">{new Date(d.createdAt).toLocaleDateString()}</td><td className="p-3 uppercase font-bold">{d.siloName}</td><td className="p-3">+{num(d.quantityKg).toFixed(0)} كجم</td><td className="p-3">{num(d.balanceAfterKg).toFixed(0)} كجم</td><td className="p-3"><span className="bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded text-xs font-bold">{t('prodVerified')}</span></td></tr>)}</tbody></table>
             </div>
 
             <h4 className="text-xs text-slate-400 uppercase mb-2">🏭 Recent Production Runs</h4>
             <div className="overflow-x-auto mb-6">
-              <table className="w-full text-left text-sm text-slate-300"><thead className="bg-white/[0.04] text-slate-400 text-xs uppercase"><tr><th className="p-3">Time</th><th className="p-3">Recipe</th><th className="p-3">Vol</th><th className="p-3">Blocks</th><th className="p-3">Status</th></tr></thead>
-                <tbody>{filteredRuns.slice(0, 5).map((p) => <tr key={p.id} className="border-b border-white/10"><td className="p-3">{new Date(p.producedAt).toLocaleString()}</td><td className="p-3 font-bold text-sky-400">{p.designCode ?? '—'}</td><td className="p-3">{num(p.volumeM3)} m³</td><td className="p-3">{p.blockUnits ?? 0}</td><td className="p-3"><span className="bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded text-xs font-bold">Dispatched</span></td></tr>)}</tbody></table>
+              <table className="w-full text-left text-sm text-slate-300"><thead className="bg-white/[0.04] text-slate-400 text-xs uppercase"><tr><th className="p-3">{t('prodTime')}</th><th className="p-3">{t('prodRecipe')}</th><th className="p-3">{t('prodVol')}</th><th className="p-3">{t('pdBlocks')}</th><th className="p-3">{t('prodStatus')}</th></tr></thead>
+                <tbody>{filteredRuns.slice(0, 5).map((p) => <tr key={p.id} className="border-b border-white/10"><td className="p-3">{new Date(p.producedAt).toLocaleString()}</td><td className="p-3 font-bold text-sky-400">{p.designCode ?? '—'}</td><td className="p-3">{num(p.volumeM3)} m³</td><td className="p-3">{p.blockUnits ?? 0}</td><td className="p-3"><span className="bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded text-xs font-bold">{t('pdDispatched')}</span></td></tr>)}</tbody></table>
             </div>
 
             <h4 className="text-xs text-slate-400 uppercase mb-2">🧱 Recent Block Productions</h4>
             <div className="overflow-x-auto mb-6">
-              <table className="w-full text-left text-sm text-slate-300"><thead className="bg-white/[0.04] text-slate-400 text-xs uppercase"><tr><th className="p-3">Date</th><th className="p-3">Recipe</th><th className="p-3">Qty</th><th className="p-3">Notes</th><th className="p-3">Status</th></tr></thead>
-                <tbody>{filteredRuns.filter(r => (r.blockUnits ?? 0) > 0).slice(0, 5).map((p) => <tr key={p.id} className="border-b border-white/10"><td className="p-3">{new Date(p.producedAt).toLocaleDateString()}</td><td className="p-3 font-bold text-sky-400">{p.designCode ?? '—'}</td><td className="p-3">{p.blockUnits}</td><td className="p-3">{p.notes ?? '—'}</td><td className="p-3"><span className="bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded text-xs font-bold">Produced</span></td></tr>)}</tbody></table>
+              <table className="w-full text-left text-sm text-slate-300"><thead className="bg-white/[0.04] text-slate-400 text-xs uppercase"><tr><th className="p-3">{t('prodDate')}</th><th className="p-3">{t('prodRecipe')}</th><th className="p-3">{t('prodQty')}</th><th className="p-3">{t('pdNotes')}</th><th className="p-3">{t('prodStatus')}</th></tr></thead>
+                <tbody>{filteredRuns.filter(r => (r.blockUnits ?? 0) > 0).slice(0, 5).map((p) => <tr key={p.id} className="border-b border-white/10"><td className="p-3">{new Date(p.producedAt).toLocaleDateString()}</td><td className="p-3 font-bold text-sky-400">{p.designCode ?? '—'}</td><td className="p-3">{p.blockUnits}</td><td className="p-3">{p.notes ?? '—'}</td><td className="p-3"><span className="bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded text-xs font-bold">{t('prodProduced')}</span></td></tr>)}</tbody></table>
             </div>
 
             <h4 className="text-xs text-slate-400 uppercase mb-2">🧪 {t('admixTitle')} ({additions.length})</h4>

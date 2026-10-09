@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
+import { useLang } from '../context/LangContext';
 import BrandLogo from '../components/BrandLogo';
 import LangSelector from '../components/LangSelector';
 import QuickJump from '../components/QuickJump';
@@ -64,6 +65,9 @@ const DEFAULT_REGISTER_MAP = {
 
 export default function BatchControl() {
   const { currentUser } = useAuth();
+  const { lang } = useLang();
+  const ar = lang === 'ar';
+  const L = (a: string, e: string) => (ar ? a : e);
   const [controllers, setControllers] = useState<Controller[]>([]);
   const [providers, setProviders] = useState<{ id: string; label: string }[]>([]);
   const [msg, setMsg] = useState('');
@@ -132,7 +136,7 @@ export default function BatchControl() {
     setBusy(false);
   };
 
-  if (!currentUser) return <div className="min-h-screen bg-[#0B111E] flex items-center justify-center"><div className="text-center"><p className="text-red-400 text-xl mb-4">🔒 Access Denied</p><Link to="/" className="text-sky-400 underline">Back to Login</Link></div></div>;
+  if (!currentUser) return <div className="min-h-screen bg-[#0B111E] flex items-center justify-center"><div className="text-center"><p className="text-red-400 text-xl mb-4">🔒 Access Denied</p><Link to="/" className="text-sky-400 underline">{L('عودة للدخول', 'Back to Login')}</Link></div></div>;
 
   const inputCls = 'w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm';
 

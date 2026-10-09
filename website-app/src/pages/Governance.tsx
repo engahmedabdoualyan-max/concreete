@@ -275,7 +275,7 @@ export default function Governance() {
   if (!currentUser) {
     return (
       <div className="min-h-screen bg-[#0B111E] flex items-center justify-center">
-        <div className="text-center"><p className="text-red-400 text-xl mb-4">🔒 Access Denied</p><Link to="/" className="text-sky-400 underline">Back to Login</Link></div>
+        <div className="text-center"><p className="text-red-400 text-xl mb-4">🔒 Access Denied</p><Link to="/" className="text-sky-400 underline">{t('gvBackLogin')}</Link></div>
       </div>
     );
   }
@@ -314,7 +314,7 @@ export default function Governance() {
               {weighMsg && <div className="bg-emerald-500/10 border border-emerald-500/40 rounded-lg p-3 mb-3 text-xs text-emerald-300">{weighMsg}</div>}
               <form onSubmit={addWeigh} className="space-y-3">
                 <div>
-                  <label className={labelCls}>Trip (dispatch board)</label>
+                  <label className={labelCls}>{t('gvTripBoard')}</label>
                   <select value={wForm.tripId} onChange={e => setWForm({ ...wForm, tripId: e.target.value })} className={inputCls}>
                     <option value="">{tripsLoading ? 'Loading trips…' : '— Select trip —'}</option>
                     {trips.map(tr => <option key={tr.id} value={tr.id}>{tripLabel(tr)}</option>)}
@@ -326,7 +326,7 @@ export default function Governance() {
                   <input value={wForm.manualTripId} onChange={e => setWForm({ ...wForm, manualTripId: e.target.value })} placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" className={inputCls} />
                 </div>
                 <div>
-                  <label className={labelCls}>Transaction type</label>
+                  <label className={labelCls}>{t('gvTxnType')}</label>
                   <select value={wForm.transactionType} onChange={e => setWForm({ ...wForm, transactionType: e.target.value as TxType })} className={inputCls}>
                     <option value="LOAD_OUT">LOAD_OUT — loaded truck leaving</option>
                     <option value="RETURN_IN">RETURN_IN — truck returning</option>
@@ -335,36 +335,36 @@ export default function Governance() {
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   <div><label className={labelCls}>Gross (kg) *</label><input type="number" min="0" step="any" value={wForm.gross} onChange={e => setWForm({ ...wForm, gross: e.target.value })} className={inputCls} required /></div>
-                  <div><label className={labelCls}>Scale unit ID</label><input value={wForm.scaleUnitId} onChange={e => setWForm({ ...wForm, scaleUnitId: e.target.value })} placeholder="optional" className={inputCls} /></div>
+                  <div><label className={labelCls}>{t('gvScaleId')}</label><input value={wForm.scaleUnitId} onChange={e => setWForm({ ...wForm, scaleUnitId: e.target.value })} placeholder="optional" className={inputCls} /></div>
                 </div>
-                <div><label className={labelCls}>Notes</label><input value={wForm.notes} onChange={e => setWForm({ ...wForm, notes: e.target.value })} className={inputCls} /></div>
+                <div><label className={labelCls}>{t('gvNotes')}</label><input value={wForm.notes} onChange={e => setWForm({ ...wForm, notes: e.target.value })} className={inputCls} /></div>
                 <button type="submit" disabled={weighSubmitting} className="w-full bg-sky-500 hover:bg-sky-400 disabled:opacity-50 text-white font-bold py-3 rounded-lg shadow-[0_0_20px_rgba(56,189,248,0.3)]">{weighSubmitting ? 'Posting…' : '⚖️ Record Weighing'}</button>
                 <div className="border-t border-white/10 pt-3 space-y-3">
                   <p className="text-[11px] text-slate-500">Local reference only — kept on this device, <b>not</b> sent to the server (no backend support): plate / supplier / material / tare / expected / date.</p>
                   <div className="grid grid-cols-2 gap-3">
                     <DatePicker value={wForm.date} onChange={v => setWForm({ ...wForm, date: v })} label="Date (local)" />
-                    <div><label className={labelCls}>Time (local)</label><input type="time" value={wForm.time} onChange={e => setWForm({ ...wForm, time: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm [color-scheme:dark]" /></div>
+                    <div><label className={labelCls}>{t('gvTimeLocal')}</label><input type="time" value={wForm.time} onChange={e => setWForm({ ...wForm, time: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm [color-scheme:dark]" /></div>
                   </div>
-                  <div><label className={labelCls}>Vehicle Plate (local)</label><input value={wForm.plate} onChange={e => setWForm({ ...wForm, plate: e.target.value })} placeholder="ABC 1234" className={inputCls} /></div>
-                  <div><label className={labelCls}>Supplier (local)</label><input value={wForm.supplier} onChange={e => setWForm({ ...wForm, supplier: e.target.value })} placeholder="Supplier name" className={inputCls} /></div>
-                  <div><label className={labelCls}>Material (local)</label>
+                  <div><label className={labelCls}>{t('gvPlateLocal')}</label><input value={wForm.plate} onChange={e => setWForm({ ...wForm, plate: e.target.value })} placeholder="ABC 1234" className={inputCls} /></div>
+                  <div><label className={labelCls}>{t('gvSupLocal')}</label><input value={wForm.supplier} onChange={e => setWForm({ ...wForm, supplier: e.target.value })} placeholder="Supplier name" className={inputCls} /></div>
+                  <div><label className={labelCls}>{t('gvMaterialLocal')}</label>
                     <select value={wForm.material} onChange={e => setWForm({ ...wForm, material: e.target.value })} className={inputCls}>
-                      <option value="cement">Cement</option><option value="sand">Sand</option><option value="gravel">Gravel / Aggregate</option><option value="admixture">Admixture</option>
+                      <option value="cement">{t('gvCement')}</option><option value="sand">{t('gvSand')}</option><option value="gravel">{t('gvGravel')}</option><option value="admixture">Admixture</option>
                     </select>
                   </div>
                   <div className="grid grid-cols-2 gap-2">
-                    <div><label className={labelCls}>Tare (kg, local)</label><input type="number" value={wForm.tare} onChange={e => setWForm({ ...wForm, tare: e.target.value })} className={inputCls} /></div>
-                    <div><label className={labelCls}>Expected (kg, local)</label><input type="number" value={wForm.expected} onChange={e => setWForm({ ...wForm, expected: e.target.value })} className={inputCls} /></div>
+                    <div><label className={labelCls}>{t('gvTareKg')}</label><input type="number" value={wForm.tare} onChange={e => setWForm({ ...wForm, tare: e.target.value })} className={inputCls} /></div>
+                    <div><label className={labelCls}>{t('gvExpectedKg')}</label><input type="number" value={wForm.expected} onChange={e => setWForm({ ...wForm, expected: e.target.value })} className={inputCls} /></div>
                   </div>
                 </div>
               </form>
             </div>
             <div>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-                <div className="bg-white/[0.04] rounded-xl p-4 border border-white/10 backdrop-blur-xl"><p className="text-xs text-slate-400">Transactions</p><p className="text-xl font-bold text-white">{wStats?.totalTransactions ?? entries.length}</p></div>
-                <div className="bg-white/[0.04] rounded-xl p-4 border border-white/10 backdrop-blur-xl"><p className="text-xs text-slate-400">Net received (t)</p><p className="text-xl font-bold text-sky-400">{((wStats?.totalNetWeightKg ?? 0) / 1000).toFixed(1)}</p></div>
-                <div className={`bg-white/[0.04] rounded-xl p-4 border backdrop-blur-xl ${flagged ? 'border-red-500/50' : 'border-white/10'}`}><p className="text-xs text-slate-400">Flagged mismatches</p><p className={`text-xl font-bold ${flagged ? 'text-red-400' : 'text-white'}`}>{flagged}</p></div>
-                <div className={`bg-white/[0.04] rounded-xl p-4 border backdrop-blur-xl ${chain.intact === false ? 'border-red-500/60' : chain.intact ? 'border-emerald-500/40' : 'border-white/10'}`}><p className="text-xs text-slate-400">Audit chain (server)</p><p className={`text-sm font-bold ${chain.intact === false ? 'text-red-400' : chain.intact ? 'text-emerald-400' : 'text-slate-400'}`}>{chain.intact === false ? '🚨 Broken' : chain.intact ? '🔒 Intact' : '🔒 Server-sealed'}</p></div>
+                <div className="bg-white/[0.04] rounded-xl p-4 border border-white/10 backdrop-blur-xl"><p className="text-xs text-slate-400">{t('gvTxns')}</p><p className="text-xl font-bold text-white">{wStats?.totalTransactions ?? entries.length}</p></div>
+                <div className="bg-white/[0.04] rounded-xl p-4 border border-white/10 backdrop-blur-xl"><p className="text-xs text-slate-400">{t('gvNetT')}</p><p className="text-xl font-bold text-sky-400">{((wStats?.totalNetWeightKg ?? 0) / 1000).toFixed(1)}</p></div>
+                <div className={`bg-white/[0.04] rounded-xl p-4 border backdrop-blur-xl ${flagged ? 'border-red-500/50' : 'border-white/10'}`}><p className="text-xs text-slate-400">{t('gvFlagged')}</p><p className={`text-xl font-bold ${flagged ? 'text-red-400' : 'text-white'}`}>{flagged}</p></div>
+                <div className={`bg-white/[0.04] rounded-xl p-4 border backdrop-blur-xl ${chain.intact === false ? 'border-red-500/60' : chain.intact ? 'border-emerald-500/40' : 'border-white/10'}`}><p className="text-xs text-slate-400">{t('gvAuditChain')}</p><p className={`text-sm font-bold ${chain.intact === false ? 'text-red-400' : chain.intact ? 'text-emerald-400' : 'text-slate-400'}`}>{chain.intact === false ? '🚨 Broken' : chain.intact ? '🔒 Intact' : '🔒 Server-sealed'}</p></div>
               </div>
               {chain.intact === false && (
                 <div className="bg-red-500/10 border border-red-500/40 rounded-lg p-3 mb-4 text-xs text-red-300">🚨 Server reports a broken audit chain. {chain.message}</div>
@@ -375,10 +375,10 @@ export default function Governance() {
               <div className="bg-white/[0.04] border border-white/10 rounded-xl overflow-hidden backdrop-blur-xl">
                 <div className="overflow-x-auto">
                   <table className="w-full text-xs text-slate-300">
-                    <thead className="bg-white/[0.04] text-slate-400 text-[10px]"><tr><th className="p-2 uppercase tracking-wider">Locked at</th><th className="p-2 uppercase tracking-wider">Trip</th><th className="p-2 uppercase tracking-wider">Vehicle</th><th className="p-2 uppercase tracking-wider">Type</th><th className="p-2 uppercase tracking-wider">Gross</th><th className="p-2 uppercase tracking-wider">Tare</th><th className="p-2 uppercase tracking-wider">Net</th><th className="p-2 uppercase tracking-wider">Hash</th><th className="p-2 uppercase tracking-wider">Status</th></tr></thead>
+                    <thead className="bg-white/[0.04] text-slate-400 text-[10px]"><tr><th className="p-2 uppercase tracking-wider">{t('gvLocked')}</th><th className="p-2 uppercase tracking-wider">{t('gvTrip')}</th><th className="p-2 uppercase tracking-wider">{t('gvVehicle')}</th><th className="p-2 uppercase tracking-wider">{t('gvType')}</th><th className="p-2 uppercase tracking-wider">{t('gvGross')}</th><th className="p-2 uppercase tracking-wider">{t('gvTare')}</th><th className="p-2 uppercase tracking-wider">{t('gvNet')}</th><th className="p-2 uppercase tracking-wider">{t('gvHash')}</th><th className="p-2 uppercase tracking-wider">{t('gvStatus')}</th></tr></thead>
                     <tbody>
                       {weighLoading && <tr><td colSpan={9} className="p-4 text-center text-slate-500">Loading…</td></tr>}
-                      {!weighLoading && entries.length === 0 && <tr><td colSpan={9} className="p-4 text-center text-slate-500">No weighbridge transactions.</td></tr>}
+                      {!weighLoading && entries.length === 0 && <tr><td colSpan={9} className="p-4 text-center text-slate-500">{t('gvNoWb')}</td></tr>}
                       {entries.map(w => (
                         <tr key={w.id} className="border-b border-white/10">
                           <td className="p-2">{fmtDateTime(w.lockedAt)}</td>
@@ -414,7 +414,7 @@ export default function Governance() {
               {returnsMsg && <div className="bg-emerald-500/10 border border-emerald-500/40 rounded-lg p-3 mb-3 text-xs text-emerald-300">{returnsMsg}</div>}
               <form onSubmit={addReturn} className="space-y-3">
                 <div>
-                  <label className={labelCls}>Trip (dispatch board)</label>
+                  <label className={labelCls}>{t('gvTripBoard')}</label>
                   <select value={rForm.tripId} onChange={e => setRForm({ ...rForm, tripId: e.target.value })} className={inputCls}>
                     <option value="">{tripsLoading ? 'Loading trips…' : '— Select trip —'}</option>
                     {trips.map(tr => <option key={tr.id} value={tr.id}>{tripLabel(tr)}</option>)}
@@ -427,7 +427,7 @@ export default function Governance() {
                 </div>
                 <div><label className={labelCls}>Return gross weight (kg) *</label><input type="number" min="0" step="any" value={rForm.grossKg} onChange={e => setRForm({ ...rForm, grossKg: e.target.value })} className={inputCls} required /></div>
                 <div><label className={labelCls}>Reason (min 5 chars) *</label><input value={rForm.reason} onChange={e => setRForm({ ...rForm, reason: e.target.value })} placeholder="e.g. Excess quantity from site pour" className={inputCls} required /></div>
-                <div><label className={labelCls}>Disposition</label>
+                <div><label className={labelCls}>{t('gvDisposition')}</label>
                   <select value={rForm.disposition} onChange={e => setRForm({ ...rForm, disposition: e.target.value as Disposition })} className={inputCls}>
                     <option value="RECYCLED_BATCHING">🔄 Recycle into batching</option>
                     <option value="CAST_BLOCKS">🧱 Cast blocks</option>
@@ -436,7 +436,7 @@ export default function Governance() {
                   </select>
                 </div>
                 <div className="grid grid-cols-2 gap-2">
-                  <div><label className={labelCls}>Slump (cm)</label><input type="number" min="0" max="30" step="any" value={rForm.slump} onChange={e => setRForm({ ...rForm, slump: e.target.value })} className={inputCls} /></div>
+                  <div><label className={labelCls}>{t('gvSlump')}</label><input type="number" min="0" max="30" step="any" value={rForm.slump} onChange={e => setRForm({ ...rForm, slump: e.target.value })} className={inputCls} /></div>
                   {rForm.disposition === 'CAST_BLOCKS' && (
                     <div><label className={labelCls}>Block size (cm)</label><input value={rForm.blockSize} onChange={e => setRForm({ ...rForm, blockSize: e.target.value })} placeholder="20x20x40" className={inputCls} /></div>
                   )}
@@ -446,11 +446,11 @@ export default function Governance() {
                   <p className="text-[11px] text-slate-500">Local reference only — kept on this device, <b>not</b> sent to the server (no backend support): date / truck / site / qty m³ / note.</p>
                   <div className="grid grid-cols-2 gap-3">
                     <DatePicker value={rForm.date} onChange={v => setRForm({ ...rForm, date: v })} label="Date (local)" />
-                    <div><label className={labelCls}>Truck (local)</label><input value={rForm.truck} onChange={e => setRForm({ ...rForm, truck: e.target.value })} placeholder="m05" className={inputCls} /></div>
+                    <div><label className={labelCls}>{t('gvTruckLocal')}</label><input value={rForm.truck} onChange={e => setRForm({ ...rForm, truck: e.target.value })} placeholder="m05" className={inputCls} /></div>
                   </div>
-                  <div><label className={labelCls}>Site (local)</label><input value={rForm.site} onChange={e => setRForm({ ...rForm, site: e.target.value })} placeholder="Project site" className={inputCls} /></div>
+                  <div><label className={labelCls}>{t('gvSiteLocal')}</label><input value={rForm.site} onChange={e => setRForm({ ...rForm, site: e.target.value })} placeholder="Project site" className={inputCls} /></div>
                   <div><label className={labelCls}>Quantity returned m³ (local)</label><input type="number" step="0.5" value={rForm.qtyM3} onChange={e => setRForm({ ...rForm, qtyM3: e.target.value })} className={inputCls} /></div>
-                  <div><label className={labelCls}>Note (local)</label><input value={rForm.note} onChange={e => setRForm({ ...rForm, note: e.target.value })} className={inputCls} /></div>
+                  <div><label className={labelCls}>{t('gvNoteLocal')}</label><input value={rForm.note} onChange={e => setRForm({ ...rForm, note: e.target.value })} className={inputCls} /></div>
                 </div>
               </form>
             </div>
@@ -458,22 +458,22 @@ export default function Governance() {
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
                 <div className="bg-white/[0.04] rounded-xl p-4 border border-white/10 backdrop-blur-xl"><p className="text-xs text-slate-400">Returns ({rStats?.timeRangeDays ?? 30}d)</p><p className="text-xl font-bold text-white">{returnsLoading ? '…' : (rStats?.totalReturns ?? 0)}</p></div>
                 <div className="bg-white/[0.04] rounded-xl p-4 border border-white/10 backdrop-blur-xl"><p className="text-xs text-slate-400">Volume returned (m³)</p><p className="text-xl font-bold text-white">{returnsLoading ? '…' : (rStats?.totalVolumeReturnedM3 ?? 0).toFixed(1)}</p></div>
-                <div className="bg-white/[0.04] rounded-xl p-4 border border-white/10 backdrop-blur-xl"><p className="text-xs text-slate-400">Recovery efficiency</p><p className="text-xl font-bold text-emerald-400">{returnsLoading ? '…' : `${rStats?.recoveryEfficiencyPct ?? 0}%`}</p></div>
-                <div className="bg-white/[0.04] rounded-xl p-4 border border-white/10 backdrop-blur-xl"><p className="text-xs text-slate-400">Blocks manufactured</p><p className="text-xl font-bold text-orange-400">{returnsLoading ? '…' : (rStats?.blocksManufactured ?? 0)}</p></div>
+                <div className="bg-white/[0.04] rounded-xl p-4 border border-white/10 backdrop-blur-xl"><p className="text-xs text-slate-400">{t('gvRecEff')}</p><p className="text-xl font-bold text-emerald-400">{returnsLoading ? '…' : `${rStats?.recoveryEfficiencyPct ?? 0}%`}</p></div>
+                <div className="bg-white/[0.04] rounded-xl p-4 border border-white/10 backdrop-blur-xl"><p className="text-xs text-slate-400">{t('gvBlocksMfg')}</p><p className="text-xl font-bold text-orange-400">{returnsLoading ? '…' : (rStats?.blocksManufactured ?? 0)}</p></div>
               </div>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-                <div className="bg-white/[0.04] rounded-xl p-4 border border-white/10 backdrop-blur-xl"><p className="text-xs text-slate-400">Recycled</p><p className="text-xl font-bold text-emerald-400">{returnsLoading ? '…' : `${rStats?.recycledPct ?? 0}%`}</p></div>
-                <div className="bg-white/[0.04] rounded-xl p-4 border border-white/10 backdrop-blur-xl"><p className="text-xs text-slate-400">Cast blocks</p><p className="text-xl font-bold text-orange-400">{returnsLoading ? '…' : `${rStats?.castBlocksPct ?? 0}%`}</p></div>
-                <div className="bg-white/[0.04] rounded-xl p-4 border border-white/10 backdrop-blur-xl"><p className="text-xs text-slate-400">Washout</p><p className="text-xl font-bold text-sky-400">{returnsLoading ? '…' : `${rStats?.washoutPct ?? 0}%`}</p></div>
+                <div className="bg-white/[0.04] rounded-xl p-4 border border-white/10 backdrop-blur-xl"><p className="text-xs text-slate-400">{t('gvRecycled')}</p><p className="text-xl font-bold text-emerald-400">{returnsLoading ? '…' : `${rStats?.recycledPct ?? 0}%`}</p></div>
+                <div className="bg-white/[0.04] rounded-xl p-4 border border-white/10 backdrop-blur-xl"><p className="text-xs text-slate-400">{t('gvCastBlocks')}</p><p className="text-xl font-bold text-orange-400">{returnsLoading ? '…' : `${rStats?.castBlocksPct ?? 0}%`}</p></div>
+                <div className="bg-white/[0.04] rounded-xl p-4 border border-white/10 backdrop-blur-xl"><p className="text-xs text-slate-400">{t('gvWashout')}</p><p className="text-xl font-bold text-sky-400">{returnsLoading ? '…' : `${rStats?.washoutPct ?? 0}%`}</p></div>
                 <div className="bg-white/[0.04] rounded-xl p-4 border border-white/10 backdrop-blur-xl"><p className="text-xs text-slate-400">Wasted (m³)</p><p className="text-xl font-bold text-red-400">{returnsLoading ? '…' : (rStats?.discardedVolumeM3 ?? 0).toFixed(1)}</p></div>
               </div>
               <div className="bg-white/[0.04] border border-white/10 rounded-xl overflow-hidden backdrop-blur-xl">
                 <div className="px-4 py-2 text-xs text-slate-400 border-b border-white/10">Submitted this session (server has no row-list endpoint — totals above are from GET /api/returns)</div>
                 <div className="overflow-x-auto">
                   <table className="w-full text-xs text-slate-300">
-                    <thead className="bg-white/[0.04] text-slate-400 text-[10px]"><tr><th className="p-2 uppercase tracking-wider">Ticket</th><th className="p-2 uppercase tracking-wider">Trip ID</th><th className="p-2 uppercase tracking-wider">Disposition</th><th className="p-2 uppercase tracking-wider">Excess m³</th></tr></thead>
+                    <thead className="bg-white/[0.04] text-slate-400 text-[10px]"><tr><th className="p-2 uppercase tracking-wider">{t('gvTicket')}</th><th className="p-2 uppercase tracking-wider">{t('gvTripId')}</th><th className="p-2 uppercase tracking-wider">{t('gvDisposition')}</th><th className="p-2 uppercase tracking-wider">Excess m³</th></tr></thead>
                     <tbody>
-                      {sessionReturns.length === 0 && <tr><td colSpan={4} className="p-4 text-center text-slate-500">No returns submitted yet this session.</td></tr>}
+                      {sessionReturns.length === 0 && <tr><td colSpan={4} className="p-4 text-center text-slate-500">{t('gvNoRet')}</td></tr>}
                       {sessionReturns.map(r => (
                         <tr key={r.key} className="border-b border-white/10">
                           <td className="p-2 font-bold">{r.ticketNumber ?? '—'}</td>

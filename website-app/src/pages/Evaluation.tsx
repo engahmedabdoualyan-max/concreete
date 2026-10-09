@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useLang } from '../context/LangContext';
 import { loadOrders, loadTrips } from '../firebase/firestore';
 import { api, ApiError } from '../api/client';
 import DatePicker from '../components/DatePicker';
@@ -91,6 +92,9 @@ const filterByDate = <T extends { date?: string; orderDate?: string }>(items: T[
 
 export default function Evaluation() {
   const { currentUser, logout } = useAuth();
+  const { lang } = useLang();
+  const ar = lang === 'ar';
+  const L = (a: string, e: string) => (ar ? a : e);
   const navigate = useNavigate();
   const t = useEvaluationDict();
   const [fromDate, setFromDate] = useState(() => {
@@ -510,7 +514,7 @@ export default function Evaluation() {
       <div className="min-h-screen bg-[#0B111E] flex items-center justify-center">
         <div className="text-center">
           <p className="text-red-400 text-xl mb-4">🔒 Access Denied</p>
-          <Link to="/" className="text-sky-400 underline">Back to Login</Link>
+          <Link to="/" className="text-sky-400 underline">{L('عودة للدخول', 'Back to Login')}</Link>
         </div>
       </div>
     );

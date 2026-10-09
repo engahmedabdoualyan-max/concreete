@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
+import { useLang } from '../context/LangContext';
 import BrandLogo from '../components/BrandLogo';
 import LangSelector from '../components/LangSelector';
 import QuickJump from '../components/QuickJump';
@@ -85,6 +86,9 @@ const num = (v: string | number | null | undefined): number => {
 
 export default function Quotations() {
   const { currentUser } = useAuth();
+  const { lang } = useLang();
+  const ar = lang === 'ar';
+  const L = (a: string, e: string) => (ar ? a : e);
   const [tab, setTab] = useState<'quotes' | 'commissions'>('quotes');
   const [rfqs, setRfqs] = useState<Rfq[]>([]);
   const [selected, setSelected] = useState<Rfq | null>(null);
@@ -237,7 +241,7 @@ export default function Quotations() {
     setBusy(false);
   };
 
-  if (!currentUser) return <div className="min-h-screen bg-[#0B111E] flex items-center justify-center"><div className="text-center"><p className="text-red-400 text-xl mb-4">🔒 Access Denied</p><Link to="/" className="text-sky-400 underline">Back to Login</Link></div></div>;
+  if (!currentUser) return <div className="min-h-screen bg-[#0B111E] flex items-center justify-center"><div className="text-center"><p className="text-red-400 text-xl mb-4">🔒 Access Denied</p><Link to="/" className="text-sky-400 underline">{L('عودة للدخول', 'Back to Login')}</Link></div></div>;
 
   const inputCls = 'w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm';
 
@@ -297,7 +301,7 @@ export default function Quotations() {
                     <span className={`text-[10px] px-2 py-0.5 rounded font-bold ml-auto ${STATUS_STYLE[r.status] ?? ''}`}>{r.status}</span>
                   </button>
                 ))}
-                {rfqs.length === 0 && <p className="text-slate-500 text-sm text-center py-4">No quotations yet.</p>}
+                {rfqs.length === 0 && <p className="text-slate-500 text-sm text-center py-4">{L('لا عروض بعد.', 'No quotations yet.')}</p>}
               </div>
             </div>
 
@@ -361,10 +365,10 @@ export default function Quotations() {
               {preview?.ok && (
                 <div>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4 text-center">
-                    <div className="bg-white/[0.03] rounded-xl p-3"><p className="text-[11px] text-slate-400">Delivered</p><p className="text-white font-bold">{preview.totals.deliveredM3} m³</p></div>
-                    <div className="bg-white/[0.03] rounded-xl p-3"><p className="text-[11px] text-slate-400">Revenue</p><p className="text-white font-bold">{preview.totals.revenueSar} SAR</p></div>
-                    <div className="bg-white/[0.03] rounded-xl p-3"><p className="text-[11px] text-slate-400">Scheme</p><p className="text-white font-bold">{preview.scheme.name} {preview.scheme.ratePct}%</p></div>
-                    <div className="bg-white/[0.03] rounded-xl p-3"><p className="text-[11px] text-slate-400">Commission</p><p className="text-emerald-400 font-bold text-xl">{preview.totals.commissionSar} SAR</p></div>
+                    <div className="bg-white/[0.03] rounded-xl p-3"><p className="text-[11px] text-slate-400">{L('المُسلّم', 'Delivered')}</p><p className="text-white font-bold">{preview.totals.deliveredM3} m³</p></div>
+                    <div className="bg-white/[0.03] rounded-xl p-3"><p className="text-[11px] text-slate-400">{L('الإيراد', 'Revenue')}</p><p className="text-white font-bold">{preview.totals.revenueSar} SAR</p></div>
+                    <div className="bg-white/[0.03] rounded-xl p-3"><p className="text-[11px] text-slate-400">{L('النظام', 'Scheme')}</p><p className="text-white font-bold">{preview.scheme.name} {preview.scheme.ratePct}%</p></div>
+                    <div className="bg-white/[0.03] rounded-xl p-3"><p className="text-[11px] text-slate-400">{L('العمولة', 'Commission')}</p><p className="text-emerald-400 font-bold text-xl">{preview.totals.commissionSar} SAR</p></div>
                   </div>
                   <button onClick={approvePreview} disabled={busy} className="w-full bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-white font-bold py-3 rounded-lg">✅ Approve → PENDING rows</button>
                 </div>
