@@ -5,6 +5,7 @@ export function useOperationsDict() {
 }
 
 const DICT: PageDict = {
+  closeBtn: { en: 'Close', ar: 'إغلاق', ru: 'Закрыть', de: 'Schließen', it: 'Chiudi', hi: 'बंद करें', ur: 'بند کریں', ja: '閉じる', zh: '关闭' },
   logout: { en: 'Logout', ar: '🚪 خروج', ru: 'Выход', de: 'Abmelden', it: 'Esci', hi: 'लॉग आउट', ur: 'لاگ آؤٹ', ja: 'ログアウト', zh: '退出' },
   deliveryDoc: { en: 'Digital delivery document', ar: 'مستند التوريد الرقمي', ru: 'Цифровой документ поставки', de: 'Digitales Lieferdokument', it: 'Documento di consegna digitale', hi: 'डिजिटल डिलीवरी दस्तावेज़', ur: 'ڈیجیٹل ترسیل دستاویز', ja: 'デジタル納品書', zh: '数字交付单据' },
   orderLabel: { en: 'Order:', ar: 'طلب:', ru: 'Заказ:', de: 'Auftrag:', it: 'Ordine:', hi: 'ऑर्डर:', ur: 'آرڈر:', ja: '注文：', zh: '订单：' },

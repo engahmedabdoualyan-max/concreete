@@ -967,7 +967,7 @@ export default function Operations() {
                 </table>
               </div>
             </div>
-            <button onClick={() => setShowDispatch(false)} className="mt-5 w-full bg-white/[0.06] hover:bg-white/[0.1] text-white font-bold py-3 rounded-lg">Close</button>
+            <button onClick={() => setShowDispatch(false)} className="mt-5 w-full bg-white/[0.06] hover:bg-white/[0.1] text-white font-bold py-3 rounded-lg">{L('closeBtn')}</button>
           </div>
         </div>
       )}
@@ -1027,7 +1027,7 @@ export default function Operations() {
               ) : (
                 <button onClick={stopBatch} className="flex-1 bg-red-500 hover:bg-red-600 text-white font-bold py-3 rounded-lg">⏹ Stop</button>
               )}
-              <button onClick={() => setShowBatching(false)} className="flex-1 bg-white/[0.06] hover:bg-white/[0.1] text-white font-bold py-3 rounded-lg">Close</button>
+              <button onClick={() => setShowBatching(false)} className="flex-1 bg-white/[0.06] hover:bg-white/[0.1] text-white font-bold py-3 rounded-lg">{L('closeBtn')}</button>
             </div>
           </div>
         </div>

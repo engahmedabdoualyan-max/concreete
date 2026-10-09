@@ -5,6 +5,9 @@ export function useAdminDict() {
 }
 
 const DICT: PageDict = {
+  cmEdit: { en: 'Edit', ar: 'تعديل', ru: 'Изменить', de: 'Bearbeiten', it: 'Modifica', hi: 'संपादित करें', ur: 'ترمیم', ja: '編集', zh: '编辑' },
+  cmCancel: { en: 'Cancel', ar: 'إلغاء', ru: 'Отмена', de: 'Abbrechen', it: 'Annulla', hi: 'रद्द करें', ur: 'منسوخ کریں', ja: 'キャンセル', zh: '取消' },
+
   unknown: { en: 'Unknown', ar: 'غير معروف', ru: 'Неизвестно', de: 'Unbekannt', it: 'Sconosciuto', hi: 'अज्ञात', ur: 'نامعلوم', ja: '不明', zh: '未知' },
   now: { en: 'Now', ar: 'الآن', ru: 'Сейчас', de: 'Jetzt', it: 'Adesso', hi: 'अभी', ur: 'ابھی', ja: '今', zh: '现在' },
   minutesAgo: { en: '{m} minutes ago', ar: 'منذ {m} دقيقة', ru: '{m} мин. назад', de: 'vor {m} Min.', it: '{m} min fa', hi: '{m} मिनट पहले', ur: '{m} منٹ پہلے', ja: '{m}分前', zh: '{m} 分钟前' },

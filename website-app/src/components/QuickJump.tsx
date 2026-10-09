@@ -4,26 +4,26 @@ import { useQuickJumpDict } from '../i18n/quickJumpDict';
 import { useDate, formatDate } from '../context/DateContext';
 
 const ALL_PAGES = [
-  { path: '/', label: '🏠 Dashboard' },
-  { path: '/operations', label: '🚚 Operations Tracker' },
-  { path: '/workshop', label: '🔧 Workshop / Maintenance' },
-  { path: '/fleet/coding', label: '🔗 Vehicle & Device Coding', labelKey: 'fleetCoding' as const },
-  { path: '/sites', label: '🛰️ Sites & Fleet Map' },
-  { path: '/command', label: '📺 بث الشاشة' },
-  { path: '/hr', label: '👔 الموارد البشرية' },
-  { path: '/forms', label: '📑 مكتبة النماذج' },
-  { path: '/gate', label: '⚖️ البوابة والميزان' },
-  { path: '/procurement', label: '🧾 المشتريات' },
-  { path: '/mixing', label: '🎛️ Mixing & Quality' },
-  { path: '/production', label: '🏭 Production & Inventory' },
-  { path: '/materials', label: '🏗️ الخامات والمخزون والخلطات', labelKey: 'materials' as const },
-  { path: '/evaluation', label: '📊 Plant OEE Evaluation' },
-  { path: '/schedule', label: '📅 Pouring Schedule' },
-  { path: '/orders', label: '📦 Orders' },
-  { path: '/rnd', label: '🔬 R&D' },
-  { path: '/governance', label: '🛡️ Governance: Weighbridge & Returns' },
-  { path: '/finance', label: '💰 Finance: Payments & Reorder' },
-  { path: '/multiplant', label: '🏭 Multi-Plant Command Center' },
+  { path: '/', labelKey: 'home' as const },
+  { path: '/operations', labelKey: 'operations' as const },
+  { path: '/workshop', labelKey: 'workshop' as const },
+  { path: '/fleet/coding', labelKey: 'fleetCoding' as const },
+  { path: '/sites', labelKey: 'sites' as const },
+  { path: '/command', labelKey: 'command' as const },
+  { path: '/hr', labelKey: 'hr' as const },
+  { path: '/forms', labelKey: 'forms' as const },
+  { path: '/gate', labelKey: 'gate' as const },
+  { path: '/procurement', labelKey: 'procurement' as const },
+  { path: '/mixing', labelKey: 'mixing' as const },
+  { path: '/production', labelKey: 'production' as const },
+  { path: '/materials', labelKey: 'materials' as const },
+  { path: '/evaluation', labelKey: 'evaluation' as const },
+  { path: '/schedule', labelKey: 'schedule' as const },
+  { path: '/orders', labelKey: 'orders' as const },
+  { path: '/rnd', labelKey: 'rnd' as const },
+  { path: '/governance', labelKey: 'governance' as const },
+  { path: '/finance', labelKey: 'finance' as const },
+  { path: '/multiplant', labelKey: 'multiplant' as const },
 ];
 
 // Role → allowed page paths. Unknown roles see everything (fallback).
@@ -63,7 +63,7 @@ export default function QuickJump() {
       >
         <option value="">🚀 Quick Jump...</option>
         {pages.map(p => (
-          <option key={p.path} value={p.path}>{p.labelKey ? t(p.labelKey) : p.label}</option>
+          <option key={p.path} value={p.path}>t(p.labelKey)</option>
         ))}
       </select>
       <button

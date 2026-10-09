@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { loadAssets, saveAssets, loadInventory, saveInventory, loadWorkshopConfig, saveWorkshopConfig } from '../firebase/firestore';
 import { saveGpsLocationToSupabase } from '../supabase/supabase';
+import { useAdminDict } from '../i18n/adminDict';
 
 interface Asset {
   id: string; plate: string; chassis: string; type: string; status: string; driver: string;
@@ -28,6 +29,7 @@ export type FactorySection = 'fleet' | 'stock' | 'config';
 
 export default function FactoryData({ onToast, section }: { onToast: (msg: string) => void; section?: FactorySection }) {
   const { currentUser } = useAuth();
+  const t = useAdminDict();
   const showAll = !section;
   const [assets, setAssets] = useState<Asset[]>([]);
   const [stock, setStock] = useState<Record<string, number>>(DEF_STOCK);
@@ -179,7 +181,7 @@ export default function FactoryData({ onToast, section }: { onToast: (msg: strin
                     </td>
                     <td className="p-2">{a.model || '—'} {a.year ? `· ${a.year}` : ''}</td>
                     <td className="p-2 flex gap-1">
-                      <button onClick={() => editAsset(a)} className="bg-sky-500 text-white text-[10px] px-2 py-1 rounded">Edit</button>
+                      <button onClick={() => editAsset(a)} className="bg-sky-500 text-white text-[10px] px-2 py-1 rounded">{t('cmEdit')}</button>
                       <button onClick={() => deleteAsset(a.id)} className="bg-red-600 text-white text-[10px] px-2 py-1 rounded">Del</button>
                     </td>
                   </tr>
