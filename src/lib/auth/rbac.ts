@@ -530,6 +530,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     PERMISSIONS.USER_READ,       // Staff directory for request context
     PERMISSIONS.ORDER_READ,      // Read-only delivery context (no mutation)
     PERMISSIONS.TRIP_READ,
+    PERMISSIONS.FLEET_READ,      // read-only fleet/coding view (no mutation)
     PERMISSIONS.QR_SCAN,         // Redacted scans only — no full vehicle record
     // Command-center broadcast (TV screen): read-only sections degrade by 403,
     // so these four complete the map + KPIs. No mutation: target editing stays
