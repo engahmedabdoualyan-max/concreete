@@ -337,7 +337,7 @@ export default function Evaluation() {
 
   // 4. Workshop Rating
   const workshopRating = useMemo(() => {
-    if (filteredBreakdowns.length === 0 && breakdowns.length === 0) return { score: 100, details: t('noBreakdowns'), maxScore: 100 };
+    if (filteredBreakdowns.length === 0 && breakdowns.length === 0) return { score: 0, details: t('noBreakdowns'), maxScore: 100, hasData: false };
 
     const totalBreakdowns = filteredBreakdowns.length;
     const resolvedBreakdowns = filteredBreakdowns.filter(b => b.status === 'Resolved').length;
@@ -417,21 +417,6 @@ export default function Evaluation() {
     };
   }, [filteredOrders, t]);
 
-  // ============ Final Rating ============
-  const finalRating = useMemo(() => {
-    const ratings = [
-      mixingStationsRating.score,
-      mixerTrucksRating.score,
-      pumpsRating.score,
-      workshopRating.score,
-      salesRating.score,
-      ordersRating.score
-    ].filter(score => score > 0); // Exclude sections with no data
-
-    if (ratings.length === 0) return 0;
-
-    return Math.round(ratings.reduce((sum, score) => sum + score, 0) / ratings.length);
-  }, [mixingStationsRating, mixerTrucksRating, pumpsRating, workshopRating, salesRating, ordersRating]);
 
   const getRatingColor = (score: number): string => {
     if (score >= 85) return 'text-emerald-400';
@@ -457,15 +442,17 @@ export default function Evaluation() {
     return 'bg-red-500';
   };
 
-  // ============ Rating Sections ============
-  const ratingSections: RatingSection[] = [
+  // ============ Rating Sections (real data only — no data means no rating) ============
+  const hasTrips = filteredTrips.length > 0;
+  const ratingSections: (RatingSection & { hasData: boolean })[] = [
     {
       name: 'secMixing',
       icon: '🏭',
       score: mixingStationsRating.score,
       maxScore: mixingStationsRating.maxScore,
       details: mixingStationsRating.details,
-      color: 'border-sky-500'
+      color: 'border-sky-500',
+      hasData: stations.length > 0 && hasTrips,
     },
     {
       name: 'secTrucks',
@@ -473,7 +460,8 @@ export default function Evaluation() {
       score: mixerTrucksRating.score,
       maxScore: mixerTrucksRating.maxScore,
       details: mixerTrucksRating.details,
-      color: 'border-green-500'
+      color: 'border-green-500',
+      hasData: hasTrips,
     },
     {
       name: 'secPumps',
@@ -481,7 +469,8 @@ export default function Evaluation() {
       score: pumpsRating.score,
       maxScore: pumpsRating.maxScore,
       details: pumpsRating.details,
-      color: 'border-sky-500'
+      color: 'border-sky-500',
+      hasData: hasTrips,
     },
     {
       name: 'secWorkshop',
@@ -489,7 +478,8 @@ export default function Evaluation() {
       score: workshopRating.score,
       maxScore: workshopRating.maxScore,
       details: workshopRating.details,
-      color: 'border-orange-500'
+      color: 'border-orange-500',
+      hasData: (workshopRating as any).hasData !== false && breakdowns.length > 0,
     },
     {
       name: 'secSales',
@@ -497,7 +487,8 @@ export default function Evaluation() {
       score: salesRating.score,
       maxScore: salesRating.maxScore,
       details: salesRating.details,
-      color: 'border-emerald-500'
+      color: 'border-emerald-500',
+      hasData: hasTrips,
     },
     {
       name: 'secOrders',
@@ -505,9 +496,17 @@ export default function Evaluation() {
       score: ordersRating.score,
       maxScore: ordersRating.maxScore,
       details: ordersRating.details,
-      color: 'border-cyan-500'
+      color: 'border-cyan-500',
+      hasData: filteredOrders.length > 0,
     }
   ];
+
+  // ============ Final Rating (real data only) ============
+  const finalRating = useMemo(() => {
+    const rated = ratingSections.filter((s) => s.hasData && s.score > 0);
+    if (rated.length === 0) return null;
+    return Math.round(rated.reduce((sum, s) => sum + s.score, 0) / rated.length);
+  }, [ratingSections]);
 
   if (!currentUser) {
     return (
@@ -608,6 +607,13 @@ export default function Evaluation() {
         {/* Final Rating */}
         <div className="bg-gradient-to-br from-white/[0.06] to-white/[0.02] border-2 border-white/10 rounded-xl p-8 mb-6 text-center backdrop-blur-xl">
           <h2 className="text-xl font-bold text-white mb-4">{t('finalTitle')}</h2>
+          {finalRating === null ? (
+            <div>
+              <div className="text-3xl font-black text-slate-400">— {t('noRating')}</div>
+              <p className="text-xs text-slate-500 mt-2">{t('noRatingHint')}</p>
+            </div>
+          ) : (
+          <>
           <div className="relative inline-block">
             <div className={`text-7xl font-black ${getRatingColor(finalRating)}`}>
               {finalRating}
@@ -625,6 +631,8 @@ export default function Evaluation() {
               />
             </div>
           </div>
+          </>
+          )}
         </div>
 
         {/* Rating Sections */}
@@ -639,8 +647,8 @@ export default function Evaluation() {
                   <span className="text-2xl">{section.icon}</span>
                   {t(section.name)}
                 </h3>
-                <div className={`text-3xl font-black ${getRatingColor(section.score)}`}>
-                  {section.score}
+                <div className={`text-3xl font-black ${section.hasData ? getRatingColor(section.score) : 'text-slate-500'}`}>
+                  {section.hasData ? section.score : `— ${t('noRatingShort')}`}
                 </div>
               </div>
 
@@ -715,7 +723,7 @@ export default function Evaluation() {
             {ordersRating.score < 70 && (
               <li>⚠️ <strong>{t('secOrders')}:</strong> {t('recOrders')}</li>
             )}
-            {finalRating >= 85 && (
+            {(finalRating ?? 0) >= 85 && (
               <li>✅ <strong>{t('excellentTitle')}</strong> {t('excellentDesc')}</li>
             )}
           </ul>
