@@ -124,11 +124,16 @@ export default function CommandCenter() {
   const [vehicles, setVehicles] = useState<MapVehicle[]>([]);
   const [canFleet, setCanFleet] = useState(false);
   const [showEmergency, setShowEmergency] = useState(false);
-  const [targets, setTargets] = useState({ concreteM3: 0, blocks: 0 });
+  const [targets, setTargets] = useState<{ concreteM3: number; blocks: number; blocksByBranch?: Record<string, number> }>({ concreteM3: 0, blocks: 0 });
   const [canEditTargets, setCanEditTargets] = useState(false);
   const [showTargetEditor, setShowTargetEditor] = useState(false);
   const [editConcrete, setEditConcrete] = useState('');
   const [editBlocks, setEditBlocks] = useState('');
+  const [editBranchBlocks, setEditBranchBlocks] = useState<Record<string, string>>({});
+  const blocksTargetTotal = (t: { blocks: number; blocksByBranch?: Record<string, number> }) => {
+    const parts = Object.values(t.blocksByBranch ?? {});
+    return parts.length ? parts.reduce((s, n) => s + (Number(n) || 0), 0) : t.blocks;
+  };
   const [blocks, setBlocks] = useState({ producedUnits: 0, producedM3: 0, salesOrders: 0, salesM3: 0 });
 
   const loadSlow = useCallback(async () => {
@@ -141,8 +146,8 @@ export default function CommandCenter() {
     } catch { /* section stays empty */ }
     // Daily goal (plant owner sets it; everyone permitted reads it).
     try {
-      const g = await api.get<{ targets?: { concreteM3?: number; blocks?: number }; canEdit?: boolean }>('/api/command/targets');
-      setTargets({ concreteM3: g?.targets?.concreteM3 ?? 0, blocks: g?.targets?.blocks ?? 0 });
+      const g = await api.get<{ targets?: { concreteM3?: number; blocks?: number; blocksByBranch?: Record<string, number> }; canEdit?: boolean }>('/api/command/targets');
+      setTargets({ concreteM3: g?.targets?.concreteM3 ?? 0, blocks: g?.targets?.blocks ?? 0, blocksByBranch: g?.targets?.blocksByBranch });
       setCanEditTargets(!!g?.canEdit);
     } catch { /* ring shows no-goal state */ }
     // Blocks today: produced + sold.
@@ -271,7 +276,7 @@ export default function CommandCenter() {
     }
   };
 
-  const printReport = () => {
+  const printReport = async () => {
     const w = window.open('', '_blank', 'width=900,height=700');
     if (!w) return;
     const snap = hist && histDate ? hist : null;
@@ -282,17 +287,57 @@ export default function CommandCenter() {
     const mp = snap ? snap.manpower : manpower;
     const gt = snap?.gate;
     const rd = snap ? null : readiness;
+    const rdb = snap ? null : readinessBr;
+    // Live gate totals for the printed live report (snapshot already has them).
+    let liveGate: any = null;
+    if (!snap) {
+      try {
+        const g = await api.get<{ summary?: any }>('/api/gate');
+        liveGate = (g as any)?.summary ?? null;
+      } catch { /* optional */ }
+    }
+    const ach = achievement >= 0 ? `%${achievement}` : '—';
+    const ring = `<svg width="120" height="120" viewBox="0 0 130 130"><circle cx="65" cy="65" r="54" fill="none" stroke="#eee" stroke-width="11"/><circle cx="65" cy="65" r="54" fill="none" stroke="#16a34a" stroke-width="11" stroke-linecap="round" stroke-dasharray="${(ringPct / 100) * (2 * Math.PI * 54)} ${2 * Math.PI * 54}" transform="rotate(-90 65 65)"/><text x="65" y="72" text-anchor="middle" font-size="22" font-weight="900" fill="#111">${ach}</text></svg>`;
+    const kpi = (k: string, v: string) => `<div class="kpi"><div class="kl">${k}</div><div class="kv">${esc(v)}</div></div>`;
     w.document.write(`<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>${title}</title>
-    <style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:'Segoe UI',Tahoma;padding:28px;color:#111}h1{font-size:22px;margin-bottom:4px}.sub{font-size:12px;color:#555;margin-bottom:14px}table{width:100%;border-collapse:collapse;font-size:12px;margin:10px 0}th{background:#0f172a;color:#fff;padding:6px 8px;text-align:right;width:40%}td{padding:5px 8px;border-bottom:1px solid #ddd}h2{font-size:15px;margin:14px 0 4px}.foot{margin-top:18px;font-size:11px;color:#555;display:flex;gap:40px}.sig{border-top:1px solid #999;padding-top:4px;min-width:140px;text-align:center}@media print{body{padding:10mm}}</style></head><body>
+    <style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:'Segoe UI',Tahoma;padding:28px;color:#111}h1{font-size:22px;margin-bottom:4px}.sub{font-size:12px;color:#555;margin-bottom:14px}table{width:100%;border-collapse:collapse;font-size:12px;margin:10px 0}th{background:#0f172a;color:#fff;padding:6px 8px;text-align:right;width:40%}td{padding:5px 8px;border-bottom:1px solid #ddd}h2{font-size:15px;margin:14px 0 4px}.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:10px 0}.kpi{border:1px solid #ddd;border-radius:10px;padding:8px;text-align:center}.kl{font-size:11px;color:#555}.kv{font-size:17px;font-weight:900}.goal{display:flex;gap:18px;align-items:center;margin:6px 0}.foot{margin-top:18px;font-size:11px;color:#555;display:flex;gap:40px}.sig{border-top:1px solid #999;padding-top:4px;min-width:140px;text-align:center}@media print{body{padding:10mm}}</style></head><body>
     <h1>📺 ${title}</h1>
-    <div class="sub">المصنع الرئيسي - حفر الباطن · ${new Date().toISOString().slice(0, 10)}</div>
+    <div class="sub">المصنع الرئيسي - حفر الباطن · ${snap ? `${histDate} ${histTime ?? ''} (لقطة ${esc(histAt)})` : new Date().toISOString().slice(0, 10)}</div>
+    <h2>مؤشر تحقيق هدف اليوم</h2>
+    <div class="goal">${ring}<div>
+      <div>خرسانة: ${snap ? '—' : `${board?.deliveredTodayM3 ?? 0}/${targets.concreteM3} م³`}</div>
+      <div>بلك: ${snap ? '—' : `${blocks.producedUnits}/${targets.blocks}`}</div>
+    </div></div>
+    <h2>البلاطات</h2>
+    <div class="kpis">
+      ${snap ? `
+        ${kpi('متموضعة', String(fleet?.positioned ?? 0))}
+        ${kpi('داخل السور', String(fleet?.insideGeofence ?? 0))}
+        ${kpi('حاضر', `${mp?.present ?? 0}/${mp?.total ?? 0}`)}
+        ${kpi('دخول (طن)', ((gt?.inKg ?? 0) / 1000).toFixed(1))}
+        ${kpi('خرسانة م³', String(gt?.concreteM3 ?? 0))}
+        ${kpi('بلك', String(gt?.blockUnits ?? 0))}
+        ${kpi('طلبات', `${snap.orders?.count ?? 0} (${snap.orders?.volumeM3 ?? 0} م³)`)}
+        ${kpi('تحصيل ر.س', String(snap.collectionsSar ?? 0))}`
+      : `
+        ${kpi('خرسانة اليوم م³', String(board?.deliveredTodayM3 ?? 0))}
+        ${kpi('إنتاج البلك', String(blocks.producedUnits))}
+        ${kpi('مبيعات البلك', String(blocks.salesOrders))}
+        ${kpi('رحلات نشطة', String(board?.activeTrips ?? 0))}
+        ${kpi('متعثرة', String(board?.stalledTrips ?? 0))}
+        ${kpi('أسطول حي', canFleet ? `${liveCount}/${vehicles.length}` : '—')}
+        ${kpi('أعطال اليوم', String(faults))}
+        ${kpi('مخزون حرج', String(lowStock))}
+        ${kpi('القوة', mp ? `${mp.present}/${mp.total}` : '—')}
+        ${kpi('تحصيل ر.س', collections ? String(collections.totalSar) : '—')}
+        ${kpi('دخول (طن)', liveGate ? ((liveGate.inKg ?? 0) / 1000).toFixed(1) : '—')}
+        ${kpi('خرسانة م³', liveGate ? String(liveGate.concreteM3 ?? 0) : '—')}
+        ${kpi('بلك', liveGate ? String(liveGate.blockUnits ?? 0) : '—')}`}
+    </div>
     <h2>الأسطول</h2>
-    <table>${snap && fleet ? row('مركبات متموضعة', fleet.positioned) + row('داخل السور', fleet.insideGeofence) + row('بلا إشارة', fleet.stale) : row('متموضعة/حية', canFleet ? `${liveCount}/${vehicles.length}` : '—')}</table>
-    <h2>القوة البشرية</h2>
-    <table>${row('حاضر/إجمالي', mp ? `${mp.present}/${mp.total}` : '—')}</table>
-    ${rd ? `<h2>الجاهزية</h2><table>${Object.entries(rd).map(([t, b]: any) => row(t, `شغال ${b.working}/${b.total} · ورشة ${b.workshop} · عاطل ${b.idle}`)).join('')}</table>` : ''}
-    ${snap && gt ? `<h2>البوابة</h2><table>${row('دخول/خروج', `${gt.inTickets}/${gt.outTickets}`)}${row('صافي الداخل (طن)', (gt.inKg / 1000).toFixed(1))}${row('خرسانة م³', gt.concreteM3)}${row('بلك', gt.blockUnits)}</table>` : ''}
-    ${snap ? `<h2>الطلبات والرحلات والتحصيل</h2><table>${row('طلبات', `${snap.orders?.count ?? 0} (${snap.orders?.volumeM3 ?? 0} م³)`)}</table><table>${row('رحلات', snap.trips?.total ?? 0)}${row('تحصيل اليوم (ر.س)', snap.collectionsSar ?? 0)}</table>` : ''}
+    <table>${snap && fleet ? row('مركبات متموضعة', String(fleet.positioned)) + row('داخل السور', String(fleet.insideGeofence)) + row('بلا إشارة', String(fleet.stale)) : row('متموضعة/حية', canFleet ? `${liveCount}/${vehicles.length}` : '—')}</table>
+    ${rd ? `<h2>الجاهزية</h2><table>${Object.entries(rd).map(([t, b]: any) => row(t, `شغال ${b.working}/${b.total} · ورشة ${b.workshop} · مخزن ${b.stored ?? 0} · عاطل ${b.idle}`)).join('')}</table>` : ''}
+    ${rdb ? `<h2>الفروع</h2><table>${Object.values(rdb).map((b: any) => row(b.siteName ?? b.siteCode, `شغال ${b.working}/${b.total} · ورشة ${b.workshop} · مخزن ${b.stored ?? 0}`)).join('')}</table>` : ''}
     ${!snap && emergencies.length ? `<h2>الطوارئ (${emergencies.length})</h2><table>${emergencies.map((e) => row(e.dept, e.text)).join('')}</table>` : ''}
     <div class="foot"><div class="sig">توقيع مدير المصنع</div><div class="sig">توقيع المشرف</div></div>
     <script>window.onload=()=>setTimeout(()=>window.print(),400);<\/script></body></html>`);
@@ -302,9 +347,14 @@ export default function CommandCenter() {
   const saveTargets = async () => {
     const c = Math.max(0, Number(editConcrete) || 0);
     const b = Math.max(0, Math.round(Number(editBlocks) || 0));
+    const bb: Record<string, number> = {};
+    for (const [k, v] of Object.entries(editBranchBlocks)) {
+      const n = Math.max(0, Math.round(Number(v) || 0));
+      if (n > 0) bb[k] = n;
+    }
     try {
-      const res = await api.put<{ targets?: { concreteM3?: number; blocks?: number } }>('/api/command/targets', { concreteM3: c, blocks: b });
-      setTargets({ concreteM3: res?.targets?.concreteM3 ?? c, blocks: res?.targets?.blocks ?? b });
+      const res = await api.put<{ targets?: { concreteM3?: number; blocks?: number; blocksByBranch?: Record<string, number> } }>('/api/command/targets', { concreteM3: c, blocks: b, ...(Object.keys(bb).length ? { blocksByBranch: bb } : {}) });
+      setTargets({ concreteM3: res?.targets?.concreteM3 ?? c, blocks: res?.targets?.blocks ?? b, blocksByBranch: (res?.targets as any)?.blocksByBranch ?? (Object.keys(bb).length ? bb : undefined) });
       setShowTargetEditor(false);
     } catch { /* keep editor open on failure */ }
   };
@@ -357,8 +407,9 @@ export default function CommandCenter() {
   const faults = openWO.length + fuelAnom.length + trips.filter((t) => t.stalled).length;
 
   // ===== daily goal achievement: the ONE big number =====
+  const blocksGoal = blocksTargetTotal(targets);
   const concretePct = targets.concreteM3 > 0 ? Math.min(999, Math.round(((board?.deliveredTodayM3 ?? 0) / targets.concreteM3) * 100)) : -1;
-  const blocksPct = targets.blocks > 0 ? Math.min(999, Math.round((blocks.producedUnits / targets.blocks) * 100)) : -1;
+  const blocksPct = blocksGoal > 0 ? Math.min(999, Math.round((blocks.producedUnits / blocksGoal) * 100)) : -1;
   const parts = [concretePct, blocksPct].filter((p) => p >= 0);
   const achievement = parts.length > 0 ? Math.round(parts.reduce((a, b) => a + b, 0) / parts.length) : -1;
 
@@ -381,7 +432,7 @@ export default function CommandCenter() {
   const CIRC = 2 * Math.PI * R;
   const ringPct = achievement >= 0 ? Math.min(100, achievement) : 0;
   const concreteBar = targets.concreteM3 > 0 ? Math.min(100, ((board?.deliveredTodayM3 ?? 0) / targets.concreteM3) * 100) : 0;
-  const blocksBar = targets.blocks > 0 ? Math.min(100, (blocks.producedUnits / targets.blocks) * 100) : 0;
+  const blocksBar = blocksGoal > 0 ? Math.min(100, (blocks.producedUnits / blocksGoal) * 100) : 0;
 
   return (
     <div className="h-screen flex flex-col overflow-hidden bg-[#080C14] text-slate-200" dir={ar ? 'rtl' : 'ltr'}>
@@ -569,14 +620,14 @@ export default function CommandCenter() {
               </div>
               <div className="flex justify-between text-[10px] mb-0.5">
                 <span className="font-bold text-slate-300">{L('بلك', 'Blocks')}</span>
-                <span className="font-mono text-slate-400">{fmt(blocks.producedUnits, lang)}/{fmt(targets.blocks, lang)}</span>
+                <span className="font-mono text-slate-400">{fmt(blocks.producedUnits, lang)}/{fmt(blocksGoal, lang)}</span>
               </div>
               <div className="h-1.5 rounded-full bg-white/10 overflow-hidden">
                 <div className="h-full bg-emerald-400 rounded-full" style={{ width: `${blocksBar}%` }} />
               </div>
             </div>
             {canEditTargets && (
-              <button onClick={() => { setEditConcrete(String(targets.concreteM3)); setEditBlocks(String(targets.blocks)); setShowTargetEditor((v) => !v); }}
+              <button onClick={() => { setEditConcrete(String(targets.concreteM3)); setEditBlocks(String(targets.blocks)); const bb: Record<string,string> = {}; for (const [k,v] of Object.entries(targets.blocksByBranch ?? {})) bb[k] = String(v); setEditBranchBlocks(bb); setShowTargetEditor((v) => !v); }}
                 className="mt-1 text-[11px] font-black text-sky-300 border border-sky-500/40 rounded-lg px-3 py-1 hover:bg-sky-500/10">
                 🎯 {L('هدف اليوم', 'Set goal')}
               </button>
@@ -584,7 +635,14 @@ export default function CommandCenter() {
             {showTargetEditor && canEditTargets && (
               <div className="mt-1 flex gap-1">
                 <input value={editConcrete} onChange={(e) => setEditConcrete(e.target.value)} inputMode="decimal" placeholder={L('م³ خرسانة', 'm³')} className="w-full bg-white/[0.06] border border-white/15 rounded-lg px-2 py-1 text-xs text-white outline-none" />
-                <input value={editBlocks} onChange={(e) => setEditBlocks(e.target.value)} inputMode="numeric" placeholder={L('بلك', 'blocks')} className="w-full bg-white/[0.06] border border-white/15 rounded-lg px-2 py-1 text-xs text-white outline-none" />
+                <input value={editBlocks} onChange={(e) => setEditBlocks(e.target.value)} inputMode="numeric" placeholder={L('بلك إجمالي', 'blocks total')} className="w-full bg-white/[0.06] border border-white/15 rounded-lg px-2 py-1 text-xs text-white outline-none" />
+                {sites.filter((x) => !x.isPrimary).map((x) => (
+                  <span key={x.id} className="flex items-center gap-1">
+                    <span className="text-[10px] text-slate-400 whitespace-nowrap">{x.siteName ?? x.siteCode}</span>
+                    <input value={editBranchBlocks[x.siteCode] ?? ''} onChange={(e) => setEditBranchBlocks((p) => ({ ...p, [x.siteCode]: e.target.value }))} inputMode="numeric" placeholder="بلك"
+                      className="w-full bg-white/[0.06] border border-white/15 rounded-lg px-2 py-1 text-xs text-white outline-none" />
+                  </span>
+                ))}
                 <button onClick={saveTargets} className="shrink-0 bg-sky-500 text-white text-xs font-black rounded-lg px-3">✓</button>
               </div>
             )}

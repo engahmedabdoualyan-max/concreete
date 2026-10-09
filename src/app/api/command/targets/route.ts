@@ -31,6 +31,8 @@ export const dynamic = "force-dynamic";
 const TargetsSchema = z.object({
   concreteM3: z.number().min(0).max(100000).default(0),
   blocks: z.number().int().min(0).max(10000000).default(0),
+  /** Per-branch block targets by site code, e.g. { "BR-MTW": 8000 }. */
+  blocksByBranch: z.record(z.string(), z.number().int().min(0).max(10000000)).optional(),
 });
 
 type Targets = z.infer<typeof TargetsSchema>;

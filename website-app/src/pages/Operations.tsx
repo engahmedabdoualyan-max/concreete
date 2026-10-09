@@ -712,7 +712,7 @@ export default function Operations() {
                           onChange={(e) => setRdBranch((p) => ({ ...p, [v.vehicleId]: e.target.value }))}
                           className="bg-white/[0.05] border border-white/10 rounded px-1.5 py-0.5 text-[10px] text-slate-200 outline-none max-w-[110px]">
                           <option value="">فرع؟</option>
-                          {rdSites.map((s: any) => <option key={s.id} value={s.id}>{s.code ?? s.siteCode}</option>)}
+                          {rdSites.map((s: any) => <option key={s.id} value={s.id}>{s.name ?? s.code ?? s.siteCode}</option>)}
                         </select>
                       </div>
                       <span className="flex gap-1 mt-1 flex-wrap">
