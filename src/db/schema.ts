@@ -4775,6 +4775,27 @@ export const formRecords = pgTable(
   ]
 );
 
+/**
+ * gate_camera — one row per tenant: network/IP camera snapshot config.
+ * The browser cannot reach a LAN camera directly (CORS + basic-auth), so the
+ * API proxies the snapshot. Credentials are AES-encrypted; the settings panel
+ * itself opens only with the owner-set admin password (bcrypt hash here —
+ * the plaintext is never stored or committed anywhere).
+ */
+export const gateCamera = pgTable(
+  "gate_camera",
+  {
+    tenantId: uuid("tenant_id")
+      .primaryKey()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    snapshotUrl: varchar("snapshot_url", { length: 1000 }).notNull(),
+    camUsername: varchar("cam_username", { length: 120 }),
+    secretEnc: text("secret_enc"),
+    adminHash: text("admin_hash").notNull(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  }
+);
+
 //
 //  Location-based attendance like dedicated attendance apps:
 //   • hr_zones — work geofences (factory + sites): lat/lng + radius

@@ -1,57 +1,47 @@
-# Environment / secrets
-.env
-.env.local
-.env.*.local
 
-# Dependencies
-node_modules/
-website-app/node_modules/
-website-app/apps/*/node_modules/
-
-# Next.js
-.next/
-out/
-*.tsbuildinfo
-
-# Vite site build
-website-app/dist/
-website-app/dist-desktop/
-website-app/apps/*/dist/
-
-# Expo (mobile app lives at website-app/apps/mobile)
-website-app/apps/*/.expo/
-website-app/apps/*/web-build/
-website-app/apps/*/android/
-website-app/apps/*/ios/
-
-# Local database dumps / source archives (contain real data, keep local)
 backups/
-
-# Generated migration snapshots/reports (may contain passwords, PII, QR images)
-scripts/migrate-firebase/inspect-out/
-scripts/migrate-firebase/*-report*.json
-scripts/migrate-firebase/migration-report*.json
-scripts/migrate-firebase/migration-credentials.local.json
-
-# Generated mobile builds served from the site (rebuild from apps/mobile)
-public/downloads/*.apk
-public/downloads/*.ipa
-public/downloads/*.sha256
-website-app/public/downloads/*.sha256
+# Dependencies
+deploy/downloads-site/downloads/
+dist/
+.env
+# Environment / secrets
+.env.local
+# Expo (mobile app lives at website-app/apps/mobile)
 # Generated desktop builds served from the site (rebuild via desktop-app-exe)
-public/downloads/*.exe
+# Generated migration snapshots/reports (may contain passwords, PII, QR images)
+# Generated mobile builds served from the site (rebuild from apps/mobile)
+# Installer binaries live in the fimto-downloads Vercel project, not in git.
+# local build output (root copy)
+# Local database dumps / source archives (contain real data, keep local)
+*.log
+# Logs
+.next/
+# Next.js
+node_modules/
+npm-debug.log*
+out/
+public/downloads/*.apk
 public/downloads/*.AppImage
 public/downloads/*.deb
 public/downloads/*.dmg
-
-# Logs
-*.log
-npm-debug.log*
+public/downloads/*.exe
+public/downloads/*.ipa
+public/downloads/*.sha256
+scripts/migrate-firebase/inspect-out/
+scripts/migrate-firebase/migration-credentials.local.json
+scripts/migrate-firebase/migration-report*.json
+scripts/migrate-firebase/*-report*.json
+*.tsbuildinfo
 .vercel
-.env*
-
-# local build output (root copy)
-dist/
-
-# Installer binaries live in the fimto-downloads Vercel project, not in git.
-deploy/downloads-site/downloads/
+# Vite site build
+website-app/apps/*/android/
+website-app/apps/*/dist/
+website-app/apps/*/.expo/
+website-app/apps/*/ios/
+website-app/apps/*/node_modules/
+website-app/apps/*/web-build/
+website-app/dist/
+website-app/dist-desktop/
+website-app/node_modules/
+website-app/public/downloads/*.sha256
+*.xlsx

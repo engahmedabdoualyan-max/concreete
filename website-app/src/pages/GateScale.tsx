@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { api } from '../api/client';
+import { api, getToken, resolveApiBase } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { useLang } from '../context/LangContext';
 import LangSelector from '../components/LangSelector';
@@ -172,6 +172,81 @@ export default function GateScale() {
     setMsg(`✅ ${L('الميزان', 'Scale')}: ${last} ${L('كجم', 'kg')}`);
   };
   const [docView, setDocView] = useState<{ name: string; url: string } | null>(null);
+  // Network camera: owner-locked settings + snapshot capture.
+  const [camCfg, setCamCfg] = useState<{ configured?: boolean; snapshotUrl?: string } | null>(null);
+  const [camLock, setCamLock] = useState('');
+  const [camOpen, setCamOpen] = useState(false);
+  const [camForm, setCamForm] = useState({ url: '', user: '', pass: '', admin: '' });
+
+  const loadCamCfg = async () => {
+    try {
+      const d = await api.get<{ configured?: boolean; snapshotUrl?: string }>('/api/gate/camera');
+      setCamCfg(d ?? null);
+    } catch { setCamCfg(null); }
+  };
+
+  const unlockCam = async () => {
+    if (!camLock.trim()) return;
+    setBusy('camlock');
+    try {
+      await api.post('/api/gate/camera/unlock', { password: camLock });
+      setCamOpen(true);
+      setCamLock('');
+      if (camCfg?.snapshotUrl) setCamForm((p) => ({ ...p, url: camCfg.snapshotUrl ?? '' }));
+      setMsg('✅ فُتح الضبط');
+    } catch (e: any) {
+      setMsg(`❌ ${e?.message ?? ''}`);
+    } finally {
+      setBusy('');
+    }
+  };
+
+  const saveCam = async () => {
+    if (!camForm.url.trim() || !camForm.admin) {
+      setMsg('❌ الرابط وكلمة سر الضبط مطلوبان');
+      return;
+    }
+    setBusy('camsave');
+    try {
+      await api.put('/api/gate/camera', {
+        snapshotUrl: camForm.url.trim(),
+        ...(camForm.user.trim() ? { camUsername: camForm.user.trim() } : {}),
+        ...(camForm.pass ? { camPassword: camForm.pass } : {}),
+        adminPassword: camForm.admin,
+      });
+      setMsg('✅ تم ربط الكاميرا');
+      setCamForm({ url: '', user: '', pass: '', admin: '' });
+      setCamOpen(false);
+      await loadCamCfg();
+    } catch (e: any) {
+      setMsg(`❌ ${e?.message ?? ''}`);
+    } finally {
+      setBusy('');
+    }
+  };
+
+  const snapNet = async () => {
+    setBusy('snapnet');
+    try {
+      const res = await fetch(`${resolveApiBase()}/api/gate/camera/snapshot`, {
+        headers: getToken() ? { Authorization: `Bearer ${getToken()}` } : {},
+      });
+      if (!res.ok) throw new Error(`camera ${res.status}`);
+      const blob = await res.blob();
+      const url = await new Promise<string>((resolve, reject) => {
+        const r = new FileReader();
+        r.onload = () => resolve(String(r.result));
+        r.onerror = reject;
+        r.readAsDataURL(blob);
+      });
+      setCamShot(url);
+      setMsg('✅ لقطة الشبكة جاهزة ستُرفق مع التذكرة');
+    } catch {
+      setMsg(`❌ ${L('تعذر لقطة الشبكة — تحقق من الربط', 'Snapshot failed')}`);
+    } finally {
+      setBusy('');
+    }
+  };
   const [closeW, setCloseW] = useState<Record<string, string>>({});
 
   const cats = dir === 'IN' ? IN_CATS : OUT_CATS;
@@ -192,6 +267,7 @@ export default function GateScale() {
     if (!currentUser) return;
     load();
     api.get<any[]>('/api/fleet').then((v) => setFleet(Array.isArray(v) ? v : [])).catch(() => {});
+    loadCamCfg();
   }, [currentUser, load]);
 
   const set = (k: string, v: string) => setF((p) => ({ ...p, [k]: v }));
@@ -443,10 +519,22 @@ export default function GateScale() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
             <div className="rounded-xl border border-white/10 p-2">
               <p className="text-[11px] font-black text-slate-300 mb-1">📷 {L('كاميرا البوابة (دليل مصور)', 'Gate camera')}</p>
+              <p className="text-[10px] text-slate-500 mb-1">
+                {camCfg?.configured
+                  ? `🟢 ${L('كاميرا شبكة مربوطة', 'Network camera linked')}`
+                  : `⚪ ${L('كاميرا الجهاز فقط', 'Device camera only')}`}
+              </p>
               {!camOn && !camShot && (
-                <button onClick={startCam} className="text-[11px] font-black rounded-lg px-3 py-1.5 border border-violet-500/50 bg-violet-500/15 text-violet-300">
-                  {L('فتح الكاميرا', 'Open camera')}
-                </button>
+                <span className="flex gap-2 flex-wrap">
+                  <button onClick={startCam} className="text-[11px] font-black rounded-lg px-3 py-1.5 border border-violet-500/50 bg-violet-500/15 text-violet-300">
+                    {L('فتح الكاميرا', 'Open camera')}
+                  </button>
+                  {camCfg?.configured && (
+                    <button disabled={busy === 'snapnet'} onClick={snapNet} className="text-[11px] font-black rounded-lg px-3 py-1.5 border border-sky-500/50 bg-sky-500/15 text-sky-300 disabled:opacity-50">
+                      {busy === 'snapnet' ? '…' : `📡 ${L('لقطة الشبكة', 'Net snapshot')}`}
+                    </button>
+                  )}
+                </span>
               )}
               {camOn && (
                 <div>
@@ -468,6 +556,48 @@ export default function GateScale() {
                   <button onClick={() => setCamShot(null)} className="text-[11px] text-slate-400">✕</button>
                 </div>
               )}
+              <div className="mt-2 rounded-lg border border-white/10 p-2">
+                <p className="text-[11px] font-black text-slate-300 mb-1">🔒 {L('ضبط الكاميرا (باسورد)', 'Camera setup')}</p>
+                {!camOpen ? (
+                  <span className="flex gap-2">
+                    <input type="password" value={camLock} inputMode="numeric"
+                      onChange={(e) => setCamLock(e.target.value)}
+                      placeholder={L('كلمة السر', 'Password')}
+                      className="flex-1 bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" />
+                    <button disabled={busy === 'camlock'} onClick={unlockCam}
+                      className="text-[11px] font-black rounded-lg px-3 py-1.5 border border-amber-500/50 text-amber-300 disabled:opacity-50">
+                      {busy === 'camlock' ? '…' : L('فتح', 'Open')}
+                    </button>
+                  </span>
+                ) : (
+                  <span className="grid grid-cols-1 gap-1.5">
+                    <input value={camForm.url} dir="ltr" onChange={(e) => setCamForm({ ...camForm, url: e.target.value })}
+                      placeholder="http://camera-ip/ISAPI/Streaming/channels/101/picture"
+                      className="bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none font-mono" />
+                    <span className="grid grid-cols-2 gap-1.5">
+                      <input value={camForm.user} onChange={(e) => setCamForm({ ...camForm, user: e.target.value })}
+                        placeholder={L('يوزر الكاميرا', 'Cam user')}
+                        className="bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" />
+                      <input type="password" value={camForm.pass} onChange={(e) => setCamForm({ ...camForm, pass: e.target.value })}
+                        placeholder={L('باسورد الكاميرا', 'Cam password')}
+                        className="bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" />
+                    </span>
+                    <input type="password" value={camForm.admin} inputMode="numeric"
+                      onChange={(e) => setCamForm({ ...camForm, admin: e.target.value })}
+                      placeholder={L('كلمة سر الضبط (تعريف/تغيير)', 'Setup password')}
+                      className="bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" />
+                    <span className="flex gap-2">
+                      <button disabled={busy === 'camsave'} onClick={saveCam}
+                        className="text-[11px] font-black rounded-lg px-3 py-1.5 bg-amber-500 text-black disabled:opacity-50">
+                        {busy === 'camsave' ? '…' : `💾 ${L('حفظ الربط', 'Save link')}`}
+                      </button>
+                      <button onClick={() => setCamOpen(false)} className="text-[11px] rounded-lg px-3 py-1.5 border border-white/15 text-slate-300">
+                        {L('إغلاق', 'Close')}
+                      </button>
+                    </span>
+                  </span>
+                )}
+              </div>
             </div>
             <div className="rounded-xl border border-white/10 p-2">
               <p className="text-[11px] font-black text-slate-300 mb-1">⚖️ {L('ربط الميزان (تسلسلي)', 'Scale link')}</p>
