@@ -653,6 +653,9 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     PERMISSIONS.QR_SCAN,
     PERMISSIONS.FLEET_READ,
     PERMISSIONS.FLEET_STATUS_MUTATION,
+    PERMISSIONS.FLEET_UPDATE, // daily readiness roll-call marking
+    PERMISSIONS.HR_READ, // manpower tile + roster context (read-only)
+    PERMISSIONS.FINANCE_READ, // collections tile (read-only)
     // Multi-plant operations is exactly what the sites table exists to express:
     // which yard is producing, and how far every truck is from each of them.
     PERMISSIONS.SITE_READ,
