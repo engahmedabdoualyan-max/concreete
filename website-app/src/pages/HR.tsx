@@ -1695,7 +1695,9 @@ function ageOf(raw: unknown): number | null {
                 {now.toLocaleDateString(ar ? 'ar-EG' : 'en-US', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
               </span>
             </span>
-            <Link to="/" className="text-slate-400 text-xs border border-white/10 px-2 py-1 rounded hover:text-white">🏠</Link> <QuickJump /> <LangSelector />
+            <Link to="/" className="text-slate-400 text-xs border border-white/10 px-2 py-1 rounded hover:text-white">🏠</Link> <QuickJump />
+            <Link to="/forms" className="text-xs font-black border border-violet-500/50 bg-violet-500/15 text-violet-300 hover:bg-violet-500/25 px-2 py-1 rounded">📑 {ar ? 'النماذج' : 'Forms'}</Link>
+            <LangSelector />
           </div>
         </div>
 
