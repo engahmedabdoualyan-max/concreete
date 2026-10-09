@@ -4683,6 +4683,67 @@ export const productionRuns = pgTable(
   (t) => [index("production_runs_tenant_idx").on(t.tenantId)]
 );
 
+/**
+ * fleet_readiness — daily readiness roll-call per vehicle (تقرير التشغيل).
+ * The dispatcher marks every vehicle each morning: WORKING (شغال), IDLE
+ * (عاطل), or IN_WORKSHOP (ورشة). The broadcast reads the summary so the
+ * manager sees pumps/mixers working vs power and workshop occupancy by type.
+ */
+export const fleetReadinessEnum = pgEnum("fleet_readiness_status", [
+  "WORKING",
+  "IDLE",
+  "IN_WORKSHOP",
+]);
+
+export const fleetReadiness = pgTable(
+  "fleet_readiness",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    vehicleId: uuid("vehicle_id")
+      .notNull()
+      .references(() => fleetVehicles.id, { onDelete: "cascade" }),
+    workDate: varchar("work_date", { length: 10 }).notNull(), // YYYY-MM-DD (Riyadh)
+    status: fleetReadinessEnum("status").notNull(),
+    note: varchar("note", { length: 200 }),
+    reportedById: uuid("reported_by_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("fleet_readiness_vehicle_day_unique").on(t.vehicleId, t.workDate),
+    index("fleet_readiness_tenant_day_idx").on(t.tenantId, t.workDate),
+  ]
+);
+
+/**
+ * broadcast_snapshots — one JSON row per tenant per day: the numbers the TV
+ * showed. The broadcast stays live, but every view upserts today's snapshot
+ * (throttled), so the owner can later open any past day and see what the
+ * plant looked like. History is read-only; only today is live.
+ */
+export const broadcastSnapshots = pgTable(
+  "broadcast_snapshots",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    snapDate: varchar("snap_date", { length: 10 }).notNull(), // YYYY-MM-DD (Riyadh)
+    payload: jsonb("payload").notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("broadcast_snapshots_tenant_day_unique").on(t.tenantId, t.snapDate),
+    index("broadcast_snapshots_tenant_idx").on(t.tenantId),
+  ]
+);
+
 //
 //  Location-based attendance like dedicated attendance apps:
 //   • hr_zones — work geofences (factory + sites): lat/lng + radius

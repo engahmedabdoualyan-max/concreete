@@ -110,6 +110,11 @@ export default function CommandCenter() {
   const [openWO, setOpenWO] = useState<any[]>([]);
   const [fuelAnom, setFuelAnom] = useState<any[]>([]);
   const [manpower, setManpower] = useState<{ present: number; total: number } | null>(null);
+  const [readiness, setReadiness] = useState<Record<string, { total: number; working: number; idle: number; workshop: number; unmarked: number }> | null>(null);
+  const [histDate, setHistDate] = useState('');
+  const [hist, setHist] = useState<any | null>(null);
+  const [histMsg, setHistMsg] = useState('');
+  const TYPE_AR: Record<string, string> = { MIXER_TRUCK: 'خلاطات', CONCRETE_PUMP: 'بامب', TIPPER_TRUCK: 'قلاب', TRANSIT_MIXER: 'ترانزيت', WATER_TANKER: 'تانكر', SERVICE_TRUCK: 'خدمة' };
   const [sites, setSites] = useState<MapSite[]>([]);
   const [vehicles, setVehicles] = useState<MapVehicle[]>([]);
   const [canFleet, setCanFleet] = useState(false);
@@ -166,6 +171,15 @@ export default function CommandCenter() {
           : null
       );
     } catch { setManpower(null); }
+    // Readiness roll-call (dispatcher marks in Operations).
+    try {
+      const rd = await api.get<{ byType?: Record<string, { total: number; working: number; idle: number; workshop: number; unmarked: number }> }>('/api/fleet/readiness');
+      setReadiness(rd?.byType ?? null);
+    } catch { setReadiness(null); }
+    // Record today's snapshot (throttled server-side; never blocks the TV).
+    try {
+      await api.post('/api/command/snapshot');
+    } catch { /* history stays as-is */ }
     // Sites (plant + branches).
     try {
       const s = await api.get<{ sites?: Array<MapSite & { latitude: number; longitude: number }> }>('/api/sites');
@@ -216,6 +230,23 @@ export default function CommandCenter() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ar]);
+
+  const loadHistory = async (date: string) => {
+    setHistDate(date);
+    if (!date) {
+      setHist(null);
+      setHistMsg('');
+      return;
+    }
+    try {
+      const d = await api.get<{ snapshot?: any }>(`/api/command/history?date=${date}`);
+      setHist(d?.snapshot ?? null);
+      setHistMsg('');
+    } catch (e: any) {
+      setHist(null);
+      setHistMsg(`❌ ${e?.message ?? ''}`);
+    }
+  };
 
   const saveTargets = async () => {
     const c = Math.max(0, Number(editConcrete) || 0);
@@ -366,6 +397,63 @@ export default function CommandCenter() {
         <MiniTile label={L('أسطول نشط', 'Fleet live')} value={canFleet ? `${fmt(liveCount, lang)}/${fmt(vehicles.length, lang)}` : '—'} to="/sites" />
         <MiniTile label={L('أعطال اليوم', "Today's faults")} value={fmt(faults, lang)} alert={faults > 0} to="/workshop" />
         <MiniTile label={L('مخزون حرج', 'Low stock')} value={fmt(lowStock, lang)} alert={lowStock > 0} to="/materials" />
+      </div>
+
+      {/* ===== readiness strip: working power + workshop per type ===== */}
+      {readiness && (
+        <div className="px-4 pt-2">
+          <Link to="/operations" style={{ textDecoration: 'none' }}>
+            <div className="rounded-xl border border-white/10 bg-white/[0.02] px-3 py-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 hover:border-amber-400/50">
+              <span className="text-[11px] font-black text-amber-300">📋 {L('جاهزية اليوم', 'Readiness')}</span>
+              {Object.entries(readiness).map(([t, b]) => (
+                <span key={t} className="text-[11px] text-slate-200">
+                  <b>{TYPE_AR[t] ?? t}</b>{' '}
+                  <span className="text-emerald-300 font-black">{fmt(b.working, lang)}</span>
+                  <span className="text-slate-500">/{fmt(b.total, lang)}</span>{' '}
+                  <span className="text-slate-400">{L('شغال', 'up')}</span>
+                  {b.workshop > 0 && <span className="text-amber-300"> · 🔧 {fmt(b.workshop, lang)} {L('ورشة', 'shop')}</span>}
+                  {b.idle > 0 && <span className="text-slate-500"> · {fmt(b.idle, lang)} {L('عاطل', 'idle')}</span>}
+                </span>
+              ))}
+              <span className="text-[10px] text-slate-500">← {L('التفاصيل من التشغيل', 'Details in Operations')}</span>
+            </div>
+          </Link>
+        </div>
+      )}
+
+      {/* ===== day archive: recorded snapshots, searchable by date ===== */}
+      <div className="px-4 pt-2">
+        <div className="rounded-xl border border-white/10 bg-white/[0.02] px-3 py-1.5 flex flex-wrap items-center gap-2">
+          <span className="text-[11px] font-black text-slate-300">🗓️ {L('أرشيف الأيام', 'Day archive')}</span>
+          <input type="date" value={histDate} max={new Date().toISOString().slice(0, 10)}
+            onChange={(e) => void loadHistory(e.target.value)}
+            className="bg-white/[0.04] border border-white/10 rounded-lg px-2 py-1 text-[11px] text-white outline-none" />
+          {histDate && (
+            <button onClick={() => void loadHistory('')} className="text-[11px] text-slate-400 border border-white/10 rounded-lg px-2 py-1">
+              {L('رجوع للمباشر', 'Back to live')}
+            </button>
+          )}
+          {histMsg && <span className="text-[11px] font-bold">{histMsg}</span>}
+        </div>
+        {hist && (
+          <div className="mt-2 rounded-xl border border-sky-500/30 bg-sky-500/[0.05] px-3 py-2 grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2 text-center">
+            {[
+              { l: L('الأسطول المتموضع', 'Positioned'), v: `${hist.fleet?.positioned ?? 0}` },
+              { l: L('داخل السور', 'Inside'), v: `${hist.fleet?.insideGeofence ?? 0}` },
+              { l: `👷 ${L('حاضر', 'Present')}`, v: `${hist.manpower?.present ?? 0}/${hist.manpower?.total ?? 0}` },
+              { l: `📥 ${L('دخول (طن)', 'In t')}`, v: `${((hist.gate?.inKg ?? 0) / 1000).toFixed(1)}` },
+              { l: `📤 ${L('خرسانة م³', 'Conc m³')}`, v: `${hist.gate?.concreteM3 ?? 0}` },
+              { l: `🧾 ${L('طلبات', 'Orders')}`, v: `${hist.orders?.count ?? 0}` },
+              { l: `🚚 ${L('رحلات', 'Trips')}`, v: `${hist.trips?.total ?? 0}` },
+              { l: `🎯 ${L('مستهدف', 'Goal')}`, v: `${hist.targets?.concreteM3 ?? 0}` },
+            ].map((x) => (
+              <div key={x.l}>
+                <p className="text-[10px] text-slate-400 font-bold">{x.l}</p>
+                <p className="text-base font-black text-white">{x.v}</p>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* ===== main row: map + goal column + rail (fills the rest, never scrolls) ===== */}

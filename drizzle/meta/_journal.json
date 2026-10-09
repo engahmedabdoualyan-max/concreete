@@ -330,6 +330,20 @@
       "when": 1791551740138,
       "tag": "0046_premium_silk_fever",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1791562641136,
+      "tag": "0047_icy_paper_doll",
+      "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1791563288136,
+      "tag": "0048_demonic_phalanx",
+      "breakpoints": true
     }
   ]
 }

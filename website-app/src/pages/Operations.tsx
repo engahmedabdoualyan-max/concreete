@@ -163,6 +163,52 @@ export default function Operations() {
   const [showReport, setShowReport] = useState(false);
   // ── ERP dispatch board (live trips — primary list) ──────────────────────────
   const [liveTrips, setLiveTrips] = useState<LiveTrip[]>([]);
+  // ── Readiness roll-call state ──
+  const [rdDate, setRdDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [rdRows, setRdRows] = useState<any[]>([]);
+  const [rdMarks, setRdMarks] = useState<Record<string, string | null>>({});
+  const [rdMsg, setRdMsg] = useState('');
+  const [rdBusy, setRdBusy] = useState(false);
+  const typeAr = (t: string) =>
+    ({ MIXER_TRUCK: 'خلاطات', CONCRETE_PUMP: 'بامب', TIPPER_TRUCK: 'قلاب', TRANSIT_MIXER: 'ترانزيت', WATER_TANKER: 'تانكر', SERVICE_TRUCK: 'خدمة/ونش' } as Record<string, string>)[t] ?? t;
+  const loadReadiness = async (date?: string) => {
+    try {
+      const d = await api.get<{ rows?: any[] }>(`/api/fleet/readiness?date=${date ?? rdDate}`);
+      const rows = Array.isArray(d?.rows) ? d.rows : [];
+      setRdRows(rows);
+      const init: Record<string, string | null> = {};
+      for (const r of rows) init[r.vehicleId] = r.status ?? null;
+      setRdMarks(init);
+    } catch { setRdRows([]); }
+  };
+  useEffect(() => {
+    if (!currentUser) return;
+    void loadReadiness();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser?.username]);
+  const rdGroups = rdRows.reduce<Record<string, any[]>>((g, r) => {
+    (g[r.vehicleType] ??= []).push(r);
+    return g;
+  }, {});
+  const saveReadiness = async () => {
+    const marks = Object.entries(rdMarks)
+      .filter(([, s]) => s)
+      .map(([vehicleId, status]) => ({ vehicleId, status: status as string }));
+    if (!marks.length) {
+      setRdMsg('❌ علّم مركبة واحدة على الأقل');
+      return;
+    }
+    setRdBusy(true);
+    try {
+      const r = await api.post<{ marked?: number }>('/api/fleet/readiness', { date: rdDate, marks });
+      setRdMsg(`✅ تم تسجيل ${(r as any)?.marked ?? marks.length} مركبة — ظاهر في البث الآن`);
+      await loadReadiness();
+    } catch (e: any) {
+      setRdMsg(`❌ ${e?.message ?? ''}`);
+    } finally {
+      setRdBusy(false);
+    }
+  };
   const [boardSummary, setBoardSummary] = useState<BoardSummary | null>(null);
   const [boardAlerts, setBoardAlerts] = useState<BoardAlert[]>([]);
   const [erpOrders, setErpOrders] = useState<ErpOrder[]>([]);
@@ -619,6 +665,47 @@ export default function Operations() {
               ))}
             </div>
           )}
+        </div>
+        {/* ── Daily readiness roll-call (تقرير الجاهزية) ── */}
+        <div className="mb-8 rounded-2xl border border-amber-500/25 bg-amber-500/[0.04] p-4">
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+            <h2 className="text-base font-bold text-white">📋 تقرير الجاهزية اليومي <span className="text-[10px] font-normal text-amber-300 border border-amber-500/40 rounded px-1.5 py-0.5">ERP LIVE</span></h2>
+            <span className="flex items-center gap-2">
+              <input type="date" value={rdDate} onChange={(e) => { setRdDate(e.target.value); void loadReadiness(e.target.value); }}
+                className="bg-white/[0.04] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" />
+              <button onClick={() => void saveReadiness()} disabled={rdBusy}
+                className="bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-black text-xs font-black rounded-lg px-4 py-1.5">
+                {rdBusy ? '…' : '✅ حفظ التقرير'}
+              </button>
+            </span>
+          </div>
+          <p className="text-[11px] text-slate-400 mb-2">علّم كل مركبة: شغال / عاطل / ورشة — يظهر في البث (القوة والورشة) فور الحفظ.</p>
+          {rdMsg && <p className="text-xs font-bold mb-2">{rdMsg}</p>}
+          {Object.entries(rdGroups).map(([type, list]) => (
+            <div key={type} className="mb-2">
+              <p className="text-[11px] font-black text-slate-300 mb-1">{typeAr(type)} ({(list as any[]).length})</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-1.5">
+                {(list as any[]).map((v: any) => {
+                  const cur = rdMarks[v.vehicleId] ?? v.status ?? null;
+                  const btn = (s: string, label: string, on: string) => (
+                    <button key={s} onClick={() => setRdMarks((p) => ({ ...p, [v.vehicleId]: cur === s ? null : s }))}
+                      className={`text-[10px] font-black rounded px-2 py-1 border ${cur === s ? on : 'border-white/10 text-slate-500'}`}>
+                      {label}</button>
+                  );
+                  return (
+                    <div key={v.vehicleId} className="flex items-center justify-between rounded-lg border border-white/10 bg-white/[0.03] px-2 py-1.5 text-xs">
+                      <span className="font-bold text-white" dir="ltr">{v.vehicleCode}</span>
+                      <span className="flex gap-1">
+                        {btn('WORKING', 'شغال', 'border-emerald-500/60 bg-emerald-500/20 text-emerald-300')}
+                        {btn('IDLE', 'عاطل', 'border-slate-400/60 bg-white/10 text-white')}
+                        {btn('IN_WORKSHOP', 'ورشة', 'border-amber-500/60 bg-amber-500/20 text-amber-300')}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
         </div>
         {/* ── Archived local trips (localStorage/Firestore) — read-only, user data preserved ── */}
         <h2 className="text-base font-bold text-slate-300 mb-3">📦 أرشيف الرحلات المحلية <span className="text-[10px] font-normal text-slate-500 border border-white/10 rounded px-1.5 py-0.5">READ-ONLY ARCHIVE</span></h2>
