@@ -25,6 +25,7 @@ import SiteMap, { type MapSite, type MapVehicle } from '../components/SiteMap';
  */
 
 const POLL_MS = 30000;
+const SLOW_MS = 180000;
 
 interface BoardSummary {
   orders?: number;
@@ -111,7 +112,8 @@ export default function CommandCenter() {
   const [fuelAnom, setFuelAnom] = useState<any[]>([]);
   const [manpower, setManpower] = useState<{ present: number; total: number } | null>(null);
   const [collections, setCollections] = useState<{ totalSar: number; count: number } | null>(null);
-  const [readiness, setReadiness] = useState<Record<string, { total: number; working: number; idle: number; workshop: number; unmarked: number }> | null>(null);
+  const [readiness, setReadiness] = useState<Record<string, { total: number; working: number; idle: number; workshop: number; stored: number; unmarked: number }> | null>(null);
+  const [readinessBr, setReadinessBr] = useState<Record<string, { siteCode: string; siteName: string; total: number; working: number; idle: number; workshop: number; stored: number }> | null>(null);
   const [histDate, setHistDate] = useState('');
   const [histTime, setHistTime] = useState('');
   const [hist, setHist] = useState<any | null>(null);
@@ -129,7 +131,7 @@ export default function CommandCenter() {
   const [editBlocks, setEditBlocks] = useState('');
   const [blocks, setBlocks] = useState({ producedUnits: 0, producedM3: 0, salesOrders: 0, salesM3: 0 });
 
-  const load = useCallback(async () => {
+  const loadSlow = useCallback(async () => {
     // Production board — independent try/catch so one 403 never blanks the TV.
     try {
       const b = await api.get<{ summary?: BoardSummary; trips?: LiveTrip[]; liveTrips?: LiveTrip[]; alerts?: BoardAlert[] }>('/api/dispatch/board');
@@ -165,6 +167,11 @@ export default function CommandCenter() {
       setOpenWO(Array.isArray(w?.openWorkOrders) ? w.openWorkOrders : []);
       setFuelAnom(Array.isArray(w?.fuelAnomalies) ? w.fuelAnomalies : []);
     } catch { /* section stays empty */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ar]);
+
+  // Fast lane (30s): live numbers only — this is what makes the TV feel live.
+  const loadFast = useCallback(async () => {
     // Manpower today (HR absence register: present/total).
     try {
       const mp = await api.get<{ present?: number; total?: number }>('/api/hr/absences');
@@ -183,9 +190,10 @@ export default function CommandCenter() {
     } catch { setCollections(null); }
     // Readiness roll-call (dispatcher marks in Operations).
     try {
-      const rd = await api.get<{ byType?: Record<string, { total: number; working: number; idle: number; workshop: number; unmarked: number }> }>('/api/fleet/readiness');
+      const rd = await api.get<{ byType?: Record<string, { total: number; working: number; idle: number; workshop: number; stored: number; unmarked: number }>; byBranch?: Record<string, { siteCode: string; siteName: string; total: number; working: number; idle: number; workshop: number; stored: number }> }>('/api/fleet/readiness');
       setReadiness(rd?.byType ?? null);
-    } catch { setReadiness(null); }
+      setReadinessBr((rd as any)?.byBranch ?? null);
+    } catch { setReadiness(null); setReadinessBr(null); }
     // Record today's snapshot (throttled server-side; never blocks the TV).
     try {
       await api.post('/api/command/snapshot');
@@ -238,7 +246,6 @@ export default function CommandCenter() {
       setCanFleet(false);
       setVehicles([]);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ar]);
 
   const loadHistory = async (date: string, time?: string) => {
@@ -304,10 +311,15 @@ export default function CommandCenter() {
 
   useEffect(() => {
     if (!currentUser) return;
-    load();
-    const t = window.setInterval(load, POLL_MS);
-    return () => window.clearInterval(t);
-  }, [currentUser, load]);
+    loadSlow();
+    loadFast();
+    const tFast = window.setInterval(loadFast, POLL_MS);
+    const tSlow = window.setInterval(loadSlow, SLOW_MS);
+    return () => {
+      window.clearInterval(tFast);
+      window.clearInterval(tSlow);
+    };
+  }, [currentUser, loadSlow, loadFast]);
 
   useEffect(() => {
     const t = window.setInterval(() => setNow(new Date()), 1000);
@@ -461,7 +473,17 @@ export default function CommandCenter() {
                   <span className="text-slate-500">/{fmt(b.total, lang)}</span>{' '}
                   <span className="text-slate-400">{L('شغال', 'up')}</span>
                   {b.workshop > 0 && <span className="text-amber-300"> · 🔧 {fmt(b.workshop, lang)} {L('ورشة', 'shop')}</span>}
+                  {b.stored > 0 && <span className="text-sky-300"> · 📦 {fmt(b.stored, lang)} {L('مخزن', 'stored')}</span>}
                   {b.idle > 0 && <span className="text-slate-500"> · {fmt(b.idle, lang)} {L('عاطل', 'idle')}</span>}
+                </span>
+              ))}
+              {readinessBr && Object.values(readinessBr).map((b: any) => (
+                <span key={b.siteCode} className="text-[11px] text-slate-200 border-r border-white/10 pr-3">
+                  <b className="text-sky-300">{b.siteCode === 'HQ' ? L('المصنع', 'Plant') : b.siteName ?? b.siteCode}</b>{' '}
+                  <span className="text-emerald-300 font-black">{fmt(b.working, lang)}</span>
+                  <span className="text-slate-500">/{fmt(b.total, lang)}</span>
+                  {b.workshop > 0 && <span className="text-amber-300"> · 🔧{fmt(b.workshop, lang)}</span>}
+                  {b.stored > 0 && <span className="text-sky-300"> · 📦{fmt(b.stored, lang)}</span>}
                 </span>
               ))}
               <span className="text-[10px] text-slate-500">← {L('التفاصيل من التشغيل', 'Details in Operations')}</span>

@@ -238,14 +238,20 @@ export default function SiteMap({ sites, vehicles = [], className = '' }: Props)
   const dataRef = useRef({ sites, vehicles });
   dataRef.current = { sites, vehicles };
   const fittedRef = useRef(false);
+  const drawnHashRef = useRef('');
 
   // Draw everything into an existing map instance.
   const drawInto = (m: L.Map) => {
+    const { sites: ds, vehicles: dv } = dataRef.current;
+    // The TV polls every 30s: identical payloads must not rebuild hundreds of
+    // markers (visible flicker + jank). Zoom changes still redraw via zoomend.
+    const hash = `${m.getZoom()}|` + JSON.stringify([ds.map((s) => [s.latitude, s.longitude, s.siteCode]), dv.map((v) => [v.vehicleId, v.latitude, v.longitude, v.isStale, v.moving, v.headingDeg])]);
+    if (hash === drawnHashRef.current && fittedRef.current) return;
+    drawnHashRef.current = hash;
     m.eachLayer((layer) => {
       if (layer instanceof L.Marker) layer.remove();
     });
 
-    const { sites: ds, vehicles: dv } = dataRef.current;
     const usable = ds.filter(
       (s) => Number.isFinite(s.latitude) && Number.isFinite(s.longitude)
     );

@@ -167,18 +167,26 @@ export default function Operations() {
   const [rdDate, setRdDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [rdRows, setRdRows] = useState<any[]>([]);
   const [rdMarks, setRdMarks] = useState<Record<string, string | null>>({});
+  const [rdBranch, setRdBranch] = useState<Record<string, string>>({});
+  const [rdSites, setRdSites] = useState<any[]>([]);
   const [rdMsg, setRdMsg] = useState('');
   const [rdBusy, setRdBusy] = useState(false);
   const typeAr = (t: string) =>
     ({ MIXER_TRUCK: 'خلاطات', CONCRETE_PUMP: 'بامب', TIPPER_TRUCK: 'قلاب', TRANSIT_MIXER: 'ترانزيت', WATER_TANKER: 'تانكر', SERVICE_TRUCK: 'خدمة/ونش' } as Record<string, string>)[t] ?? t;
   const loadReadiness = async (date?: string) => {
     try {
-      const d = await api.get<{ rows?: any[] }>(`/api/fleet/readiness?date=${date ?? rdDate}`);
+      const d = await api.get<{ rows?: any[]; sites?: any[] }>(`/api/fleet/readiness?date=${date ?? rdDate}`);
       const rows = Array.isArray(d?.rows) ? d.rows : [];
       setRdRows(rows);
+      setRdSites(Array.isArray((d as any)?.sites) ? (d as any).sites : []);
       const init: Record<string, string | null> = {};
-      for (const r of rows) init[r.vehicleId] = r.status ?? null;
+      const initBr: Record<string, string> = {};
+      for (const r of rows) {
+        init[r.vehicleId] = r.status ?? null;
+        if (r.siteId) initBr[r.vehicleId] = r.siteId;
+      }
       setRdMarks(init);
+      setRdBranch(initBr);
     } catch { setRdRows([]); }
   };
   useEffect(() => {
@@ -193,7 +201,11 @@ export default function Operations() {
   const saveReadiness = async () => {
     const marks = Object.entries(rdMarks)
       .filter(([, s]) => s)
-      .map(([vehicleId, status]) => ({ vehicleId, status: status as string }));
+      .map(([vehicleId, status]) => ({
+        vehicleId,
+        status: status as string,
+        ...(rdBranch[vehicleId] ? { siteId: rdBranch[vehicleId] } : {}),
+      }));
     if (!marks.length) {
       setRdMsg('❌ علّم مركبة واحدة على الأقل');
       return;
@@ -679,7 +691,7 @@ export default function Operations() {
               </button>
             </span>
           </div>
-          <p className="text-[11px] text-slate-400 mb-2">علّم كل مركبة: شغال / عاطل / ورشة — يظهر في البث (القوة والورشة) فور الحفظ.</p>
+          <p className="text-[11px] text-slate-400 mb-2">علّم كل مركبة: شغال / عاطل / ورشة / مخزن + فرعها — يظهر في البث فور الحفظ، وما ليس لك لا يُحسب عليك.</p>
           {rdMsg && <p className="text-xs font-bold mb-2">{rdMsg}</p>}
           {Object.entries(rdGroups).map(([type, list]) => (
             <div key={type} className="mb-2">
@@ -693,12 +705,21 @@ export default function Operations() {
                       {label}</button>
                   );
                   return (
-                    <div key={v.vehicleId} className="flex items-center justify-between rounded-lg border border-white/10 bg-white/[0.03] px-2 py-1.5 text-xs">
-                      <span className="font-bold text-white" dir="ltr">{v.vehicleCode}</span>
-                      <span className="flex gap-1">
+                    <div key={v.vehicleId} className="rounded-lg border border-white/10 bg-white/[0.03] px-2 py-1.5 text-xs">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-white" dir="ltr">{v.vehicleCode}</span>
+                        <select value={rdBranch[v.vehicleId] ?? v.siteId ?? ''}
+                          onChange={(e) => setRdBranch((p) => ({ ...p, [v.vehicleId]: e.target.value }))}
+                          className="bg-white/[0.05] border border-white/10 rounded px-1.5 py-0.5 text-[10px] text-slate-200 outline-none max-w-[110px]">
+                          <option value="">فرع؟</option>
+                          {rdSites.map((s: any) => <option key={s.id} value={s.id}>{s.code ?? s.siteCode}</option>)}
+                        </select>
+                      </div>
+                      <span className="flex gap-1 mt-1 flex-wrap">
                         {btn('WORKING', 'شغال', 'border-emerald-500/60 bg-emerald-500/20 text-emerald-300')}
                         {btn('IDLE', 'عاطل', 'border-slate-400/60 bg-white/10 text-white')}
                         {btn('IN_WORKSHOP', 'ورشة', 'border-amber-500/60 bg-amber-500/20 text-amber-300')}
+                        {btn('STORED', 'مخزن', 'border-sky-500/60 bg-sky-500/20 text-sky-300')}
                       </span>
                     </div>
                   );

@@ -4693,6 +4693,7 @@ export const fleetReadinessEnum = pgEnum("fleet_readiness_status", [
   "WORKING",
   "IDLE",
   "IN_WORKSHOP",
+  "STORED",
 ]);
 
 export const fleetReadiness = pgTable(
@@ -4707,6 +4708,10 @@ export const fleetReadiness = pgTable(
       .references(() => fleetVehicles.id, { onDelete: "cascade" }),
     workDate: varchar("work_date", { length: 10 }).notNull(), // YYYY-MM-DD (Riyadh)
     status: fleetReadinessEnum("status").notNull(),
+    /** Branch the vehicle is assigned to that day (dispatch distribution). */
+    siteId: uuid("site_id").references(() => sites.id, {
+      onDelete: "set null",
+    }),
     note: varchar("note", { length: 200 }),
     reportedById: uuid("reported_by_id").references(() => users.id, {
       onDelete: "set null",

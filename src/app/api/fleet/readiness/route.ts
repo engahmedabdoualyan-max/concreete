@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { db } from "@/db";
-import { fleetReadiness, fleetVehicles } from "@/db/schema";
+import { fleetReadiness, fleetVehicles, sites } from "@/db/schema";
 import { and, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import {
@@ -20,7 +20,7 @@ export const dynamic = "force-dynamic";
  *  POST /api/fleet/readiness — dispatcher marks the day (FLEET_UPDATE)
  * ============================================================
  */
-const StatusEnum = z.enum(["WORKING", "IDLE", "IN_WORKSHOP"]);
+const StatusEnum = z.enum(["WORKING", "IDLE", "IN_WORKSHOP", "STORED"]);
 
 function today(): string {
   return new Date(Date.now() + 3 * 3600_000).toISOString().slice(0, 10);
@@ -49,6 +49,11 @@ export async function GET(req: NextRequest) {
     .where(and(eq(fleetReadiness.tenantId, auth.user.tenantId), eq(fleetReadiness.workDate, date)));
   const byV = new Map(marks.map((m) => [m.vehicleId, m]));
 
+  const siteList = await db
+    .select({ id: sites.id, code: sites.siteCode, name: sites.siteName })
+    .from(sites)
+    .where(and(eq(sites.tenantId, auth.user.tenantId), eq(sites.isActive, true)));
+
   const rows = fleet.map((v) => ({
     vehicleId: v.id,
     vehicleCode: v.code,
@@ -56,10 +61,11 @@ export async function GET(req: NextRequest) {
     vehicleType: v.type,
     status: byV.get(v.id)?.status ?? null,
     note: byV.get(v.id)?.note ?? null,
+    siteId: byV.get(v.id)?.siteId ?? null,
   }));
 
-  const { byType } = await getReadinessSummary(auth.user.tenantId, date);
-  return successResponse({ date, rows, byType }, `${rows.length} vehicle(s)`);
+  const { byType, byBranch } = await getReadinessSummary(auth.user.tenantId, date);
+  return successResponse({ date, rows, byType, byBranch, sites: siteList }, `${rows.length} vehicle(s)`);
 }
 
 const MarkSchema = z.object({
@@ -72,6 +78,7 @@ const MarkSchema = z.object({
       z.object({
         vehicleId: z.string().uuid(),
         status: StatusEnum,
+        siteId: z.string().uuid().nullable().optional(),
         note: z.string().trim().max(200).optional(),
       })
     )
@@ -104,10 +111,10 @@ export async function POST(req: NextRequest) {
 
   for (const m of marks) {
     await db.execute(sql`
-        INSERT INTO fleet_readiness (tenant_id, vehicle_id, work_date, status, note, reported_by_id)
-        VALUES (${auth.user.tenantId}, ${m.vehicleId}, ${date}, ${m.status}, ${m.note || null}, ${auth.user.sub})
+        INSERT INTO fleet_readiness (tenant_id, vehicle_id, work_date, status, site_id, note, reported_by_id)
+        VALUES (${auth.user.tenantId}, ${m.vehicleId}, ${date}, ${m.status}, ${m.siteId ?? null}, ${m.note || null}, ${auth.user.sub})
         ON CONFLICT (vehicle_id, work_date) DO UPDATE SET
-          status = EXCLUDED.status, note = EXCLUDED.note,
+          status = EXCLUDED.status, site_id = EXCLUDED.site_id, note = EXCLUDED.note,
           reported_by_id = EXCLUDED.reported_by_id, updated_at = now()`
     );
   }
