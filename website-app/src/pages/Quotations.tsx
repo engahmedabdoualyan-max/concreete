@@ -49,6 +49,25 @@ interface Scheme {
   isActive: boolean;
 }
 
+interface ClientOpt {
+  id: string;
+  companyName: string;
+  clientCode: string;
+}
+
+interface MixOpt {
+  id: string;
+  designCode: string;
+  gradeDescription?: string | null;
+}
+
+interface RepOpt {
+  id: string;
+  userId?: string | null;
+  fullName: string;
+  employeeCode: string;
+}
+
 const STATUS_STYLE: Record<string, string> = {
   DRAFT: 'bg-slate-500/20 text-slate-300',
   SUBMITTED: 'bg-amber-500/20 text-amber-300',
@@ -84,6 +103,20 @@ export default function Quotations() {
   const [pFrom, setPFrom] = useState('');
   const [pTo, setPTo] = useState('');
 
+  const [clients, setClients] = useState<ClientOpt[]>([]);
+  const [mixes, setMixes] = useState<MixOpt[]>([]);
+  const [reps, setReps] = useState<RepOpt[]>([]);
+  const [cClientSearch, setCClientSearch] = useState('');
+  const [cMixSearch, setCMixSearch] = useState('');
+  const [pRepSearch, setPRepSearch] = useState('');
+
+  const filteredClients = clients.filter(c =>
+    `${c.companyName} ${c.clientCode}`.toLowerCase().includes(cClientSearch.trim().toLowerCase()));
+  const filteredMixes = mixes.filter(m =>
+    `${m.designCode} ${m.gradeDescription ?? ''}`.toLowerCase().includes(cMixSearch.trim().toLowerCase()));
+  const filteredReps = reps.filter(r =>
+    `${r.fullName} ${r.employeeCode}`.toLowerCase().includes(pRepSearch.trim().toLowerCase()));
+
   const load = async () => {
     try {
       const [r, s] = await Promise.all([
@@ -96,6 +129,16 @@ export default function Quotations() {
   };
 
   useEffect(() => { load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    api.get<ClientOpt[]>('/api/clients').then(setClients).catch(() => {});
+    api.get<MixOpt[]>('/api/mix-designs').then(setMixes).catch(() => {});
+    // SalesRepId expected by /api/sales/commissions is the login user id
+    // (auth.user.sub); the employee directory links it via userId.
+    api.get<{ employees: RepOpt[] }>('/api/hr/employees')
+      .then(r => setReps(Array.isArray(r.employees) ? r.employees : []))
+      .catch(() => {});
+  }, []);
 
   const openRfq = async (id: string) => {
     try {
@@ -179,7 +222,7 @@ export default function Quotations() {
 
   const approvePreview = async () => {
     if (!preview?.ok) return;
-    if (!pRep.trim()) { setMsg('⚠️ Enter the rep UUID to store commission rows.'); return; }
+    if (!pRep.trim()) { setMsg('⚠️ Select the rep to store commission rows.'); return; }
     setBusy(true);
     try {
       const res = await api.post<{ data: { created: number } }>('/api/sales/commissions', {
@@ -219,10 +262,26 @@ export default function Quotations() {
         {tab === 'quotes' && (
           <>
             <div className="bg-white/[0.04] border border-white/10 rounded-2xl p-6 backdrop-blur-xl">
-              <h3 className="text-lg font-bold text-white mb-4">➕ New Quotation (UUIDs: client / mix)</h3>
+              <h3 className="text-lg font-bold text-white mb-4">➕ New Quotation (العميل / الخلطة)</h3>
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <input value={cClientId} onChange={e => setCClientId(e.target.value)} placeholder="Client UUID" className={inputCls} />
-                <input value={cMixId} onChange={e => setCMixId(e.target.value)} placeholder="Mix design UUID" className={inputCls} />
+                <div>
+                  <input value={cClientSearch} onChange={e => setCClientSearch(e.target.value)} placeholder="🔍 بحث عن عميل..." className={inputCls} />
+                  <select value={cClientId} onChange={e => setCClientId(e.target.value)} className={`${inputCls} mt-2`}>
+                    <option value="">— العميل —</option>
+                    {filteredClients.map(c => (
+                      <option key={c.id} value={c.id}>{c.companyName} ({c.clientCode})</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <input value={cMixSearch} onChange={e => setCMixSearch(e.target.value)} placeholder="🔍 بحث عن خلطة..." className={inputCls} />
+                  <select value={cMixId} onChange={e => setCMixId(e.target.value)} className={`${inputCls} mt-2`}>
+                    <option value="">— الخلطة —</option>
+                    {filteredMixes.map(m => (
+                      <option key={m.id} value={m.id}>{m.designCode}{m.gradeDescription ? ` — ${m.gradeDescription}` : ''}</option>
+                    ))}
+                  </select>
+                </div>
                 <input value={cVolume} onChange={e => setCVolume(e.target.value)} placeholder="Volume m³" type="number" className={inputCls} />
                 <button onClick={createRfq} disabled={busy} className="bg-sky-500 hover:bg-sky-400 disabled:opacity-50 text-white font-bold py-2.5 rounded-lg">➕ Draft</button>
               </div>
@@ -286,7 +345,15 @@ export default function Quotations() {
             <div className="bg-white/[0.04] border border-white/10 rounded-2xl p-6 backdrop-blur-xl">
               <h3 className="text-lg font-bold text-white mb-4">⭐ Earnings Preview → Approve</h3>
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
-                <input value={pRep} onChange={e => setPRep(e.target.value)} placeholder="Rep UUID (blank = me)" className={inputCls} />
+                <div>
+                  <input value={pRepSearch} onChange={e => setPRepSearch(e.target.value)} placeholder="🔍 بحث عن مندوب..." className={inputCls} />
+                  <select value={pRep} onChange={e => setPRep(e.target.value)} className={`${inputCls} mt-2`}>
+                    <option value="">— المندوب (فارغ = أنا) —</option>
+                    {filteredReps.map(r => (
+                      <option key={r.id} value={r.userId ?? r.id}>{r.fullName} ({r.employeeCode})</option>
+                    ))}
+                  </select>
+                </div>
                 <input value={pFrom} onChange={e => setPFrom(e.target.value)} type="date" className={`${inputCls} [color-scheme:dark]`} />
                 <input value={pTo} onChange={e => setPTo(e.target.value)} type="date" className={`${inputCls} [color-scheme:dark]`} />
                 <button onClick={runPreview} disabled={busy} className="bg-violet-500 hover:bg-violet-400 disabled:opacity-50 text-white font-bold py-2.5 rounded-lg">🔍 Preview</button>

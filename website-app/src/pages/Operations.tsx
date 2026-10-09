@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { api } from '../api/client';
 import { loadTrips, saveTrips, loadOrders, saveOrders, loadPlantGPS, loadAssets, loadInventory, addNotification } from '../firebase/firestore';
 import QuickJump from '../components/QuickJump';
 import LangSelector from '../components/LangSelector';
@@ -101,6 +102,39 @@ const BATCH_RECIPES: BatchRecipe[] = [
 ];
 const BATCH_STEPS = ['Weighing Cement', 'Weighing Sand', 'Weighing Gravel', 'Adding Water', 'Adding Admixture', 'Mixing Cycle', 'Discharging to Truck'];
 
+// ── Central ERP dispatch contracts (GET /api/dispatch/board, POST /api/dispatch) ──
+interface LiveTrip {
+  id: string; number: string; orderNumber: string | null;
+  checkpoint: string; checkpointAr: string;
+  loadedM3: number; deliveredM3: number;
+  vehicle: string; plate: string; vehicleStatus: string; driver: string;
+  ticket: string | null; batchTempC: number | null;
+  minutesAtCheckpoint: number | null; targetMinutes: number;
+  stalled: boolean; behind: boolean;
+}
+interface BoardSummary {
+  orders: number; totalM3: number; remainingM3: number; uncoveredM3: number;
+  activeTrips: number; stalledTrips: number; deliveredTodayM3: number;
+  idleVehicles: number; criticalAlerts: number;
+}
+interface BoardAlert { severity: 'critical' | 'warning' | 'info'; code: string; messageAr: string; ref?: string; }
+interface BoardResponse {
+  summary: BoardSummary; alerts: BoardAlert[];
+  orders: any[]; trips: LiveTrip[];
+  fleet: { status: string; isExternal: boolean; count: number }[];
+}
+interface ErpOrder {
+  id: string; orderNumber: string; status: string;
+  totalVolumeM3: number | string; remainingVolumeM3: number | string;
+  companyName: string; siteName: string; designCode: string;
+}
+interface FleetVehicle {
+  id: string; vehicleCode: string; plateNumber: string;
+  vehicleType: string; currentStatus: string; drumCapacityM3: number | null;
+}
+interface HrDriver { id: string; employeeCode: string; fullName: string; userId: string | null; }
+interface MixDesign { id: string; designCode: string; gradeDescription: string; }
+
 export default function Operations() {
   const { currentUser, logout } = useAuth();
   const navigate = useNavigate();
@@ -127,23 +161,55 @@ export default function Operations() {
   const [showAdd, setShowAdd] = useState(false);
   const [showLive, setShowLive] = useState(false);
   const [showReport, setShowReport] = useState(false);
-  const [editId, setEditId] = useState<number | null>(null);
-  const [form, setForm] = useState({
-    plant: 'PLANT-A', date: '', code: '', driver: '', qty: '10', pump: 'p01', estTime: '40',
-    stationArr: '', stationDep: '', siteArr: '', siteDep: '',
-    siteName: '', projectName: '', status: 'COMPLETED',
-    siteGeo: '', // إحداثيات الموقع الحالي
-    nextSiteGeo: '', // إحداثيات الموقع التالي
-    skipWash: false, // تخطي الغسيل
-    // أوقات البامب الجديدة
-    pumpDepartureTime: '', // وقت خروج البامب من المحطة
-    pumpArrivalTime: '', // وقت وصول البامب للموقع
-    pourStartTime: '', // وقت بداية الصب
-    delayReason: 'ready', // سبب التأخير
-    delayDetails: '', // تفاصيل السبب
-    // نوع المعدة
-    equipmentType: 'mixer' as 'mixer' | 'pump' | 'other', // خلاطة / بامب / أخرى
+  // ── ERP dispatch board (live trips — primary list) ──────────────────────────
+  const [liveTrips, setLiveTrips] = useState<LiveTrip[]>([]);
+  const [boardSummary, setBoardSummary] = useState<BoardSummary | null>(null);
+  const [boardAlerts, setBoardAlerts] = useState<BoardAlert[]>([]);
+  const [erpOrders, setErpOrders] = useState<ErpOrder[]>([]);
+  const [fleetList, setFleetList] = useState<FleetVehicle[]>([]);
+  const [driverOptions, setDriverOptions] = useState<HrDriver[]>([]);
+  const [mixOptions, setMixOptions] = useState<MixDesign[]>([]);
+  const [boardLoading, setBoardLoading] = useState(false);
+  const [boardError, setBoardError] = useState('');
+  // ── ERP dispatch form (POST /api/dispatch — CreateTripSchema) ───────────────
+  const [tripForm, setTripForm] = useState({
+    orderId: '', vehicleId: '', driverId: '', loadedVolumeM3: '8',
+    mixDesignId: '', pumpVehicleId: '', ambientTempC: '25', ambientHumidityPct: '50',
   });
+  const [tripSubmitting, setTripSubmitting] = useState(false);
+  const [tripMsg, setTripMsg] = useState('');
+
+  const loadBoard = async () => {
+    setBoardLoading(true);
+    setBoardError('');
+    try {
+      const [board, ordersRes, fleetRes, empRes, mixes] = await Promise.all([
+        api.get<BoardResponse>('/api/dispatch/board').catch(() => null),
+        api.get<{ orders: ErpOrder[] }>('/api/orders?limit=100').catch(() => ({ orders: [] })),
+        api.get<{ vehicles: FleetVehicle[] }>('/api/fleet').catch(() => ({ vehicles: [] })),
+        api.get<{ employees: HrDriver[] }>('/api/hr/employees').catch(() => ({ employees: [] })),
+        api.get<MixDesign[]>('/api/mix-designs').catch(() => [] as MixDesign[]),
+      ]);
+      if (board) {
+        setBoardSummary(board.summary);
+        setLiveTrips(Array.isArray(board.trips) ? board.trips : []);
+        setBoardAlerts(Array.isArray(board.alerts) ? board.alerts : []);
+      } else {
+        setBoardError('تعذر تحميل لوحة الإرسال المباشرة — تحقق من الاتصال والصلاحيات.');
+      }
+      setErpOrders(Array.isArray(ordersRes.orders) ? ordersRes.orders : []);
+      setFleetList(Array.isArray(fleetRes.vehicles) ? fleetRes.vehicles : []);
+      // Driver select: payroll roster filtered to login-linked rows (userId set)
+      setDriverOptions(Array.isArray(empRes.employees) ? empRes.employees.filter(e => e && e.userId) : []);
+      setMixOptions(Array.isArray(mixes) ? mixes : []);
+    } catch (e) {
+      setBoardError(e instanceof Error ? e.message : 'Failed to load dispatch board');
+    } finally {
+      setBoardLoading(false);
+    }
+  };
+
+  useEffect(() => { void loadBoard(); }, []);
   const [reportPlant, setReportPlant] = useState('ALL');
   const [reportFrom, setReportFrom] = useState('');
   const [reportTo, setReportTo] = useState('');
@@ -261,72 +327,66 @@ export default function Operations() {
     saveTrips(currentUser.username, trips).catch(() => {});
   }, [trips, currentUser?.username, tripsLoaded]);
 
-  const resetForm = () => {
-    const today = new Date().toISOString().split('T')[0];
-    setForm({ plant: 'PLANT-A', date: today, code: '', driver: '', qty: '10', pump: 'p01', estTime: '40', stationArr: '', stationDep: '', siteArr: '', siteDep: '', siteName: '', projectName: '', status: 'COMPLETED', siteGeo: '', nextSiteGeo: '', skipWash: false, pumpDepartureTime: '', pumpArrivalTime: '', pourStartTime: '', delayReason: 'ready', delayDetails: '', equipmentType: 'mixer' });
-  };
-
-  const openAdd = () => { resetForm(); setEditId(null); setShowAdd(true); };
-  const openEdit = (t: Trip) => {
-    setEditId(t.id);
-    setForm({ plant: t.plant, date: t.date, code: t.code, driver: t.driver, qty: String(t.qty), pump: t.pump, estTime: String(t.estTime), stationArr: t.stationArr, stationDep: t.stationDep, siteArr: t.siteArr, siteDep: t.siteDep, siteName: t.siteName, projectName: t.projectName, status: t.status, siteGeo: t.siteGeo || '', nextSiteGeo: t.nextSiteGeo || '', skipWash: false, pumpDepartureTime: t.pumpDepartureTime || '', pumpArrivalTime: t.pumpArrivalTime || '', pourStartTime: t.pourStartTime || '', delayReason: t.delayReason || 'ready', delayDetails: t.delayDetails || '', equipmentType: 'mixer' });
+  const openAdd = () => {
+    setTripForm({
+      orderId: '', vehicleId: '', driverId: '', loadedVolumeM3: '8',
+      mixDesignId: mixOptions.length === 1 ? mixOptions[0].id : '',
+      pumpVehicleId: '', ambientTempC: '25', ambientHumidityPct: '50',
+    });
+    setTripMsg('');
     setShowAdd(true);
   };
 
-
-  const deleteTrip = (id: number) => {
-    if (confirm('Remove this trip?')) setTrips(prev => prev.filter(t => t.id !== id));
+  // Auto-resolve the order's mix design (match by designCode) when an order is picked
+  const handleOrderChange = (orderId: string) => {
+    const o = erpOrders.find(x => x.id === orderId);
+    const match = o ? mixOptions.find(m => m.designCode === o.designCode) : undefined;
+    setTripForm(f => ({ ...f, orderId, mixDesignId: match ? match.id : f.mixDesignId }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  // ── Create a live ERP trip (POST /api/dispatch — CreateTripSchema) ───────────
+  const handleDispatchSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    // حساب الكمية التراكمية للمضخة في نفس الموقع
-    let consecutiveQty = Number(form.qty) || 0;
-    if (form.pump && form.siteName && form.date) {
-      const existingQty = getConsecutiveQty(trips, form.pump, form.siteName, form.date);
-      consecutiveQty = existingQty + (Number(form.qty) || 0);
+    setTripMsg('');
+    if (!tripForm.orderId || !tripForm.vehicleId || !tripForm.driverId || !tripForm.mixDesignId) {
+      setTripMsg('أكمل الحقول المطلوبة: الطلب المعتمد / الخلاطة / السائق / الخلطة');
+      return;
     }
-    
-    // تحديد إذا كان هناك تأخير
-    let delayReason = form.delayReason;
-    let delayDetails = form.delayDetails;
-    
-    // إذا كان pumpArrivalTime و pourStartTime موجودين، نحسب وقت الانتظار
-    let waitingTime = 0;
-    if (form.pumpArrivalTime && form.pourStartTime && form.pumpArrivalTime !== '00:00' && form.pourStartTime !== '00:00') {
-      const arrTime = form.pumpArrivalTime.split(':');
-      const pourTime = form.pourStartTime.split(':');
-      const arrMinutes = parseInt(arrTime[0]) * 60 + parseInt(arrTime[1]);
-      const pourMinutes = parseInt(pourTime[0]) * 60 + parseInt(pourTime[1]);
-      waitingTime = pourMinutes - arrMinutes;
-      
-      // إذا كان وقت الانتظار أكثر من 30 دقيقة، نحسب سبب التأخير
-      if (waitingTime > 30 && delayReason === 'ready') {
-        delayReason = 'site_not_ready';
-      }
+    setTripSubmitting(true);
+    try {
+      const res = await api.post<{ tripNumber?: string }>('/api/dispatch', {
+        orderId: tripForm.orderId,
+        vehicleId: tripForm.vehicleId,
+        driverId: tripForm.driverId,
+        loadedVolumeM3: Number(tripForm.loadedVolumeM3) || 0,
+        mixDesignId: tripForm.mixDesignId,
+        ...(tripForm.pumpVehicleId ? { pumpVehicleId: tripForm.pumpVehicleId } : {}),
+        ambientTempC: Number(tripForm.ambientTempC) || 25,
+        ambientHumidityPct: Number(tripForm.ambientHumidityPct) || 50,
+      });
+      setTripMsg(`تم إنشاء الرحلة ${res?.tripNumber || ''} بنجاح ✅`);
+      await loadBoard();
+      setShowAdd(false);
+    } catch (err) {
+      setTripMsg(err instanceof Error ? err.message : 'فشل إنشاء الرحلة');
+    } finally {
+      setTripSubmitting(false);
     }
-    
-    const newTrip: Trip = {
-      id: editId || Date.now(), plant: form.plant, date: form.date, code: form.code, driver: form.driver,
-      qty: Number(form.qty) || 0, pump: form.pump || '--', estTime: Number(form.estTime) || 40,
-      stationArr: form.stationArr || '00:00', stationDep: form.stationDep || '00:00',
-      siteArr: form.siteArr || '00:00', siteDep: form.siteDep || '00:00',
-      siteName: form.siteName || '--', projectName: form.projectName || '--', status: form.status,
-      siteGeo: form.siteGeo || undefined,
-      nextSiteGeo: form.nextSiteGeo || undefined,
-      consecutiveQty: consecutiveQty,
-      // أوقات البامب الجديدة
-      pumpDepartureTime: form.pumpDepartureTime || undefined,
-      pumpArrivalTime: form.pumpArrivalTime || undefined,
-      pourStartTime: form.pourStartTime || undefined,
-      delayReason: delayReason as 'ready' | 'site_not_ready' | 'breakdown' | 'emergency' | 'other' | undefined,
-      delayDetails: delayDetails,
-    };
-    if (editId) setTrips(prev => prev.map(t => t.id === editId ? newTrip : t));
-    else setTrips(prev => [...prev, newTrip]);
-    setShowAdd(false);
   };
+
+  // ── ERP dispatch select options ──────────────────────────────────────────────
+  const approvedErpOrders = (() => {
+    const approved = erpOrders.filter(o => o.status === 'APPROVED');
+    return approved.length > 0 ? approved : erpOrders;
+  })();
+  const mixerVehicles = (() => {
+    const mixers = fleetList.filter(v => v.vehicleType === 'MIXER_TRUCK' || v.vehicleType === 'TRANSIT_MIXER');
+    return mixers.length > 0 ? mixers : fleetList;
+  })();
+  const pumpVehicles = fleetList.filter(v => v.vehicleType === 'CONCRETE_PUMP');
+  const q = search.toLowerCase();
+  const liveFiltered = liveTrips.filter(t =>
+    (t.number + ' ' + t.vehicle + ' ' + t.driver + ' ' + (t.orderNumber || '')).toLowerCase().includes(q));
 
   const filtered = trips.filter(t => t.code.toLowerCase().includes(search.toLowerCase()));
 
@@ -386,7 +446,7 @@ export default function Operations() {
           const pad = (n: number) => String(n).padStart(2, '0');
           const nowTime = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
           const newTrip: Trip = {
-            id: Date.now(), plant: form.plant, date: now.toISOString().split('T')[0], code: prev.truck,
+            id: Date.now(), plant: 'PLANT-A', date: now.toISOString().split('T')[0], code: prev.truck,
             driver: 'Auto-Dispatch', qty, pump: '--', estTime: 40,
             stationArr: nowTime, stationDep: nowTime, siteArr: '', siteDep: '',
             siteName: '—', projectName: 'Auto-Batch', status: 'TRANSIT',
@@ -507,6 +567,61 @@ export default function Operations() {
             <DriverLiveBroadcast />
           </div>
         )}
+        {/* ── Live ERP dispatch board — primary trips list (GET /api/dispatch/board) ── */}
+        <div className="mb-8">
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+            <h2 className="text-base font-bold text-white">🚚 رحلات التشغيل المباشرة <span className="text-[10px] font-normal text-emerald-400 border border-emerald-500/40 rounded px-1.5 py-0.5">ERP LIVE</span></h2>
+            <button onClick={() => void loadBoard()} disabled={boardLoading} className="bg-white/[0.06] hover:bg-white/[0.1] text-white text-xs px-3 py-1.5 rounded-lg font-bold border border-white/10 disabled:opacity-50">
+              {boardLoading ? '⏳ جاري التحديث...' : '🔄 تحديث اللوحة'}
+            </button>
+          </div>
+          {boardSummary && (
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-2 mb-3">
+              {[
+                { label: 'رحلات نشطة', value: String(boardSummary.activeTrips) },
+                { label: 'م³ غير مغطاة', value: `${boardSummary.uncoveredM3}` },
+                { label: 'معدات متاحة', value: String(boardSummary.idleVehicles) },
+                { label: 'رحلات متعثرة', value: String(boardSummary.stalledTrips) },
+                { label: 'تنبيهات حرجة', value: String(boardSummary.criticalAlerts) },
+              ].map(k => (
+                <div key={k.label} className="bg-white/[0.04] rounded-lg p-2.5 text-center border border-white/10">
+                  <p className="text-[10px] text-slate-400">{k.label}</p><p className="text-lg font-bold text-white">{k.value}</p>
+                </div>
+              ))}
+            </div>
+          )}
+          {boardAlerts.filter(a => a.severity === 'critical').slice(0, 3).map(a => (
+            <p key={a.code + (a.ref || '')} className="text-xs text-red-300 bg-red-500/10 border border-red-500/30 rounded-lg px-3 py-2 mb-2">🚨 {a.messageAr}</p>
+          ))}
+          {boardError && <p className="text-xs text-yellow-300 bg-yellow-500/10 border border-yellow-500/30 rounded-lg px-3 py-2 mb-2">⚠️ {boardError}</p>}
+          {boardLoading && liveTrips.length === 0 ? (
+            <p className="text-slate-500 text-center py-10">⏳ جاري تحميل الرحلات المباشرة...</p>
+          ) : liveFiltered.length === 0 ? (
+            <p className="text-slate-500 text-center py-10">لا توجد رحلات نشطة على لوحة الإرسال.</p>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+              {liveFiltered.map(t => (
+                <div key={t.id} className={`bg-white/[0.04] border rounded-xl p-5 shadow-lg ${t.stalled ? 'border-red-500 bg-gradient-to-br from-red-950/70 to-red-900/40' : 'border-emerald-500/30'}`}>
+                  <div className="flex justify-between items-center mb-3">
+                    <span className="text-xs font-semibold uppercase tracking-wider bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded">{t.checkpointAr || t.checkpoint}</span>
+                    {t.stalled && <span className="text-[10px] font-bold bg-red-500/20 text-red-300 px-2 py-0.5 rounded">⚠️ متعثرة {t.minutesAtCheckpoint}د</span>}
+                  </div>
+                  <h3 className="text-xl font-bold text-white">{t.number} <span className="text-xs font-normal text-slate-400">· {t.vehicle}</span></h3>
+                  {t.orderNumber && <p className="text-[10px] font-bold text-sky-400 mt-0.5">🆔 {L('orderLabel')} {t.orderNumber}</p>}
+                  <div className="border-t border-white/10 pt-3 mt-3 space-y-1 text-sm text-slate-300">
+                    <p><span className="text-slate-500">Driver:</span> {t.driver}</p>
+                    <p><span className="text-slate-500">Load:</span> {t.loadedM3} m³{t.deliveredM3 > 0 ? ` | Delivered: ${t.deliveredM3} m³` : ''}</p>
+                    <p><span className="text-slate-500">Plate:</span> {t.plate} | <span className="text-slate-500">Status:</span> {t.vehicleStatus}</p>
+                    {t.ticket && <p><span className="text-slate-500">Ticket:</span> {t.ticket}</p>}
+                    {t.minutesAtCheckpoint !== null && <p className={`font-bold ${t.behind ? 'text-red-400' : 'text-green-400'}`}>⏱️ At checkpoint: {t.minutesAtCheckpoint}m (target {t.targetMinutes}m)</p>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+        {/* ── Archived local trips (localStorage/Firestore) — read-only, user data preserved ── */}
+        <h2 className="text-base font-bold text-slate-300 mb-3">📦 أرشيف الرحلات المحلية <span className="text-[10px] font-normal text-slate-500 border border-white/10 rounded px-1.5 py-0.5">READ-ONLY ARCHIVE</span></h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
           {filtered.length === 0 && <p className="text-slate-500 text-center col-span-full py-20">No trips recorded yet or matching your search.</p>}
           {filtered.map(t => {
@@ -525,8 +640,6 @@ export default function Operations() {
                         challan: t.challan || {},
                       })} title={L('deliveryDoc')} className="bg-sky-500 hover:bg-sky-600 text-white text-[11px] px-2 py-0.5 rounded font-bold">🧾</button>
                     )}
-                    <button onClick={() => openEdit(t)} className="bg-green-500 hover:bg-green-600 text-white text-[11px] px-2 py-0.5 rounded font-bold">✏️</button>
-                    <button onClick={() => deleteTrip(t.id)} className="bg-red-500 hover:bg-red-600 text-white text-[11px] px-2 py-0.5 rounded font-bold">🗑️</button>
                   </div>
                 </div>
                 <h3 className="text-xl font-bold text-white">{t.code}</h3>
@@ -600,145 +713,76 @@ export default function Operations() {
         <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-[#0B111E]/95 border border-white/10 rounded-2xl w-full max-w-xl p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-4 border-b border-white/10 pb-3">
-              <h2 className="text-lg font-bold text-white">{editId ? '✏️ Update Trip' : '➕ Log New Trip'}</h2>
+              <h2 className="text-lg font-bold text-white">➕ رحلة جديدة — إرسال ERP مباشر</h2>
               <button onClick={() => setShowAdd(false)} className="bg-red-500 hover:bg-red-600 text-white w-7 h-7 rounded-full font-bold text-sm">✕</button>
             </div>
-            <form onSubmit={handleSubmit} className="space-y-3">
+            <form onSubmit={handleDispatchSubmit} className="space-y-3">
+              <p className="text-xs text-slate-400">إنشاء رحلة مباشرة على نظام ERP المركزي (POST /api/dispatch) — تظهر فورًا في قائمة الرحلات المباشرة أعلاه.</p>
               <div>
-                <label className="text-xs text-sky-400 font-bold">Batch Plant</label>
-                <select value={form.plant} onChange={e => setForm({ ...form, plant: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none">
-                  <option value="PLANT-A">Plant A</option><option value="PLANT-B">Plant B</option>
+                <label className="text-xs text-sky-400 font-bold">الطلب المعتمد (Approved Order) *</label>
+                <select value={tripForm.orderId} onChange={e => handleOrderChange(e.target.value)} required className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none">
+                  <option value="">— اختر الطلب —</option>
+                  {approvedErpOrders.map(o => (
+                    <option key={o.id} value={o.id}>{o.orderNumber} · {o.companyName} · {o.siteName} · متبقي {Number(o.remainingVolumeM3)} م³ ({o.status})</option>
+                  ))}
                 </select>
               </div>
               <div className="grid grid-cols-2 gap-3">
-                <DatePicker value={form.date} onChange={val => setForm({ ...form, date: val })} label="Date" required />
-                <div><label className="text-xs text-slate-400 font-semibold">Truck Code</label><input value={form.code} onChange={e => setForm({ ...form, code: e.target.value })} placeholder="m01" className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none" required /></div>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div><label className="text-xs text-slate-400 font-semibold">Driver</label><input value={form.driver} onChange={e => setForm({ ...form, driver: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none" required /></div>
-                <div><label className="text-xs text-slate-400 font-semibold">Qty (m³)</label><input type="number" value={form.qty} onChange={e => setForm({ ...form, qty: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none" required /></div>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div><label className="text-xs text-slate-400 font-semibold">Pump Code</label><input value={form.pump} onChange={e => setForm({ ...form, pump: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none" /></div>
-                <div><label className="text-xs text-slate-400 font-semibold">Est Trip (mins)</label><input type="number" value={form.estTime} onChange={e => setForm({ ...form, estTime: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none" /></div>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div><label className="text-xs text-slate-400 font-semibold">Station Arrival</label><input type="time" value={form.stationArr} onChange={e => setForm({ ...form, stationArr: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none [color-scheme:dark]" /></div>
-                <div><label className="text-xs text-slate-400 font-semibold">Station Departure</label><input type="time" value={form.stationDep} onChange={e => setForm({ ...form, stationDep: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none [color-scheme:dark]" /></div>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div><label className="text-xs text-slate-400 font-semibold">Site Arrival</label><input type="time" value={form.siteArr} onChange={e => setForm({ ...form, siteArr: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none [color-scheme:dark]" /></div>
-                <div><label className="text-xs text-slate-400 font-semibold">Site Departure</label><input type="time" value={form.siteDep} onChange={e => setForm({ ...form, siteDep: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none [color-scheme:dark]" /></div>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div><label className="text-xs text-slate-400 font-semibold">Site Name</label><input value={form.siteName} onChange={e => setForm({ ...form, siteName: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none" /></div>
-                <div><label className="text-xs text-slate-400 font-semibold">Project Name</label><input value={form.projectName} onChange={e => setForm({ ...form, projectName: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none" /></div>
-              </div>
-              
-              {/* 🗺️ Site Coordinates */}
-              <div className="bg-sky-500/10 border border-sky-500/30 rounded-lg p-3 space-y-2">
-                <p className="text-xs text-sky-300 font-semibold">🗺️ Location Tracking</p>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-[10px] text-slate-400 font-semibold">Current Site Coordinates (lat,lng)</label>
-                    <input value={form.siteGeo} onChange={e => setForm({ ...form, siteGeo: e.target.value })} placeholder="26.4207, 50.0888" className="w-full bg-white/[0.04] border border-white/10 rounded p-2 text-white text-xs" />
-                  </div>
-                  <div>
-                    <label className="text-[10px] text-slate-400 font-semibold">Next Site Coordinates (lat,lng)</label>
-                    <input value={form.nextSiteGeo} onChange={e => setForm({ ...form, nextSiteGeo: e.target.value })} placeholder="26.4500, 50.1000" className="w-full bg-white/[0.04] border border-white/10 rounded p-2 text-white text-xs" />
-                  </div>
-                </div>
-                {form.nextSiteGeo && parseGeo(form.nextSiteGeo) && (
-                  <button type="button" onClick={() => {
-                    const current = parseGeo(form.siteGeo);
-                    const next = parseGeo(form.nextSiteGeo);
-                    if (current && next) {
-                      const dist = calculateDistance(current.lat, current.lng, next.lat, next.lng);
-                      alert(`📏 Distance to next site: ${dist.toFixed(2)} km`);
-                    }
-                  }} className="w-full bg-sky-500 hover:bg-sky-400 text-white text-xs py-1.5 rounded font-bold">📍 Calculate Distance</button>
-                )}
-              </div>
-              
-              {/* 🚛 Pump Movement Control */}
-              {form.pump && form.siteName && form.date && (() => {
-                const consecutiveQty = getConsecutiveQty(trips, form.pump, form.siteName, form.date) + (Number(form.qty) || 0);
-                const needsWash = consecutiveQty > 200;
-                return (
-                  <div className={`border rounded-lg p-3 space-y-2 ${needsWash ? 'bg-red-900/20 border-red-500/50' : 'bg-green-900/20 border-green-500/50'}`}>
-                    <div className="flex items-center justify-between">
-                      <p className={`text-sm font-bold ${needsWash ? 'text-red-300' : 'text-green-300'}`}>
-                        🚛 Pump {form.pump} @ {form.siteName}
-                      </p>
-                      <span className={`text-lg font-bold ${needsWash ? 'text-red-400' : 'text-green-400'}`}>
-                        {consecutiveQty.toFixed(1)} m³
-                      </span>
-                    </div>
-                    {needsWash ? (
-                      <div className="space-y-2">
-                        <p className="text-xs text-red-200">⚠️ Exceeded 200m³ - Return to plant for wash before moving to next site</p>
-                        <div className="h-2 bg-red-950 rounded-full overflow-hidden">
-                          <div className="h-full bg-red-500 transition-all" style={{ width: `${Math.min(100, (consecutiveQty / 200) * 100)}%` }} />
-                        </div>
-                        <label className="flex items-center gap-2 text-xs text-red-300 cursor-pointer">
-                          <input type="checkbox" checked={form.skipWash} onChange={e => setForm({ ...form, skipWash: e.target.checked })} className="w-4 h-4" />
-                          <span>Skip wash (move to nearest site without returning)</span>
-                        </label>
-                      </div>
-                    ) : (
-                      <div className="space-y-1">
-                        <p className="text-xs text-green-200">✅ Within 200m³ - Can move to nearest site without wash</p>
-                        <div className="h-2 bg-green-950 rounded-full overflow-hidden">
-                          <div className="h-full bg-green-500 transition-all" style={{ width: `${(consecutiveQty / 200) * 100}%` }} />
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                );
-              })()}
-              
-              {/* أوقات البامب */}
-              <div className="bg-orange-900/20 border border-orange-500/30 rounded-lg p-3 space-y-2">
-                <p className="text-xs text-orange-300 font-semibold">🚰 Pump Timing & Delays</p>
-                <div className="grid grid-cols-3 gap-2">
-                  <div>
-                    <label className="text-[10px] text-slate-400 font-semibold">Pump Departure</label>
-                    <input type="time" value={form.pumpDepartureTime} onChange={e => setForm({ ...form, pumpDepartureTime: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded p-1.5 text-white text-xs [color-scheme:dark]" />
-                  </div>
-                  <div>
-                    <label className="text-[10px] text-slate-400 font-semibold">Pump Arrival</label>
-                    <input type="time" value={form.pumpArrivalTime} onChange={e => setForm({ ...form, pumpArrivalTime: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded p-1.5 text-white text-xs [color-scheme:dark]" />
-                  </div>
-                  <div>
-                    <label className="text-[10px] text-slate-400 font-semibold">Pour Start</label>
-                    <input type="time" value={form.pourStartTime} onChange={e => setForm({ ...form, pourStartTime: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded p-1.5 text-white text-xs [color-scheme:dark]" />
-                  </div>
-                </div>
                 <div>
-                  <label className="text-[10px] text-slate-400 font-semibold">Delay Reason</label>
-                  <select value={form.delayReason} onChange={e => setForm({ ...form, delayReason: e.target.value as any })} className="w-full bg-white/[0.04] border border-white/10 rounded p-1.5 text-white text-xs">
-                    <option value="ready">✅ On Time / No Delay</option>
-                    <option value="site_not_ready">🏗️ Site Not Ready</option>
-                    <option value="breakdown">🔧 Breakdown</option>
-                    <option value="emergency">🚨 Emergency</option>
-                    <option value="other">📝 Other</option>
+                  <label className="text-xs text-slate-400 font-semibold">الخلاطة (Vehicle) *</label>
+                  <select value={tripForm.vehicleId} onChange={e => setTripForm({ ...tripForm, vehicleId: e.target.value })} required className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none">
+                    <option value="">— اختر الخلاطة —</option>
+                    {mixerVehicles.map(v => (
+                      <option key={v.id} value={v.id}>{v.vehicleCode} · {v.plateNumber} ({v.currentStatus}{v.drumCapacityM3 ? ` · ${v.drumCapacityM3}م³` : ''})</option>
+                    ))}
                   </select>
                 </div>
-                {form.delayReason !== 'ready' && (
-                  <div>
-                    <label className="text-[10px] text-slate-400 font-semibold">Delay Details</label>
-                    <input type="text" value={form.delayDetails} onChange={e => setForm({ ...form, delayDetails: e.target.value })} placeholder="Describe the delay..." className="w-full bg-white/[0.04] border border-white/10 rounded p-1.5 text-white text-xs" />
-                  </div>
-                )}
+                <div>
+                  <label className="text-xs text-slate-400 font-semibold">السائق (مربوط بحساب دخول) *</label>
+                  <select value={tripForm.driverId} onChange={e => setTripForm({ ...tripForm, driverId: e.target.value })} required className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none">
+                    <option value="">— اختر السائق —</option>
+                    {driverOptions.map(d => (
+                      <option key={d.userId || d.id} value={d.userId || ''}>{d.fullName} · {d.employeeCode}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
-              
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-slate-400 font-semibold">الخلطة (Mix Design) *</label>
+                  <select value={tripForm.mixDesignId} onChange={e => setTripForm({ ...tripForm, mixDesignId: e.target.value })} required className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none">
+                    <option value="">— اختر الخلطة —</option>
+                    {mixOptions.map(m => (
+                      <option key={m.id} value={m.id}>{m.designCode} · {m.gradeDescription}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs text-slate-400 font-semibold">الحمولة (م³) — بحد أقصى 20 *</label>
+                  <input type="number" min="0.5" max="20" step="0.5" value={tripForm.loadedVolumeM3} onChange={e => setTripForm({ ...tripForm, loadedVolumeM3: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none" required />
+                </div>
+              </div>
               <div>
-                <label className="text-xs text-slate-400 font-semibold">Status</label>
-                <select value={form.status} onChange={e => setForm({ ...form, status: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none">
-                  <option value="COMPLETED">Completed ✅</option><option value="TRANSIT">In Transit 🚚</option><option value="UNLOADING">Unloading 🏗️</option><option value="PLANT">At Plant 🏭</option>
+                <label className="text-xs text-slate-400 font-semibold">مضخة مرافقة (اختياري)</label>
+                <select value={tripForm.pumpVehicleId} onChange={e => setTripForm({ ...tripForm, pumpVehicleId: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none">
+                  <option value="">— بدون مضخة —</option>
+                  {pumpVehicles.map(v => (
+                    <option key={v.id} value={v.id}>{v.vehicleCode} · {v.plateNumber} ({v.currentStatus})</option>
+                  ))}
                 </select>
               </div>
-              <button type="submit" className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3 rounded-lg transition shadow-[0_0_20px_rgba(56,189,248,0.3)]">💾 Save Trip</button>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-slate-400 font-semibold">حرارة الجو (°C)</label>
+                  <input type="number" min="-10" max="60" value={tripForm.ambientTempC} onChange={e => setTripForm({ ...tripForm, ambientTempC: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none" />
+                </div>
+                <div>
+                  <label className="text-xs text-slate-400 font-semibold">رطوبة الجو (%)</label>
+                  <input type="number" min="0" max="100" value={tripForm.ambientHumidityPct} onChange={e => setTripForm({ ...tripForm, ambientHumidityPct: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none" />
+                </div>
+              </div>
+              {tripMsg && <p className="text-xs text-center font-bold text-yellow-300 bg-yellow-500/10 border border-yellow-500/30 rounded-lg px-3 py-2">{tripMsg}</p>}
+              <button type="submit" disabled={tripSubmitting} className="w-full bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white font-bold py-3 rounded-lg transition shadow-[0_0_20px_rgba(56,189,248,0.3)]">{tripSubmitting ? '⏳ جاري الإرسال...' : '🚀 إرسال الخلاطة'}</button>
             </form>
           </div>
         </div>

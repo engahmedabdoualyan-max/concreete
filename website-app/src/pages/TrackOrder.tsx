@@ -142,7 +142,7 @@ export default function TrackOrder() {
         )}
 
         {data?.scope === 'ORDER' && <OrderView data={data} />}
-        {data?.scope === 'CLIENT' && <ClientView data={data} />}
+        {data?.scope === 'CLIENT' && <ClientView data={data} token={token!} />}
       </main>
     </div>
   );
@@ -245,11 +245,17 @@ function OrderView({ data }: { data: OrderPortal }) {
           {trips.length === 0 && <p className="text-sm text-slate-500 text-center py-4">لا توجد رحلات بعد لهذا الطلب.</p>}
         </div>
       </div>
+
+      {/* This ORDER token is read-only by design — requests need a CLIENT link */}
+      <div className="bg-white/[0.04] border border-white/10 rounded-2xl p-6 backdrop-blur-xl">
+        <h3 className="font-bold text-white mb-2">📩 طلب تعديل / إلغاء</h3>
+        <p className="text-xs text-slate-400">رابط التتبع هذا للعرض فقط. لطلب تعديل أو إلغاء، اطلب <b className="text-slate-200">رابط العميل</b> الخاص بك من المورد ثم قدّم طلبك من هناك.</p>
+      </div>
     </div>
   );
 }
 
-function ClientView({ data }: { data: ClientPortal }) {
+function ClientView({ data, token }: { data: ClientPortal; token: string }) {
   const { client, summary, statements } = data;
   return (
     <div className="space-y-5">
@@ -292,6 +298,79 @@ function ClientView({ data }: { data: ClientPortal }) {
           {statements.length === 0 && <p className="text-sm text-slate-500 text-center py-4">لا توجد طلبات بعد.</p>}
         </div>
       </div>
+
+      <RequestForm token={token} statements={statements} />
+    </div>
+  );
+}
+
+/**
+ * Customer self-service request (POST /api/public/portal/[token]/request).
+ * Never mutates an order — staff approve from a queue. CLIENT-scope only.
+ * The free-text callback (name + phone + message) is sent inside `note`
+ * because the route only accepts { type, orderId, note } (+ NEW_ORDER refs).
+ */
+function RequestForm({ token, statements }: {
+  token: string;
+  statements: ClientPortal['statements'];
+}) {
+  const [type, setType] = useState<'AMENDMENT' | 'CANCELLATION'>('AMENDMENT');
+  const [orderId, setOrderId] = useState(statements[0]?.orderId ?? '');
+  const [name, setName] = useState('');
+  const [phone, setPhone] = useState('');
+  const [message, setMessage] = useState('');
+  const [result, setResult] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const inputCls = 'w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm placeholder:text-slate-500';
+
+  const submit = async () => {
+    if (!orderId) { setResult('⚠️ اختر الطلب أولاً.'); return; }
+    if (!message.trim()) { setResult('⚠️ اكتب رسالتك أولاً.'); return; }
+    setBusy(true);
+    setResult('');
+    try {
+      const r = await fetch(`${resolveApiBase()}/api/public/portal/${encodeURIComponent(token)}/request`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type,
+          orderId,
+          note: `${name.trim()}${phone.trim() ? ` (${phone.trim()})` : ''}: ${message.trim()}`.slice(0, 1000),
+        }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || j.success === false) throw new Error(j.message || j.errorCode || 'تعذر إرسال الطلب');
+      setResult(`✅ ${j.data?.message ?? 'تم استلام طلبك.'}`);
+      setMessage('');
+    } catch (e: any) {
+      setResult(`⚠️ ${e?.message || 'تعذر إرسال الطلب.'}`);
+    }
+    setBusy(false);
+  };
+
+  return (
+    <div className="bg-white/[0.04] border border-white/10 rounded-2xl p-6 backdrop-blur-xl">
+      <h3 className="font-bold text-white mb-4">📩 طلب تعديل / إلغاء — معاودة الاتصال</h3>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <select value={type} onChange={e => setType(e.target.value as 'AMENDMENT' | 'CANCELLATION')} className={`${inputCls} [color-scheme:dark]`}>
+          <option value="AMENDMENT">✏️ طلب تعديل</option>
+          <option value="CANCELLATION">❌ طلب إلغاء</option>
+        </select>
+        <select value={orderId} onChange={e => setOrderId(e.target.value)} className={`${inputCls} [color-scheme:dark]`}>
+          <option value="">— اختر الطلب —</option>
+          {statements.map(s => (
+            <option key={s.orderId} value={s.orderId}>{s.orderNumber} • {s.siteName}</option>
+          ))}
+        </select>
+        <input value={name} onChange={e => setName(e.target.value)} placeholder="الاسم" className={inputCls} />
+        <input value={phone} onChange={e => setPhone(e.target.value)} placeholder="الهاتف" className={inputCls} dir="ltr" />
+        <textarea value={message} onChange={e => setMessage(e.target.value)} placeholder="رسالتك..." rows={3} className={`${inputCls} md:col-span-2`} />
+      </div>
+      <button onClick={submit} disabled={busy} className="mt-3 w-full bg-sky-500 hover:bg-sky-400 disabled:opacity-50 text-white font-bold py-2.5 rounded-lg">
+        📩 إرسال الطلب
+      </button>
+      {result && <p className="text-sm font-bold mt-3">{result}</p>}
     </div>
   );
 }

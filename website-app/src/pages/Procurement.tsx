@@ -472,7 +472,10 @@ export default function Procurement() {
                     </div>
                     <button disabled={busy === 'recv'} onClick={() => act(async () => {
                       if (!recvForm.itemCode.trim() || !recvForm.qty.trim()) throw new Error(ar ? 'الكود والكمية مطلوبة' : 'required');
-                      await api.post(`/api/procure/requests/${sel.id}/receive`, {});
+                      await api.post(`/api/procure/requests/${sel.id}/receive`, {
+                        itemCode: recvForm.itemCode.trim(),
+                        qty: Number(recvForm.qty),
+                      });
                     }, ar ? 'تم الاستلام' : 'Received', 'recv')}
                       className="w-full text-[11px] font-black rounded-lg px-2 py-2 border border-sky-500/50 bg-sky-500/15 text-sky-300 disabled:opacity-50">
                       {busy === 'recv' ? '…' : (ar ? 'تأكيد الاستلام بالمخزن' : 'Confirm receipt')}

@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useWorkshopDict } from '../i18n/workshopDict';
-import { loadAssets, saveAssets, loadWorkshopConfig, saveWorkshopConfig, loadFuelLogs, saveFuelLogs, loadOilLogs, saveOilLogs, loadSparePartLogs, saveSparePartLogs, loadBreakdowns, saveBreakdowns, loadWarehouse, saveWarehouse, loadPurchaseReqs, savePurchaseReqs, loadStations, saveStations, loadPeriodicMaints, savePeriodicMaints } from '../firebase/firestore';
 import { api } from '../api/client';
 import QuickJump from '../components/QuickJump';
 import LangSelector from '../components/LangSelector';
@@ -44,6 +43,58 @@ const DEF_CONFIG = { stationName: 'Model Plant', globalBudget: '50000', maintBud
 
 function loadLocal<T>(key: string, def: T): T { try { const s = localStorage.getItem(key); return s ? JSON.parse(s) : def; } catch { return def; } }
 
+// ======================= ERP MAPPERS =======================
+// Backend shapes (verified against src/app/api):
+// - GET /api/fleet → fleetVehicles rows (vehicleCode, plateNumber, vehicleType,
+//   currentStatus, driverName, odometreKm, ...)
+// - GET /api/workshop → { openWorkOrders, fleetHealth, workshopVehicles, ... }
+// - GET /api/workshop/fuel → { fuelLogs } (litresAdded, odometreKm,
+//   totalFuelCostSar in cents, vehicleCode)
+function mapFleetToAssets(rows: any[]): Asset[] {
+  return rows.map((v: any) => ({
+    id: String(v.vehicleCode ?? v.id),
+    plate: String(v.plateNumber ?? ''),
+    chassis: '',
+    type: String(v.vehicleType ?? 'Mixer'),
+    status: v.currentStatus === 'IN_WORKSHOP' || v.currentStatus === 'MAJOR_BREAKDOWN' ? 'Workshop' : 'Ready',
+    driver: String(v.driverName ?? ''),
+    initOdo: Number(v.odometreKm ?? 0) || 0,
+    engHours: 0,
+    regExpiry: '',
+    insExpiry: v.insuranceExpiresAt ? String(v.insuranceExpiresAt).slice(0, 10) : '',
+    opcardExpiry: '',
+    authExpiry: '',
+    gpsId: '',
+    tare: v.tareWeightTonnes != null ? String(v.tareWeightTonnes) : '',
+    gross: '',
+    model: v.model ?? '',
+    year: v.year != null ? String(v.year) : '',
+    manufacturer: v.make ?? '',
+  }));
+}
+
+function mapFuelLog(log: any, i: number): FuelLog {
+  const liters = Number(log.litresAdded ?? 0) || 0;
+  const totalCents = Number(log.totalFuelCostSar ?? 0) || 0;
+  const ts = Date.parse(log.loggedAt ?? '') || (Date.now() + i);
+  return {
+    id: ts,
+    date: log.loggedAt ? String(log.loggedAt).slice(0, 10) : '',
+    assetId: String(log.vehicleCode ?? ''),
+    odoReading: Number(log.odometreKm ?? 0) || 0,
+    liters,
+    costPerLiter: liters > 0 ? (totalCents / 100) / liters : 0,
+    totalCost: totalCents / 100,
+    fuelType: 'Diesel',
+    station: String(log.fuelStationName ?? ''),
+    invoice: String(log.receiptNumber ?? ''),
+    notes: String(log.anomalyNotes ?? log.notes ?? ''),
+  };
+}
+
+const BD_SEVERITY_TO_ERP: Record<string, 'CRITICAL' | 'HIGH' | 'LOW'> = { Critical: 'CRITICAL', Major: 'HIGH', Minor: 'LOW' };
+const BD_SEVERITY_TO_PRIORITY: Record<string, number> = { Critical: 1, Major: 2, Minor: 4 };
+
 export default function Workshop() {
   const { currentUser, logout } = useAuth();
   const navigate = useNavigate();
@@ -51,7 +102,7 @@ export default function Workshop() {
   const [tab, setTab] = useState<Tab>('home');
   const [assets, setAssets] = useState<Asset[]>(DEF_ASSETS);
   const [config, setConfig] = useState(DEF_CONFIG);
-  const [fuelLogs, setFuelLogs] = useState<FuelLog[]>(() => loadLocal('ws_fuel', []));
+  const [fuelLogs, setFuelLogs] = useState<FuelLog[]>([]);
   const [oilLogs, setOilLogs] = useState<OilLog[]>(() => loadLocal('ws_oil', []));
   const [sparePartLogs, setSparePartLogs] = useState<SparePartLog[]>(() => loadLocal('ws_parts', []));
   const [breakdowns, setBreakdowns] = useState<BreakdownReport[]>(() => loadLocal('ws_breakdowns', []));
@@ -68,6 +119,10 @@ export default function Workshop() {
   ]));
   const [loaded, setLoaded] = useState(false);
   const [driverReports, setDriverReports] = useState<any[]>([]);
+  // ERP fleet UUID lookup by vehicleCode (needed for POST /api/workshop/fuel
+  // and POST /api/workshop, which require vehicleId UUIDs)
+  const [fleetIds, setFleetIds] = useState<Record<string, string>>({});
+  const [closingWO, setClosingWO] = useState<string | null>(null);
 
   // Forms
   const [assetForm, setAssetForm] = useState({ id: '', plate: '', chassis: '', type: 'Mixer', status: 'Ready', driver: '', initOdo: '', engHours: '', regExpiry: '', insExpiry: '', opcardExpiry: '', authExpiry: '', gpsId: '', tare: '', gross: '' });
@@ -100,51 +155,47 @@ export default function Workshop() {
   const [pmForm, setPmForm] = useState({ stationId: 0, date: new Date().toISOString().split('T')[0], taskType: 'Greasing' as PeriodicMaint['taskType'], description: '', technician: '', nextDue: '', status: 'Scheduled' as PeriodicMaint['status'], cost: '', notes: '' });
   const [editingPmId, setEditingPmId] = useState<number|null>(null);
 
-  // Load Firebase (assets + config + all workshop operational data)
-  useEffect(() => {
-    if (!currentUser) return;
-    Promise.all([
-      loadAssets(currentUser.username),
-      loadWorkshopConfig(currentUser.username),
-      loadFuelLogs(currentUser.username),
-      loadOilLogs(currentUser.username),
-      loadSparePartLogs(currentUser.username),
-      loadBreakdowns(currentUser.username),
-      loadWarehouse(currentUser.username),
-      loadPurchaseReqs(currentUser.username),
-      loadStations(currentUser.username),
-      loadPeriodicMaints(currentUser.username),
-    ]).then(([a, c, fuel, oil, parts, bd, wh, pr, st, pm]) => {
-      if (a?.length) setAssets(a);
-      if (c) setConfig(c);
-      if (Array.isArray(fuel) && fuel.length) setFuelLogs(fuel);
-      if (Array.isArray(oil) && oil.length) setOilLogs(oil);
-      if (Array.isArray(parts) && parts.length) setSparePartLogs(parts);
-      if (Array.isArray(bd) && bd.length) setBreakdowns(bd);
-      if (Array.isArray(wh) && wh.length) setWarehouse(wh);
-      if (Array.isArray(pr) && pr.length) setPurchaseReqs(pr);
-      if (Array.isArray(st) && st.length) setStations(st);
-      if (Array.isArray(pm) && pm.length) setPeriodicMaints(pm);
-      setLoaded(true);
-    }).catch(() => setLoaded(true));
-  }, [currentUser?.username]);
-
-  // Load ERP workshop data → driver-submitted breakdown reports (work orders)
+  // Load ERP data: fleet register (vehicle dropdowns + asset overview),
+  // workshop work orders (driver breakdown reports), fuel logs.
+  // Sections with no backend endpoint (oil, spare parts, warehouse, purchase
+  // requests, mixing stations, periodic maintenance, local breakdown notes,
+  // factory config) stay in localStorage — see mirror effects below.
   useEffect(() => {
     let cancelled = false;
-    api.get<any>('/api/workshop').then((d) => { if (!cancelled && d?.openWorkOrders) setDriverReports(d.openWorkOrders); }).catch(() => {});
+    (async () => {
+      try {
+        const f = await api.get<any>('/api/fleet');
+        const rows = Array.isArray(f) ? f : (f?.vehicles ?? []);
+        if (!cancelled && Array.isArray(rows) && rows.length) {
+          setAssets(mapFleetToAssets(rows));
+          const ids: Record<string, string> = {};
+          rows.forEach((v: any) => { if (v?.vehicleCode && v?.id) ids[String(v.vehicleCode)] = String(v.id); });
+          setFleetIds(ids);
+        }
+      } catch { /* offline — keep defaults / local cache */ }
+      try {
+        const d = await api.get<any>('/api/workshop');
+        if (!cancelled && d?.openWorkOrders) setDriverReports(d.openWorkOrders);
+      } catch { /* offline */ }
+      try {
+        const fl = await api.get<any>('/api/workshop/fuel');
+        const logs = Array.isArray(fl) ? fl : (fl?.fuelLogs ?? []);
+        if (!cancelled && Array.isArray(logs)) setFuelLogs(logs.map(mapFuelLog));
+      } catch { /* offline */ }
+      if (!cancelled) setLoaded(true);
+    })();
     return () => { cancelled = true; };
   }, []);
-  useEffect(() => { if (!loaded||!currentUser) return; localStorage.setItem('fms_assets_'+currentUser.plantName,JSON.stringify(assets)); saveAssets(currentUser.username, assets).catch(()=>{}); }, [assets,loaded]);
-  useEffect(() => { if (!loaded||!currentUser) return; localStorage.setItem('fms_cfg_'+currentUser.plantName,JSON.stringify(config)); saveWorkshopConfig(currentUser.username, config).catch(()=>{}); }, [config,loaded]);
-  useEffect(() => { if (!loaded) return; localStorage.setItem('ws_fuel', JSON.stringify(fuelLogs)); if (currentUser) saveFuelLogs(currentUser.username, fuelLogs).catch(()=>{}); }, [fuelLogs, loaded]);
-  useEffect(() => { if (!loaded) return; localStorage.setItem('ws_oil', JSON.stringify(oilLogs)); if (currentUser) saveOilLogs(currentUser.username, oilLogs).catch(()=>{}); }, [oilLogs, loaded]);
-  useEffect(() => { if (!loaded) return; localStorage.setItem('ws_parts', JSON.stringify(sparePartLogs)); if (currentUser) saveSparePartLogs(currentUser.username, sparePartLogs).catch(()=>{}); }, [sparePartLogs, loaded]);
-  useEffect(() => { if (!loaded) return; localStorage.setItem('ws_breakdowns', JSON.stringify(breakdowns)); if (currentUser) saveBreakdowns(currentUser.username, breakdowns).catch(()=>{}); }, [breakdowns, loaded]);
-  useEffect(() => { if (!loaded) return; localStorage.setItem('ws_warehouse', JSON.stringify(warehouse)); if (currentUser) saveWarehouse(currentUser.username, warehouse).catch(()=>{}); }, [warehouse, loaded]);
-  useEffect(() => { if (!loaded) return; localStorage.setItem('ws_purchreq', JSON.stringify(purchaseReqs)); if (currentUser) savePurchaseReqs(currentUser.username, purchaseReqs).catch(()=>{}); }, [purchaseReqs, loaded]);
-  useEffect(() => { if (!loaded) return; localStorage.setItem('ws_stations', JSON.stringify(stations)); if (currentUser) saveStations(currentUser.username, stations).catch(()=>{}); }, [stations, loaded]);
-  useEffect(() => { if (!loaded) return; localStorage.setItem('ws_maints', JSON.stringify(periodicMaints)); if (currentUser) savePeriodicMaints(currentUser.username, periodicMaints).catch(()=>{}); }, [periodicMaints, loaded]);
+  // Local-only mirrors (no backend endpoint for these sections yet)
+  useEffect(() => { if (!loaded||!currentUser) return; localStorage.setItem('fms_assets_'+currentUser.plantName,JSON.stringify(assets)); }, [assets,loaded]);
+  useEffect(() => { if (!loaded||!currentUser) return; localStorage.setItem('fms_cfg_'+currentUser.plantName,JSON.stringify(config)); }, [config,loaded]);
+  useEffect(() => { if (!loaded) return; localStorage.setItem('ws_oil', JSON.stringify(oilLogs)); }, [oilLogs, loaded]);
+  useEffect(() => { if (!loaded) return; localStorage.setItem('ws_parts', JSON.stringify(sparePartLogs)); }, [sparePartLogs, loaded]);
+  useEffect(() => { if (!loaded) return; localStorage.setItem('ws_breakdowns', JSON.stringify(breakdowns)); }, [breakdowns, loaded]);
+  useEffect(() => { if (!loaded) return; localStorage.setItem('ws_warehouse', JSON.stringify(warehouse)); }, [warehouse, loaded]);
+  useEffect(() => { if (!loaded) return; localStorage.setItem('ws_purchreq', JSON.stringify(purchaseReqs)); }, [purchaseReqs, loaded]);
+  useEffect(() => { if (!loaded) return; localStorage.setItem('ws_stations', JSON.stringify(stations)); }, [stations, loaded]);
+  useEffect(() => { if (!loaded) return; localStorage.setItem('ws_maints', JSON.stringify(periodicMaints)); }, [periodicMaints, loaded]);
 
   // Sync breakdowns
   useEffect(() => { if (!loaded) return; const openIds = new Set(breakdowns.filter(b => b.status==='Open'||b.status==='In Repair').map(b => b.assetId)); let changed = false; const updated = assets.map(a => { if (openIds.has(a.id) && a.status!=='Workshop') { changed=true; return {...a, status:'Workshop'}; } if (!openIds.has(a.id) && a.status==='Workshop') { changed=true; return {...a, status:'Ready'}; } return a; }); if (changed) setAssets(updated); }, [breakdowns, loaded]);
@@ -161,10 +212,74 @@ export default function Workshop() {
   const criticalOverdue = overdueBreakdowns.filter(b => calcWorkshopDuration(b).totalHours > 24);
 
   // Handlers
-  const addFuelLog = (e: React.FormEvent) => { e.preventDefault(); if(!fuelForm.assetId||!fuelForm.liters) return; const L=parseFloat(fuelForm.liters), cpl=parseFloat(fuelForm.costPerLiter)||0; setFuelLogs(p=>[...p,{id:Date.now(),...fuelForm,odoReading:parseInt(fuelForm.odoReading)||0,liters:L,costPerLiter:cpl,totalCost:L*cpl}]); setFuelForm({date:new Date().toISOString().split('T')[0],assetId:'',odoReading:'',liters:'',costPerLiter:'',fuelType:'Diesel',station:'',invoice:'',notes:''}); };
+  const addFuelLog = async (e: React.FormEvent) => {
+    e.preventDefault(); if(!fuelForm.assetId||!fuelForm.liters) return;
+    const L=parseFloat(fuelForm.liters), cpl=parseFloat(fuelForm.costPerLiter)||0;
+    const odo=parseInt(fuelForm.odoReading)||0;
+    const snapshot = {...fuelForm};
+    setFuelLogs(p=>[...p,{id:Date.now(),...snapshot,odoReading:odo,liters:L,costPerLiter:cpl,totalCost:L*cpl}]);
+    setFuelForm({date:new Date().toISOString().split('T')[0],assetId:'',odoReading:'',liters:'',costPerLiter:'',fuelType:'Diesel',station:'',invoice:'',notes:''});
+    // POST /api/workshop/fuel (schema: vehicleId uuid, logType, odometreKm,
+    // litresAdded, costPerLitreSarCents int, fuelStationName, receiptNumber, notes)
+    const vehicleId = fleetIds[snapshot.assetId];
+    if (!vehicleId) return; // unknown vehicle code → local entry only
+    try {
+      await api.post('/api/workshop/fuel', {
+        vehicleId, logType: 'REFUEL', odometreKm: odo, litresAdded: L,
+        ...(cpl > 0 ? { costPerLitreSarCents: Math.round(cpl * 100) } : {}),
+        ...(snapshot.station ? { fuelStationName: snapshot.station } : {}),
+        ...(snapshot.invoice ? { receiptNumber: snapshot.invoice } : {}),
+        ...(snapshot.notes ? { notes: snapshot.notes } : {}),
+      });
+      const fl = await api.get<any>('/api/workshop/fuel');
+      const logs = Array.isArray(fl) ? fl : (fl?.fuelLogs ?? []);
+      if (Array.isArray(logs)) setFuelLogs(logs.map(mapFuelLog));
+    } catch { /* keep optimistic local entry */ }
+  };
   const addOilLog = (e: React.FormEvent) => { e.preventDefault(); if(!oilForm.assetId||!oilForm.quantity) return; setOilLogs(p=>[...p,{id:Date.now(),...oilForm,quantity:parseFloat(oilForm.quantity),cost:parseFloat(oilForm.cost)||0,odoReading:parseInt(oilForm.odoReading)||0,nextChangeOdo:parseInt(oilForm.nextChangeOdo)||0}]); setOilForm({date:new Date().toISOString().split('T')[0],assetId:'',oilType:'Engine Oil',brand:'',quantity:'',unit:'Liters',cost:'',odoReading:'',nextChangeOdo:'',notes:''}); };
   const addSparePart = (e: React.FormEvent) => { e.preventDefault(); if(!spForm.assetId||!spForm.partName) return; const q=parseInt(spForm.quantity)||1, uc=parseFloat(spForm.unitCost)||0; setSparePartLogs(p=>[...p,{id:Date.now(),...spForm,quantity:q,unitCost:uc,totalCost:q*uc}]); setSpForm({date:new Date().toISOString().split('T')[0],assetId:'',partName:'',partNumber:'',quantity:'1',unitCost:'',supplier:'',invoice:'',warranty:'',notes:''}); };
-  const submitBD = (e: React.FormEvent) => { e.preventDefault(); if(!bdForm.assetId||!bdForm.symptom) return; if(editingBdId){ setBreakdowns(p=>p.map(b=>b.id===editingBdId?{...b,...bdForm,repairCost:parseFloat(bdForm.repairCost)||0,status:bdForm.repairDesc?'Resolved':b.status}:b)); setEditingBdId(null); } else { setBreakdowns(p=>[...p,{id:Date.now(),...bdForm,repairCost:parseFloat(bdForm.repairCost)||0,status:'Open'}]); setAssets(p=>p.map(a=>a.id===bdForm.assetId?{...a,status:'Workshop'}:a)); } setBdForm({date:new Date().toISOString().split('T')[0],assetId:'',reportedBy:'',symptom:'',severity:'Major',mechanicAssigned:'',repairStart:'',repairEnd:'',repairDesc:'',partsUsed:'',repairCost:'',notes:''}); };
+  const submitBD = async (e: React.FormEvent) => {
+    e.preventDefault(); if(!bdForm.assetId||!bdForm.symptom) return;
+    const snapshot = {...bdForm};
+    if(editingBdId){ setBreakdowns(p=>p.map(b=>b.id===editingBdId?{...b,...snapshot,repairCost:parseFloat(snapshot.repairCost)||0,status:snapshot.repairDesc?'Resolved':b.status}:b)); setEditingBdId(null); } else { setBreakdowns(p=>[...p,{id:Date.now(),...snapshot,repairCost:parseFloat(snapshot.repairCost)||0,status:'Open'}]); setAssets(p=>p.map(a=>a.id===snapshot.assetId?{...a,status:'Workshop'}:a)); }
+    setBdForm({date:new Date().toISOString().split('T')[0],assetId:'',reportedBy:'',symptom:'',severity:'Major',mechanicAssigned:'',repairStart:'',repairEnd:'',repairDesc:'',partsUsed:'',repairCost:'',notes:''});
+    // POST /api/workshop — staff-created work order (schema: vehicleId uuid,
+    // maintenanceType enum, priority 1-4, severity LOW/MEDIUM/HIGH/CRITICAL,
+    // faultDescription min 10 chars). Local note is kept regardless.
+    if (editingBdId) return;
+    const vehicleId = fleetIds[snapshot.assetId];
+    if (!vehicleId || snapshot.symptom.trim().length < 10) return;
+    try {
+      await api.post('/api/workshop', {
+        vehicleId,
+        maintenanceType: 'CORRECTIVE',
+        priority: BD_SEVERITY_TO_PRIORITY[snapshot.severity] ?? 3,
+        severity: BD_SEVERITY_TO_ERP[snapshot.severity] ?? 'MEDIUM',
+        faultDescription: snapshot.symptom,
+        isMajorBreakdown: snapshot.severity === 'Critical',
+      });
+      const d = await api.get<any>('/api/workshop');
+      if (d?.openWorkOrders) setDriverReports(d.openWorkOrders);
+    } catch { /* keep local breakdown note */ }
+  };
+  // POST /api/workshop/[workOrderId]/close — close a driver-submitted work
+  // order and return the vehicle to AVAILABLE (schema: actionTaken min 10).
+  const closeDriverWO = async (wo: any) => {
+    if (!wo?.id) return;
+    if (!confirm(`Close ${wo.workOrderNumber || 'work order'} and return vehicle to service?`)) return;
+    const actionTaken = `Repaired and verified in workshop: ${wo.faultDescription || wo.workOrderNumber || ''}`.slice(0, 500);
+    if (actionTaken.trim().length < 10) return;
+    setClosingWO(String(wo.id));
+    try {
+      await api.post(`/api/workshop/${wo.id}/close`, { actionTaken, returnVehicleStatus: 'AVAILABLE' });
+      const d = await api.get<any>('/api/workshop');
+      if (d?.openWorkOrders) setDriverReports(d.openWorkOrders);
+    } catch (err: any) {
+      alert(err?.message || 'Close failed');
+    } finally {
+      setClosingWO(null);
+    }
+  };
   const resolveBD = (id:number) => { setBreakdowns(p=>p.map(b=>b.id===id?{...b,status:'Resolved'}:b)); const bd=breakdowns.find(b=>b.id===id); if(bd){ const still=breakdowns.filter(b=>b.assetId===bd.assetId&&b.id!==id&&(b.status==='Open'||b.status==='In Repair')); if(still.length===0) setAssets(p=>p.map(a=>a.id===bd.assetId?{...a,status:'Ready'}:a)); } };
   const editBD = (bd: BreakdownReport) => { setEditingBdId(bd.id); setBdForm({date:bd.date,assetId:bd.assetId,reportedBy:bd.reportedBy,symptom:bd.symptom,severity:bd.severity,mechanicAssigned:bd.mechanicAssigned,repairStart:bd.repairStart,repairEnd:bd.repairEnd,repairDesc:bd.repairDesc,partsUsed:bd.partsUsed,repairCost:String(bd.repairCost),notes:bd.notes}); setTab('breakdown'); };
   const deleteBD = (id:number) => { if(!confirm('Delete?')) return; const bd=breakdowns.find(b=>b.id===id); setBreakdowns(p=>p.filter(b=>b.id!==id)); if(bd){ const still=breakdowns.filter(b=>b.assetId===bd.assetId&&b.id!==id&&(b.status==='Open'||b.status==='In Repair')); if(still.length===0) setAssets(p=>p.map(a=>a.id===bd.assetId?{...a,status:'Ready'}:a)); } };
@@ -313,11 +428,11 @@ export default function Workshop() {
           {/* Driver Breakdown Reports (from the driver app → ERP work orders) */}
           {driverReports.length>0&&(<div className="bg-red-950/40 border border-red-500/40 rounded-xl p-5">
             <div className="flex justify-between items-center mb-4"><h3 className="text-lg font-bold text-red-300">{t('driverReportsTitle')}</h3><span className="text-xs text-red-400 font-bold">{driverReports.length} Open</span></div>
-            <div className="overflow-x-auto"><table className="w-full text-sm text-slate-300"><thead className="bg-white/[0.04] text-slate-400 text-xs"><tr><th className="p-3">{t('thWorkOrder')}</th><th className="p-3">{t('thMixer')}</th><th className="p-3">{t('thPlate')}</th><th className="p-3">{t('thSeverity')}</th><th className="p-3">{t('thVehicleType')}</th><th className="p-3">{t('thDescription')}</th><th className="p-3">{t('thAttachments')}</th><th className="p-3">{t('thDate')}</th></tr></thead><tbody>{driverReports.map(wo=>(<tr key={wo.workOrderNumber} className="border-b border-white/10"><td className="p-3 font-bold text-red-300">{wo.workOrderNumber}</td><td className="p-3 font-bold">{wo.vehicleCode}</td><td className="p-3">{wo.plateNumber||'-'}</td><td className="p-3"><span className={`px-2 py-0.5 rounded text-xs font-bold ${wo.severity==='CRITICAL'?'bg-red-500 text-white':wo.severity==='HIGH'?'bg-orange-500 text-white':wo.severity==='MEDIUM'?'bg-yellow-500 text-slate-900':'bg-emerald-500/70 text-white'}`}>{wo.severity}</span></td><td className="p-3">{wo.vehicleType||'-'}</td><td className="p-3 max-w-[280px] truncate" title={wo.faultDescription}>{wo.faultDescription}</td><td className="p-3">
+            <div className="overflow-x-auto"><table className="w-full text-sm text-slate-300"><thead className="bg-white/[0.04] text-slate-400 text-xs"><tr><th className="p-3">{t('thWorkOrder')}</th><th className="p-3">{t('thMixer')}</th><th className="p-3">{t('thPlate')}</th><th className="p-3">{t('thSeverity')}</th><th className="p-3">{t('thVehicleType')}</th><th className="p-3">{t('thDescription')}</th><th className="p-3">{t('thAttachments')}</th><th className="p-3">{t('thDate')}</th><th className="p-3">{t('actions')}</th></tr></thead><tbody>{driverReports.map(wo=>(<tr key={wo.workOrderNumber} className="border-b border-white/10"><td className="p-3 font-bold text-red-300">{wo.workOrderNumber}</td><td className="p-3 font-bold">{wo.vehicleCode}</td><td className="p-3">{wo.plateNumber||'-'}</td><td className="p-3"><span className={`px-2 py-0.5 rounded text-xs font-bold ${wo.severity==='CRITICAL'?'bg-red-500 text-white':wo.severity==='HIGH'?'bg-orange-500 text-white':wo.severity==='MEDIUM'?'bg-yellow-500 text-slate-900':'bg-emerald-500/70 text-white'}`}>{wo.severity}</span></td><td className="p-3">{wo.vehicleType||'-'}</td><td className="p-3 max-w-[280px] truncate" title={wo.faultDescription}>{wo.faultDescription}</td><td className="p-3">
         {(wo.photoBase64||wo.photoUrl||wo.photo)?<a href={wo.photoBase64?`data:image/jpeg;base64,${wo.photoBase64}`:(wo.photoUrl||wo.photo)} target="_blank" rel="noreferrer" className="text-sky-400 font-bold text-xs underline mr-2">{t('photoLink')}</a>:null}
         {(wo.audioBase64||wo.audioUrl||wo.audio)?<a href={wo.audioBase64?`data:audio/m4a;base64,${wo.audioBase64}`:(wo.audioUrl||wo.audio)} target="_blank" rel="noreferrer" className="text-emerald-400 font-bold text-xs underline">{t('audioLink')}</a>:null}
         {!(wo.photoBase64||wo.photoUrl||wo.photo||wo.audioBase64||wo.audioUrl||wo.audio)?<span className="text-slate-600">—</span>:null}
-      </td><td className="p-3">{wo.createdAt?new Date(wo.createdAt).toLocaleString():'-'}</td></tr>))}</tbody></table></div>
+      </td><td className="p-3">{wo.createdAt?new Date(wo.createdAt).toLocaleString():'-'}</td><td className="p-3"><button onClick={()=>closeDriverWO(wo)} disabled={closingWO===String(wo.id)} className="bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-700 text-white text-xs px-2 py-1 rounded font-bold">{closingWO===String(wo.id)?'…':'Fix'}</button></td></tr>))}</tbody></table></div>
           </div>)}
           <div className="grid grid-cols-2 md:grid-cols-5 gap-3">{[{label:t('totalAssets'),value:assets.length,color:'border-sky-500'},{label:t('readyForOperation'),value:activeAssets,color:'border-emerald-500'},{label:t('inWorkshop'),value:workshopAssets,color:'border-yellow-500'},{label:t('openBreakdowns'),value:openBDs.length+driverReports.length,color:'border-red-500'},{label:t('maintenanceCosts'),value:fmtMoney(totalRepairCost),color:'border-sky-500'}].map(k=>(<div key={k.label} className={`bg-white/[0.04] border-l-4 ${k.color} rounded-lg p-4`}><p className="text-[10px] text-slate-400">{k.label}</p><p className="text-xl font-bold text-white">{k.value}</p></div>))}</div>
 

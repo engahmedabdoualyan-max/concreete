@@ -242,8 +242,35 @@ export async function receive(
   const auth = await requirePermission(req, PERMISSIONS.WAREHOUSE_WRITE);
   if ("status" in auth) return auth;
   const { id } = await params;
+  // Optional received qty/item-code confirmation from the recv form. Stored on
+  // the request as proof of what physically arrived (the serial-level stock
+  // movement stays a separate warehouse step).
+  let qty: number | null = null;
+  let itemCode: string | null = null;
+  try {
+    const body = (await req.json()) as { qty?: unknown; itemCode?: unknown };
+    if (body?.qty !== undefined) {
+      const n = Number(body.qty);
+      if (!Number.isFinite(n) || n <= 0)
+        return errorResponse("VALIDATION_ERROR", "الكمية المستلمة غير صالحة", 400);
+      qty = n;
+    }
+    if (typeof body?.itemCode === "string" && body.itemCode.trim())
+      itemCode = body.itemCode.trim().slice(0, 30);
+  } catch {
+    /* empty body: status flip only */
+  }
   const r = await setStatus(auth.user.tenantId, id, ["APPROVED"], "RECEIVED");
   if ("error" in r) return r.error;
+  if (qty !== null || itemCode !== null) {
+    await db
+      .update(procureRequests)
+      .set({
+        ...(qty !== null ? { receivedQty: String(qty) } : {}),
+        ...(itemCode !== null ? { itemCode } : {}),
+      })
+      .where(eq(procureRequests.id, id));
+  }
   return successResponse(r.row, "تم الاستلام بالمخزن — أنشئ صنف المخزن والحركة ثم اطبع QR");
 }
 

@@ -4327,6 +4327,8 @@ export const procureRequests = pgTable(
     vehicleId: uuid("vehicle_id").references(() => fleetVehicles.id, {
       onDelete: "set null",
     }),
+    /** Qty actually received at the warehouse (set on receive). */
+    receivedQty: decimal("received_qty", { precision: 12, scale: 2 }),
     quantity: decimal("quantity", { precision: 12, scale: 2 }).notNull(),
     unit: varchar("unit", { length: 20 }).notNull().default("قطعة"),
     reason: text("reason"),
@@ -4652,6 +4654,33 @@ export const gatePasses = pgTable(
     index("gate_passes_tenant_idx").on(t.tenantId),
     index("gate_passes_tenant_day_idx").on(t.tenantId, t.createdAt),
   ]
+);
+
+/**
+ * production_runs — manual batch/block runs (runs the plant when no PLC link).
+ * Each run explodes its mix design × volume into CONSUMPTION transactions so
+ * silo stock stays truthful. Blocks can run without a mix (units only).
+ */
+export const productionRuns = pgTable(
+  "production_runs",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    mixDesignId: uuid("mix_design_id").references(() => mixDesigns.id, {
+      onDelete: "set null",
+    }),
+    volumeM3: decimal("volume_m3", { precision: 8, scale: 2 }).notNull().default("0"),
+    blockUnits: integer("block_units").notNull().default(0),
+    producedAt: timestamp("produced_at").notNull().defaultNow(),
+    notes: varchar("notes", { length: 500 }),
+    createdById: uuid("created_by_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [index("production_runs_tenant_idx").on(t.tenantId)]
 );
 
 //

@@ -69,6 +69,7 @@ export default function ZatcaCompliance() {
   const [form, setForm] = useState({ sellerName: '', vatNumber: '', street: '', city: '', branchName: '', env: 'sandbox' as 'sandbox' | 'simulation' | 'production', binaryToken: '', secret: '' });
   const [issueOrderId, setIssueOrderId] = useState('');
   const [issueType, setIssueType] = useState<'STANDARD' | 'SIMPLIFIED'>('STANDARD');
+  const [testResult, setTestResult] = useState<{ ok: boolean; env: string; message: string; testedAt: string } | null>(null);
 
   const load = async () => {
     try {
@@ -137,6 +138,19 @@ export default function ZatcaCompliance() {
     setBusy(false);
   };
 
+  // NOTE: the backend exposes only POST /api/finance/zatca/test (no GET).
+  const testConnection = async () => {
+    setBusy(true);
+    setTestResult(null);
+    try {
+      const res = await api.post<{ ok: boolean; env: string; message: string; testedAt: string }>(
+        '/api/finance/zatca/test');
+      setTestResult(res);
+      setMsg(res.ok ? `✅ ${res.message}` : `⚠️ ${res.message}`);
+    } catch (e: any) { setMsg(`⚠️ ${e?.message || 'Test failed.'}`); }
+    setBusy(false);
+  };
+
   if (!currentUser) return <div className="min-h-screen bg-[#0B111E] flex items-center justify-center"><div className="text-center"><p className="text-red-400 text-xl mb-4">🔒 Access Denied</p><Link to="/" className="text-sky-400 underline">Back to Login</Link></div></div>;
 
   const inputCls = 'w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm';
@@ -196,6 +210,13 @@ export default function ZatcaCompliance() {
             <input value={form.secret} onChange={e => setForm({ ...form, secret: e.target.value })} placeholder="Fatoora Secret (leave blank to keep)" type="password" className={inputCls} />
           </div>
           <button onClick={saveConfig} disabled={busy} className="mt-4 w-full bg-sky-500 hover:bg-sky-400 disabled:opacity-50 text-white font-bold py-3 rounded-lg">💾 Save (tokens AES-encrypted)</button>
+          <button onClick={testConnection} disabled={busy} className="mt-2 w-full bg-violet-500 hover:bg-violet-400 disabled:opacity-50 text-white font-bold py-3 rounded-lg">🔌 اختبار الاتصال (Test Connection)</button>
+          {testResult && (
+            <div className={`mt-3 border rounded-lg px-4 py-3 text-sm font-bold ${testResult.ok ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300' : 'bg-amber-500/10 border-amber-500/30 text-amber-300'}`}>
+              {testResult.ok ? '✅' : '⚠️'} [{testResult.env}] {testResult.message}
+              <span className="block text-[11px] font-normal opacity-70 mt-1">{new Date(testResult.testedAt).toLocaleString()}</span>
+            </div>
+          )}
         </div>
 
         {/* Issue */}

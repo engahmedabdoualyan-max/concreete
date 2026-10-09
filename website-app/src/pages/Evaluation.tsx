@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { loadOrders, loadTrips } from '../firebase/firestore';
+import { api, ApiError } from '../api/client';
 import DatePicker from '../components/DatePicker';
 import QuickJump from '../components/QuickJump';
 import LangSelector from '../components/LangSelector';
@@ -106,6 +107,22 @@ export default function Evaluation() {
   const [stations, setStations] = useState<MixingStation[]>([]);
   const [breakdowns, setBreakdowns] = useState<Breakdown[]>([]);
 
+  // ============ Central API: live evaluation (GET) + snapshot (POST) ============
+  // Local computed sections below stay as the offline fallback; this panel is
+  // the server-side rating from Postgres (GET /api/evaluation, POST to persist).
+  interface ServerEvaluation {
+    overallScore: number;
+    grade: string;
+    scores: Record<string, number>;
+    recommendations: unknown[];
+    evaluatedAt: string;
+  }
+  const [serverEval, setServerEval] = useState<ServerEvaluation | null>(null);
+  const [serverLoading, setServerLoading] = useState(false);
+  const [serverError, setServerError] = useState<string | null>(null);
+  const [snapshotMsg, setSnapshotMsg] = useState<string | null>(null);
+  const [snapshotSaving, setSnapshotSaving] = useState(false);
+
   // ============ Load Data ============
   useEffect(() => {
     if (!currentUser) return;
@@ -150,6 +167,37 @@ export default function Evaluation() {
 
   // ============ Calculations ============
   const daysCount = getDaysBetween(fromDate, toDate);
+
+  // Rolling analysis window for the central API (1–168h), derived from the
+  // selected period. POST /api/evaluation takes only this optional field,
+  // so no extra inputs are needed.
+  const windowHours = Math.min(168, Math.max(1, daysCount * 24));
+
+  const refreshServerEval = () => {
+    setServerLoading(true);
+    setServerError(null);
+    api.get<{ evaluation: ServerEvaluation }>(`/api/evaluation?windowHours=${windowHours}`)
+      .then(d => setServerEval(d.evaluation))
+      .catch((e: unknown) => setServerError(e instanceof ApiError ? e.message : String(e)))
+      .finally(() => setServerLoading(false));
+  };
+
+  const saveSnapshot = () => {
+    setSnapshotSaving(true);
+    setSnapshotMsg(null);
+    api.post<{ evaluation: ServerEvaluation }>('/api/evaluation', { windowHours })
+      .then(d => {
+        setServerEval(d.evaluation);
+        setSnapshotMsg(`✅ تم حفظ اللقطة — التقييم: ${d.evaluation.overallScore}/100 (${d.evaluation.grade})`);
+      })
+      .catch((e: unknown) => setSnapshotMsg(e instanceof ApiError ? `❌ ${e.message}` : `❌ ${String(e)}`))
+      .finally(() => setSnapshotSaving(false));
+  };
+
+  useEffect(() => {
+    refreshServerEval();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [windowHours]);
 
   // 1. Mixing Stations Rating
   const mixingStationsRating = useMemo(() => {
@@ -505,6 +553,52 @@ export default function Evaluation() {
           <div className="mt-3 text-xs text-slate-400">
             📊 {t('daysWord')}: <span className="text-white font-bold">{daysCount}</span> {t('day')}
           </div>
+        </div>
+
+        {/* Central API — live server evaluation (GET) + snapshot (POST) */}
+        <div className="bg-white/[0.04] border border-white/10 rounded-xl p-4 mb-6 backdrop-blur-xl">
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+            <h3 className="text-sm font-bold text-white">🛰️ تقييم الخادم المركزي (مباشر)</h3>
+            <div className="flex gap-2">
+              <button
+                onClick={refreshServerEval}
+                disabled={serverLoading}
+                className="bg-white/[0.05] text-slate-300 text-xs px-3 py-1.5 rounded-lg font-bold border border-white/10 hover:text-white disabled:opacity-50"
+              >
+                {serverLoading ? '... جارٍ التحميل' : '🔄 تحديث'}
+              </button>
+              <button
+                onClick={saveSnapshot}
+                disabled={snapshotSaving}
+                className="bg-emerald-500 hover:bg-emerald-400 text-white text-xs px-3 py-1.5 rounded-lg font-bold disabled:opacity-50"
+              >
+                {snapshotSaving ? '... جارٍ الحفظ' : '💾 حفظ لقطة'}
+              </button>
+            </div>
+          </div>
+          {serverError && (
+            <p className="text-xs text-red-400 mb-2">⚠️ تعذر الاتصال بالخادم: {serverError} — الأقسام أدناه محسوبة محلياً.</p>
+          )}
+          {serverEval && (
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+              <div className="bg-white/[0.02] rounded-lg p-3 text-center">
+                <p className="text-xs text-slate-400 mb-1">التقييم العام</p>
+                <p className={`text-2xl font-bold ${getRatingColor(serverEval.overallScore)}`}>{serverEval.overallScore}</p>
+                <p className="text-[10px] text-slate-500">{serverEval.grade}</p>
+              </div>
+              {Object.entries(serverEval.scores).map(([k, v]) => (
+                <div key={k} className="bg-white/[0.02] rounded-lg p-3 text-center">
+                  <p className="text-xs text-slate-400 mb-1">{k}</p>
+                  <p className={`text-2xl font-bold ${getRatingColor(v)}`}>{v}</p>
+                </div>
+              ))}
+              <div className="bg-white/[0.02] rounded-lg p-3 text-center">
+                <p className="text-xs text-slate-400 mb-1">التوصيات</p>
+                <p className="text-2xl font-bold text-white">{serverEval.recommendations.length}</p>
+              </div>
+            </div>
+          )}
+          {snapshotMsg && <p className="text-xs mt-2 text-slate-300">{snapshotMsg}</p>}
         </div>
 
         {/* Final Rating */}

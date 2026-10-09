@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import QRCode from 'qrcode';
 import { useAuth } from '../context/AuthContext';
-import { loadPayments, savePayments, loadPurchaseOrders, savePurchaseOrders, loadInventory, loadOrders } from '../firebase/firestore';
+import { api } from '../api/client';
 import QuickJump from '../components/QuickJump';
 import LangSelector from '../components/LangSelector';
 import BrandLogo from '../components/BrandLogo';
@@ -17,62 +17,213 @@ import DemandForecast from '../components/DemandForecast';
 import { DeviceStatusBadge } from '../components/DeviceHub';
 import { useFinanceDict } from '../i18n/financeDict';
 
-interface Payment { id: number; date: string; client: string; orderNo: string; amount: number; method: string; status: 'paid' | 'partial' | 'pending'; note: string; link?: string; qr?: string; ref?: string; }
-interface PO { id: number; date: string; material: string; qty: number; unit: string; supplier: string; unitPrice: number; total: number; status: 'open' | 'delivered'; reason: string; }
+/* ── Backend shapes (exact fields from route files, no invention) ── */
 
-const DEMAND_PER_M3 = { cement: 0.38, sand: 0.7, gravel: 1.05 }; // t per m³
+interface LedgerEntry {
+  id: string;
+  date: string;
+  description: string;
+  amountSar: number; // minor units (halala); display ÷ 100
+  transactionType: string;
+  referenceNumber: string | null;
+  bankAccountId: string | null;
+  counterpartyName: string | null;
+  counterpartyType: string | null;
+  bankAccountName: string | null;
+  bankName: string | null;
+}
+
+interface LedgerData {
+  accounts: { id: string; accountName: string }[];
+  entries: LedgerEntry[];
+  transactions: unknown[];
+  summary: { totalAccounts: number; totalBalanceSar: number; totalDebitsSar: number; totalCreditsSar: number };
+}
+
+interface Supplier {
+  id: string;
+  name: string;
+  contactPerson: string | null;
+  phone: string;
+}
+
+interface SuppliersData {
+  suppliers: Supplier[];
+  summary: { supplierCount: number; totalPayableSar: number; totalOrderedSar: number; openPoCount: number };
+}
+
+interface BackendPOItem {
+  id?: string;
+  materialName: string;
+  quantityKg: string | number;
+}
+
+interface BackendPO {
+  id: string;
+  poNumber: string;
+  supplierId: string;
+  supplierName: string;
+  purchaseDate: string;
+  totalAmountSar: number;
+  paidAmountSar: number;
+  balanceSar: number;
+  status: string;
+  paymentStatus: string;
+  inventoryUpdated: boolean;
+  items: BackendPOItem[];
+}
+
+interface POsData { purchaseOrders: BackendPO[]; }
+
+interface SiloRow {
+  id: string;
+  siloName: string;
+  siloCode: string;
+  materialCategory: string;
+  currentStockKg?: string | number | null;
+}
+
+interface InventoryData { silos: SiloRow[]; }
+
+interface OrderRow {
+  id: string;
+  status: string;
+  totalVolumeM3: string | number;
+}
+
+interface OrdersData { orders: OrderRow[]; }
+
+interface FinanceSummary {
+  creditSummary?: { totalOutstandingSar?: number | string; totalCreditLimitSar?: number | string; overLimitCount?: number };
+}
+
+/** Local-only simulated payment request — no backend exists for QR gateway. NOT persisted. */
+interface LocalPayRequest { id: number; date: string; client: string; orderNo: string; amount: number; method: string; link: string; qr: string; ref: string; }
+
+const DEMAND_PER_M3 = { cement: 0.38, sand: 0.7, gravel: 1.05 }; // t per m³ — estimate coefficients
 
 const MATERIALS = [
-  { key: 'cement', name: 'Cement', unit: 't', minStock: 20, reorder: 40, supplier: 'Al-Farouk Cement' },
-  { key: 'sand', name: 'Sand', unit: 't', minStock: 40, reorder: 80, supplier: 'Desert Sand Co.' },
-  { key: 'gravel', name: 'Gravel / Aggregate', unit: 't', minStock: 60, reorder: 100, supplier: 'Granite Aggregates' },
-  { key: 'admixture', name: 'Admixture', unit: 'L', minStock: 300, reorder: 600, supplier: 'Sika / BASF' },
+  { key: 'cement', name: 'Cement', unit: 't', minStock: 20, reorder: 40, category: 'CEMENT' },
+  { key: 'sand', name: 'Sand', unit: 't', minStock: 40, reorder: 80, category: 'SAND' },
+  { key: 'gravel', name: 'Gravel / Aggregate', unit: 't', minStock: 60, reorder: 100, category: 'GRAVEL_20MM' },
+  { key: 'admixture', name: 'Admixture', unit: 'L', minStock: 300, reorder: 600, category: 'ADMIXTURE_PLASTICIZER' },
 ];
+
+const toSar = (minor: number) => (Number(minor) || 0) / 100;
 
 export default function Finance() {
   const { currentUser, logout } = useAuth();
   const navigate = useNavigate();
   const t = useFinanceDict();
   const [tab, setTab] = useState<'payments' | 'reorder'>('payments');
-  const [payments, setPayments] = useState<Payment[]>([]);
-  const [pos, setPos] = useState<PO[]>([]);
-  const [loaded, setLoaded] = useState(false);
-  const [pForm, setPForm] = useState({ date: new Date().toISOString().split('T')[0], client: '', orderNo: '', amount: '', method: 'bank', status: 'paid' as Payment['status'], note: '' });
-  const [checked, setChecked] = useState<Record<string, boolean>>({});
-  const [stock, setStock] = useState<Record<string, number>>({});
+
+  /* ── Central API state ── */
+  const [ledger, setLedger] = useState<LedgerData | null>(null);
+  const [ledgerError, setLedgerError] = useState('');
+  const [ledgerLoading, setLedgerLoading] = useState(false);
+  const [payBusy, setPayBusy] = useState(false);
+  const [payError, setPayError] = useState('');
+
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [pos, setPos] = useState<BackendPO[]>([]);
+  const [poError, setPoError] = useState('');
+  const [poBusy, setPoBusy] = useState(false);
+  const [poLoading, setPoLoading] = useState(false);
+
+  const [financeSummary, setFinanceSummary] = useState<FinanceSummary | null>(null);
+
+  /* Demand estimate inputs (best-effort reads from central API, computed locally) */
+  const [silos, setSilos] = useState<SiloRow[]>([]);
   const [demandM3, setDemandM3] = useState(0);
+  const [estimateNote, setEstimateNote] = useState('');
+
+  const [pForm, setPForm] = useState({ date: new Date().toISOString().split('T')[0], client: '', orderNo: '', amount: '', method: 'bank', note: '' });
+  const [poForm, setPoForm] = useState({ supplierId: '', purchaseDate: new Date().toISOString().split('T')[0], materialCategory: 'CEMENT', materialName: '', quantityT: '', ratePerT: '650', notes: '' });
+
+  /* Local-only widgets (no backend): QR payment-request simulation + reorder suggestions */
+  const [localRequests, setLocalRequests] = useState<LocalPayRequest[]>([]);
+  const [checked, setChecked] = useState<Record<string, boolean>>({});
+  const [reorderSuggestion, setReorderSuggestion] = useState<string>('');
+  const [demandSuggestion, setDemandSuggestion] = useState<string>('');
   const [showAccounting, setShowAccounting] = useState(false);
+
+  const loadLedger = useCallback(async () => {
+    setLedgerLoading(true);
+    setLedgerError('');
+    try {
+      const d = await api.get<LedgerData>('/api/finance/ledger');
+      setLedger(d);
+    } catch (e: unknown) {
+      setLedgerError(e instanceof Error ? e.message : 'Failed to load ledger');
+    } finally {
+      setLedgerLoading(false);
+    }
+  }, []);
+
+  const loadPOs = useCallback(async () => {
+    setPoLoading(true);
+    setPoError('');
+    try {
+      const [s, p] = await Promise.all([
+        api.get<SuppliersData>('/api/suppliers'),
+        api.get<POsData>('/api/suppliers/purchase-orders'),
+      ]);
+      setSuppliers(s.suppliers ?? []);
+      setPos(p.purchaseOrders ?? []);
+    } catch (e: unknown) {
+      setPoError(e instanceof Error ? e.message : 'Failed to load purchase orders');
+    } finally {
+      setPoLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     if (!currentUser) return;
-    Promise.all([loadPayments(currentUser.username), loadPurchaseOrders(currentUser.username), loadInventory(currentUser.username), loadOrders(currentUser.username)])
-      .then(([p, po, inv, ords]) => {
-        if (p?.length) setPayments(p); else { const s = localStorage.getItem('plantPayments'); if (s) setPayments(JSON.parse(s)); }
-        if (po?.length) setPos(po); else { const s = localStorage.getItem('plantPOs'); if (s) setPos(JSON.parse(s)); }
-        if (inv && typeof inv === 'object') {
-          setStock(inv);
-          const init: Record<string, boolean> = {};
-          MATERIALS.forEach(m => { init[m.key] = (Number(inv[m.key]) || 0) <= m.minStock; });
-          setChecked(init);
-        }
-        if (Array.isArray(ords)) {
-          const scheduledM3 = ords.filter(o => o.status === 'scheduled').reduce((s: number, o: any) => s + (Number(o.quantity) || 0), 0);
-          setDemandM3(scheduledM3);
-        }
-        setLoaded(true);
+    void loadLedger();
+    void loadPOs();
+    // Finance credit summary (best-effort; full queue lives in ErpFinance below)
+    api.get<FinanceSummary>('/api/finance?limit=1').then(setFinanceSummary).catch(() => {});
+    // Demand estimate inputs: silo stock + order volumes from central API
+    api.get<InventoryData>('/api/inventory')
+      .then(d => setSilos(d.silos ?? []))
+      .catch(() => setEstimateNote('تعذّر تحميل المخزون من الخادم — التقديرات أدناه غير متوفرة.'));
+    api.get<OrdersData>('/api/orders?limit=100')
+      .then(d => {
+        const vols = (d.orders ?? [])
+          .filter(o => !['CANCELLED', 'FINANCE_REJECTED'].includes(String(o.status)))
+          .reduce((s, o) => s + (Number(o.totalVolumeM3) || 0), 0);
+        setDemandM3(vols);
       })
-      .catch(() => setLoaded(true));
-  }, [currentUser?.username]);
+      .catch(() => setEstimateNote('تعذّر تحميل الطلبات من الخادم — التقديرات أدناه غير متوفرة.'));
+  }, [currentUser, loadLedger, loadPOs]);
 
-  useEffect(() => { if (!loaded || !currentUser) return; localStorage.setItem('plantPayments', JSON.stringify(payments)); savePayments(currentUser.username, payments).catch(() => {}); }, [payments, loaded]);
-  useEffect(() => { if (!loaded || !currentUser) return; localStorage.setItem('plantPOs', JSON.stringify(pos)); savePurchaseOrders(currentUser.username, pos).catch(() => {}); }, [pos, loaded]);
-
-  const addPayment = (e: React.FormEvent) => {
+  /* (1) Client payments → POST /api/finance/ledger/entries (transactionType 'sale') */
+  const addPayment = async (e: React.FormEvent) => {
     e.preventDefault();
-    setPayments(prev => [...prev, { id: Date.now(), ...pForm, amount: Number(pForm.amount) } as any]);
-    setPForm({ ...pForm, client: '', orderNo: '', amount: '', note: '' });
+    const amountSar = Math.round((Number(pForm.amount) || 0) * 100);
+    if (!pForm.client.trim() || !amountSar) { setPayError('Enter client and amount.'); return; }
+    setPayBusy(true);
+    setPayError('');
+    try {
+      await api.post('/api/finance/ledger/entries', {
+        date: new Date(pForm.date).toISOString(),
+        description: `Client payment — ${pForm.client.trim()}${pForm.orderNo ? ` (${pForm.orderNo.trim()})` : ''}${pForm.note ? ` — ${pForm.note.trim()}` : ''} [${pForm.method}]`,
+        amountSar,
+        transactionType: 'sale',
+        referenceNumber: pForm.orderNo.trim() || null,
+        counterpartyType: 'client',
+        counterpartyName: pForm.client.trim(),
+      });
+      setPForm({ ...pForm, client: '', orderNo: '', amount: '', note: '' });
+      await loadLedger();
+    } catch (err: unknown) {
+      setPayError(err instanceof Error ? err.message : 'Failed to record payment');
+    } finally {
+      setPayBusy(false);
+    }
   };
 
+  /* Local-only: QR payment-request simulation — no backend endpoint exists. Kept in memory only. */
   const generatePaymentRequest = async () => {
     const amt = Number(pForm.amount);
     if (!pForm.client || !amt) { alert('Enter client and amount to generate a payment request.'); return; }
@@ -80,51 +231,98 @@ export default function Finance() {
     const link = `https://pay.fimtosoft.com/${ref}?amt=${amt}&client=${encodeURIComponent(pForm.client)}&method=${pForm.method}`;
     const payload = JSON.stringify({ ref, amount: amt, currency: 'SAR', client: pForm.client, method: pForm.method, merchant: 'FimtoSoft Concrete', timestamp: new Date().toISOString() });
     const qr = await QRCode.toDataURL(payload, { margin: 1, width: 200, color: { dark: '#000000', light: '#ffffff' } }).catch(() => '');
-    setPayments(prev => [{ id: Date.now(), date: new Date().toISOString().split('T')[0], client: pForm.client, orderNo: pForm.orderNo, amount: amt, method: pForm.method, status: 'pending', note: `Payment request ${ref}`, link, qr, ref }, ...prev]);
+    setLocalRequests(prev => [{ id: Date.now(), date: new Date().toISOString().split('T')[0], client: pForm.client, orderNo: pForm.orderNo, amount: amt, method: pForm.method, link, qr, ref }, ...prev]);
     setPForm({ ...pForm, client: '', orderNo: '', amount: '', note: '' });
   };
 
-  const confirmGateway = (id: number) => {
-    setPayments(prev => prev.map(p => p.id === id ? { ...p, status: 'paid' as const, note: `${p.note} · confirmed via ${p.method} gateway` } : p));
-    alert('✅ Payment confirmed (simulated mada/sadad/visa gateway webhook). Account balance updated instantly.');
+  /* (2) Supplier POs → POST /api/suppliers/purchase-orders (single-line PO from page form) */
+  const createPO = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!poForm.supplierId) { setPoError('Select a supplier first.'); return; }
+    const qtyKg = Math.round((Number(poForm.quantityT) || 0) * 1000);
+    const ratePerKgSar = Math.round(((Number(poForm.ratePerT) || 0) * 100) / 1000);
+    if (!qtyKg || qtyKg <= 0) { setPoError('Enter a valid quantity in tonnes.'); return; }
+    setPoBusy(true);
+    setPoError('');
+    try {
+      const siloMatch = silos.find(s => s.materialCategory === poForm.materialCategory);
+      await api.post('/api/suppliers/purchase-orders', {
+        supplierId: poForm.supplierId,
+        purchaseDate: new Date(poForm.purchaseDate).toISOString(),
+        vatPercent: 15,
+        notes: poForm.notes || null,
+        items: [{
+          siloId: siloMatch?.id ?? null,
+          materialCategory: poForm.materialCategory,
+          materialName: poForm.materialName.trim() || siloMatch?.siloName || poForm.materialCategory,
+          quantityKg: qtyKg,
+          ratePerKgSar,
+        }],
+      });
+      setPoForm({ ...poForm, materialName: '', quantityT: '', notes: '' });
+      await loadPOs();
+    } catch (err: unknown) {
+      setPoError(err instanceof Error ? err.message : 'Failed to create purchase order');
+    } finally {
+      setPoBusy(false);
+    }
+  };
+
+  /* (2) Receive PO → POST /api/suppliers/purchase-orders/receive { poId } */
+  const receivePO = async (poId: string) => {
+    setPoBusy(true);
+    setPoError('');
+    try {
+      await api.post('/api/suppliers/purchase-orders/receive', { poId });
+      await loadPOs();
+    } catch (err: unknown) {
+      setPoError(err instanceof Error ? err.message : 'Failed to receive purchase order');
+    } finally {
+      setPoBusy(false);
+    }
+  };
+
+  /* (3) Local estimates only — never posted, never persisted. */
+  const stockT = (category: string) => {
+    const kg = silos.filter(s => s.materialCategory === category).reduce((s, r) => s + (Number(r.currentStockKg) || 0), 0);
+    return kg / 1000;
+  };
+  const onOrderT = (category: string) => {
+    const label = MATERIALS.find(m => m.category === category)?.name;
+    void label;
+    return pos.filter(po => po.status !== 'RECEIVED' && po.status !== 'CANCELLED')
+      .flatMap(po => po.items)
+      .reduce((s, it) => s + (Number(it.quantityKg) || 0), 0) / 1000;
+  };
+
+  const demandCoverage = (key: 'cement' | 'sand' | 'gravel') => {
+    const needed = demandM3 * DEMAND_PER_M3[key];
+    const cat = key === 'cement' ? 'CEMENT' : key === 'sand' ? 'SAND' : 'GRAVEL_20MM';
+    const current = stockT(cat);
+    const onOrder = cat === 'GRAVEL_20MM'
+      ? ['GRAVEL_10MM', 'GRAVEL_20MM', 'GRAVEL_40MM'].reduce((s, c) => s + onOrderT(c), 0)
+      : onOrderT(cat);
+    return { needed, current, onOrder, short: Math.max(0, needed - current - onOrder) };
   };
 
   const generatePOs = () => {
     const selected = MATERIALS.filter(m => checked[m.key]);
-    if (!selected.length) { alert('Select at least one material to reorder.'); return; }
-    const now = new Date().toISOString().split('T')[0];
-    const next = selected.map(m => {
-      const total = m.reorder * (m.key === 'admixture' ? 12 : 650);
-      return { id: Date.now() + Math.random(), date: now, material: m.name, qty: m.reorder, unit: m.unit, supplier: m.supplier, unitPrice: m.key === 'admixture' ? 12 : 650, total, status: 'open' as const, reason: `Auto reorder below min (${m.minStock}${m.unit})` };
-    });
-    setPos(prev => [...next, ...prev]);
-    setChecked(Object.fromEntries(MATERIALS.map(m => [m.key, false])));
-    alert(`✅ Generated ${next.length} purchase order${next.length > 1 ? 's' : ''} automatically.`);
-  };
-
-  const deliverPO = (id: number) => setPos(prev => prev.map(po => po.id === id ? { ...po, status: 'delivered' as const } : po));
-
-  const demandCoverage = (key: 'cement' | 'sand' | 'gravel') => {
-    const needed = demandM3 * DEMAND_PER_M3[key];
-    const current = Number(stock[key]) || 0;
-    const onOrder = pos.filter(po => po.status === 'open' && po.material === MATERIALS.find(m => m.key === key)?.name).reduce((s, po) => s + po.qty, 0);
-    return { needed, current, onOrder, short: Math.max(0, needed - current - onOrder) };
+    if (!selected.length) { alert('Select at least one material to estimate.'); return; }
+    setReorderSuggestion(
+      'تقدير محلي (لم يُرسل): ' + selected.map(m => `${m.name} ≈ ${m.reorder}${m.unit}`).join('، ') +
+      ' — لإنشاء أمر شراء حقيقي استخدم نموذج الشراء أعلاه (يُرسل إلى /api/suppliers/purchase-orders).'
+    );
   };
 
   const genDemandPOs = () => {
     const cov = [demandCoverage('cement'), demandCoverage('sand'), demandCoverage('gravel')];
-    const anyShort = cov.some(c => c.short > 0);
-    if (!demandM3) { alert('No scheduled orders for tomorrow found — nothing to cover.'); return; }
-    if (!anyShort) { alert('✅ Current stock + open POs already cover tomorrow\'s demand.'); return; }
-    const now = new Date().toISOString().split('T')[0];
-    const next = MATERIALS.filter((_, i) => cov[i].short > 0).map(m => {
-      const i = MATERIALS.indexOf(m);
-      const qty = Math.ceil(cov[i].short * 2) / 2;
-      const unitPrice = m.key === 'admixture' ? 12 : 650;
-      return { id: Date.now() + Math.random(), date: now, material: m.name, qty, unit: m.unit, supplier: m.supplier, unitPrice, total: Math.round(qty * unitPrice), status: 'open' as const, reason: `Tomorrow demand shortfall (${demandM3} m³ scheduled)` };
-    });
-    setPos(prev => [...next, ...prev]);
-    alert(`✅ Generated ${next.length} purchase order(s) to cover tomorrow's demand.`);
+    if (!demandM3) { alert('No order volume loaded for the demand estimate — nothing to cover.'); return; }
+    if (!cov.some(c => c.short > 0)) { setDemandSuggestion('تقدير محلي: المخزون الحالي يغطي الطلب المتوقع — لا حاجة لأوامر شراء.'); return; }
+    setDemandSuggestion(
+      'تقدير محلي (لم يُرسل) — عجز متوقع: ' +
+      cov.map((c, i) => `${['cement', 'sand', 'gravel'][i]} ≈ ${c.short.toFixed(1)}t`).join('، ') +
+      ' — لإنشاء أمر شراء حقيقي استخدم نموذج الشراء أعلاه.'
+    );
   };
 
   if (!currentUser) {
@@ -135,10 +333,11 @@ export default function Finance() {
     );
   }
 
-  const totalPaid = payments.filter(p => p.status === 'paid').reduce((s, p) => s + p.amount, 0);
-  const totalOutstanding = payments.filter(p => p.status !== 'paid').reduce((s, p) => s + p.amount, 0);
-  const openPOs = pos.filter(po => po.status === 'open');
-  const poValue = pos.reduce((s, po) => s + po.total, 0);
+  const incomeEntries = (ledger?.entries ?? []).filter(e => e.transactionType === 'income' || e.transactionType === 'sale');
+  const totalPaid = toSar(ledger?.summary.totalCreditsSar ?? incomeEntries.reduce((s, e) => s + e.amountSar, 0));
+  const outstanding = financeSummary?.creditSummary?.totalOutstandingSar;
+  const openPOs = pos.filter(po => po.status !== 'RECEIVED' && po.status !== 'CANCELLED');
+  const poValue = pos.reduce((s, po) => s + toSar(po.totalAmountSar), 0);
 
   return (
     <div className="min-h-screen bg-[#0B111E] text-slate-200">
@@ -166,7 +365,7 @@ export default function Finance() {
         {['sysadmin', 'accountant', 'ptown'].includes(currentUser.role || '') && <ErpCommitments />}
         {['sysadmin', 'accountant', 'ptown'].includes(currentUser.role || '') && <ErpExpenses />}
         {['sysadmin', 'accountant', 'ptown'].includes(currentUser.role || '') && <ErpSuppliers />}
-        
+
         {/* ربط المحاسبة */}
         {['sysadmin', 'accountant', 'ptown'].includes(currentUser.role || '') && (
           <div className="bg-white/[0.04] border border-white/10 rounded-xl p-6 backdrop-blur-xl mt-4">
@@ -186,73 +385,78 @@ export default function Finance() {
           <div className="grid grid-cols-1 lg:grid-cols-[380px_1fr] gap-6">
             <div className="bg-white/[0.04] border border-white/10 rounded-xl p-6 backdrop-blur-xl">
               <h3 className="text-lg font-black tracking-tight text-white mb-1">💳 Payment Entry</h3>
-              <p className="text-xs text-slate-400 mb-4">Record client payments via mada / bank transfer / cash — with invoice-level status tracking.</p>
+              <p className="text-xs text-slate-400 mb-4">Record client payments to the central ledger (POST /api/finance/ledger/entries).</p>
+              {payError && <div className="text-xs text-red-400 bg-red-500/10 border border-red-500/30 rounded p-2 mb-3">{payError}</div>}
               <form onSubmit={addPayment} className="space-y-3">
                 <DatePicker value={pForm.date} onChange={v => setPForm({ ...pForm, date: v })} label="Date" />
                 <div><label className="text-xs text-slate-400 font-semibold">Client</label><input value={pForm.client} onChange={e => setPForm({ ...pForm, client: e.target.value })} placeholder="Client / customer" className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm" required /></div>
                 <div className="grid grid-cols-2 gap-3">
                   <div><label className="text-xs text-slate-400 font-semibold">Invoice #</label><input value={pForm.orderNo} onChange={e => setPForm({ ...pForm, orderNo: e.target.value })} placeholder="ORD-..." className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm" /></div>
-                  <div><label className="text-xs text-slate-400 font-semibold">Amount (SAR)</label><input type="number" value={pForm.amount} onChange={e => setPForm({ ...pForm, amount: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm" required /></div>
+                  <div><label className="text-xs text-slate-400 font-semibold">Amount (SAR)</label><input type="number" step="0.01" value={pForm.amount} onChange={e => setPForm({ ...pForm, amount: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm" required /></div>
                 </div>
-                <div><label className="text-xs text-slate-400 font-semibold">Method</label>
+                <div><label className="text-xs text-slate-400 font-semibold">Method (recorded in description)</label>
                   <select value={pForm.method} onChange={e => setPForm({ ...pForm, method: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm">
                     <option value="bank">🏦 Bank Transfer (IBAN)</option><option value="mada">💳 mada card</option><option value="visa">💳 Visa / Mastercard</option><option value="cash">💵 Cash</option><option value="cheque">📄 Cheque</option>
                   </select>
                 </div>
-                <div><label className="text-xs text-slate-400 font-semibold">Status</label>
-                  <select value={pForm.status} onChange={e => setPForm({ ...pForm, status: e.target.value as any })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm">
-                    <option value="paid">✅ Paid in full</option><option value="partial">⚠️ Partial payment</option><option value="pending">⏳ Pending / outstanding</option>
-                  </select>
-                </div>
                 <div><label className="text-xs text-slate-400 font-semibold">Note</label><input value={pForm.note} onChange={e => setPForm({ ...pForm, note: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm" /></div>
-                <button type="submit" className="w-full bg-emerald-500 hover:bg-emerald-400 text-white font-bold py-3 rounded-lg shadow-[0_0_20px_rgba(56,189,248,0.3)]">💳 Record Payment</button>
-                <button type="button" onClick={generatePaymentRequest} className="w-full bg-sky-500 hover:bg-sky-400 text-white font-bold py-3 rounded-lg shadow-[0_0_20px_rgba(56,189,248,0.3)]">🔗 Generate Payment Request + QR (mada/sadad/visa)</button>
+                <button type="submit" disabled={payBusy} className="w-full bg-emerald-500 hover:bg-emerald-400 text-white font-bold py-3 rounded-lg shadow-[0_0_20px_rgba(56,189,248,0.3)] disabled:opacity-40">{payBusy ? 'Saving…' : '💳 Record Payment to Ledger'}</button>
+                <button type="button" onClick={generatePaymentRequest} className="w-full bg-sky-500 hover:bg-sky-400 text-white font-bold py-3 rounded-lg shadow-[0_0_20px_rgba(56,189,248,0.3)]">🔗 Generate Payment Request + QR (local simulation — no backend)</button>
               </form>
+              {localRequests.length > 0 && (
+                <div className="mt-4 space-y-2">
+                  <p className="text-[10px] text-slate-500 font-bold">⚠️ Local simulation only — these QR requests are NOT posted to the ledger and are NOT saved.</p>
+                  {localRequests.map(r => (
+                    <div key={r.id} className="flex items-center gap-2 bg-white/[0.02] border border-white/10 rounded-lg p-2">
+                      {r.qr && <img src={r.qr} alt="payment qr" className="w-12 h-12 rounded border border-white/10" />}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[11px] font-bold text-white truncate">{r.client} — {r.amount.toLocaleString()} SAR</p>
+                        <p className="text-[10px] text-slate-500 font-mono truncate">{r.ref}</p>
+                        <a href={r.link} target="_blank" rel="noreferrer" className="text-[10px] text-sky-400 underline break-all">{r.link}</a>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
             <div>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-                <div className="bg-white/[0.04] rounded-xl p-4 border border-white/10 backdrop-blur-xl"><p className="text-xs text-slate-400">Collected (SAR)</p><p className="text-xl font-bold text-emerald-400">{totalPaid.toLocaleString()}</p></div>
-                <div className="bg-white/[0.04] rounded-xl p-4 border border-white/10 backdrop-blur-xl"><p className="text-xs text-slate-400">Outstanding (SAR)</p><p className="text-xl font-bold text-yellow-400">{totalOutstanding.toLocaleString()}</p></div>
-                <div className="bg-white/[0.04] rounded-xl p-4 border border-white/10 backdrop-blur-xl"><p className="text-xs text-slate-400">Transactions</p><p className="text-xl font-bold text-white">{payments.length}</p></div>
+                <div className="bg-white/[0.04] rounded-xl p-4 border border-white/10 backdrop-blur-xl"><p className="text-xs text-slate-400">Collected (SAR)</p><p className="text-xl font-bold text-emerald-400">{totalPaid.toLocaleString()}</p><p className="text-[10px] text-slate-500">from GET /api/finance/ledger</p></div>
+                <div className="bg-white/[0.04] rounded-xl p-4 border border-white/10 backdrop-blur-xl"><p className="text-xs text-slate-400">Outstanding (SAR)</p><p className="text-xl font-bold text-yellow-400">{outstanding !== undefined && outstanding !== null ? Number(outstanding).toLocaleString() : '—'}</p><p className="text-[10px] text-slate-500">from GET /api/finance</p></div>
+                <div className="bg-white/[0.04] rounded-xl p-4 border border-white/10 backdrop-blur-xl"><p className="text-xs text-slate-400">Ledger entries</p><p className="text-xl font-bold text-white">{ledger?.entries.length ?? 0}</p></div>
                 <div className="bg-white/[0.04] rounded-xl p-4 border border-white/10 backdrop-blur-xl"><p className="text-xs text-slate-400">Open POs</p><p className="text-xl font-bold text-orange-400">{openPOs.length}</p></div>
               </div>
+              {ledgerError && <div className="text-xs text-red-400 bg-red-500/10 border border-red-500/30 rounded p-2 mb-3">{ledgerError} <button onClick={loadLedger} className="underline">Retry</button></div>}
+              {ledgerLoading && <div className="text-xs text-slate-400 py-4 text-center">Loading ledger…</div>}
               <div className="bg-white/[0.04] border border-white/10 rounded-xl overflow-hidden backdrop-blur-xl">
                 <div className="overflow-x-auto">
                   <table className="w-full text-xs text-slate-300">
-                    <thead className="bg-white/[0.04] text-slate-400 text-[10px]"><tr><th className="p-2 uppercase tracking-wider">Date</th><th className="p-2 uppercase tracking-wider">Client</th><th className="p-2 uppercase tracking-wider">Invoice</th><th className="p-2 uppercase tracking-wider">Method</th><th className="p-2 uppercase tracking-wider">Amount</th><th className="p-2 uppercase tracking-wider">Status</th><th className="p-2 uppercase tracking-wider">Digital Pay</th></tr></thead>
+                    <thead className="bg-white/[0.04] text-slate-400 text-[10px]"><tr><th className="p-2 uppercase tracking-wider">Date</th><th className="p-2 uppercase tracking-wider">Counterparty</th><th className="p-2 uppercase tracking-wider">Reference</th><th className="p-2 uppercase tracking-wider">Type</th><th className="p-2 uppercase tracking-wider">Amount</th><th className="p-2 uppercase tracking-wider">Description</th></tr></thead>
                     <tbody>
-                      {payments.map(p => (
-                        <tr key={p.id} className="border-b border-white/10">
-                          <td className="p-2">{p.date}</td><td className="p-2 font-bold">{p.client}</td><td className="p-2">{p.orderNo}</td><td className="p-2">{p.method}</td>
-                          <td className="p-2 font-bold text-emerald-400">{p.amount.toLocaleString()} SAR</td>
-                          <td className="p-2">
-                            {p.status === 'paid' && <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-400">✅ Paid</span>}
-                            {p.status === 'partial' && <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-yellow-500/20 text-yellow-400">⚠️ Partial</span>}
-                            {p.status === 'pending' && <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-500/20 text-red-400">⏳ Pending</span>}
-                          </td>
-                          <td className="p-2">
-                            {p.status === 'pending' && p.qr ? (
-                              <div className="flex items-center gap-2">
-                                <img src={p.qr} alt="payment qr" className="w-12 h-12 rounded border border-white/10" />
-                                <button onClick={() => confirmGateway(p.id)} className="text-[10px] bg-sky-500 hover:bg-sky-400 text-white px-2 py-1.5 rounded font-bold">Confirm (simulate gateway)</button>
-                              </div>
-                            ) : p.ref ? <span className="text-[10px] text-slate-500">{p.ref}</span> : '—'}
-                          </td>
+                      {incomeEntries.map(e => (
+                        <tr key={e.id} className="border-b border-white/10">
+                          <td className="p-2">{new Date(e.date).toLocaleDateString()}</td>
+                          <td className="p-2 font-bold">{e.counterpartyName ?? '—'}</td>
+                          <td className="p-2">{e.referenceNumber ?? '—'}</td>
+                          <td className="p-2">{e.transactionType}</td>
+                          <td className="p-2 font-bold text-emerald-400">{toSar(e.amountSar).toLocaleString()} SAR</td>
+                          <td className="p-2 text-slate-400 max-w-[220px] truncate" title={e.description}>{e.description}</td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
+                  {incomeEntries.length === 0 && !ledgerLoading && <p className="text-xs text-slate-500 text-center py-4">No income/sale ledger entries yet.</p>}
                 </div>
               </div>
               <div className="bg-white/[0.04] border border-white/10 rounded-xl p-4 mt-4 backdrop-blur-xl">
-                <p className="text-xs font-bold text-white mb-2">🧾 Reconciliation — outstanding per client</p>
+                <p className="text-xs font-bold text-white mb-2">🧾 Collected per counterparty (from ledger — outstanding status has no backend, shown as collected only)</p>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-                  {Array.from(new Set(payments.map(p => p.client))).slice(0, 9).map(client => {
-                    const out = payments.filter(p => p.client === client && p.status !== 'paid').reduce((s, p) => s + p.amount, 0);
+                  {Array.from(new Set(incomeEntries.map(e => e.counterpartyName || 'Unknown'))).slice(0, 9).map(client => {
+                    const sum = incomeEntries.filter(e => (e.counterpartyName || 'Unknown') === client).reduce((s, e) => s + e.amountSar, 0);
                     return (
-                      <div key={client} className={`bg-white/[0.02] rounded-lg p-3 border ${out > 0 ? 'border-yellow-500/40' : 'border-emerald-500/30'}`}>
+                      <div key={client} className="bg-white/[0.02] rounded-lg p-3 border border-emerald-500/30">
                         <p className="text-[11px] text-slate-400 truncate">{client}</p>
-                        <p className={`text-sm font-bold ${out > 0 ? 'text-yellow-400' : 'text-emerald-400'}`}>{out > 0 ? `${out.toLocaleString()} SAR` : '✅ Clear'}</p>
+                        <p className="text-sm font-bold text-emerald-400">{toSar(sum).toLocaleString()} SAR collected</p>
                       </div>
                     );
                   })}
@@ -266,33 +470,35 @@ export default function Finance() {
           <div className="space-y-6">
             <DemandForecast />
             <div className="bg-white/[0.04] border border-white/10 rounded-xl p-6 backdrop-blur-xl">
-              <h3 className="text-lg font-black tracking-tight text-white mb-1">📅 Next-Day Demand Coverage</h3>
-              <p className="text-xs text-slate-400 mb-4">Consumes material based on tomorrow's scheduled (confirmed) orders and current stock + open POs. Alerts and PO drafts are generated automatically when the stock cannot cover tomorrow's commitments.</p>
+              <h3 className="text-lg font-black tracking-tight text-white mb-1">📅 Next-Day Demand Coverage <span className="text-[10px] font-bold bg-yellow-500/20 text-yellow-300 px-2 py-0.5 rounded ml-2">تقدير محلي — ليس من الخادم</span></h3>
+              <p className="text-xs text-slate-400 mb-4">Local estimate from central-API stock + order volumes. Suggestions below are NOT posted and NOT saved — create real POs with the form above or in the Suppliers section.</p>
+              {estimateNote && <div className="text-xs text-yellow-300 bg-yellow-500/10 border border-yellow-500/30 rounded p-2 mb-3">{estimateNote}</div>}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
-                <div className="bg-white/[0.02] rounded-xl p-4 border border-white/10"><p className="text-xs text-slate-400">Scheduled tomorrow</p><p className="text-xl font-bold text-white">{demandM3.toFixed(0)} m³</p></div>
+                <div className="bg-white/[0.02] rounded-xl p-4 border border-white/10"><p className="text-xs text-slate-400">Est. upcoming volume</p><p className="text-xl font-bold text-white">{demandM3.toFixed(0)} m³</p></div>
                 {(['cement', 'sand', 'gravel'] as const).map(k => {
                   const c = demandCoverage(k);
                   return (
                     <div key={k} className={`bg-white/[0.02] rounded-xl p-4 border ${c.short > 0 ? 'border-red-500/50' : 'border-emerald-500/40'}`}>
                       <p className="text-xs text-slate-400 capitalize">{k}</p>
-                      <p className="text-xl font-bold text-white">{c.needed.toFixed(1)}t <span className="text-[10px] text-slate-500">need</span></p>
+                      <p className="text-xl font-bold text-white">{c.needed.toFixed(1)}t <span className="text-[10px] text-slate-500">need (est.)</span></p>
                       <p className="text-[10px] text-slate-400">have {c.current.toFixed(0)}t{c.onOrder > 0 ? ` + ${c.onOrder.toFixed(0)}t PO` : ''}</p>
-                      <p className={`text-[10px] font-bold ${c.short > 0 ? 'text-red-400' : 'text-emerald-400'}`}>{c.short > 0 ? `🚨 short ${c.short.toFixed(1)}t` : '✅ covered'}</p>
+                      <p className={`text-[10px] font-bold ${c.short > 0 ? 'text-red-400' : 'text-emerald-400'}`}>{c.short > 0 ? `🚨 short ${c.short.toFixed(1)}t (est.)` : '✅ covered (est.)'}</p>
                     </div>
                   );
                 })}
               </div>
               <div className="flex flex-wrap gap-2">
-                <button onClick={genDemandPOs} className="bg-amber-500 hover:bg-amber-400 text-white font-bold py-2.5 px-4 rounded-lg text-sm shadow-[0_0_20px_rgba(56,189,248,0.3)]">⚡ Generate POs for tomorrow's shortfall</button>
+                <button onClick={genDemandPOs} className="bg-amber-500 hover:bg-amber-400 text-white font-bold py-2.5 px-4 rounded-lg text-sm shadow-[0_0_20px_rgba(56,189,248,0.3)]">⚡ Estimate POs for shortfall (local only)</button>
                 <span className={`text-xs self-center font-bold ${demandCoverage('cement').short > 0 || demandCoverage('sand').short > 0 || demandCoverage('gravel').short > 0 ? 'text-red-400' : 'text-emerald-400'}`}>
-                  {demandCoverage('cement').short > 0 || demandCoverage('sand').short > 0 || demandCoverage('gravel').short > 0 ? '🚨 ALERT: stock will NOT cover tomorrow — reorder now' : '✅ Stock covers tomorrow\'s commitments'}
+                  {demandCoverage('cement').short > 0 || demandCoverage('sand').short > 0 || demandCoverage('gravel').short > 0 ? '🚨 ESTIMATE: stock may NOT cover upcoming demand' : '✅ ESTIMATE: stock covers upcoming demand'}
                 </span>
               </div>
+              {demandSuggestion && <p className="text-xs text-yellow-200 bg-yellow-500/10 border border-yellow-500/30 rounded p-2 mt-3">{demandSuggestion}</p>}
             </div>
             <div className="grid grid-cols-1 lg:grid-cols-[380px_1fr] gap-6">
             <div className="bg-white/[0.04] border border-white/10 rounded-xl p-6 backdrop-blur-xl">
-              <h3 className="text-lg font-black tracking-tight text-white mb-1">📦 Material Reorder Alerts</h3>
-              <p className="text-xs text-slate-400 mb-4">Live check against current raw stock. Materials below minimum are flagged — generate purchase orders in one click.</p>
+              <h3 className="text-lg font-black tracking-tight text-white mb-1">📦 Material Reorder Alerts <span className="text-[10px] font-bold bg-yellow-500/20 text-yellow-300 px-2 py-0.5 rounded ml-1">تقدير محلي</span></h3>
+              <p className="text-xs text-slate-400 mb-4">Checkbox suggestions are local estimates only. Real POs are created via POST /api/suppliers/purchase-orders in the form on the right.</p>
               <div className="space-y-3">
                 {MATERIALS.map(m => (
                   <label key={m.key} className="flex items-center gap-3 bg-white/[0.02] border border-white/10 rounded-lg p-3 cursor-pointer">
@@ -304,32 +510,61 @@ export default function Finance() {
                     {!!checked[m.key] && <span className="text-[10px] font-bold bg-red-500/20 text-red-400 px-1.5 py-0.5 rounded">🚨 LOW</span>}
                   </label>
                 ))}
-                <button onClick={generatePOs} className="w-full bg-amber-500 hover:bg-amber-400 text-white font-bold py-3 rounded-lg shadow-[0_0_20px_rgba(56,189,248,0.3)]">⚡ Auto Generate Purchase Orders</button>
-                <p className="text-[10px] text-slate-500 text-center">P.O. total = reorder qty × unit price (cement/sand/gravel 650 SAR/t, admixture 12 SAR/L).</p>
+                <button onClick={generatePOs} className="w-full bg-amber-500 hover:bg-amber-400 text-white font-bold py-3 rounded-lg shadow-[0_0_20px_rgba(56,189,248,0.3)]">⚡ Estimate Purchase Orders (local only)</button>
+                {reorderSuggestion && <p className="text-xs text-yellow-200 bg-yellow-500/10 border border-yellow-500/30 rounded p-2">{reorderSuggestion}</p>}
+                <p className="text-[10px] text-slate-500 text-center">Estimates use reorder qty × 650 SAR/t (admixture 12 SAR/L) and are never posted automatically.</p>
               </div>
             </div>
             <div>
+              <div className="bg-white/[0.04] border border-white/10 rounded-xl p-4 mb-4 backdrop-blur-xl">
+                <h4 className="text-sm font-bold text-white mb-1">➕ New Purchase Order (POST /api/suppliers/purchase-orders)</h4>
+                {poError && <div className="text-xs text-red-400 bg-red-500/10 border border-red-500/30 rounded p-2 mb-3">{poError}</div>}
+                <form onSubmit={createPO} className="grid grid-cols-2 gap-2">
+                  <select value={poForm.supplierId} onChange={e => setPoForm({ ...poForm, supplierId: e.target.value })} className="bg-white/[0.04] border border-white/10 rounded px-2 py-1.5 text-white text-xs col-span-2" required>
+                    <option value="">Select supplier (from GET /api/suppliers)</option>
+                    {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                  </select>
+                  <input type="date" value={poForm.purchaseDate} onChange={e => setPoForm({ ...poForm, purchaseDate: e.target.value })} className="bg-white/[0.04] border border-white/10 rounded px-2 py-1.5 text-white text-xs" />
+                  <select value={poForm.materialCategory} onChange={e => setPoForm({ ...poForm, materialCategory: e.target.value })} className="bg-white/[0.04] border border-white/10 rounded px-2 py-1.5 text-white text-xs">
+                    <option value="CEMENT">Cement</option><option value="SAND">Sand</option><option value="GRAVEL_10MM">Gravel 10mm</option><option value="GRAVEL_20MM">Gravel 20mm</option><option value="GRAVEL_40MM">Gravel 40mm</option><option value="ADMIXTURE_PLASTICIZER">Admixture</option>
+                  </select>
+                  <input value={poForm.materialName} onChange={e => setPoForm({ ...poForm, materialName: e.target.value })} placeholder="Material name (optional)" className="bg-white/[0.04] border border-white/10 rounded px-2 py-1.5 text-white text-xs" />
+                  <input type="number" step="0.01" value={poForm.quantityT} onChange={e => setPoForm({ ...poForm, quantityT: e.target.value })} placeholder="Qty (tonnes)" className="bg-white/[0.04] border border-white/10 rounded px-2 py-1.5 text-white text-xs" required />
+                  <input type="number" step="0.01" value={poForm.ratePerT} onChange={e => setPoForm({ ...poForm, ratePerT: e.target.value })} placeholder="Rate (SAR/t)" className="bg-white/[0.04] border border-white/10 rounded px-2 py-1.5 text-white text-xs" />
+                  <input value={poForm.notes} onChange={e => setPoForm({ ...poForm, notes: e.target.value })} placeholder="Notes (optional)" className="bg-white/[0.04] border border-white/10 rounded px-2 py-1.5 text-white text-xs col-span-2" />
+                  <button type="submit" disabled={poBusy} className="col-span-2 bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-2 rounded-lg text-xs disabled:opacity-40">{poBusy ? 'Creating…' : 'Create Purchase Order'}</button>
+                </form>
+              </div>
               <div className="grid grid-cols-3 gap-3 mb-4">
                 <div className="bg-white/[0.04] rounded-xl p-4 border border-white/10 backdrop-blur-xl"><p className="text-xs text-slate-400">Open POs</p><p className="text-xl font-bold text-orange-400">{openPOs.length}</p></div>
                 <div className="bg-white/[0.04] rounded-xl p-4 border border-white/10 backdrop-blur-xl"><p className="text-xs text-slate-400">PO value (SAR)</p><p className="text-xl font-bold text-white">{poValue.toLocaleString()}</p></div>
-                <div className="bg-white/[0.04] rounded-xl p-4 border border-white/10 backdrop-blur-xl"><p className="text-xs text-slate-400">Delivered</p><p className="text-xl font-bold text-emerald-400">{pos.filter(po => po.status === 'delivered').length}</p></div>
+                <div className="bg-white/[0.04] rounded-xl p-4 border border-white/10 backdrop-blur-xl"><p className="text-xs text-slate-400">Received</p><p className="text-xl font-bold text-emerald-400">{pos.filter(po => po.status === 'RECEIVED' || po.inventoryUpdated).length}</p></div>
               </div>
+              {poLoading && <div className="text-xs text-slate-400 py-4 text-center">Loading purchase orders…</div>}
               <div className="bg-white/[0.04] border border-white/10 rounded-xl overflow-hidden backdrop-blur-xl">
                 <div className="overflow-x-auto">
                   <table className="w-full text-xs text-slate-300">
-                    <thead className="bg-white/[0.04] text-slate-400 text-[10px]"><tr><th className="p-2 uppercase tracking-wider">Date</th><th className="p-2 uppercase tracking-wider">Material</th><th className="p-2 uppercase tracking-wider">Qty</th><th className="p-2 uppercase tracking-wider">Supplier</th><th className="p-2 uppercase tracking-wider">Total (SAR)</th><th className="p-2 uppercase tracking-wider">Status</th><th className="p-2 uppercase tracking-wider"></th></tr></thead>
+                    <thead className="bg-white/[0.04] text-slate-400 text-[10px]"><tr><th className="p-2 uppercase tracking-wider">PO #</th><th className="p-2 uppercase tracking-wider">Date</th><th className="p-2 uppercase tracking-wider">Supplier</th><th className="p-2 uppercase tracking-wider">Total (SAR)</th><th className="p-2 uppercase tracking-wider">Status</th><th className="p-2 uppercase tracking-wider"></th></tr></thead>
                     <tbody>
                       {pos.map(po => (
                         <tr key={po.id} className="border-b border-white/10">
-                          <td className="p-2">{po.date}</td><td className="p-2 font-bold">{po.material}</td><td className="p-2">{po.qty} {po.unit}</td><td className="p-2">{po.supplier}</td><td className="p-2 font-bold text-white">{po.total.toLocaleString()}</td>
+                          <td className="p-2 font-bold">{po.poNumber}</td>
+                          <td className="p-2">{new Date(po.purchaseDate).toLocaleDateString()}</td>
+                          <td className="p-2">{po.supplierName}</td>
+                          <td className="p-2 font-bold text-white">{toSar(po.totalAmountSar).toLocaleString()}</td>
                           <td className="p-2">
-                            {po.status === 'open' ? <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-orange-500/20 text-orange-400">📦 Open</span> : <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-400">✅ Delivered</span>}
+                            {po.status === 'CANCELLED'
+                              ? <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-500/20 text-red-400">Cancelled</span>
+                              : po.inventoryUpdated || po.status === 'RECEIVED'
+                                ? <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-400">✅ Received</span>
+                                : <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-orange-500/20 text-orange-400">📦 {po.status}</span>}
                           </td>
-                          <td className="p-2">{po.status === 'open' && <button onClick={() => deliverPO(po.id)} className="text-[10px] bg-emerald-500 hover:bg-emerald-400 text-white px-2 py-1 rounded font-bold">Mark delivered</button>}</td>
+                          <td className="p-2">{!po.inventoryUpdated && po.status !== 'CANCELLED' && po.status !== 'RECEIVED' && <button onClick={() => receivePO(po.id)} disabled={poBusy} className="text-[10px] bg-emerald-500 hover:bg-emerald-400 text-white px-2 py-1 rounded font-bold disabled:opacity-40">Receive (POST receive)</button>}</td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
+                  {pos.length === 0 && !poLoading && <p className="text-xs text-slate-500 text-center py-4">No purchase orders yet.</p>}
                 </div>
               </div>
             </div>
