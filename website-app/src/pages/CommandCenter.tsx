@@ -256,6 +256,34 @@ export default function CommandCenter() {
     }
   };
 
+  const printReport = () => {
+    const w = window.open('', '_blank', 'width=900,height=700');
+    if (!w) return;
+    const snap = hist && histDate ? hist : null;
+    const title = snap ? `تقرير البث — ${histDate}${histTime ? ` ${histTime}` : ''}` : 'تقرير البث اليومي — مباشر';
+    const esc = (s: unknown) => String(s ?? '—').replace(/&/g, '&amp;').replace(/</g, '&lt;');
+    const row = (k: string, v: string) => `<tr><th>${k}</th><td>${esc(v)}</td></tr>`;
+    const fleet = snap?.fleet;
+    const mp = snap ? snap.manpower : manpower;
+    const gt = snap?.gate;
+    const rd = snap ? null : readiness;
+    w.document.write(`<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>${title}</title>
+    <style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:'Segoe UI',Tahoma;padding:28px;color:#111}h1{font-size:22px;margin-bottom:4px}.sub{font-size:12px;color:#555;margin-bottom:14px}table{width:100%;border-collapse:collapse;font-size:12px;margin:10px 0}th{background:#0f172a;color:#fff;padding:6px 8px;text-align:right;width:40%}td{padding:5px 8px;border-bottom:1px solid #ddd}h2{font-size:15px;margin:14px 0 4px}.foot{margin-top:18px;font-size:11px;color:#555;display:flex;gap:40px}.sig{border-top:1px solid #999;padding-top:4px;min-width:140px;text-align:center}@media print{body{padding:10mm}}</style></head><body>
+    <h1>📺 ${title}</h1>
+    <div class="sub">المصنع الرئيسي - حفر الباطن · ${new Date().toISOString().slice(0, 10)}</div>
+    <h2>الأسطول</h2>
+    <table>${snap && fleet ? row('مركبات متموضعة', fleet.positioned) + row('داخل السور', fleet.insideGeofence) + row('بلا إشارة', fleet.stale) : row('متموضعة/حية', canFleet ? `${liveCount}/${vehicles.length}` : '—')}</table>
+    <h2>القوة البشرية</h2>
+    <table>${row('حاضر/إجمالي', mp ? `${mp.present}/${mp.total}` : '—')}</table>
+    ${rd ? `<h2>الجاهزية</h2><table>${Object.entries(rd).map(([t, b]: any) => row(t, `شغال ${b.working}/${b.total} · ورشة ${b.workshop} · عاطل ${b.idle}`)).join('')}</table>` : ''}
+    ${snap && gt ? `<h2>البوابة</h2><table>${row('دخول/خروج', `${gt.inTickets}/${gt.outTickets}`)}${row('صافي الداخل (طن)', (gt.inKg / 1000).toFixed(1))}${row('خرسانة م³', gt.concreteM3)}${row('بلك', gt.blockUnits)}</table>` : ''}
+    ${snap ? `<h2>الطلبات والرحلات</h2><table>${row('طلبات', `${snap.orders?.count ?? 0} (${snap.orders?.volumeM3 ?? 0} م³)`)}</table><table>${row('رحلات', snap.trips?.total ?? 0)}</table>` : ''}
+    ${!snap && emergencies.length ? `<h2>الطوارئ (${emergencies.length})</h2><table>${emergencies.map((e) => row(e.dept, e.text)).join('')}</table>` : ''}
+    <div class="foot"><div class="sig">توقيع مدير المصنع</div><div class="sig">توقيع المشرف</div></div>
+    <script>window.onload=()=>setTimeout(()=>window.print(),400);<\/script></body></html>`);
+    w.document.close();
+  };
+
   const saveTargets = async () => {
     const c = Math.max(0, Number(editConcrete) || 0);
     const b = Math.max(0, Math.round(Number(editBlocks) || 0));
@@ -359,6 +387,10 @@ export default function CommandCenter() {
             }`}
           >
             🚨 {L('طوارئ', 'Emergency')} · {emergencies.length}
+          </button>
+          <button onClick={printReport} title={L('طباعة / PDF', 'Print / PDF')}
+            className="flex items-center gap-1.5 text-xs font-black rounded-lg px-3 py-2 border border-white/10 text-slate-300 hover:text-white hover:border-sky-400/60">
+            🖨️ {L('طباعة', 'Print')}
           </button>
           <span className="flex items-center gap-1.5 text-xs font-black text-emerald-300 bg-emerald-500/10 border border-emerald-500/30 rounded-lg px-3 py-2">
             <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" /> {L('مباشر', 'LIVE')}

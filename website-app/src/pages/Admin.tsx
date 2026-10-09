@@ -4,9 +4,9 @@ import { useAdmin, rolePermissions, ROLE_KEYS, MODULE_KEYS, type UserRole } from
 import { useLang } from '../context/LangContext';
 import { useAdminDict } from '../i18n/adminDict';
 import type { Translations } from '../context/translations';
-import { useNavigate } from 'react-router-dom';
-import LangSelector from '../components/LangSelector';
+import { useNavigate, Link } from 'react-router-dom';
 import QuickJump from '../components/QuickJump';
+import LangSelector from '../components/LangSelector';
 import { loadPlantGPS, savePlantGPS, getAllPlantsSummary, loadPlantLogo, savePlantLogo, loadPlants, loadBlockPlants, getAllUsers, getAllCompanyTrees, isOnline, type PlantSummary, type CompanyTree } from '../firebase/firestore';
 import FactoryData from '../components/FactoryData';
 import PlantsManager from '../components/PlantsManager';
