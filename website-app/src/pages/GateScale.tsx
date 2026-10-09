@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
@@ -66,6 +66,111 @@ export default function GateScale() {
     officer: '', docName: '',
   });
   const [docFile, setDocFile] = useState<File | null>(null);
+  const [camOn, setCamOn] = useState(false);
+  const [camShot, setCamShot] = useState<string | null>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  // Weighbridge serial link (Web Serial API — Chrome/Edge over HTTPS).
+  const [scaleInfo, setScaleInfo] = useState('');
+  const [scaleOn, setScaleOn] = useState(false);
+  const [scaleTarget, setScaleTarget] = useState<'entry' | 'exit'>('entry');
+  const portRef = useRef<any>(null);
+  const scaleStopRef = useRef(false);
+
+  const stopCam = () => {
+    try {
+      streamRef.current?.getTracks().forEach((t) => t.stop());
+    } catch { /* ignore */ }
+    streamRef.current = null;
+    setCamOn(false);
+  };
+
+  useEffect(() => () => {
+    stopCam();
+    scaleStopRef.current = true;
+    try {
+      portRef.current?.close?.();
+    } catch { /* ignore */ }
+  }, []);
+
+  const startCam = async () => {
+    try {
+      const s = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
+      streamRef.current = s;
+      setCamOn(true);
+      requestAnimationFrame(() => {
+        if (videoRef.current) videoRef.current.srcObject = s;
+      });
+    } catch {
+      setMsg(`❌ ${L('تعذر فتح الكاميرا — تأكد من السماح بالوصول', 'Camera unavailable')}`);
+    }
+  };
+
+  const snapCam = () => {
+    const v = videoRef.current;
+    if (!v || v.videoWidth === 0) return;
+    const c = document.createElement('canvas');
+    c.width = v.videoWidth;
+    c.height = v.videoHeight;
+    c.getContext('2d')?.drawImage(v, 0, 0);
+    const url = c.toDataURL('image/jpeg', 0.85);
+    setCamShot(url);
+    stopCam();
+  };
+
+  const connectScale = async () => {
+    const nav = navigator as any;
+    if (!nav.serial) {
+      setScaleInfo(L('المتصفح لا يدعم المنفذ التسلسلي — استخدم Chrome/Edge', 'Web Serial unsupported — use Chrome/Edge'));
+      return;
+    }
+    try {
+      const port = await nav.serial.requestPort();
+      await port.open({ baudRate: 9600, dataBits: 8, stopBits: 1, parity: 'none' });
+      portRef.current = port;
+      scaleStopRef.current = false;
+      setScaleOn(true);
+      setScaleInfo(L('متصل — اضغط قراءة الوزن', 'Connected — press read'));
+      const dec = new TextDecoder();
+      let buf = '';
+      const reader = port.readable.getReader();
+      const read = async (): Promise<void> => {
+        try {
+          for (;;) {
+            if (scaleStopRef.current) break;
+            const { value, done } = await reader.read();
+            if (done) break;
+            buf += dec.decode(value, { stream: true });
+            // Generic indicator frames (XK3190 & compatibles): continuous ASCII
+            // with the stable weight; take the last number in the buffer.
+            const nums = buf.match(/-?\d+(?:\.\d+)?/g);
+            if (nums && nums.length) {
+              const last = nums[nums.length - 1];
+              setScaleInfo(`${L('الميزان', 'Scale')}: ${last} ${L('كجم', 'kg')}`);
+              (connectScale as any)._last = last;
+            }
+            if (buf.length > 400) buf = buf.slice(-200);
+          }
+        } catch { /* port closed */ } finally {
+          try { reader.releaseLock(); } catch { /* ignore */ }
+        }
+      };
+      void read();
+    } catch {
+      setScaleInfo(L('أُلغي الاتصال', 'Connection cancelled'));
+    }
+  };
+
+  const readScale = () => {
+    const last = (connectScale as any)._last as string | undefined;
+    if (!last) {
+      setMsg(`❌ ${L('لا قراءة بعد — انتظر استقرار الوزن', 'No reading yet')}`);
+      return;
+    }
+    if (scaleTarget === 'entry') set('entryWeightKg', last);
+    else set('exitWeightKg', last);
+    setMsg(`✅ ${L('الميزان', 'Scale')}: ${last} ${L('كجم', 'kg')}`);
+  };
   const [docView, setDocView] = useState<{ name: string; url: string } | null>(null);
   const [closeW, setCloseW] = useState<Record<string, string>>({});
 
@@ -123,6 +228,7 @@ export default function GateScale() {
     setBusy('open');
     try {
       let docData: string | undefined;
+      let docName: string | undefined;
       if (docFile) {
         if (docFile.size > 8 * 1024 * 1024) throw new Error(L('المستند أكبر من 8MB', 'Document over 8MB'));
         docData = await new Promise<string>((resolve, reject) => {
@@ -131,6 +237,10 @@ export default function GateScale() {
           r.onerror = reject;
           r.readAsDataURL(docFile);
         });
+        docName = docFile.name;
+      } else if (camShot) {
+        docData = camShot;
+        docName = `gate-${Date.now()}.jpg`;
       }
       const officer = f.officer.trim() || (currentUser as any)?.fullName || '';
       const r = await api.post<{ ticketNo?: string }>('/api/gate', {
@@ -145,10 +255,11 @@ export default function GateScale() {
         ...(f.quantity.trim() ? { quantity: Number(f.quantity), quantityUnit: dir === 'IN' ? 'KG' : f.category === 'CONCRETE' ? 'M3' : 'UNIT' } : {}),
         ...(f.notes.trim() ? { notes: f.notes.trim() } : {}),
         ...(officer ? { officerName: officer } : {}),
-        ...(docData ? { docName: docFile?.name ?? 'document', docData } : {}),
+        ...(docData ? { docName: docName ?? 'document', docData } : {}),
       });
       setMsg(`✅ ${L('تم فتح التذكرة', 'Ticket opened')} ${r?.ticketNo ?? ''}`);
       setDocFile(null);
+      setCamShot(null);
       setF({
         category: dir === 'IN' ? 'RAW_CEMENT' : 'CONCRETE', vehicleId: '', externalPlate: '',
         partyName: '', driverName: '', entryWeightKg: '', exitWeightKg: '', quantity: '', notes: '',
@@ -328,6 +439,56 @@ export default function GateScale() {
             <label className="text-[11px] text-slate-400 font-bold">📎 {L('مستند الاستلام (PDF/صورة)', 'Receipt doc')}
               <input type="file" accept="application/pdf,image/*" onChange={(e) => setDocFile(e.target.files?.[0] ?? null)}
                 className="mt-0.5 w-full text-[11px] text-slate-300 file:bg-white/10 file:border file:border-white/10 file:rounded-lg file:px-2 file:py-1 file:text-white file:text-[11px]" /></label>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
+            <div className="rounded-xl border border-white/10 p-2">
+              <p className="text-[11px] font-black text-slate-300 mb-1">📷 {L('كاميرا البوابة (دليل مصور)', 'Gate camera')}</p>
+              {!camOn && !camShot && (
+                <button onClick={startCam} className="text-[11px] font-black rounded-lg px-3 py-1.5 border border-violet-500/50 bg-violet-500/15 text-violet-300">
+                  {L('فتح الكاميرا', 'Open camera')}
+                </button>
+              )}
+              {camOn && (
+                <div>
+                  <video ref={videoRef} autoPlay playsInline muted className="w-full rounded-lg max-h-48 object-cover" />
+                  <div className="flex gap-2 mt-1">
+                    <button onClick={snapCam} className="text-[11px] font-black rounded-lg px-3 py-1.5 bg-violet-500 text-white">
+                      📸 {L('التقاط', 'Capture')}
+                    </button>
+                    <button onClick={stopCam} className="text-[11px] rounded-lg px-3 py-1.5 border border-white/15 text-slate-300">
+                      {L('إغلاق', 'Close')}
+                    </button>
+                  </div>
+                </div>
+              )}
+              {camShot && (
+                <div className="flex items-center gap-2">
+                  <img src={camShot} alt="" className="h-16 rounded-lg border border-emerald-500/40" />
+                  <span className="text-[11px] text-emerald-300 font-black">✅ {L('ستُرفق مع التذكرة', 'Will attach')}</span>
+                  <button onClick={() => setCamShot(null)} className="text-[11px] text-slate-400">✕</button>
+                </div>
+              )}
+            </div>
+            <div className="rounded-xl border border-white/10 p-2">
+              <p className="text-[11px] font-black text-slate-300 mb-1">⚖️ {L('ربط الميزان (تسلسلي)', 'Scale link')}</p>
+              {!scaleOn ? (
+                <button onClick={connectScale} className="text-[11px] font-black rounded-lg px-3 py-1.5 border border-sky-500/50 bg-sky-500/15 text-sky-300">
+                  🔌 {L('توصيل الميزان', 'Connect scale')}
+                </button>
+              ) : (
+                <div className="flex items-center gap-2 flex-wrap">
+                  <select value={scaleTarget} onChange={(e) => setScaleTarget(e.target.value as 'entry' | 'exit')}
+                    className="bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none">
+                    <option value="entry">{L('وزنة الدخول', 'Entry')}</option>
+                    <option value="exit">{L('وزنة الخروج', 'Exit')}</option>
+                  </select>
+                  <button onClick={readScale} className="text-[11px] font-black rounded-lg px-3 py-1.5 bg-sky-500 text-white">
+                    ⚖️ {L('قراءة الوزن', 'Read weight')}
+                  </button>
+                </div>
+              )}
+              {scaleInfo && <p className="text-[11px] text-slate-400 font-mono mt-1" dir="ltr">{scaleInfo}</p>}
+            </div>
           </div>
           {(DENSITY[f.category] && (f.entryWeightKg.trim() || f.quantity.trim())) && (
             <p className="text-[11px] text-sky-300 font-bold mt-2">
