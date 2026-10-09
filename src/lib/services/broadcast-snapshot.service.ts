@@ -3,12 +3,13 @@ import {
   broadcastSnapshots,
   gatePasses,
   hrAbsences,
+  ledgerEntries,
   orders,
   payrollEmployees,
   tenants,
   trips,
 } from "@/db/schema";
-import { and, desc, eq, gte, lte, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, lte, sql } from "drizzle-orm";
 import { getFleetPositions } from "@/lib/services/fleet-position.service";
 import { getReadinessSummary } from "@/lib/services/readiness.service";
 
@@ -23,6 +24,7 @@ export type BroadcastSnapshot = {
   readiness: Record<string, { total: number; working: number; idle: number; workshop: number; unmarked: number }>;
   manpower: { total: number; present: number; absent: number };
   gate: { inTickets: number; outTickets: number; inKg: number; concreteM3: number; blockUnits: number };
+  collectionsSar: number;
   orders: { count: number; volumeM3: number };
   trips: { active: number; total: number };
   targets: { concreteM3: number; blocks: number };
@@ -76,6 +78,18 @@ export async function takeSnapshot(tenantId: string, date: string): Promise<Broa
     .from(trips)
     .where(and(eq(trips.tenantId, tenantId), gte(trips.createdAt, from), lte(trips.createdAt, to)));
 
+  const dayIncome = await db
+    .select({ amountSar: ledgerEntries.amountSar })
+    .from(ledgerEntries)
+    .where(
+      and(
+        eq(ledgerEntries.tenantId, tenantId),
+        inArray(ledgerEntries.transactionType, ["income", "sale"]),
+        gte(ledgerEntries.date, from),
+        lte(ledgerEntries.date, to)
+      )
+    );
+
   const [tnt] = await db
     .select({ settings: tenants.settings })
     .from(tenants)
@@ -111,6 +125,7 @@ export async function takeSnapshot(tenantId: string, date: string): Promise<Broa
       active: dayTrips.filter((x) => !x.done && !x.cancelled).length,
       total: dayTrips.length,
     },
+    collectionsSar: dayIncome.reduce((s, r) => s + Number(r.amountSar ?? 0), 0) / 100,
     targets: { concreteM3: Number(targets.concreteM3 ?? 0), blocks: Number(targets.blocks ?? 0) },
   };
 

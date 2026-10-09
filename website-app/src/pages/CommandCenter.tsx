@@ -110,6 +110,7 @@ export default function CommandCenter() {
   const [openWO, setOpenWO] = useState<any[]>([]);
   const [fuelAnom, setFuelAnom] = useState<any[]>([]);
   const [manpower, setManpower] = useState<{ present: number; total: number } | null>(null);
+  const [collections, setCollections] = useState<{ totalSar: number; count: number } | null>(null);
   const [readiness, setReadiness] = useState<Record<string, { total: number; working: number; idle: number; workshop: number; unmarked: number }> | null>(null);
   const [histDate, setHistDate] = useState('');
   const [histTime, setHistTime] = useState('');
@@ -173,6 +174,13 @@ export default function CommandCenter() {
           : null
       );
     } catch { setManpower(null); }
+    // Collections today (accountant records them from Finance).
+    try {
+      const c = await api.get<{ totalSar?: number; count?: number }>('/api/finance/collections');
+      setCollections(
+        typeof c?.totalSar === 'number' ? { totalSar: c.totalSar, count: c.count ?? 0 } : null
+      );
+    } catch { setCollections(null); }
     // Readiness roll-call (dispatcher marks in Operations).
     try {
       const rd = await api.get<{ byType?: Record<string, { total: number; working: number; idle: number; workshop: number; unmarked: number }> }>('/api/fleet/readiness');
@@ -277,7 +285,7 @@ export default function CommandCenter() {
     <table>${row('حاضر/إجمالي', mp ? `${mp.present}/${mp.total}` : '—')}</table>
     ${rd ? `<h2>الجاهزية</h2><table>${Object.entries(rd).map(([t, b]: any) => row(t, `شغال ${b.working}/${b.total} · ورشة ${b.workshop} · عاطل ${b.idle}`)).join('')}</table>` : ''}
     ${snap && gt ? `<h2>البوابة</h2><table>${row('دخول/خروج', `${gt.inTickets}/${gt.outTickets}`)}${row('صافي الداخل (طن)', (gt.inKg / 1000).toFixed(1))}${row('خرسانة م³', gt.concreteM3)}${row('بلك', gt.blockUnits)}</table>` : ''}
-    ${snap ? `<h2>الطلبات والرحلات</h2><table>${row('طلبات', `${snap.orders?.count ?? 0} (${snap.orders?.volumeM3 ?? 0} م³)`)}</table><table>${row('رحلات', snap.trips?.total ?? 0)}</table>` : ''}
+    ${snap ? `<h2>الطلبات والرحلات والتحصيل</h2><table>${row('طلبات', `${snap.orders?.count ?? 0} (${snap.orders?.volumeM3 ?? 0} م³)`)}</table><table>${row('رحلات', snap.trips?.total ?? 0)}${row('تحصيل اليوم (ر.س)', snap.collectionsSar ?? 0)}</table>` : ''}
     ${!snap && emergencies.length ? `<h2>الطوارئ (${emergencies.length})</h2><table>${emergencies.map((e) => row(e.dept, e.text)).join('')}</table>` : ''}
     <div class="foot"><div class="sig">توقيع مدير المصنع</div><div class="sig">توقيع المشرف</div></div>
     <script>window.onload=()=>setTimeout(()=>window.print(),400);<\/script></body></html>`);
@@ -427,8 +435,9 @@ export default function CommandCenter() {
       )}
 
       {/* ===== KPI strip: concrete + blocks + fleet + manpower, one row ===== */}
-      <div className="px-4 pt-2 grid grid-cols-4 lg:grid-cols-9 gap-2 shrink-0">
+      <div className="px-4 pt-2 grid grid-cols-4 lg:grid-cols-10 gap-2 shrink-0">
         <MiniTile label={L('القوة البشرية 👷', 'Manpower')} value={manpower ? `${fmt(manpower.present, lang)}/${fmt(manpower.total, lang)}` : '—'} to="/hr" />
+        <MiniTile label={L('تحصيل اليوم 💵', 'Collected')} value={collections ? `${fmt(collections.totalSar, lang)}` : '—'} to="/finance" />
         <MiniTile label={L('خرسانة اليوم م³', 'Concrete m³')} value={fmt(board?.deliveredTodayM3, lang)} to="/operations" />
         <MiniTile label={L('إنتاج البلك 🧱', 'Blocks made')} value={fmt(blocks.producedUnits, lang)} to="/production" />
         <MiniTile label={L('مبيعات البلك 🧾', 'Blocks sold')} value={fmt(blocks.salesOrders, lang)} to="/production" />
@@ -489,6 +498,7 @@ export default function CommandCenter() {
               { l: `📤 ${L('خرسانة م³', 'Conc m³')}`, v: `${hist.gate?.concreteM3 ?? 0}` },
               { l: `🧾 ${L('طلبات', 'Orders')}`, v: `${hist.orders?.count ?? 0}` },
               { l: `🚚 ${L('رحلات', 'Trips')}`, v: `${hist.trips?.total ?? 0}` },
+              { l: `💵 ${L('تحصيل', 'Collected')}`, v: `${hist.collectionsSar ?? 0}` },
               { l: `🎯 ${L('مستهدف', 'Goal')}`, v: `${hist.targets?.concreteM3 ?? 0}` },
             ].map((x) => (
               <div key={x.l}>
