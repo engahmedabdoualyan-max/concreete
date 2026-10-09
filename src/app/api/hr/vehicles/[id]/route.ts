@@ -40,6 +40,8 @@ const UpdateVehicleSchema = z.object({
   make: z.string().trim().max(80).nullable().optional(),
   model: z.string().trim().max(80).nullable().optional(),
   year: z.number().int().min(1990).max(2100).nullable().optional(),
+  /** Target diesel L/100km — drives fuel variance + anomaly flags. */
+  targetFuelLPer100Km: z.number().min(1).max(200).nullable().optional(),
   /** Link/unlink the primary driver. Null clears the link. */
   assignedDriverId: z.string().uuid().nullable().optional(),
 });
@@ -90,6 +92,8 @@ export async function PUT(
   if (d.make !== undefined) patch.make = d.make || null;
   if (d.model !== undefined) patch.model = d.model || null;
   if (d.year !== undefined) patch.year = d.year;
+  if (d.targetFuelLPer100Km !== undefined)
+    patch.targetFuelLPer100Km = d.targetFuelLPer100Km;
   if (d.assignedDriverId !== undefined) patch.assignedDriverId = d.assignedDriverId;
 
   try {

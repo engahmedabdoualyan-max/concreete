@@ -352,7 +352,7 @@ export default function HR() {
   };
   const [fleet, setFleet] = useState<any[]>([]);
   const [editVeh, setEditVeh] = useState<Record<string, { istimara: string; istimaraLast: string; insurance: string; insuranceLast: string; inspection: string; inspectionLast: string }>>({});
-  const [editVehInfo, setEditVehInfo] = useState<Record<string, { code: string; plate: string; type: string; make: string; model: string; year: string }>>({});
+  const [editVehInfo, setEditVehInfo] = useState<Record<string, { code: string; plate: string; type: string; make: string; model: string; year: string; target: string }>>({});
   const VEH_TYPES = [
     { v: 'MIXER_TRUCK', ar: 'خلاطة', en: 'Mixer' },
     { v: 'CONCRETE_PUMP', ar: 'بمب خرسانة', en: 'Pump' },
@@ -688,6 +688,7 @@ function ageOf(raw: unknown): number | null {
         ...(f.make.trim() ? { make: f.make.trim() } : {}),
         ...(f.model.trim() ? { model: f.model.trim() } : {}),
         ...(f.year.trim() ? { year: Number(f.year.trim()) } : {}),
+        ...(f.target.trim() ? { targetFuelLPer100Km: Number(f.target.trim()) } : {}),
       });
       setMsg('✅ تم حفظ بيانات المركبة');
       setEditVehInfo((p) => {
@@ -2651,9 +2652,9 @@ function ageOf(raw: unknown): number | null {
             <div className="space-y-2">
               {fleet.map((v, i) => {
                 const f = editVeh[v.id];
-                const fi = editVehInfo[v.id] ?? { code: '', plate: '', type: '', make: '', model: '', year: '' };
+                const fi = editVehInfo[v.id] ?? { code: '', plate: '', type: '', make: '', model: '', year: '', target: '' };
                 const setFi = (k: string, val: string) =>
-                  setEditVehInfo((p) => ({ ...p, [v.id]: { ...(p[v.id] ?? { code: '', plate: '', type: '', make: '', model: '', year: '' }), [k]: val } }));
+                  setEditVehInfo((p) => ({ ...p, [v.id]: { ...(p[v.id] ?? { code: '', plate: '', type: '', make: '', model: '', year: '', target: '' }), [k]: val } }));
                 return (
                   <div key={v.id ?? i} className="rounded-xl border border-white/10 bg-white/[0.03] p-3 text-xs">
                     <div className="flex items-center justify-between flex-wrap gap-1">
@@ -2696,6 +2697,11 @@ function ageOf(raw: unknown): number | null {
                       <label className="text-[10px] text-slate-400 font-bold">{ar ? 'السنة' : 'Year'}
                         <input value={fi.year} placeholder={v.year ? String(v.year) : ''} inputMode="numeric"
                           onChange={(e) => setFi('year', e.target.value)}
+                          className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1 text-xs text-white outline-none" /></label>
+                      <label className="text-[10px] text-slate-400 font-bold">{ar ? 'مستهدف الديزل لتر/100' : 'Diesel target'}
+                        <input value={fi.target} placeholder={v.targetFuelLPer100Km ? String(v.targetFuelLPer100Km) : ''}
+                          inputMode="decimal"
+                          onChange={(e) => setFi('target', e.target.value)}
                           className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1 text-xs text-white outline-none" /></label>
                     </div>
                     <button disabled={busy === 'vehinfo' + v.id} onClick={() => saveVehInfo(v.id)}

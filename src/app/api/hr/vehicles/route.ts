@@ -36,6 +36,7 @@ export async function GET(req: NextRequest) {
       make: fleetVehicles.make,
       model: fleetVehicles.model,
       year: fleetVehicles.year,
+      targetFuelLPer100Km: fleetVehicles.targetFuelLPer100Km,
       currentStatus: fleetVehicles.currentStatus,
       assignedDriverId: fleetVehicles.assignedDriverId,
       driverName: users.fullName,

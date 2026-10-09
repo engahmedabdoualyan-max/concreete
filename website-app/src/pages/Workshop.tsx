@@ -103,6 +103,14 @@ export default function Workshop() {
   const [assets, setAssets] = useState<Asset[]>(DEF_ASSETS);
   const [config, setConfig] = useState(DEF_CONFIG);
   const [fuelLogs, setFuelLogs] = useState<FuelLog[]>([]);
+  const [fuelReport, setFuelReport] = useState<any[]>([]);
+  const [fuelDays, setFuelDays] = useState('30');
+  const loadFuelReport = async (days?: string) => {
+    try {
+      const d = await api.get<{ vehicles?: any[] }>(`/api/workshop/fuel/report?days=${days ?? fuelDays}`);
+      setFuelReport(Array.isArray(d?.vehicles) ? d.vehicles : []);
+    } catch { setFuelReport([]); }
+  };
   const [oilLogs, setOilLogs] = useState<OilLog[]>(() => loadLocal('ws_oil', []));
   const [sparePartLogs, setSparePartLogs] = useState<SparePartLog[]>(() => loadLocal('ws_parts', []));
   const [breakdowns, setBreakdowns] = useState<BreakdownReport[]>(() => loadLocal('ws_breakdowns', []));
@@ -181,6 +189,10 @@ export default function Workshop() {
         const fl = await api.get<any>('/api/workshop/fuel');
         const logs = Array.isArray(fl) ? fl : (fl?.fuelLogs ?? []);
         if (!cancelled && Array.isArray(logs)) setFuelLogs(logs.map(mapFuelLog));
+      } catch { /* offline */ }
+      try {
+        const rp = await api.get<any>('/api/workshop/fuel/report?days=30');
+        if (!cancelled && Array.isArray((rp as any)?.vehicles)) setFuelReport((rp as any).vehicles);
       } catch { /* offline */ }
       if (!cancelled) setLoaded(true);
     })();
@@ -466,6 +478,49 @@ export default function Workshop() {
             <button type="submit" className="w-full bg-yellow-500 hover:bg-yellow-600 text-slate-900 font-bold py-3 rounded-lg">{t('save')}</button>
           </form></div>
           <div className="bg-white/[0.04] border border-white/10 rounded-xl p-6"><h3 className="text-lg font-black tracking-tight text-white mb-4">{t('fuelLog')} ({fuelLogs.length})</h3><div className="overflow-x-auto"><table className="w-full text-xs text-slate-300"><thead className="bg-white/[0.04] text-slate-400 text-[10px]"><tr><th className="p-2">{t('date')}</th><th className="p-2">{t('vehicle')}</th><th className="p-2">{t('currentOdometer')}</th><th className="p-2">{t('liters')}</th><th className="p-2">{t('totalCost')}</th></tr></thead><tbody>{fuelLogs.slice(-20).reverse().map(f=><tr key={f.id} className="border-b border-white/10"><td className="p-2">{f.date}</td><td className="p-2 font-bold">{f.assetId}</td><td className="p-2">{f.odoReading}</td><td className="p-2">{f.liters}</td><td className="p-2 font-bold text-yellow-400">{fmtMoney(f.totalCost)}</td></tr>)}</tbody></table></div></div>
+        </div>)}
+        {tab==='fuel' && (
+        <div className="mt-6 bg-white/[0.04] border border-amber-500/25 rounded-xl p-6">
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+            <h3 className="text-base font-black text-amber-300">⛽ تقرير استهلاك الديزل (لتر/100كم مقابل المستهدف)</h3>
+            <span className="flex items-center gap-2">
+              <select value={fuelDays} onChange={(e) => { setFuelDays(e.target.value); void loadFuelReport(e.target.value); }}
+                className="bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none">
+                <option value="7">7 أيام</option>
+                <option value="30">30 يوم</option>
+                <option value="90">90 يوم</option>
+              </select>
+              <button onClick={() => void loadFuelReport()} className="text-xs border border-white/10 rounded-lg px-3 py-1.5 text-slate-300">🔄</button>
+            </span>
+          </div>
+          {fuelReport.length === 0
+            ? <p className="text-xs text-slate-500">لا قراءات في الفترة — سجل العداد واللترات أعلاه لبدء الحكم على الديزل.</p>
+            : (
+            <div className="overflow-x-auto"><table className="w-full text-xs text-slate-300">
+              <thead className="bg-white/[0.04] text-slate-400 text-[10px]"><tr>
+                <th className="p-2">المركبة</th><th className="p-2">كم مشى</th><th className="p-2">لتر</th>
+                <th className="p-2">تعبئات</th><th className="p-2">فعلي لتر/100</th><th className="p-2">المستهدف</th>
+                <th className="p-2">الفرق</th><th className="p-2">شذوذ</th>
+              </tr></thead>
+              <tbody>{fuelReport.map((r: any) => {
+                const bad = r.variancePct !== null && r.variancePct > 15;
+                return (
+                  <tr key={r.vehicleCode} className={`border-b border-white/10 ${bad ? 'bg-red-500/10' : ''}`}>
+                    <td className="p-2 font-bold">{r.vehicleCode} <span className="text-slate-500">· {r.plateNumber}</span></td>
+                    <td className="p-2">{r.kmDriven} كم</td>
+                    <td className="p-2">{r.litresBurned}</td>
+                    <td className="p-2">{r.fills}</td>
+                    <td className="p-2 font-black">{r.avgLPer100Km ?? '—'}</td>
+                    <td className="p-2">{r.targetLPer100Km ?? '—'}</td>
+                    <td className={`p-2 font-black ${bad ? 'text-red-400' : r.variancePct !== null && r.variancePct > 0 ? 'text-yellow-300' : 'text-emerald-300'}`}>
+                      {r.variancePct === null ? '—' : `${r.variancePct > 0 ? '+' : ''}${r.variancePct}%`}
+                    </td>
+                    <td className="p-2">{r.anomalies > 0 ? `🚨 ${r.anomalies}` : '—'}</td>
+                  </tr>
+                );
+              })}</tbody>
+            </table></div>
+            )}
         </div>)}
 
         {/* OIL */}
