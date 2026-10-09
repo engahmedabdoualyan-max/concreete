@@ -43,6 +43,7 @@ import FleetCoding from './pages/FleetCoding';
 import Sites from './pages/Sites';
 import CommandCenter from './pages/CommandCenter';
 import HR from './pages/HR';
+import Forms from './pages/Forms';
 import GateScale from './pages/GateScale';
 import Procurement from './pages/Procurement';
 import FieldBackButton from './field/FieldBackButton';
@@ -95,6 +96,7 @@ export default function App() {
           <Route path="/sites" element={<Sites />} />
           <Route path="/command" element={<CommandCenter />} />
           <Route path="/hr" element={<HR />} />
+          <Route path="/forms" element={<Forms />} />
           <Route path="/gate" element={<GateScale />} />
           <Route path="/procurement" element={<Procurement />} />
           <Route path="/mixing" element={<MixingQuality />} />

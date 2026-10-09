@@ -4744,6 +4744,37 @@ export const broadcastSnapshots = pgTable(
   ]
 );
 
+/**
+ * form_records — filled paper forms (مكتبة النماذج): daily reports, meeting
+ * minutes, warnings, inventory counts... One generic table: form_code picks
+ * the layout from the frontend catalog, data holds the filled fields/rows,
+ * docs holds attached file data-URIs. Editable + deletable like any record.
+ */
+export const formRecords = pgTable(
+  "form_records",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    formCode: varchar("form_code", { length: 20 }).notNull(),
+    title: varchar("title", { length: 200 }).notNull(),
+    formDate: varchar("form_date", { length: 10 }),
+    data: jsonb("data").notNull().default({}),
+    docs: jsonb("docs").notNull().default([]),
+    status: varchar("status", { length: 16 }).notNull().default("DRAFT"),
+    createdById: uuid("created_by_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("form_records_tenant_idx").on(t.tenantId),
+    index("form_records_tenant_code_idx").on(t.tenantId, t.formCode),
+  ]
+);
+
 //
 //  Location-based attendance like dedicated attendance apps:
 //   • hr_zones — work geofences (factory + sites): lat/lng + radius
