@@ -171,6 +171,8 @@ export default function Operations() {
   const [rdSites, setRdSites] = useState<any[]>([]);
   const [rdMsg, setRdMsg] = useState('');
   const [rdBusy, setRdBusy] = useState(false);
+  const [hrFleet, setHrFleet] = useState<any[]>([]);
+  const [rdDrvBusy, setRdDrvBusy] = useState('');
   const typeAr = (t: string) =>
     ({ MIXER_TRUCK: 'خلاطات', CONCRETE_PUMP: 'بامب', TIPPER_TRUCK: 'قلاب', TRANSIT_MIXER: 'ترانزيت', WATER_TANKER: 'تانكر', SERVICE_TRUCK: 'خدمة/ونش' } as Record<string, string>)[t] ?? t;
   const loadReadiness = async (date?: string) => {
@@ -221,6 +223,19 @@ export default function Operations() {
       setRdBusy(false);
     }
   };
+  const drvOf = (vehicleId: string) => hrFleet.find((f) => f.id === vehicleId)?.assignedDriverId ?? '';
+  const assignVehicleDriver = async (vehicleId: string, userId: string) => {
+    setRdDrvBusy(vehicleId);
+    try {
+      await api.put(`/api/hr/vehicles/${vehicleId}`, { assignedDriverId: userId || null });
+      setHrFleet((p) => p.map((f) => (f.id === vehicleId ? { ...f, assignedDriverId: userId || null } : f)));
+      setRdMsg('✅ تم تعيين السائق');
+    } catch (e: any) {
+      setRdMsg(`❌ ${e?.message ?? 'فشل تعيين السائق'}`);
+    } finally {
+      setRdDrvBusy('');
+    }
+  };
   const [boardSummary, setBoardSummary] = useState<BoardSummary | null>(null);
   const [boardAlerts, setBoardAlerts] = useState<BoardAlert[]>([]);
   const [erpOrders, setErpOrders] = useState<ErpOrder[]>([]);
@@ -241,12 +256,13 @@ export default function Operations() {
     setBoardLoading(true);
     setBoardError('');
     try {
-      const [board, ordersRes, fleetRes, empRes, mixes] = await Promise.all([
+      const [board, ordersRes, fleetRes, empRes, mixes, hrVeh] = await Promise.all([
         api.get<BoardResponse>('/api/dispatch/board').catch(() => null),
         api.get<{ orders: ErpOrder[] }>('/api/orders?limit=100').catch(() => ({ orders: [] })),
         api.get<{ vehicles: FleetVehicle[] }>('/api/fleet').catch(() => ({ vehicles: [] })),
         api.get<{ employees: HrDriver[] }>('/api/hr/employees').catch(() => ({ employees: [] })),
         api.get<MixDesign[]>('/api/mix-designs').catch(() => [] as MixDesign[]),
+        api.get<{ vehicles: any[] }>('/api/hr/vehicles').catch(() => ({ vehicles: [] })),
       ]);
       if (board) {
         setBoardSummary(board.summary);
@@ -259,6 +275,7 @@ export default function Operations() {
       setFleetList(Array.isArray(fleetRes.vehicles) ? fleetRes.vehicles : []);
       // Driver select: payroll roster filtered to login-linked rows (userId set)
       setDriverOptions(Array.isArray(empRes.employees) ? empRes.employees.filter(e => e && e.userId) : []);
+      setHrFleet(Array.isArray((hrVeh as any)?.vehicles) ? (hrVeh as any).vehicles : []);
       setMixOptions(Array.isArray(mixes) ? mixes : []);
     } catch (e) {
       setBoardError(e instanceof Error ? e.message : 'Failed to load dispatch board');
@@ -713,6 +730,15 @@ export default function Operations() {
                           className="bg-white/[0.05] border border-white/10 rounded px-1.5 py-0.5 text-[10px] text-slate-200 outline-none max-w-[110px]">
                           <option value="">فرع؟</option>
                           {rdSites.map((s: any) => <option key={s.id} value={s.id}>{s.name ?? s.code ?? s.siteCode}</option>)}
+                        </select>
+                      </div>
+                      <div className="flex items-center gap-1 mt-1">
+                        <span className="text-[10px] text-slate-400 font-bold shrink-0">🧑‍✈️ سائق</span>
+                        <select value={drvOf(v.vehicleId)} disabled={rdDrvBusy === v.vehicleId}
+                          onChange={(e) => void assignVehicleDriver(v.vehicleId, e.target.value)}
+                          className="flex-1 min-w-0 bg-white/[0.05] border border-white/10 rounded px-1.5 py-0.5 text-[10px] text-slate-200 outline-none disabled:opacity-50">
+                          <option value="">بدون سائق</option>
+                          {driverOptions.map((d) => <option key={d.id} value={d.userId ?? ''}>{d.fullName}</option>)}
                         </select>
                       </div>
                       <span className="flex gap-1 mt-1 flex-wrap">
