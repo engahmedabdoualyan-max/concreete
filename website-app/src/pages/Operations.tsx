@@ -227,15 +227,19 @@ export default function Operations() {
     const cur = hrFleet.find((f) => f.id === v.vehicleId);
     const curId = cur?.assignedDriverId ?? '';
     const known = curId !== '' && driverOptions.some((d) => (d.userId ?? '') === curId);
-    // fallback: driver registered via HR file (employee vehicle plate matches this vehicle)
+    if (known) return { selVal: curId, customName: '', hasDriver: true };
+    // HR rule: employee file with عهدة الشركة + matching plate drives this vehicle
     const plate = String(v.plateNumber ?? '').trim();
     const code = String(v.vehicleCode ?? '').trim();
-    const fileMatch = !known ? driverOptions.find((d) => {
-      const p = String((d as any).vehiclePlate ?? '').trim();
+    const fileMatch = hrEmps.find((e) => {
+      if (e?.vehicleOwnership !== 'COMPANY') return false;
+      const p = String(e?.vehiclePlate ?? '').trim();
       return p !== '' && (p === plate || (code !== '' && p === code));
-    }) : null;
-    const selVal = known ? curId : (fileMatch ? (fileMatch.userId ?? '') : (curId ? '__custom__' : ''));
-    return { selVal, customName: cur?.driverName ?? '', hasDriver: selVal !== '' };
+    });
+    if (fileMatch && (fileMatch as any).userId) return { selVal: (fileMatch as any).userId ?? '', customName: '', hasDriver: true };
+    if (fileMatch) return { selVal: '__custom__', customName: `${(fileMatch as any).fullName ?? ''} · ${(fileMatch as any).employeeCode ?? ''}`, hasDriver: true };
+    if (curId) return { selVal: '__custom__', customName: cur?.driverName ?? '', hasDriver: true };
+    return { selVal: '', customName: '', hasDriver: false };
   };
   const assignVehicleDriver = async (vehicleId: string, userId: string) => {
     setRdDrvBusy(vehicleId);
@@ -254,6 +258,7 @@ export default function Operations() {
   const [erpOrders, setErpOrders] = useState<ErpOrder[]>([]);
   const [fleetList, setFleetList] = useState<FleetVehicle[]>([]);
   const [driverOptions, setDriverOptions] = useState<HrDriver[]>([]);
+  const [hrEmps, setHrEmps] = useState<any[]>([]);
   const [mixOptions, setMixOptions] = useState<MixDesign[]>([]);
   const [boardLoading, setBoardLoading] = useState(false);
   const [boardError, setBoardError] = useState('');
@@ -288,6 +293,8 @@ export default function Operations() {
       setFleetList(Array.isArray(fleetRes.vehicles) ? fleetRes.vehicles : []);
       // Driver select: payroll roster filtered to login-linked rows (userId set)
       setDriverOptions(Array.isArray(empRes.employees) ? empRes.employees.filter(e => e && e.userId) : []);
+      // Full HR roster (incl. vehicle custody linkage) — source of truth for who drives what
+      setHrEmps(Array.isArray(empRes.employees) ? empRes.employees : []);
       setHrFleet(Array.isArray((hrVeh as any)?.vehicles) ? (hrVeh as any).vehicles : []);
       setMixOptions(Array.isArray(mixes) ? mixes : []);
     } catch (e) {
