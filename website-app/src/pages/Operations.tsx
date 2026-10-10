@@ -223,7 +223,20 @@ export default function Operations() {
       setRdBusy(false);
     }
   };
-  const drvOf = (vehicleId: string) => hrFleet.find((f) => f.id === vehicleId)?.assignedDriverId ?? '';
+  const drvInfo = (v: any) => {
+    const cur = hrFleet.find((f) => f.id === v.vehicleId);
+    const curId = cur?.assignedDriverId ?? '';
+    const known = curId !== '' && driverOptions.some((d) => (d.userId ?? '') === curId);
+    // fallback: driver registered via HR file (employee vehicle plate matches this vehicle)
+    const plate = String(v.plateNumber ?? '').trim();
+    const code = String(v.vehicleCode ?? '').trim();
+    const fileMatch = !known ? driverOptions.find((d) => {
+      const p = String((d as any).vehiclePlate ?? '').trim();
+      return p !== '' && (p === plate || (code !== '' && p === code));
+    }) : null;
+    const selVal = known ? curId : (fileMatch ? (fileMatch.userId ?? '') : (curId ? '__custom__' : ''));
+    return { selVal, customName: cur?.driverName ?? '', hasDriver: selVal !== '' };
+  };
   const assignVehicleDriver = async (vehicleId: string, userId: string) => {
     setRdDrvBusy(vehicleId);
     try {
@@ -716,6 +729,8 @@ export default function Operations() {
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-1.5">
                 {(list as any[]).map((v: any) => {
                   const cur = rdMarks[v.vehicleId] ?? v.status ?? null;
+                  const di = drvInfo(v);
+                  const noDriverWarn = cur === 'WORKING' && !di.hasDriver;
                   const btn = (s: string, label: string, on: string) => (
                     <button key={s} onClick={() => setRdMarks((p) => ({ ...p, [v.vehicleId]: cur === s ? null : s }))}
                       className={`text-[10px] font-black rounded px-2 py-1 border ${cur === s ? on : 'border-white/10 text-slate-500'}`}>
@@ -734,13 +749,19 @@ export default function Operations() {
                       </div>
                       <div className="flex items-center gap-1 mt-1">
                         <span className="text-[10px] text-slate-400 font-bold shrink-0">🧑‍✈️ سائق</span>
-                        <select value={drvOf(v.vehicleId)} disabled={rdDrvBusy === v.vehicleId}
-                          onChange={(e) => void assignVehicleDriver(v.vehicleId, e.target.value)}
-                          className="flex-1 min-w-0 bg-white/[0.05] border border-white/10 rounded px-1.5 py-0.5 text-[10px] text-slate-200 outline-none disabled:opacity-50">
+                        <select value={di.selVal} disabled={rdDrvBusy === v.vehicleId}
+                          onChange={(e) => { const val = e.target.value; if (val !== '__custom__') void assignVehicleDriver(v.vehicleId, val); }}
+                          className={`flex-1 min-w-0 bg-white/[0.05] border rounded px-1.5 py-0.5 text-[10px] text-slate-200 outline-none disabled:opacity-50 ${noDriverWarn ? 'border-red-500/60' : 'border-white/10'}`}>
                           <option value="">بدون سائق</option>
                           {driverOptions.map((d) => <option key={d.id} value={d.userId ?? ''}>{d.fullName}</option>)}
+                          {di.selVal === '__custom__' && (
+                            <option value="__custom__">{di.customName || v.plateNumber} (مسجل سابقاً)</option>
+                          )}
                         </select>
                       </div>
+                      {noDriverWarn && (
+                        <p className="mt-1 text-[10px] font-black text-red-400">⚠️ شغالة بدون سائق!</p>
+                      )}
                       <span className="flex gap-1 mt-1 flex-wrap">
                         {btn('WORKING', 'شغال', 'border-emerald-500/60 bg-emerald-500/20 text-emerald-300')}
                         {btn('IDLE', 'عاطل', 'border-slate-400/60 bg-white/10 text-white')}
