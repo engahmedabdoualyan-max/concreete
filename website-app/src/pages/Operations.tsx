@@ -175,6 +175,21 @@ export default function Operations() {
   const [rdDrvBusy, setRdDrvBusy] = useState('');
   const typeAr = (t: string) =>
     ({ MIXER_TRUCK: 'خلاطات', CONCRETE_PUMP: 'بامب', TIPPER_TRUCK: 'قلاب', TRANSIT_MIXER: 'ترانزيت', WATER_TANKER: 'تانكر', SERVICE_TRUCK: 'خدمة/ونش' } as Record<string, string>)[t] ?? t;
+  // Section name: tippers live under a transport section.
+  const secAr = (t: string) => (t === 'TIPPER_TRUCK' ? 'نقليات' : typeAr(t));
+  // Live per-section tally from current marks (unsaved picks included).
+  const secCount = (list: any[]) => {
+    const c = { WORKING: 0, IDLE: 0, IN_WORKSHOP: 0, STORED: 0, NONE: 0 };
+    for (const v of list) {
+      const s = rdMarks[v.vehicleId] ?? v.status ?? null;
+      if (s === 'WORKING') c.WORKING++;
+      else if (s === 'IDLE') c.IDLE++;
+      else if (s === 'IN_WORKSHOP') c.IN_WORKSHOP++;
+      else if (s === 'STORED') c.STORED++;
+      else c.NONE++;
+    }
+    return c;
+  };
   const loadReadiness = async (date?: string) => {
     try {
       const d = await api.get<{ rows?: any[]; sites?: any[] }>(`/api/fleet/readiness?date=${date ?? rdDate}`);
@@ -730,9 +745,18 @@ export default function Operations() {
           </div>
           <p className="text-[11px] text-slate-400 mb-2">علّم كل مركبة: شغال / عاطل / ورشة / مخزن + فرعها — يظهر في البث فور الحفظ، وما ليس لك لا يُحسب عليك.</p>
           {rdMsg && <p className="text-xs font-bold mb-2">{rdMsg}</p>}
-          {Object.entries(rdGroups).map(([type, list]) => (
+          {Object.entries(rdGroups).map(([type, list]) => {
+            const sc = secCount(list as any[]);
+            return (
             <div key={type} className="mb-2">
-              <p className="text-[11px] font-black text-slate-300 mb-1">{typeAr(type)} ({(list as any[]).length})</p>
+              <p className="text-[11px] font-black text-slate-300 mb-1">
+                {secAr(type)} ({(list as any[]).length})
+                {' · '}<span className="text-emerald-300">{sc.WORKING} شغال</span>
+                {' · '}<span className="text-slate-400">{sc.IDLE} عاطل</span>
+                {' · '}<span className="text-amber-300">{sc.IN_WORKSHOP} ورشة</span>
+                {' · '}<span className="text-sky-300">{sc.STORED} مخزن</span>
+                {' · '}<span className="text-slate-500">{sc.NONE} غير محدد</span>
+              </p>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-1.5">
                 {(list as any[]).map((v: any) => {
                   const cur = rdMarks[v.vehicleId] ?? v.status ?? null;
@@ -780,7 +804,8 @@ export default function Operations() {
                 })}
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
         {/* ── Archived local trips (localStorage/Firestore) — read-only, user data preserved ── */}
         <h2 className="text-base font-bold text-slate-300 mb-3">📦 أرشيف الرحلات المحلية <span className="text-[10px] font-normal text-slate-500 border border-white/10 rounded px-1.5 py-0.5">READ-ONLY ARCHIVE</span></h2>

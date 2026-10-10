@@ -121,7 +121,7 @@ export default function CommandCenter() {
   const [hist, setHist] = useState<any | null>(null);
   const [histAt, setHistAt] = useState('');
   const [histMsg, setHistMsg] = useState('');
-  const TYPE_AR: Record<string, string> = { MIXER_TRUCK: 'خلاطات', CONCRETE_PUMP: 'بامب', TIPPER_TRUCK: 'قلاب', TRANSIT_MIXER: 'ترانزيت', WATER_TANKER: 'تانكر', SERVICE_TRUCK: 'خدمة' };
+  const TYPE_AR: Record<string, string> = { MIXER_TRUCK: 'خلاطات', CONCRETE_PUMP: 'بامب', TIPPER_TRUCK: 'نقليات', TRANSIT_MIXER: 'ترانزيت', WATER_TANKER: 'تانكر', SERVICE_TRUCK: 'خدمة' };
   // Readiness branch scope — ALL = whole fleet; otherwise per-branch computed from live rows.
   const rdShown = (() => {
     if (rdSite === 'ALL' || !readinessBr || !readinessBr[rdSite]) return { byType: readiness, label: '' };
