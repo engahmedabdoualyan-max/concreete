@@ -237,7 +237,7 @@ export default function Operations() {
       return p !== '' && (p === plate || (code !== '' && p === code));
     });
     if (fileMatch && (fileMatch as any).userId) return { selVal: (fileMatch as any).userId ?? '', customName: '', hasDriver: true };
-    if (fileMatch) return { selVal: '__custom__', customName: `${(fileMatch as any).fullName ?? ''} · ${(fileMatch as any).employeeCode ?? ''}`, hasDriver: true };
+    if (fileMatch) return { selVal: '__custom__', customName: (fileMatch as any).fullName ?? '', hasDriver: true };
     if (curId) return { selVal: '__custom__', customName: cur?.driverName ?? '', hasDriver: true };
     return { selVal: '', customName: '', hasDriver: false };
   };
