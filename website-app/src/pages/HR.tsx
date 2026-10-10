@@ -1940,15 +1940,34 @@ function ageOf(raw: unknown): number | null {
                     <input type="date" value={form.medicalInsuranceExpiry} onChange={(e) => setForm({ ...form, medicalInsuranceExpiry: e.target.value })}
                       className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
                   <label className="text-[11px] text-slate-400 font-bold">{ar ? 'رقم السيارة' : 'Car plate'}
-                    <input value={form.vehiclePlate} onChange={(e) => setForm({ ...form, vehiclePlate: e.target.value })}
-                      className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
+                    {form.vehicleOwnership === 'COMPANY' ? (
+                      <select value={fleet.some((v: any) => (v.plateNumber ?? '') === form.vehiclePlate) ? form.vehiclePlate : (form.vehiclePlate ? '__custom__' : '')}
+                        onChange={(e) => { const v = e.target.value; if (v !== '__custom__') setForm({ ...form, vehiclePlate: v }); }}
+                        className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none">
+                        <option value="">— {ar ? 'اختر من مركبات الشركة' : 'Select a company vehicle'} —</option>
+                        {fleet.map((v: any) => (
+                          <option key={v.id ?? v.vehicleCode} value={v.plateNumber ?? ''}>
+                            🚛 {v.vehicleCode} · {v.plateNumber}{v.vehicleType ? ` · ${v.vehicleType}` : ''}
+                          </option>
+                        ))}
+                        {form.vehiclePlate && !fleet.some((v: any) => (v.plateNumber ?? '') === form.vehiclePlate) && (
+                          <option value="__custom__">{form.vehiclePlate} {ar ? '(مسجلة سابقاً)' : '(previously saved)'}</option>
+                        )}
+                      </select>
+                    ) : (
+                      <input value={form.vehiclePlate} onChange={(e) => setForm({ ...form, vehiclePlate: e.target.value })}
+                        className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" />
+                    )}</label>
                   <label className="text-[11px] text-slate-400 font-bold">{ar ? 'السيارة خاصة أم عهدة؟' : 'Car: private or custody?'}
                     <select value={form.vehicleOwnership} onChange={(e) => setForm({ ...form, vehicleOwnership: e.target.value })}
                       className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none">
                       <option value="">—</option>
                       <option value="PRIVATE">{ar ? '🚗 خاصة' : 'Private'}</option>
                       <option value="COMPANY">{ar ? '🏢 عهدة الشركة' : 'Company'}</option>
-                    </select></label>
+                    </select>
+                    {form.vehicleOwnership === 'COMPANY' && fleet.length === 0 && (
+                      <span className="block mt-1 text-[10px] text-yellow-300/90 font-bold">{ar ? '⚠️ لا مركبات مسجلة — أضفها أولاً من تبويب 🚛 المركبات' : 'No vehicles registered — add them in the Vehicles tab first'}</span>
+                    )}</label>
                 </div>
                 <button disabled={busy === 'add'} onClick={addEmployee}
                   className="mt-3 w-full sm:w-auto bg-sky-500 hover:bg-sky-400 disabled:opacity-50 text-white text-xs font-black rounded-lg px-6 py-2">
