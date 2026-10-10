@@ -234,6 +234,7 @@ export default function HR() {
   const [employees, setEmployees] = useState<any[]>([]);
   const [search, setSearch] = useState('');
   const [showInactive, setShowInactive] = useState(false);
+  const [showAllRenewals, setShowAllRenewals] = useState(false);
 
   const toggleActive = async (e: any) => {
     const toActive = !e.isActive;
@@ -1798,7 +1799,7 @@ function ageOf(raw: unknown): number | null {
                 <h3 className="text-xs font-black text-yellow-300 mb-2">
                   ⏰ {ar ? `تجديدات الإقامة القادمة (${renewals.length}) — قبل الانتهاء بشهرين` : `Iqama renewals due (${renewals.length})`}
                 </h3>
-                {renewals.slice(0, 8).map(({ e, days }, i) => (
+                {(showAllRenewals ? renewals : renewals.slice(0, 8)).map(({ e, days }, i) => (
                   <div key={e.id ?? i} className="flex items-center justify-between text-xs border-b border-white/5 py-1 last:border-0">
                     <span className="font-bold text-slate-200">{nameOf(e)} · {e.employeeCode}</span>
                     <span className={`font-black ${days < 0 ? 'text-red-400' : days <= 30 ? 'text-yellow-300' : 'text-slate-300'}`}>
@@ -1806,6 +1807,14 @@ function ageOf(raw: unknown): number | null {
                     </span>
                   </div>
                 ))}
+                {renewals.length > 8 && (
+                  <button onClick={() => setShowAllRenewals((v) => !v)}
+                    className="mt-2 w-full text-[11px] font-black rounded-lg px-3 py-2 border border-yellow-500/50 bg-yellow-500/10 text-yellow-300 hover:bg-yellow-500/20">
+                    {showAllRenewals
+                      ? (ar ? 'إخفاء ▲' : 'Show less ▲')
+                      : (ar ? `عرض الكل (${renewals.length}) ▼` : `Show all (${renewals.length}) ▼`)}
+                  </button>
+                )}
               </div>
             )}
             <div className="flex flex-wrap items-center gap-2 mb-3">
