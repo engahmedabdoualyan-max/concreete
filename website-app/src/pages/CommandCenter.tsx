@@ -114,12 +114,32 @@ export default function CommandCenter() {
   const [collections, setCollections] = useState<{ totalSar: number; count: number } | null>(null);
   const [readiness, setReadiness] = useState<Record<string, { total: number; working: number; idle: number; workshop: number; stored: number; unmarked: number }> | null>(null);
   const [readinessBr, setReadinessBr] = useState<Record<string, { siteCode: string; siteName: string; total: number; working: number; idle: number; workshop: number; stored: number }> | null>(null);
+  const [rdRows, setRdRows] = useState<any[]>([]);
+  const [rdSite, setRdSite] = useState('ALL');
   const [histDate, setHistDate] = useState('');
   const [histTime, setHistTime] = useState('');
   const [hist, setHist] = useState<any | null>(null);
   const [histAt, setHistAt] = useState('');
   const [histMsg, setHistMsg] = useState('');
   const TYPE_AR: Record<string, string> = { MIXER_TRUCK: 'خلاطات', CONCRETE_PUMP: 'بامب', TIPPER_TRUCK: 'قلاب', TRANSIT_MIXER: 'ترانزيت', WATER_TANKER: 'تانكر', SERVICE_TRUCK: 'خدمة' };
+  // Readiness branch scope — ALL = whole fleet; otherwise per-branch computed from live rows.
+  const rdShown = (() => {
+    if (rdSite === 'ALL' || !readinessBr || !readinessBr[rdSite]) return { byType: readiness, label: '' };
+    const b = readinessBr[rdSite];
+    const bt: Record<string, { total: number; working: number; idle: number; workshop: number; stored: number; unmarked: number }> = {};
+    for (const r of rdRows) {
+      if ((r.siteId ?? '') !== rdSite) continue;
+      const t = (bt[r.vehicleType] ??= { total: 0, working: 0, idle: 0, workshop: 0, stored: 0, unmarked: 0 });
+      t.total++;
+      const s = r.status;
+      if (s === 'WORKING') t.working++;
+      else if (s === 'IDLE') t.idle++;
+      else if (s === 'IN_WORKSHOP') t.workshop++;
+      else if (s === 'STORED') t.stored++;
+      else t.unmarked++;
+    }
+    return { byType: bt, label: b.siteCode === 'HQ' ? L('المصنع', 'Plant') : (b.siteName ?? b.siteCode) };
+  })();
   const [sites, setSites] = useState<MapSite[]>([]);
   const [vehicles, setVehicles] = useState<MapVehicle[]>([]);
   const [canFleet, setCanFleet] = useState(false);
@@ -195,9 +215,10 @@ export default function CommandCenter() {
     } catch { setCollections(null); }
     // Readiness roll-call (dispatcher marks in Operations).
     try {
-      const rd = await api.get<{ byType?: Record<string, { total: number; working: number; idle: number; workshop: number; stored: number; unmarked: number }>; byBranch?: Record<string, { siteCode: string; siteName: string; total: number; working: number; idle: number; workshop: number; stored: number }> }>('/api/fleet/readiness');
+      const rd = await api.get<{ byType?: Record<string, { total: number; working: number; idle: number; workshop: number; stored: number; unmarked: number }>; byBranch?: Record<string, { siteCode: string; siteName: string; total: number; working: number; idle: number; workshop: number; stored: number }>; rows?: any[] }>('/api/fleet/readiness');
       setReadiness(rd?.byType ?? null);
       setReadinessBr((rd as any)?.byBranch ?? null);
+      setRdRows(Array.isArray((rd as any)?.rows) ? (rd as any).rows : []);
     } catch { setReadiness(null); setReadinessBr(null); }
     // Record today's snapshot (throttled server-side; never blocks the TV).
     try {
@@ -516,8 +537,16 @@ export default function CommandCenter() {
         <div className="px-4 pt-2">
           <Link to="/operations" style={{ textDecoration: 'none' }}>
             <div className="rounded-xl border border-white/10 bg-white/[0.02] px-3 py-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 hover:border-amber-400/50">
-              <span className="text-[11px] font-black text-amber-300">📋 {L('جاهزية اليوم', 'Readiness')}</span>
-              {Object.entries(readiness).map(([t, b]) => (
+              <span className="text-[11px] font-black text-amber-300">📋 {L('جاهزية اليوم', 'Readiness')}{rdShown.label ? ` — ${rdShown.label}` : ''}</span>
+              <select value={rdSite} onChange={(e) => setRdSite(e.target.value)} onClick={(e) => e.stopPropagation()}
+                title={L('اختر الفرع', 'Pick a branch')}
+                className="bg-white/[0.05] border border-white/10 rounded px-1.5 py-0.5 text-[10px] text-slate-200 outline-none">
+                <option value="ALL">{L('كل الفروع', 'All branches')}</option>
+                {readinessBr && Object.entries(readinessBr).map(([id, b]: any) => (
+                  <option key={id} value={id}>{b.siteCode === 'HQ' ? L('🏭 المصنع', 'Plant') : `🏢 ${b.siteName ?? b.siteCode}`}</option>
+                ))}
+              </select>
+              {rdShown.byType && Object.entries(rdShown.byType).map(([t, b]) => (
                 <span key={t} className="text-[11px] text-slate-200">
                   <b>{TYPE_AR[t] ?? t}</b>{' '}
                   <span className="text-emerald-300 font-black">{fmt(b.working, lang)}</span>
