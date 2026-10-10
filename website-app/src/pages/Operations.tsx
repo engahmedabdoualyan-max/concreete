@@ -707,7 +707,7 @@ export default function Operations() {
                   return (
                     <div key={v.vehicleId} className="rounded-lg border border-white/10 bg-white/[0.03] px-2 py-1.5 text-xs">
                       <div className="flex items-center justify-between">
-                        <span className="font-bold text-white" dir="ltr">{v.vehicleCode}</span>
+                        <span className="font-bold text-white" dir="ltr">{v.vehicleCode}{v.plateNumber ? <span className="text-slate-400 font-normal"> · {v.plateNumber}</span> : ''}</span>
                         <select value={rdBranch[v.vehicleId] ?? v.siteId ?? ''}
                           onChange={(e) => setRdBranch((p) => ({ ...p, [v.vehicleId]: e.target.value }))}
                           className="bg-white/[0.05] border border-white/10 rounded px-1.5 py-0.5 text-[10px] text-slate-200 outline-none max-w-[110px]">
