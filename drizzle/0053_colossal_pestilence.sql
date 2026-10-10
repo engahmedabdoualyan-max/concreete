@@ -1,0 +1,1 @@
+ALTER TABLE "payroll_employees" ADD COLUMN "passport_no" varchar(30);

@@ -145,6 +145,7 @@ export async function createEmployee(
     dateOfBirth?: string;
     bloodGroup?: string;
     photoUrl?: string;
+    passportNo?: string;
   }
 ) {
   const [created] = await db
@@ -180,6 +181,7 @@ export async function createEmployee(
       dateOfBirth: input.dateOfBirth ? new Date(input.dateOfBirth) : null,
       bloodGroup: input.bloodGroup,
       photoUrl: input.photoUrl,
+      passportNo: input.passportNo || null,
     })
     .returning();
   return created;
@@ -191,6 +193,7 @@ export async function updateEmployee(
   input: Partial<{
     fullName: string;
     nationalId: string;
+    passportNo: string;
     nationality: string;
     gosiSystem: string;
     jobTitle: string;
@@ -224,7 +227,7 @@ export async function updateEmployee(
     "fullName", "nationalId", "jobTitle", "department", "bankIban", "bankName",
     "photoUrl", "bloodGroup", "countryCode", "contactPhone",
     "emergencyContactName", "emergencyContactPhone", "medicalInsuranceNo",
-    "vehiclePlate", "vehicleOwnership",
+    "vehiclePlate", "vehicleOwnership", "passportNo",
   ] as const) {
     if (input[k] !== undefined) patch[k] = input[k];
   }

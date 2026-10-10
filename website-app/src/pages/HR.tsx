@@ -313,7 +313,7 @@ export default function HR() {
   const [fromDate, setFromDate] = useState(() => new Date(Date.now() - 6 * 864e5).toISOString().slice(0, 10));
   const [toDate, setToDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [showAdd, setShowAdd] = useState(false);
-  const [form, setForm] = useState({ employeeCode: '', fullName: '', nationalId: '', countryCode: '', jobTitle: '', department: '', baseSalarySar: '', housingAllowanceSar: '', transportAllowanceSar: '', bankIban: '', bankName: '', hireDate: '', contactPhone: '', emergencyContactName: '', emergencyContactPhone: '', lastVacationDate: '', lastResumptionDate: '', medicalInsuranceNo: '', medicalInsuranceExpiry: '', vehiclePlate: '', vehicleOwnership: '', iqamaExpiry: '', photoUrl: '' });
+  const [form, setForm] = useState({ employeeCode: '', fullName: '', nationalId: '', countryCode: '', jobTitle: '', department: '', baseSalarySar: '', housingAllowanceSar: '', transportAllowanceSar: '', bankIban: '', bankName: '', hireDate: '', contactPhone: '', emergencyContactName: '', emergencyContactPhone: '', lastVacationDate: '', lastResumptionDate: '', medicalInsuranceNo: '', medicalInsuranceExpiry: '', vehiclePlate: '', vehicleOwnership: '', iqamaExpiry: '', passportNo: '', photoUrl: '' });
   const [actions, setActions] = useState<any[]>([]);
   const [actionFilter, setActionFilter] = useState('ALL');
   const [showActionForm, setShowActionForm] = useState(false);
@@ -530,6 +530,7 @@ function ageOf(raw: unknown): number | null {
         medicalInsuranceNo: form.medicalInsuranceNo.trim() || undefined,
         medicalInsuranceExpiry: form.medicalInsuranceExpiry || undefined,
         iqamaExpiry: form.iqamaExpiry || undefined,
+        passportNo: form.passportNo.trim() || undefined,
         vehiclePlate: form.vehiclePlate.trim() || undefined,
         vehicleOwnership: (form.vehicleOwnership || undefined) as 'PRIVATE' | 'COMPANY' | undefined,
         photoUrl: form.photoUrl || undefined,
@@ -541,7 +542,7 @@ function ageOf(raw: unknown): number | null {
         await api.post('/api/hr/employees', { employeeCode: form.employeeCode.trim(), ...payload });
         setMsg('✅ تمت إضافة الموظف');
       }
-      setForm({ employeeCode: '', fullName: '', nationalId: '', countryCode: '', jobTitle: '', department: '', baseSalarySar: '', housingAllowanceSar: '', transportAllowanceSar: '', bankIban: '', bankName: '', hireDate: '', contactPhone: '', emergencyContactName: '', emergencyContactPhone: '', lastVacationDate: '', lastResumptionDate: '', medicalInsuranceNo: '', medicalInsuranceExpiry: '', vehiclePlate: '', vehicleOwnership: '', iqamaExpiry: '', photoUrl: '' });
+      setForm({ employeeCode: '', fullName: '', nationalId: '', countryCode: '', jobTitle: '', department: '', baseSalarySar: '', housingAllowanceSar: '', transportAllowanceSar: '', bankIban: '', bankName: '', hireDate: '', contactPhone: '', emergencyContactName: '', emergencyContactPhone: '', lastVacationDate: '', lastResumptionDate: '', medicalInsuranceNo: '', medicalInsuranceExpiry: '', vehiclePlate: '', vehicleOwnership: '', iqamaExpiry: '', passportNo: '', photoUrl: '' });
       setEditingEmp(null);
       setShowAdd(false);
       await load();
@@ -556,7 +557,7 @@ function ageOf(raw: unknown): number | null {
     const iso = (v: unknown) => (v ? String(v).slice(0, 10) : '');
     setForm({
       employeeCode: e.employeeCode ?? '', fullName: e.fullName ?? e.full_name ?? '',
-      nationalId: e.nationalId ?? '', countryCode: e.countryCode ?? '',
+      nationalId: e.nationalId ?? '', passportNo: (e as any).passportNo ?? '', countryCode: e.countryCode ?? '',
       jobTitle: e.jobTitle ?? e.role ?? '', department: e.department ?? '',
       baseSalarySar: e.baseSalarySar ?? '', housingAllowanceSar: e.housingAllowanceSar ?? '',
       transportAllowanceSar: e.transportAllowanceSar ?? '', bankIban: e.bankIban ?? '',
@@ -1827,12 +1828,14 @@ function ageOf(raw: unknown): number | null {
                   { header: 'الاسم', key: 'name' },
                   { header: 'الكود', key: 'code' },
                   { header: 'المسمى', key: 'title' },
+                  { header: 'الجواز', key: 'passport' },
                   { header: 'القسم', key: 'dept' },
                 ]}
                 branding={brandParam}
                 rows={team.map((e) => ({
                   name: nameOf(e), code: e.employeeCode ?? '',
                   title: e.role ?? e.jobTitle ?? '', dept: e.department ?? '',
+                  passport: (e as any).passportNo ?? '',
                 }))}
               />
             </div>
@@ -1869,6 +1872,9 @@ function ageOf(raw: unknown): number | null {
                       className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
                   <label className="text-[11px] text-slate-400 font-bold">{ar ? 'تاريخ انتهاء الإقامة * للتنبيه' : 'Iqama expiry (alerts)'}
                     <input type="date" value={form.iqamaExpiry} onChange={(e) => setForm({ ...form, iqamaExpiry: e.target.value })}
+                      className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
+                  <label className="text-[11px] text-slate-400 font-bold">{ar ? 'رقم الجواز' : 'Passport No'}
+                    <input value={form.passportNo} dir="ltr" onChange={(e) => setForm({ ...form, passportNo: e.target.value })}
                       className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
                   <label className="text-[11px] text-slate-400 font-bold">{ar ? 'الجنسية' : 'Nationality'}
                     <select value={form.countryCode} onChange={(e) => setForm({ ...form, countryCode: e.target.value })}
@@ -1975,6 +1981,9 @@ function ageOf(raw: unknown): number | null {
                     <p className="text-[11px] text-slate-400 truncate">
                       {[e.role ?? e.jobTitle, e.department, e.employeeCode, e.phone ?? e.contactPhone].filter(Boolean).join(' · ')}
                     </p>
+                    {(e as any).passportNo && (
+                      <p className="text-[11px] text-slate-500 truncate">🛂 <span dir="ltr">{(e as any).passportNo}</span></p>
+                    )}
                     {(e.vehiclePlate || e.countryCode) && (
                       <p className="text-[11px] text-slate-500 truncate">
                         {[e.vehiclePlate ? `🚗 ${e.vehiclePlate}${e.vehicleOwnership === 'COMPANY' ? ' (عهدة)' : e.vehicleOwnership === 'PRIVATE' ? ' (خاصة)' : ''}` : '',

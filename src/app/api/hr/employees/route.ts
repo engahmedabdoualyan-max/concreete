@@ -33,6 +33,7 @@ const CreateEmployeeSchema = z.object({
   employeeCode: z.string().min(1).max(20),
   fullName: z.string().min(1).max(120),
   nationalId: z.string().max(20).optional(),
+  passportNo: z.string().trim().max(30).optional(),
   nationality: z.enum(["SAUDI", "NON_SAUDI"]).optional(),
   gosiSystem: z.enum(["LEGACY", "NEW"]).optional(),
   jobTitle: z.string().max(120).optional(),

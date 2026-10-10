@@ -3709,6 +3709,8 @@ export const payrollEmployees = pgTable(
     employeeCode: varchar("employee_code", { length: 20 }).notNull(),
     fullName: varchar("full_name", { length: 120 }).notNull(),
     nationalId: varchar("national_id", { length: 20 }),
+    /** Passport number (from iqama import file). */
+    passportNo: varchar("passport_no", { length: 30 }),
     /** ISO country code of nationality (SA, EG, PK…) — shown with its flag */
     countryCode: varchar("country_code", { length: 4 }),
     /** Direct contact number of the employee */
