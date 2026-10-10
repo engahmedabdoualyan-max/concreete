@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
@@ -571,7 +571,7 @@ function ageOf(raw: unknown): number | null {
       iqamaExpiry: iso(e.iqamaExpiry), photoUrl: e.photoUrl ?? '',
     });
     setEditingEmp(e.id);
-    setShowAdd(true);
+    setShowAdd(false);
   };
 
   const loadDocs = async (employeeId: string, name: string) => {
@@ -1656,6 +1656,140 @@ function ageOf(raw: unknown): number | null {
     .filter((x): x is { e: any; days: number } => !!x)
     .sort((a, b) => a.days - b.days);
 
+  // Employee add/edit form — top panel for new hires, inline under the card when editing.
+  const renderEmpForm = () => (
+    <div className="rounded-2xl border border-sky-500/30 bg-sky-500/[0.06] p-4 mb-3">
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-sm font-black text-white">{editingEmp ? `✏️ ${ar ? 'تعديل بيانات الموظف' : 'Edit employee'}` : `➕ ${ar ? 'بيانات الموظف الجديد' : 'New employee'}`}</h3>
+        {editingEmp && (
+          <button onClick={() => setEditingEmp(null)} className="text-slate-400 hover:text-white text-[11px] font-black px-2 py-1 rounded-lg border border-white/10">✕ {ar ? 'إغلاق' : 'Close'}</button>
+        )}
+      </div>
+      <div className="flex items-center gap-3 mb-3 rounded-xl border border-white/10 bg-white/[0.03] p-2">
+        {form.photoUrl ? (
+          <img src={form.photoUrl} alt="" className="w-14 h-14 rounded-full object-cover border border-sky-500/40" />
+        ) : (
+          <div className="w-14 h-14 rounded-full bg-white/10 border border-white/10 flex items-center justify-center text-xl">👤</div>
+        )}
+        <div className="flex gap-2">
+          <label className="text-[11px] font-black rounded-lg px-3 py-1.5 border border-white/15 bg-white/[0.05] text-slate-200 cursor-pointer hover:border-sky-400/60">
+            📁 {ar ? 'رفع صورة' : 'Upload'}
+            <input type="file" accept="image/*" className="hidden"
+              onChange={(e) => { usePhotoFile(e.target.files?.[0], { form: true }); e.target.value = ''; }} />
+          </label>
+          <button type="button" onClick={() => setCamFor({ form: true })}
+            className="text-[11px] font-black rounded-lg px-3 py-1.5 border border-sky-500/50 bg-sky-500/15 text-sky-300 hover:bg-sky-500/25">
+            🎥 {ar ? 'تصوير' : 'Camera'}
+          </button>
+        </div>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+        <label className="text-[11px] text-slate-400 font-bold">{ar ? 'كود الموظف *' : 'Code *'}
+          <input value={form.employeeCode} onChange={(e) => setForm({ ...form, employeeCode: e.target.value })}
+            className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
+        <label className="text-[11px] text-slate-400 font-bold">{ar ? 'الاسم *' : 'Name *'}
+          <input value={form.fullName} onChange={(e) => setForm({ ...form, fullName: e.target.value })}
+            className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
+        <label className="text-[11px] text-slate-400 font-bold">{ar ? 'رقم الهوية / الإقامة' : 'National ID / Iqama'}
+          <input value={form.nationalId} onChange={(e) => setForm({ ...form, nationalId: e.target.value })} inputMode="numeric"
+            className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
+        <label className="text-[11px] text-slate-400 font-bold">{ar ? 'تاريخ انتهاء الإقامة * للتنبيه' : 'Iqama expiry (alerts)'}
+          <input type="date" value={form.iqamaExpiry} onChange={(e) => setForm({ ...form, iqamaExpiry: e.target.value })}
+            className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
+        <label className="text-[11px] text-slate-400 font-bold">{ar ? 'رقم الجواز' : 'Passport No'}
+          <input value={form.passportNo} dir="ltr" onChange={(e) => setForm({ ...form, passportNo: e.target.value })}
+            className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
+        <label className="text-[11px] text-slate-400 font-bold">{ar ? 'الجنسية' : 'Nationality'}
+          <select value={form.countryCode} onChange={(e) => setForm({ ...form, countryCode: e.target.value })}
+            className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none">
+            <option value="">—</option>
+            {COUNTRIES.map((c) => <option key={c.code} value={c.code}>{c.flag} {c.ar}</option>)}
+          </select></label>
+        <label className="text-[11px] text-slate-400 font-bold">{ar ? 'الوظيفة' : 'Job title'}
+          <input value={form.jobTitle} onChange={(e) => setForm({ ...form, jobTitle: e.target.value })}
+            className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
+        <label className="text-[11px] text-slate-400 font-bold">{ar ? 'الإدارة التابع لها' : 'Department'}
+          <select value={form.department} onChange={(e) => setForm({ ...form, department: e.target.value })}
+            className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none">
+            <option value="">—</option>
+            {DEPTS.map((d) => <option key={d} value={d}>{d}</option>)}
+          </select></label>
+        <label className="text-[11px] text-slate-400 font-bold">{ar ? 'الراتب الأساسي (ر.س)' : 'Base salary'}
+          <input value={form.baseSalarySar} onChange={(e) => setForm({ ...form, baseSalarySar: e.target.value })} inputMode="decimal"
+            className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
+        <label className="text-[11px] text-slate-400 font-bold">{ar ? 'بدل السكن' : 'Housing'}
+          <input value={form.housingAllowanceSar} onChange={(e) => setForm({ ...form, housingAllowanceSar: e.target.value })} inputMode="decimal"
+            className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
+        <label className="text-[11px] text-slate-400 font-bold">{ar ? 'بدل المواصلات' : 'Transport'}
+          <input value={form.transportAllowanceSar} onChange={(e) => setForm({ ...form, transportAllowanceSar: e.target.value })} inputMode="decimal"
+            className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
+        <label className="text-[11px] text-slate-400 font-bold">{ar ? 'البنك' : 'Bank'}
+          <input value={form.bankName} onChange={(e) => setForm({ ...form, bankName: e.target.value })}
+            className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
+        <label className="text-[11px] text-slate-400 font-bold">{ar ? 'الآيبان' : 'IBAN'}
+          <input value={form.bankIban} onChange={(e) => setForm({ ...form, bankIban: e.target.value })}
+            className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
+        <label className="text-[11px] text-slate-400 font-bold">{ar ? 'تاريخ التعيين' : 'Hire date'}
+          <input type="date" value={form.hireDate} onChange={(e) => setForm({ ...form, hireDate: e.target.value })}
+            className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
+        <label className="text-[11px] text-slate-400 font-bold">{ar ? 'رقم التواصل' : 'Contact phone'}
+          <input value={form.contactPhone} onChange={(e) => setForm({ ...form, contactPhone: e.target.value })} inputMode="tel"
+            className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
+        <label className="text-[11px] text-slate-400 font-bold">{ar ? 'قريب بالسعودية (للطوارئ)' : 'Emergency contact (KSA)'}
+          <input value={form.emergencyContactName} onChange={(e) => setForm({ ...form, emergencyContactName: e.target.value })}
+            className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
+        <label className="text-[11px] text-slate-400 font-bold">{ar ? 'جوال الطوارئ' : 'Emergency mobile'}
+          <input value={form.emergencyContactPhone} onChange={(e) => setForm({ ...form, emergencyContactPhone: e.target.value })} inputMode="tel"
+            className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
+        <label className="text-[11px] text-slate-400 font-bold">{ar ? 'تاريخ آخر إجازة' : 'Last vacation'}
+          <input type="date" value={form.lastVacationDate} onChange={(e) => setForm({ ...form, lastVacationDate: e.target.value })}
+            className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
+        <label className="text-[11px] text-slate-400 font-bold">{ar ? 'تاريخ آخر مباشرة' : 'Last resumption'}
+          <input type="date" value={form.lastResumptionDate} onChange={(e) => setForm({ ...form, lastResumptionDate: e.target.value })}
+            className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
+        <label className="text-[11px] text-slate-400 font-bold">{ar ? 'وثيقة التأمين الطبي' : 'Medical insurance no.'}
+          <input value={form.medicalInsuranceNo} onChange={(e) => setForm({ ...form, medicalInsuranceNo: e.target.value })}
+            className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
+        <label className="text-[11px] text-slate-400 font-bold">{ar ? 'انتهاء التأمين الطبي' : 'Insurance expiry'}
+          <input type="date" value={form.medicalInsuranceExpiry} onChange={(e) => setForm({ ...form, medicalInsuranceExpiry: e.target.value })}
+            className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
+        <label className="text-[11px] text-slate-400 font-bold">{ar ? 'رقم السيارة' : 'Car plate'}
+          {form.vehicleOwnership === 'COMPANY' ? (
+            <select value={fleet.some((v: any) => (v.plateNumber ?? '') === form.vehiclePlate) ? form.vehiclePlate : (form.vehiclePlate ? '__custom__' : '')}
+              onChange={(e) => { const v = e.target.value; if (v !== '__custom__') setForm({ ...form, vehiclePlate: v }); }}
+              className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none">
+              <option value="">— {ar ? 'اختر من مركبات الشركة' : 'Select a company vehicle'} —</option>
+              {fleet.map((v: any) => (
+                <option key={v.id ?? v.vehicleCode} value={v.plateNumber ?? ''}>
+                  🚛 {v.vehicleCode} · {v.plateNumber}{v.vehicleType ? ` · ${v.vehicleType}` : ''}
+                </option>
+              ))}
+              {form.vehiclePlate && !fleet.some((v: any) => (v.plateNumber ?? '') === form.vehiclePlate) && (
+                <option value="__custom__">{form.vehiclePlate} {ar ? '(مسجلة سابقاً)' : '(previously saved)'}</option>
+              )}
+            </select>
+          ) : (
+            <input value={form.vehiclePlate} onChange={(e) => setForm({ ...form, vehiclePlate: e.target.value })}
+              className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" />
+          )}</label>
+        <label className="text-[11px] text-slate-400 font-bold">{ar ? 'السيارة خاصة أم عهدة؟' : 'Car: private or custody?'}
+          <select value={form.vehicleOwnership} onChange={(e) => setForm({ ...form, vehicleOwnership: e.target.value })}
+            className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none">
+            <option value="">—</option>
+            <option value="PRIVATE">{ar ? '🚗 خاصة' : 'Private'}</option>
+            <option value="COMPANY">{ar ? '🏢 عهدة الشركة' : 'Company'}</option>
+          </select>
+          {form.vehicleOwnership === 'COMPANY' && fleet.length === 0 && (
+            <span className="block mt-1 text-[10px] text-yellow-300/90 font-bold">{ar ? '⚠️ لا مركبات مسجلة — أضفها أولاً من تبويب 🚛 المركبات' : 'No vehicles registered — add them in the Vehicles tab first'}</span>
+          )}</label>
+      </div>
+      <button disabled={busy === 'add'} onClick={addEmployee}
+        className="mt-3 w-full sm:w-auto bg-sky-500 hover:bg-sky-400 disabled:opacity-50 text-white text-xs font-black rounded-lg px-6 py-2">
+        {busy === 'add' ? '…' : `✅ ${ar ? 'حفظ الموظف' : 'Save employee'}`}
+      </button>
+    </div>
+  );
+
   return (
     <div className="min-h-screen bg-[#080C14] text-slate-200" dir={ar ? 'rtl' : 'ltr'}>
       <div className="max-w-[1200px] mx-auto px-4 sm:px-6 py-6">
@@ -1848,137 +1982,11 @@ function ageOf(raw: unknown): number | null {
                 }))}
               />
             </div>
-            {showAdd && (
-              <div className="rounded-2xl border border-sky-500/30 bg-sky-500/[0.06] p-4 mb-3">
-                <h3 className="text-sm font-black text-white mb-3">{editingEmp ? `✏️ ${ar ? 'تعديل بيانات الموظف' : 'Edit employee'}` : `➕ ${ar ? 'بيانات الموظف الجديد' : 'New employee'}`}</h3>
-                <div className="flex items-center gap-3 mb-3 rounded-xl border border-white/10 bg-white/[0.03] p-2">
-                  {form.photoUrl ? (
-                    <img src={form.photoUrl} alt="" className="w-14 h-14 rounded-full object-cover border border-sky-500/40" />
-                  ) : (
-                    <div className="w-14 h-14 rounded-full bg-white/10 border border-white/10 flex items-center justify-center text-xl">👤</div>
-                  )}
-                  <div className="flex gap-2">
-                    <label className="text-[11px] font-black rounded-lg px-3 py-1.5 border border-white/15 bg-white/[0.05] text-slate-200 cursor-pointer hover:border-sky-400/60">
-                      📁 {ar ? 'رفع صورة' : 'Upload'}
-                      <input type="file" accept="image/*" className="hidden"
-                        onChange={(e) => { usePhotoFile(e.target.files?.[0], { form: true }); e.target.value = ''; }} />
-                    </label>
-                    <button type="button" onClick={() => setCamFor({ form: true })}
-                      className="text-[11px] font-black rounded-lg px-3 py-1.5 border border-sky-500/50 bg-sky-500/15 text-sky-300 hover:bg-sky-500/25">
-                      🎥 {ar ? 'تصوير' : 'Camera'}
-                    </button>
-                  </div>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                  <label className="text-[11px] text-slate-400 font-bold">{ar ? 'كود الموظف *' : 'Code *'}
-                    <input value={form.employeeCode} onChange={(e) => setForm({ ...form, employeeCode: e.target.value })}
-                      className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
-                  <label className="text-[11px] text-slate-400 font-bold">{ar ? 'الاسم *' : 'Name *'}
-                    <input value={form.fullName} onChange={(e) => setForm({ ...form, fullName: e.target.value })}
-                      className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
-                  <label className="text-[11px] text-slate-400 font-bold">{ar ? 'رقم الهوية / الإقامة' : 'National ID / Iqama'}
-                    <input value={form.nationalId} onChange={(e) => setForm({ ...form, nationalId: e.target.value })} inputMode="numeric"
-                      className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
-                  <label className="text-[11px] text-slate-400 font-bold">{ar ? 'تاريخ انتهاء الإقامة * للتنبيه' : 'Iqama expiry (alerts)'}
-                    <input type="date" value={form.iqamaExpiry} onChange={(e) => setForm({ ...form, iqamaExpiry: e.target.value })}
-                      className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
-                  <label className="text-[11px] text-slate-400 font-bold">{ar ? 'رقم الجواز' : 'Passport No'}
-                    <input value={form.passportNo} dir="ltr" onChange={(e) => setForm({ ...form, passportNo: e.target.value })}
-                      className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
-                  <label className="text-[11px] text-slate-400 font-bold">{ar ? 'الجنسية' : 'Nationality'}
-                    <select value={form.countryCode} onChange={(e) => setForm({ ...form, countryCode: e.target.value })}
-                      className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none">
-                      <option value="">—</option>
-                      {COUNTRIES.map((c) => <option key={c.code} value={c.code}>{c.flag} {c.ar}</option>)}
-                    </select></label>
-                  <label className="text-[11px] text-slate-400 font-bold">{ar ? 'الوظيفة' : 'Job title'}
-                    <input value={form.jobTitle} onChange={(e) => setForm({ ...form, jobTitle: e.target.value })}
-                      className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
-                  <label className="text-[11px] text-slate-400 font-bold">{ar ? 'الإدارة التابع لها' : 'Department'}
-                    <select value={form.department} onChange={(e) => setForm({ ...form, department: e.target.value })}
-                      className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none">
-                      <option value="">—</option>
-                      {DEPTS.map((d) => <option key={d} value={d}>{d}</option>)}
-                    </select></label>
-                  <label className="text-[11px] text-slate-400 font-bold">{ar ? 'الراتب الأساسي (ر.س)' : 'Base salary'}
-                    <input value={form.baseSalarySar} onChange={(e) => setForm({ ...form, baseSalarySar: e.target.value })} inputMode="decimal"
-                      className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
-                  <label className="text-[11px] text-slate-400 font-bold">{ar ? 'بدل السكن' : 'Housing'}
-                    <input value={form.housingAllowanceSar} onChange={(e) => setForm({ ...form, housingAllowanceSar: e.target.value })} inputMode="decimal"
-                      className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
-                  <label className="text-[11px] text-slate-400 font-bold">{ar ? 'بدل المواصلات' : 'Transport'}
-                    <input value={form.transportAllowanceSar} onChange={(e) => setForm({ ...form, transportAllowanceSar: e.target.value })} inputMode="decimal"
-                      className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
-                  <label className="text-[11px] text-slate-400 font-bold">{ar ? 'البنك' : 'Bank'}
-                    <input value={form.bankName} onChange={(e) => setForm({ ...form, bankName: e.target.value })}
-                      className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
-                  <label className="text-[11px] text-slate-400 font-bold">{ar ? 'الآيبان' : 'IBAN'}
-                    <input value={form.bankIban} onChange={(e) => setForm({ ...form, bankIban: e.target.value })}
-                      className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
-                  <label className="text-[11px] text-slate-400 font-bold">{ar ? 'تاريخ التعيين' : 'Hire date'}
-                    <input type="date" value={form.hireDate} onChange={(e) => setForm({ ...form, hireDate: e.target.value })}
-                      className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
-                  <label className="text-[11px] text-slate-400 font-bold">{ar ? 'رقم التواصل' : 'Contact phone'}
-                    <input value={form.contactPhone} onChange={(e) => setForm({ ...form, contactPhone: e.target.value })} inputMode="tel"
-                      className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
-                  <label className="text-[11px] text-slate-400 font-bold">{ar ? 'قريب بالسعودية (للطوارئ)' : 'Emergency contact (KSA)'}
-                    <input value={form.emergencyContactName} onChange={(e) => setForm({ ...form, emergencyContactName: e.target.value })}
-                      className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
-                  <label className="text-[11px] text-slate-400 font-bold">{ar ? 'جوال الطوارئ' : 'Emergency mobile'}
-                    <input value={form.emergencyContactPhone} onChange={(e) => setForm({ ...form, emergencyContactPhone: e.target.value })} inputMode="tel"
-                      className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
-                  <label className="text-[11px] text-slate-400 font-bold">{ar ? 'تاريخ آخر إجازة' : 'Last vacation'}
-                    <input type="date" value={form.lastVacationDate} onChange={(e) => setForm({ ...form, lastVacationDate: e.target.value })}
-                      className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
-                  <label className="text-[11px] text-slate-400 font-bold">{ar ? 'تاريخ آخر مباشرة' : 'Last resumption'}
-                    <input type="date" value={form.lastResumptionDate} onChange={(e) => setForm({ ...form, lastResumptionDate: e.target.value })}
-                      className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
-                  <label className="text-[11px] text-slate-400 font-bold">{ar ? 'وثيقة التأمين الطبي' : 'Medical insurance no.'}
-                    <input value={form.medicalInsuranceNo} onChange={(e) => setForm({ ...form, medicalInsuranceNo: e.target.value })}
-                      className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
-                  <label className="text-[11px] text-slate-400 font-bold">{ar ? 'انتهاء التأمين الطبي' : 'Insurance expiry'}
-                    <input type="date" value={form.medicalInsuranceExpiry} onChange={(e) => setForm({ ...form, medicalInsuranceExpiry: e.target.value })}
-                      className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
-                  <label className="text-[11px] text-slate-400 font-bold">{ar ? 'رقم السيارة' : 'Car plate'}
-                    {form.vehicleOwnership === 'COMPANY' ? (
-                      <select value={fleet.some((v: any) => (v.plateNumber ?? '') === form.vehiclePlate) ? form.vehiclePlate : (form.vehiclePlate ? '__custom__' : '')}
-                        onChange={(e) => { const v = e.target.value; if (v !== '__custom__') setForm({ ...form, vehiclePlate: v }); }}
-                        className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none">
-                        <option value="">— {ar ? 'اختر من مركبات الشركة' : 'Select a company vehicle'} —</option>
-                        {fleet.map((v: any) => (
-                          <option key={v.id ?? v.vehicleCode} value={v.plateNumber ?? ''}>
-                            🚛 {v.vehicleCode} · {v.plateNumber}{v.vehicleType ? ` · ${v.vehicleType}` : ''}
-                          </option>
-                        ))}
-                        {form.vehiclePlate && !fleet.some((v: any) => (v.plateNumber ?? '') === form.vehiclePlate) && (
-                          <option value="__custom__">{form.vehiclePlate} {ar ? '(مسجلة سابقاً)' : '(previously saved)'}</option>
-                        )}
-                      </select>
-                    ) : (
-                      <input value={form.vehiclePlate} onChange={(e) => setForm({ ...form, vehiclePlate: e.target.value })}
-                        className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" />
-                    )}</label>
-                  <label className="text-[11px] text-slate-400 font-bold">{ar ? 'السيارة خاصة أم عهدة؟' : 'Car: private or custody?'}
-                    <select value={form.vehicleOwnership} onChange={(e) => setForm({ ...form, vehicleOwnership: e.target.value })}
-                      className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none">
-                      <option value="">—</option>
-                      <option value="PRIVATE">{ar ? '🚗 خاصة' : 'Private'}</option>
-                      <option value="COMPANY">{ar ? '🏢 عهدة الشركة' : 'Company'}</option>
-                    </select>
-                    {form.vehicleOwnership === 'COMPANY' && fleet.length === 0 && (
-                      <span className="block mt-1 text-[10px] text-yellow-300/90 font-bold">{ar ? '⚠️ لا مركبات مسجلة — أضفها أولاً من تبويب 🚛 المركبات' : 'No vehicles registered — add them in the Vehicles tab first'}</span>
-                    )}</label>
-                </div>
-                <button disabled={busy === 'add'} onClick={addEmployee}
-                  className="mt-3 w-full sm:w-auto bg-sky-500 hover:bg-sky-400 disabled:opacity-50 text-white text-xs font-black rounded-lg px-6 py-2">
-                  {busy === 'add' ? '…' : `✅ ${ar ? 'حفظ الموظف' : 'Save employee'}`}
-                </button>
-              </div>
-            )}
+            {showAdd && !editingEmp && renderEmpForm()}
             <p className="text-[11px] text-slate-500 mb-2">{team.length} {ar ? 'موظف' : 'employees'}</p>
             {team.length === 0 && <p className="text-xs text-slate-500">{ar ? 'لا بيانات فريق.' : 'No team data.'}</p>}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              {team.map((e, i) => (
+              {team.map((e, i) => (<Fragment key={e.id ?? i}>
                 <div key={e.id ?? i} className={`rounded-2xl border border-white/10 bg-white/[0.03] p-4 flex items-center gap-3 ${e.isActive === false ? 'opacity-55' : ''}`}>
                   <div className="relative shrink-0">
                     {e.photoUrl ? (
@@ -2039,7 +2047,12 @@ function ageOf(raw: unknown): number | null {
                     </span>
                   )}
                 </div>
-              ))}
+                {editingEmp === e.id && (
+                  <div className="col-span-full" ref={(el) => { if (el) el.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }}>
+                    {renderEmpForm()}
+                  </div>
+                )}
+              </Fragment>))}
             </div>
             {docsEmp && (
               <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-4 mt-3">
