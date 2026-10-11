@@ -574,6 +574,15 @@ function ageOf(raw: unknown): number | null {
     setShowAdd(false);
   };
 
+  // From org chart (or anywhere): jump straight to this employee's file.
+  const gotoEmpFile = (e: any) => {
+    if (!e?.id) return;
+    if (e.isActive === false) setShowInactive(true);
+    startEditEmp(e);
+    setSearch(e.employeeCode ?? '');
+    setTab('team');
+  };
+
   const loadDocs = async (employeeId: string, name: string) => {
     setDocsEmp({ id: employeeId, name });
     try {
@@ -3357,9 +3366,10 @@ function ageOf(raw: unknown): number | null {
                       <div className="p-2 space-y-1.5 max-h-[320px] overflow-y-auto">
                         {(groups.get(d) ?? []).map((e, i) => (
                           <div key={e.id ?? i} className="flex items-center gap-2 rounded-xl border border-white/5 bg-white/[0.02] px-2 py-1.5">
-                            <div className="w-7 h-7 shrink-0 rounded-full bg-sky-500/15 border border-sky-500/30 flex items-center justify-center text-xs font-black text-sky-300">
+                            <button onClick={() => gotoEmpFile(e)} title={ar ? 'فتح ملف الموظف' : 'Open employee file'}
+                              className="w-7 h-7 shrink-0 rounded-full bg-sky-500/15 border border-sky-500/30 flex items-center justify-center text-xs font-black text-sky-300 hover:bg-sky-500/30 hover:border-sky-400/60 hover:scale-110 transition cursor-pointer">
                               {(nameOf(e) || '?').trim().charAt(0)}
-                            </div>
+                            </button>
                             <div className="min-w-0">
                               <p className="text-[11px] font-black text-white truncate">{nameOf(e)}</p>
                               <p className="text-[10px] text-slate-500 truncate">{e.jobTitle ?? e.role ?? e.employeeCode ?? ''}</p>
