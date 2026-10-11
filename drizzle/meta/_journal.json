@@ -379,6 +379,13 @@
       "when": 1791634178194,
       "tag": "0053_colossal_pestilence",
       "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "7",
+      "when": 1791712265912,
+      "tag": "0054_mixed_tyrannus",
+      "breakpoints": true
     }
   ]
 }

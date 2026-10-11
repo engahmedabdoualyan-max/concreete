@@ -4333,6 +4333,8 @@ export const procureRequests = pgTable(
     receivedQty: decimal("received_qty", { precision: 12, scale: 2 }),
     quantity: decimal("quantity", { precision: 12, scale: 2 }).notNull(),
     unit: varchar("unit", { length: 20 }).notNull().default("قطعة"),
+    /** RAW_MATERIALS (مواد خام أولية) | SPARE_PARTS (قطع غيار ورشة) | OPERATING (مصاريف تشغيل) */
+    category: varchar("category", { length: 24 }).notNull().default("SPARE_PARTS"),
     reason: text("reason"),
     workshopRef: varchar("workshop_ref", { length: 120 }),
     /** DRAFT|SUBMITTED|UNDER_REVIEW|APPROVED|REJECTED|RECEIVED|ISSUED|CLOSED */
@@ -4346,6 +4348,7 @@ export const procureRequests = pgTable(
   (t) => [
     index("idx_proc_req_tenant").on(t.tenantId),
     index("idx_proc_req_status").on(t.status),
+    index("idx_proc_req_category").on(t.category),
   ]
 );
 

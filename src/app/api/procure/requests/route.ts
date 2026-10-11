@@ -25,6 +25,7 @@ export async function GET(req: NextRequest) {
   const auth = await requirePermission(req, PERMISSIONS.PROCURE_REQUEST);
   if ("status" in auth) return auth;
   const status = new URL(req.url).searchParams.get("status");
+  const category = new URL(req.url).searchParams.get("category");
   const rows = await db
     .select({
       req: procureRequests,
@@ -48,13 +49,15 @@ export async function GET(req: NextRequest) {
     quotes: nByReq.get(r.req.id) ?? 0,
   }));
   return successResponse(
-    { requests: status ? list.filter((r) => r.status === status) : list },
+    { requests: list.filter((r) => (!status || r.status === status) && (!category || (r as any).category === category)) },
     `${list.length} request(s)`
   );
 }
 
 const CreateSchema = z.object({
   itemName: z.string().min(1).max(200),
+  /** RAW_MATERIALS | SPARE_PARTS | OPERATING */
+  category: z.enum(["RAW_MATERIALS", "SPARE_PARTS", "OPERATING"]).optional(),
   /** Registry code from warehouse_items (search-select in the form). */
   itemCode: z.string().trim().max(30).optional(),
   /** Vehicle the part/material is for. */
@@ -95,6 +98,7 @@ export async function POST(req: NextRequest) {
     .values({
       tenantId: auth.user.tenantId,
       itemName: d.itemName.trim(),
+      category: d.category ?? "SPARE_PARTS",
       itemCode: d.itemCode?.trim() || null,
       vehicleId: d.vehicleId ?? null,
       quantity: String(d.quantity),

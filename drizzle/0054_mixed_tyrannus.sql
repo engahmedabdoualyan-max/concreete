@@ -1,0 +1,2 @@
+ALTER TABLE "procure_requests" ADD COLUMN "category" varchar(24) DEFAULT 'SPARE_PARTS' NOT NULL;--> statement-breakpoint
+CREATE INDEX "idx_proc_req_category" ON "procure_requests" USING btree ("category");

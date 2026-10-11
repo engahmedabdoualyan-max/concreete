@@ -19,12 +19,17 @@ const STATUS_AR: Record<string, string> = {
   APPROVED: 'معتمد', REJECTED: 'مرفوض', RECEIVED: 'مستلم', ISSUED: 'مصروف', CLOSED: 'مغلق',
 };
 
+const CAT_AR: Record<string, string> = {
+  RAW_MATERIALS: '🧱 مواد خام أولية', SPARE_PARTS: '🔧 قطع غيار ورشة', OPERATING: '⚙️ مصاريف تشغيل',
+};
+
 export default function Procurement() {
   const { currentUser } = useAuth();
   const { lang } = useLang();
   const ar = lang === 'ar';
 
   const [filter, setFilter] = useState('ALL');
+  const [catFilter, setCatFilter] = useState('ALL');
   const [requests, setRequests] = useState<any[]>([]);
   const [sel, setSel] = useState<any | null>(null);
   const [quotes, setQuotes] = useState<any[]>([]);
@@ -32,7 +37,7 @@ export default function Procurement() {
   const [attachs, setAttachs] = useState<any[]>([]);
   const [uploadingAtt, setUploadingAtt] = useState(false);
   const [showNew, setShowNew] = useState(false);
-  const [form, setForm] = useState({ itemName: '', itemCode: '', vehicleId: '', quantity: '', unit: '', reason: '', workshopRef: '' });
+  const [form, setForm] = useState({ category: 'SPARE_PARTS', itemName: '', itemCode: '', vehicleId: '', quantity: '', unit: '', reason: '', workshopRef: '' });
   const [regItems, setRegItems] = useState<any[]>([]);
   const [fleetList, setFleetList] = useState<any[]>([]);
   const [quoteForm, setQuoteForm] = useState({ supplierName: '', amountSar: '' });
@@ -49,7 +54,11 @@ export default function Procurement() {
 
   const load = useCallback(async () => {
     try {
-      const r = await api.get<{ requests?: any[] }>(`/api/procure/requests${filter === 'ALL' ? '' : `?status=${filter}`}`);
+      const qs = [
+        filter === 'ALL' ? '' : `status=${filter}`,
+        catFilter === 'ALL' ? '' : `category=${catFilter}`,
+      ].filter(Boolean).join('&');
+      const r = await api.get<{ requests?: any[] }>(`/api/procure/requests${qs ? `?${qs}` : ''}`);
       setRequests(Array.isArray(r?.requests) ? r.requests : []);
     } catch { setRequests([]); }
     try {
@@ -60,7 +69,7 @@ export default function Procurement() {
       const fl = await api.get<any[]>(`/api/fleet`);
       setFleetList(Array.isArray(fl) ? fl : (fl as any)?.vehicles ?? []);
     } catch { /* fleet optional */ }
-  }, [filter]);
+  }, [filter, catFilter]);
 
   const loadDetail = useCallback(async (id: string) => {
     try {
@@ -97,6 +106,7 @@ export default function Procurement() {
     <div class="sub">التاريخ: ${new Date().toISOString().slice(0, 10)} · الحالة: ${sel.status}</div>
     <h2>بيانات الطلب</h2>
     <table><tr><th>الصنف</th><td>${sel.itemCode ? `[${sel.itemCode}] ` : ''}${sel.itemName}</td><th>الكمية</th><td>${sel.quantity} ${sel.unit ?? ''}</td></tr>
+    <tr><th>القسم</th><td colspan="3">${sel.category === 'RAW_MATERIALS' ? 'مواد خام أولية' : sel.category === 'OPERATING' ? 'مصاريف تشغيل' : 'قطع غيار ورشة'}</td></tr>
     <tr><th>المركبة</th><td>${sel.vehicleCode ? `${sel.vehicleCode}${sel.plateNumber ? ` · ${sel.plateNumber}` : ''}` : '—'}</td><th>مرجع الورشة</th><td>${sel.workshopRef ?? '—'}</td></tr>
     <tr><th>سبب الطلب</th><td colspan="3">${sel.reason ?? '—'}</td></tr>
     ${kind === 'order' ? `<tr><th>المبلغ المصروف</th><td>${sel.disbursedSar ?? '—'} ر.س</td><th>العرض الفائز</th><td>${chosen ? `${chosen.supplierName} (${chosen.amountSar})` : '—'}</td></tr>` : ''}
@@ -179,6 +189,7 @@ export default function Procurement() {
       if (!form.itemName.trim() || !form.quantity.trim()) throw new Error(ar ? 'الصنف والكمية مطلوبة' : 'required');
       await api.post('/api/procure/requests', {
         itemName: form.itemName.trim(),
+        category: form.category,
         ...(form.itemCode.trim() ? { itemCode: form.itemCode.trim() } : {}),
         ...(form.vehicleId ? { vehicleId: form.vehicleId } : {}),
         quantity: Number(form.quantity),
@@ -186,7 +197,7 @@ export default function Procurement() {
         reason: form.reason.trim() || undefined,
         workshopRef: form.workshopRef.trim() || undefined,
       });
-      setForm({ itemName: '', itemCode: '', vehicleId: '', quantity: '', unit: '', reason: '', workshopRef: '' });
+      setForm({ category: 'SPARE_PARTS', itemName: '', itemCode: '', vehicleId: '', quantity: '', unit: '', reason: '', workshopRef: '' });
       setShowNew(false);
     }, ar ? 'تم إنشاء الطلب' : 'Created', 'new');
 
@@ -251,6 +262,15 @@ export default function Procurement() {
         </div>
 
         <div className="flex flex-wrap gap-2 mt-4">
+          {['ALL', 'RAW_MATERIALS', 'SPARE_PARTS', 'OPERATING'].map((c) => (
+            <button key={c} onClick={() => setCatFilter(c)}
+              className={`text-[11px] font-black rounded-lg px-3 py-1.5 border ${catFilter === c ? 'bg-amber-400 text-black border-amber-400' : 'text-slate-400 border-white/10'}`}>
+              {c === 'ALL' ? (ar ? 'كل الأقسام' : 'All') : (CAT_AR[c] ?? c)}
+            </button>
+          ))}
+        </div>
+
+        <div className="flex flex-wrap gap-2 mt-2">
           {['ALL', 'DRAFT', 'SUBMITTED', 'UNDER_REVIEW', 'APPROVED', 'RECEIVED', 'ISSUED', 'CLOSED', 'REJECTED'].map((f) => (
             <button key={f} onClick={() => setFilter(f)}
               className={`text-[11px] font-black rounded-lg px-3 py-1.5 border ${filter === f ? 'bg-white text-black border-white' : 'text-slate-400 border-white/10'}`}>
@@ -268,6 +288,11 @@ export default function Procurement() {
         {showNew && (
           <div className="rounded-2xl border border-sky-500/30 bg-sky-500/[0.06] p-4 mt-3">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+              <label className="text-[11px] text-slate-400 font-bold">{ar ? 'القسم *' : 'Category *'}
+                <select value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}
+                  className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none">
+                  {Object.entries(CAT_AR).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                </select></label>
               <label className="text-[11px] text-slate-400 font-bold">{ar ? 'الصنف * (ابحث بالكود أو الاسم)' : 'Item * (search code/name)'}
                 <input value={form.itemName} list="proc-reg-items"
                   onChange={(e) => {
@@ -329,6 +354,7 @@ export default function Procurement() {
                 className={`w-full text-right rounded-xl border px-3 py-2 text-xs ${sel?.id === r.id ? 'border-sky-500/60 bg-sky-500/10' : 'border-white/10 bg-white/[0.03]'}`}>
                 <div className="flex items-center justify-between">
                   <span className="font-black text-white">
+                    <span className="text-amber-300">{CAT_AR[r.category] ?? CAT_AR.SPARE_PARTS} · </span>
                     {r.itemCode ? <span dir="ltr" className="text-emerald-300">[{r.itemCode}] </span> : ''}{r.itemName} · {r.quantity} {r.unit}
                     {r.vehicleCode ? <span className="text-sky-300"> · 🚛 {r.vehicleCode}</span> : ''}
                   </span>
@@ -349,6 +375,7 @@ export default function Procurement() {
                   </h3>
                   <span className="text-[10px] font-black rounded px-2 py-0.5 bg-sky-500/15 text-sky-300">{STATUS_AR[sel.status] ?? sel.status}</span>
                 </div>
+                <p className="text-[11px] font-black text-amber-300">{CAT_AR[sel.category] ?? CAT_AR.SPARE_PARTS}</p>
                 {sel.vehicleCode && (
                   <p className="text-[11px] text-sky-300 font-black">🚛 {sel.vehicleCode}{sel.plateNumber ? ` · ${sel.plateNumber}` : ''}</p>
                 )}
