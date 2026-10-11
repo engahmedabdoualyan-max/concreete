@@ -173,6 +173,8 @@ export default function Operations() {
   const [rdBusy, setRdBusy] = useState(false);
   const [hrFleet, setHrFleet] = useState<any[]>([]);
   const [rdDrvBusy, setRdDrvBusy] = useState('');
+  const [newDrvFor, setNewDrvFor] = useState<string | null>(null);
+  const [newDrv, setNewDrv] = useState({ name: '', phone: '', iqama: '' });
   const typeAr = (t: string) =>
     ({ MIXER_TRUCK: 'خلاطات', CONCRETE_PUMP: 'بامب', TIPPER_TRUCK: 'قلاب', TRANSIT_MIXER: 'ترانزيت', WATER_TANKER: 'تانكر', SERVICE_TRUCK: 'خدمة/ونش' } as Record<string, string>)[t] ?? t;
   // Section name: tippers live under a transport section.
@@ -242,7 +244,7 @@ export default function Operations() {
     const cur = hrFleet.find((f) => f.id === v.vehicleId);
     const curId = cur?.assignedDriverId ?? '';
     const known = curId !== '' && driverOptions.some((d) => (d.userId ?? '') === curId);
-    if (known) return { selVal: curId, customName: '', hasDriver: true };
+    if (known) return { selVal: curId, customName: '', hasDriver: true, fmId: null };
     // HR rule: employee file with عهدة الشركة + matching plate drives this vehicle
     const plate = String(v.plateNumber ?? '').trim();
     const code = String(v.vehicleCode ?? '').trim();
@@ -251,10 +253,10 @@ export default function Operations() {
       const p = String(e?.vehiclePlate ?? '').trim();
       return p !== '' && (p === plate || (code !== '' && p === code));
     });
-    if (fileMatch && (fileMatch as any).userId) return { selVal: (fileMatch as any).userId ?? '', customName: '', hasDriver: true };
-    if (fileMatch) return { selVal: '__custom__', customName: (fileMatch as any).fullName ?? '', hasDriver: true };
-    if (curId) return { selVal: '__custom__', customName: cur?.driverName ?? '', hasDriver: true };
-    return { selVal: '', customName: '', hasDriver: false };
+    if (fileMatch && (fileMatch as any).userId) return { selVal: (fileMatch as any).userId ?? '', customName: '', hasDriver: true, fmId: (fileMatch as any).id ?? null };
+    if (fileMatch) return { selVal: `emp:${(fileMatch as any).id ?? ''}`, customName: (fileMatch as any).fullName ?? '', hasDriver: true, fmId: (fileMatch as any).id ?? null };
+    if (curId) return { selVal: '__custom__', customName: cur?.driverName ?? '', hasDriver: true, fmId: null };
+    return { selVal: '', customName: '', hasDriver: false, fmId: null };
   };
   const assignVehicleDriver = async (vehicleId: string, userId: string) => {
     setRdDrvBusy(vehicleId);
@@ -264,6 +266,76 @@ export default function Operations() {
       setRdMsg('✅ تم تعيين السائق');
     } catch (e: any) {
       setRdMsg(`❌ ${e?.message ?? 'فشل تعيين السائق'}`);
+    } finally {
+      setRdDrvBusy('');
+    }
+  };
+  // Link an HR employee file (no login needed) to a vehicle via عهدة الشركة.
+  const linkEmpDriver = async (v: any, empId: string) => {
+    setRdDrvBusy(v.vehicleId);
+    try {
+      await api.put(`/api/hr/employees/${empId}`, { vehiclePlate: v.plateNumber ?? '', vehicleOwnership: 'COMPANY' });
+      setHrEmps((p) => p.map((e) => (e.id === empId ? { ...e, vehiclePlate: v.plateNumber ?? '', vehicleOwnership: 'COMPANY' } : e)));
+      setRdMsg('✅ تم تعيين السائق');
+    } catch (e: any) {
+      setRdMsg(`❌ ${e?.message ?? 'فشل تعيين السائق'}`);
+    } finally {
+      setRdDrvBusy('');
+    }
+  };
+  // Unassign: clear official link + any HR-file link on this vehicle.
+  const unassignDriver = async (v: any, fmId: string | null) => {
+    setRdDrvBusy(v.vehicleId);
+    try {
+      await api.put(`/api/hr/vehicles/${v.vehicleId}`, { assignedDriverId: null });
+      setHrFleet((p) => p.map((f) => (f.id === v.vehicleId ? { ...f, assignedDriverId: null } : f)));
+      if (fmId) {
+        await api.put(`/api/hr/employees/${fmId}`, { vehiclePlate: '' }).catch(() => null);
+        setHrEmps((p) => p.map((e) => (e.id === fmId ? { ...e, vehiclePlate: '' } : e)));
+      }
+      setRdMsg('✅ تمت إزالة السائق');
+    } catch (e: any) {
+      setRdMsg(`❌ ${e?.message ?? 'فشل الإزالة'}`);
+    } finally {
+      setRdDrvBusy('');
+    }
+  };
+  const onDrvChange = (v: any, val: string) => {
+    if (val === '__custom__') return;
+    if (val === '__new__') { setNewDrvFor(v.vehicleId); setNewDrv({ name: '', phone: '', iqama: '' }); return; }
+    if (val === '') { void unassignDriver(v, drvInfo(v).fmId); return; }
+    if (val.startsWith('emp:')) { void linkEmpDriver(v, val.slice(4)); return; }
+    void assignVehicleDriver(v.vehicleId, val);
+  };
+  const nextWrk = () => {
+    let mx = 59;
+    for (const e of hrEmps) {
+      const m = /^WRK-(\d+)$/.exec(String((e as any).employeeCode ?? '').trim());
+      if (m) mx = Math.max(mx, parseInt(m[1], 10));
+    }
+    return `WRK-${String(mx + 1).padStart(3, '0')}`;
+  };
+  const createDriver = async (v: any) => {
+    if (!newDrv.name.trim()) { setRdMsg('❌ اكتب اسم السائق'); return; }
+    setRdDrvBusy(v.vehicleId);
+    try {
+      await api.post('/api/hr/employees', {
+        employeeCode: nextWrk(),
+        fullName: newDrv.name.trim(),
+        jobTitle: 'سائق',
+        department: 'التشغيل',
+        ...(newDrv.phone.trim() ? { contactPhone: newDrv.phone.trim() } : {}),
+        ...(newDrv.iqama.trim() ? { nationalId: newDrv.iqama.trim() } : {}),
+        vehiclePlate: v.plateNumber ?? '',
+        vehicleOwnership: 'COMPANY',
+      });
+      const er = await api.get<{ employees: any[] }>('/api/hr/employees').catch(() => ({ employees: [] as any[] }));
+      if (Array.isArray((er as any).employees)) setHrEmps((er as any).employees);
+      setNewDrvFor(null);
+      setNewDrv({ name: '', phone: '', iqama: '' });
+      setRdMsg('✅ تمت إضافة السائق وتعيينه على المركبة');
+    } catch (e: any) {
+      setRdMsg(`❌ ${e?.message ?? 'فشل الإضافة'}`);
     } finally {
       setRdDrvBusy('');
     }
@@ -787,15 +859,42 @@ export default function Operations() {
                       <div className="flex items-center gap-1 mt-1">
                         <span className="text-[10px] text-slate-400 font-bold shrink-0">🧑‍✈️ سائق</span>
                         <select value={di.selVal} disabled={rdDrvBusy === v.vehicleId}
-                          onChange={(e) => { const val = e.target.value; if (val !== '__custom__') void assignVehicleDriver(v.vehicleId, val); }}
+                          onChange={(e) => onDrvChange(v, e.target.value)}
                           className={`flex-1 min-w-0 bg-white/[0.05] border rounded px-1.5 py-0.5 text-[10px] text-slate-200 outline-none disabled:opacity-50 ${noDriverWarn ? 'border-red-500/60' : 'border-white/10'}`}>
                           <option value="">بدون سائق</option>
-                          {driverOptions.map((d) => <option key={d.id} value={d.userId ?? ''}>{d.fullName}</option>)}
+                          {hrEmps.map((d: any) => <option key={d.id} value={d.userId ?? `emp:${d.id}`}>{d.fullName ?? d.employeeCode}</option>)}
+                          <option value="__new__">➕ سائق جديد…</option>
                           {di.selVal === '__custom__' && (
                             <option value="__custom__">{di.customName || v.plateNumber} (مسجل سابقاً)</option>
                           )}
                         </select>
                       </div>
+                      {newDrvFor === v.vehicleId && (
+                        <div className="mt-1 rounded-lg border border-emerald-500/40 bg-emerald-500/[0.07] p-2 space-y-1">
+                          <p className="text-[10px] font-black text-emerald-300">➕ سائق جديد على {v.vehicleCode}{v.plateNumber ? ` · ${v.plateNumber}` : ''} — الكود تلقائي ({nextWrk()})</p>
+                          <input value={newDrv.name} onChange={(e) => setNewDrv({ ...newDrv, name: e.target.value })}
+                            placeholder="اسم السائق *"
+                            className="w-full bg-white/[0.05] border border-white/10 rounded px-2 py-1 text-[11px] text-white outline-none" />
+                          <div className="flex gap-1">
+                            <input value={newDrv.phone} onChange={(e) => setNewDrv({ ...newDrv, phone: e.target.value })} inputMode="tel"
+                              placeholder="الجوال"
+                              className="flex-1 min-w-0 bg-white/[0.05] border border-white/10 rounded px-2 py-1 text-[11px] text-white outline-none" />
+                            <input value={newDrv.iqama} onChange={(e) => setNewDrv({ ...newDrv, iqama: e.target.value })} inputMode="numeric"
+                              placeholder="الإقامة"
+                              className="flex-1 min-w-0 bg-white/[0.05] border border-white/10 rounded px-2 py-1 text-[11px] text-white outline-none" />
+                          </div>
+                          <div className="flex gap-1">
+                            <button disabled={rdDrvBusy === v.vehicleId} onClick={() => void createDriver(v)}
+                              className="flex-1 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-white text-[11px] font-black rounded px-2 py-1">
+                              {rdDrvBusy === v.vehicleId ? '…' : '✅ حفظ وتعيين'}
+                            </button>
+                            <button onClick={() => setNewDrvFor(null)}
+                              className="text-slate-400 hover:text-white text-[11px] font-black px-2 py-1 rounded border border-white/10">
+                              ✕
+                            </button>
+                          </div>
+                        </div>
+                      )}
                       {noDriverWarn && (
                         <p className="mt-1 text-[10px] font-black text-red-400">⚠️ شغالة بدون سائق!</p>
                       )}
