@@ -1624,7 +1624,7 @@ function ageOf(raw: unknown): number | null {
   const team = employees.filter((e) => {
     const q = search.trim().toLowerCase();
     if (!q) return true;
-    return [e.fullName, e.full_name, e.email, e.employeeCode, e.phone, e.department].filter(Boolean).join(' ').toLowerCase().includes(q);
+    return [e.fullName, e.full_name, e.email, e.employeeCode, e.phone, e.department, e.nationalId].filter(Boolean).join(' ').toLowerCase().includes(q);
   });
 
   // Vehicle paperwork watch (istimara / insurance / inspection ≤ 60 days).
@@ -1953,7 +1953,7 @@ function ageOf(raw: unknown): number | null {
             )}
             <div className="flex flex-wrap items-center gap-2 mb-3">
               <input value={search} onChange={(e) => setSearch(e.target.value)}
-                placeholder={ar ? '🔍 بحث بالاسم / الكود / الجوال…' : 'Search name / code / phone…'}
+                placeholder={ar ? '🔍 بحث بالاسم / الكود / الجوال / الإقامة…' : 'Search name / code / phone / iqama…'}
                 className="flex-1 min-w-[200px] max-w-md bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2 text-sm text-white outline-none" />
               <button onClick={() => { setEditingEmp(null); setShowAdd((v) => !v); }}
                 className="text-[11px] font-black rounded-lg px-3 py-2 border border-sky-500/50 bg-sky-500/15 text-sky-300 hover:bg-sky-500/25">
