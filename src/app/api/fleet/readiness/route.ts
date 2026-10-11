@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { db } from "@/db";
 import { fleetReadiness, fleetVehicles, sites } from "@/db/schema";
-import { and, eq, sql } from "drizzle-orm";
+import { and, desc, eq, lt, sql } from "drizzle-orm";
 import { z } from "zod";
 import {
   requirePermission,
@@ -49,20 +49,37 @@ export async function GET(req: NextRequest) {
     .where(and(eq(fleetReadiness.tenantId, auth.user.tenantId), eq(fleetReadiness.workDate, date)));
   const byV = new Map(marks.map((m) => [m.vehicleId, m]));
 
+  // Carry-over: state recorded once persists until manually changed.
+  // Today/future only — past dates show exactly what was recorded then.
+  const carried = new Map<string, (typeof marks)[number]>();
+  if (date >= today()) {
+    const prev = await db
+      .select()
+      .from(fleetReadiness)
+      .where(and(eq(fleetReadiness.tenantId, auth.user.tenantId), lt(fleetReadiness.workDate, date)))
+      .orderBy(desc(fleetReadiness.workDate));
+    for (const m of prev) {
+      if (!byV.has(m.vehicleId) && !carried.has(m.vehicleId)) carried.set(m.vehicleId, m);
+    }
+  }
+
   const siteList = await db
     .select({ id: sites.id, code: sites.siteCode, name: sites.siteName })
     .from(sites)
     .where(and(eq(sites.tenantId, auth.user.tenantId), eq(sites.isActive, true)));
 
-  const rows = fleet.map((v) => ({
-    vehicleId: v.id,
-    vehicleCode: v.code,
-    plateNumber: v.plate,
-    vehicleType: v.type,
-    status: byV.get(v.id)?.status ?? null,
-    note: byV.get(v.id)?.note ?? null,
-    siteId: byV.get(v.id)?.siteId ?? null,
-  }));
+  const rows = fleet.map((v) => {
+    const mark = byV.get(v.id) ?? carried.get(v.id);
+    return {
+      vehicleId: v.id,
+      vehicleCode: v.code,
+      plateNumber: v.plate,
+      vehicleType: v.type,
+      status: mark?.status ?? null,
+      note: mark?.note ?? null,
+      siteId: mark?.siteId ?? null,
+    };
+  });
 
   const { byType, byBranch } = await getReadinessSummary(auth.user.tenantId, date);
   return successResponse({ date, rows, byType, byBranch, sites: siteList }, `${rows.length} vehicle(s)`);

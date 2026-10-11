@@ -1,6 +1,6 @@
 import { db } from "@/db";
 import { fleetReadiness, fleetVehicles, sites } from "@/db/schema";
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq, lt } from "drizzle-orm";
 
 export type ReadinessByType = Record<
   string,
@@ -35,6 +35,22 @@ export async function getReadinessSummary(
     .where(and(eq(fleetReadiness.tenantId, tenantId), eq(fleetReadiness.workDate, date)));
   const byV = new Map(marks.map((m) => [m.vehicleId, m]));
 
+  // Carry-over: a vehicle recorded once keeps its state day after day until
+  // manually changed. Applies to today and future dates only — past history
+  // stays exactly as it was recorded.
+  const todayStr = new Date(Date.now() + 3 * 3600_000).toISOString().slice(0, 10);
+  const fallback = new Map<string, { status: string; siteId: string | null }>();
+  if (date >= todayStr) {
+    const prev = await db
+      .select({ vehicleId: fleetReadiness.vehicleId, status: fleetReadiness.status, siteId: fleetReadiness.siteId })
+      .from(fleetReadiness)
+      .where(and(eq(fleetReadiness.tenantId, tenantId), lt(fleetReadiness.workDate, date)))
+      .orderBy(desc(fleetReadiness.workDate));
+    for (const m of prev) {
+      if (!byV.has(m.vehicleId) && !fallback.has(m.vehicleId)) fallback.set(m.vehicleId, m);
+    }
+  }
+
   const siteList = await db
     .select({ id: sites.id, code: sites.siteCode, name: sites.siteName })
     .from(sites)
@@ -46,7 +62,7 @@ export async function getReadinessSummary(
   for (const v of fleet) {
     const b = (byType[v.type] ??= { total: 0, working: 0, idle: 0, workshop: 0, stored: 0, unmarked: 0 });
     b.total++;
-    const m = byV.get(v.id);
+    const m = byV.get(v.id) ?? fallback.get(v.id);
     const s = m?.status;
     if (s === "WORKING") b.working++;
     else if (s === "IDLE") b.idle++;
