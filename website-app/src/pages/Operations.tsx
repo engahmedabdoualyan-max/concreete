@@ -746,11 +746,17 @@ export default function Operations() {
           <p className="text-[11px] text-slate-400 mb-2">علّم كل مركبة: شغال / عاطل / ورشة / مخزن + فرعها — يظهر في البث فور الحفظ، وما ليس لك لا يُحسب عليك.</p>
           {rdMsg && <p className="text-xs font-bold mb-2">{rdMsg}</p>}
           {Object.entries(rdGroups).map(([type, list]) => {
-            const sc = secCount(list as any[]);
+            const rdQuery = search.trim().toLowerCase();
+            const shown = (list as any[]).filter((v) => {
+              if (!rdQuery) return true;
+              return `${v.vehicleCode ?? ''} ${v.plateNumber ?? ''}`.toLowerCase().includes(rdQuery);
+            });
+            if (rdQuery && shown.length === 0) return null;
+            const sc = secCount(shown as any[]);
             return (
             <div key={type} className="mb-2">
               <p className="text-[11px] font-black text-slate-300 mb-1">
-                {secAr(type)} ({(list as any[]).length})
+                {secAr(type)} ({(shown as any[]).length})
                 {' · '}<span className="text-emerald-300">{sc.WORKING} شغال</span>
                 {' · '}<span className="text-slate-400">{sc.IDLE} عاطل</span>
                 {' · '}<span className="text-amber-300">{sc.IN_WORKSHOP} ورشة</span>
@@ -758,7 +764,7 @@ export default function Operations() {
                 {' · '}<span className="text-slate-500">{sc.NONE} غير محدد</span>
               </p>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-1.5">
-                {(list as any[]).map((v: any) => {
+                {(shown as any[]).map((v: any) => {
                   const cur = rdMarks[v.vehicleId] ?? v.status ?? null;
                   const di = drvInfo(v);
                   const noDriverWarn = cur === 'WORKING' && !di.hasDriver;
