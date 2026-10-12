@@ -3589,17 +3589,31 @@ function ageOf(raw: unknown): number | null {
               <div className="w-px h-6 bg-sky-500/40" />
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 w-full">
                 {(() => {
+                  const isDrv = (e: any) => String(e.jobTitle ?? e.role ?? '').includes('سائق');
+                  const drvLabel = ar ? '🧑‍✈️ سائقين' : 'Drivers';
                   const groups = new Map<string, any[]>();
                   for (const e of employees) {
+                    if (isDrv(e)) continue;
                     const d = e.department || (ar ? 'بدون قسم' : 'Unassigned');
                     if (!groups.has(d)) groups.set(d, []);
                     groups.get(d)!.push(e);
                   }
+                  const drvList = employees.filter(isDrv);
+                  if (drvList.length) groups.set(drvLabel, drvList);
                   const ordered = [...DEPTS.filter((d) => groups.has(d)), ...[...groups.keys()].filter((d) => !DEPTS.includes(d))];
+                  // Drivers section lives right under Operations.
+                  const opsIdx = ordered.indexOf('التشغيل');
+                  const di = ordered.indexOf(drvLabel);
+                  if (di >= 0) {
+                    ordered.splice(di, 1);
+                    ordered.splice(opsIdx >= 0 ? opsIdx + 1 : 0, 0, drvLabel);
+                  }
                   return ordered.map((d) => (
-                    <div key={d} className="rounded-2xl border border-white/10 bg-white/[0.02] overflow-hidden">
+                    <div key={d} className={`rounded-2xl border overflow-hidden ${d === drvLabel ? 'border-amber-500/40 bg-amber-500/[0.04]' : 'border-white/10 bg-white/[0.02]'}`}>
                       <div className="bg-white/[0.05] border-b border-white/10 px-3 py-2 flex items-center justify-between">
-                        <span className="text-xs font-black text-sky-300">{d}</span>
+                        <span className="text-xs font-black text-sky-300">{d}
+                          {d === drvLabel && <span className="block text-[10px] font-bold text-amber-300/90">{ar ? '⬆ تابعة لإدارة التشغيل' : 'under Operations'}</span>}
+                        </span>
                         <span className="text-[10px] font-black text-slate-400 bg-white/10 rounded-full px-2 py-0.5">{groups.get(d)!.length}</span>
                       </div>
                       <div className="p-2 space-y-1.5 max-h-[320px] overflow-y-auto">
