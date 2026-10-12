@@ -217,6 +217,28 @@ export default function Operations() {
     (g[r.vehicleType] ??= []).push(r);
     return g;
   }, {});
+  // Live summary under the report title: per-type totals by branch + by status
+  // (respects current on-screen picks, same source as the section headers).
+  const rdSummary = (() => {
+    const out: Record<string, { total: number; branches: Record<string, number>; w: number; i: number; ws: number; st: number; na: number }> = {};
+    for (const [type, list] of Object.entries(rdGroups)) {
+      const g = (out[type] ??= { total: 0, branches: {}, w: 0, i: 0, ws: 0, st: 0, na: 0 });
+      for (const v of (list as any[])) {
+        g.total++;
+        const sid = rdBranch[v.vehicleId] ?? v.siteId ?? '';
+        const site = rdSites.find((s: any) => s.id === sid);
+        const bn = !sid ? 'غير محدد' : (site ? (site.code === 'HQ' ? 'المصنع' : (site.name ?? site.code)) : 'غير محدد');
+        g.branches[bn] = (g.branches[bn] ?? 0) + 1;
+        const s = rdMarks[v.vehicleId] ?? v.status ?? null;
+        if (s === 'WORKING') g.w++;
+        else if (s === 'IDLE') g.i++;
+        else if (s === 'IN_WORKSHOP') g.ws++;
+        else if (s === 'STORED') g.st++;
+        else g.na++;
+      }
+    }
+    return out;
+  })();
   const saveReadiness = async () => {
     const marks = Object.entries(rdMarks)
       .filter(([, s]) => s)
@@ -817,6 +839,22 @@ export default function Operations() {
           </div>
           <p className="text-[11px] text-slate-400 mb-2">علّم كل مركبة: شغال / عاطل / ورشة / مخزن + فرعها — يظهر في البث فور الحفظ، وما ليس لك لا يُحسب عليك.</p>
           {rdMsg && <p className="text-xs font-bold mb-2">{rdMsg}</p>}
+          <div className="rounded-xl border border-amber-500/40 bg-amber-500/[0.07] px-3 py-2 mb-3">
+            <p className="text-[11px] font-black text-amber-300 mb-1">📊 الخلاصة</p>
+            {Object.entries(rdSummary).map(([type, g]) => (
+              <div key={type} className="text-[11px] text-slate-200 mb-1 last:mb-0">
+                <span className="font-black text-white">{secAr(type)} ({g.total})</span>
+                {' · '}<span className="text-slate-300">{Object.entries(g.branches).map(([b, n]) => `${b}: ${n}`).join(' · ')}</span>
+                <br />
+                <span className="text-slate-400">الحالة: </span>
+                <span className="text-emerald-300 font-bold">{g.w} شغال</span>
+                {' · '}<span className="text-slate-400">{g.i} عاطل</span>
+                {' · '}<span className="text-amber-300">{g.ws} ورشة</span>
+                {' · '}<span className="text-sky-300">{g.st} مخزن</span>
+                {' · '}<span className="text-slate-500">{g.na} غير محدد</span>
+              </div>
+            ))}
+          </div>
           {Object.entries(rdGroups).map(([type, list]) => {
             const rdQuery = search.trim().toLowerCase();
             const shown = (list as any[]).filter((v) => {
