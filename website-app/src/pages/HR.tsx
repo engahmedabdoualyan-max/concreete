@@ -316,6 +316,9 @@ export default function HR() {
   };
   const [casts, setCasts] = useState<any[]>([]);
   const [runs, setRuns] = useState<any[]>([]);
+  const [openRun, setOpenRun] = useState<string | null>(null);
+  const [runLines, setRunLines] = useState<any[]>([]);
+  const [paySearch, setPaySearch] = useState('');
   const [note, setNote] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState('');
   const [msg, setMsg] = useState('');
@@ -1547,6 +1550,32 @@ function ageOf(raw: unknown): number | null {
     }
   };
 
+  const openRunDetail = async (id: string) => {
+    if (openRun === id) { setOpenRun(null); setRunLines([]); return; }
+    setOpenRun(id);
+    setBusy('runlines');
+    try {
+      const d: any = await api.get(`/api/hr/payroll/runs/${id}`);
+      const lines = Array.isArray(d?.lines) ? d.lines : [];
+      setRunLines(lines);
+      if (!lines.length) setMsg(ar ? 'لا سطور في هذا المسير.' : 'No lines in this run.');
+    } catch (e: any) {
+      setMsg(`❌ ${e?.message ?? 'فشل التحميل'}`);
+      setRunLines([]);
+    } finally {
+      setBusy('');
+    }
+  };
+  // Employee directory by id for iqama/code lookup on run lines.
+  const empById = (id: string) => employees.find((e) => e.id === id);
+  const payRows = runLines.filter((l) => {
+    const q = paySearch.trim().toLowerCase();
+    if (!q) return true;
+    const e = empById(l.employeeId);
+    return [l.employeeName, e?.employeeCode, e?.nationalId, e?.fullName].filter(Boolean).join(' ').toLowerCase().includes(q);
+  });
+  const payTotal = payRows.reduce((s, l) => s + (Number(l.netSar) || 0), 0);
+
   const load = useCallback(async () => {
     try {
       const r = await api.get<{ requests?: any[] }>(`/api/hr/requests${filter === 'ALL' ? '' : `?status=${filter}`}`);
@@ -2369,9 +2398,71 @@ function ageOf(raw: unknown): number | null {
             </div>
             {runs.length === 0 && <p className="text-xs text-slate-500">{ar ? 'لا مسيرات رواتب.' : 'No payroll runs.'}</p>}
             {runs.map((r, i) => (
-              <div key={r.id ?? i} className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-xs flex items-center justify-between">
-                <span className="font-black text-white">{r.period ?? r.month ?? r.title ?? `${ar ? 'مسير' : 'Run'} ${i + 1}`}</span>
-                <span className="text-slate-400">{r.status ?? ''} {typeof r.totalSar === 'number' ? `· ${r.totalSar} ر.س` : ''}</span>
+              <div key={r.id ?? i}>
+                <button onClick={() => r.id && openRunDetail(r.id)}
+                  className={`w-full rounded-xl border px-3 py-2 text-xs flex items-center justify-between hover:border-sky-400/60 ${openRun === r.id ? 'border-sky-500/60 bg-sky-500/10' : 'border-white/10 bg-white/[0.03]'}`}>
+                  <span className="font-black text-white">{openRun === r.id ? '▼' : '▶'} {r.period ?? r.month ?? r.title ?? `${ar ? 'مسير' : 'Run'} ${i + 1}`}</span>
+                  <span className="text-slate-400">{r.status ?? ''} {typeof r.totalSar === 'number' ? `· ${r.totalSar} ر.س` : ''}</span>
+                </button>
+                {openRun === r.id && (
+                  <div className="mt-1 mb-3 rounded-xl border border-sky-500/30 bg-sky-500/[0.04] p-3">
+                    <div className="flex flex-wrap items-center gap-2 mb-2">
+                      <input value={paySearch} onChange={(e) => setPaySearch(e.target.value)}
+                        placeholder={ar ? '🔍 بحث بالاسم / الكود / الإقامة…' : 'Search name / code / iqama…'}
+                        className="flex-1 min-w-[200px] bg-white/[0.04] border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white outline-none" />
+                      <span className="text-[11px] font-black text-slate-300">{payRows.length} {ar ? 'موظف' : 'employees'} · {ar ? 'الصافي' : 'Net'}: <span className="text-emerald-300">{payTotal.toLocaleString('en-US', { maximumFractionDigits: 0 })} {ar ? 'ر.س' : 'SAR'}</span></span>
+                      <ExportBar
+                        title={ar ? `مسير رواتب ${r.period ?? ''}` : `Payroll ${r.period ?? ''}`}
+                        subtitle={`${payRows.length} ${ar ? 'موظف' : 'employees'}`}
+                        fileBase={`payroll-${r.period ?? 'run'}`}
+                        columns={[
+                          { header: 'الاسم', key: 'name' },
+                          { header: 'الكود', key: 'code' },
+                          { header: 'الإقامة', key: 'iqama' },
+                          { header: 'الأساسي', key: 'base' },
+                          { header: 'البدلات', key: 'allow' },
+                          { header: 'الإجمالي', key: 'gross' },
+                          { header: 'تأمينات', key: 'gosi' },
+                          { header: 'خصومات', key: 'ded' },
+                          { header: 'الصافي', key: 'net' },
+                        ]}
+                        branding={brandParam}
+                        rows={payRows.map((l) => {
+                          const e = empById(l.employeeId);
+                          return {
+                            name: l.employeeName ?? '', code: e?.employeeCode ?? '',
+                            iqama: e?.nationalId ?? '', base: l.baseSalarySar ?? '',
+                            allow: l.allowancesSar ?? '', gross: l.grossSar ?? '',
+                            gosi: l.employeeGosiSar ?? '', ded: l.deductionsSar ?? '', net: l.netSar ?? '',
+                          };
+                        })}
+                      />
+                    </div>
+                    {busy === 'runlines' && <p className="text-xs text-slate-500">⏳ …</p>}
+                    {busy !== 'runlines' && payRows.length === 0 && <p className="text-xs text-slate-500">{ar ? 'لا نتائج.' : 'No matches.'}</p>}
+                    <div className="space-y-1 max-h-[420px] overflow-y-auto">
+                      {payRows.map((l) => {
+                        const e = empById(l.employeeId);
+                        return (
+                          <div key={l.id ?? l.employeeId} className="rounded-lg border border-white/10 bg-white/[0.03] px-2 py-1.5 text-[11px]">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="font-black text-white truncate">{l.employeeName}{e?.employeeCode ? <span className="text-slate-500 font-bold"> · {e.employeeCode}</span> : ''}</span>
+                              <span className="font-black text-emerald-300 shrink-0">{Number(l.netSar || 0).toLocaleString('en-US', { maximumFractionDigits: 0 })} {ar ? 'ر.س' : ''}</span>
+                            </div>
+                            <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-slate-400 mt-0.5">
+                              {e?.nationalId ? <span dir="ltr">🪪 {e.nationalId}</span> : null}
+                              <span>{ar ? 'الأساسي' : 'Base'}: {l.baseSalarySar ?? '—'}</span>
+                              <span>{ar ? 'البدلات' : 'Allow'}: {l.allowancesSar ?? '—'}</span>
+                              <span>{ar ? 'الإجمالي' : 'Gross'}: {l.grossSar ?? '—'}</span>
+                              <span>{ar ? 'التأمينات' : 'GOSI'}: {l.employeeGosiSar ?? '—'}</span>
+                              <span>{ar ? 'الخصم' : 'Ded'}: {l.deductionsSar ?? '—'}</span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
             ))}
           </div>
