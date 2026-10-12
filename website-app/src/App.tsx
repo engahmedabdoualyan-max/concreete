@@ -25,6 +25,7 @@ import CustomSection from './pages/CustomSection';
 import CustomerPortal from './pages/CustomerPortal';
 import LandingPage from './pages/LandingPage';
 import PresenceTracker from './components/PresenceTracker';
+import PageGuard from './components/PageGuard';
 import TrackOrder from './pages/TrackOrder';
 import AccountingIntegrations from './pages/AccountingIntegrations';
 import ZatcaCompliance from './pages/ZatcaCompliance';
@@ -64,6 +65,7 @@ export default function App() {
       <PresenceTracker />
     <AdminProvider>
       <HashRouter>
+        <PageGuard>
         <Routes>
           <Route path="/login" element={<LoginRegister />} />
           <Route path="/landing" element={<LandingPage />} />
@@ -110,6 +112,7 @@ export default function App() {
           <Route path="/materials" element={<ErpMaterials />} />
           <Route path="/multiplant" element={<MultiPlant />} />
         </Routes>
+        </PageGuard>
         <FloatingActions />
         <FieldBackButton />
         <ConditionalFooter />
