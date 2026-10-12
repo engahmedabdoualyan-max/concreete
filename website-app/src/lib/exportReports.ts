@@ -70,6 +70,8 @@ export function openPrintPDF(opts: {
   rows: ExportRow[];
   landscape?: boolean;
   branding?: { companyName?: string; logoDataUrl?: string };
+  /** Optional closing summary block (HTML) printed after the table. */
+  footerHtml?: string;
 }) {
   const w = window.open('', '_blank', 'width=1000,height=800');
   if (!w) return;
@@ -97,6 +99,7 @@ export function openPrintPDF(opts: {
   <table><thead><tr>${opts.columns.map((c) => `<th>${c.header}</th>`).join('')}</tr></thead>
   <tbody>${opts.rows.map((r) => `<tr>${opts.columns.map((c) => `<td>${String(r[c.key] ?? '')}</td>`).join('')}</tr>`).join('')}</tbody>
   </table>
+  ${opts.footerHtml ? `<div style="margin-top:18px;page-break-inside:avoid;">${opts.footerHtml}</div>` : ''}
   <script>window.onload = () => setTimeout(() => window.print(), 300);</script>
   </body></html>`);
   w.document.close();

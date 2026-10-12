@@ -177,21 +177,23 @@ const DEPT_ROLES: Record<string, string[]> = {
   'البحث والتطوير': ['RND_MANAGER'],
 };
 
-function ExportBar({ title, subtitle, fileBase, columns, rows, branding }: {
+function ExportBar({ title, subtitle, fileBase, columns, rows, branding, footerHtml, extraSheets }: {
   title: string; subtitle: string; fileBase: string; columns: ExportColumn[]; rows: ExportRow[];
   branding?: { companyName?: string; logoDataUrl?: string };
+  footerHtml?: string;
+  extraSheets?: { name: string; columns: ExportColumn[]; rows: ExportRow[] }[];
 }) {
   const stamp = new Date().toISOString().slice(0, 10);
   return (
     <div className="flex flex-wrap gap-2">
       <button
-        onClick={() => openPrintPDF({ title, subtitle: `${subtitle} — ${stamp}`, columns, rows, branding })}
+        onClick={() => openPrintPDF({ title, subtitle: `${subtitle} — ${stamp}`, columns, rows, branding, footerHtml })}
         className="text-[11px] font-black rounded-lg px-3 py-1.5 border border-white/15 bg-white/[0.05] text-slate-200 hover:border-sky-400/60"
       >
         🖨️ طباعة / PDF
       </button>
       <button
-        onClick={() => downloadExcel(`${fileBase}-${stamp}`, [{ name: title.slice(0, 31), columns, rows }], branding ? { companyName: branding.companyName, title } : undefined)}
+        onClick={() => downloadExcel(`${fileBase}-${stamp}`, [{ name: title.slice(0, 31), columns, rows }, ...(extraSheets ?? [])], branding ? { companyName: branding.companyName, title } : undefined)}
         className="text-[11px] font-black rounded-lg px-3 py-1.5 border border-emerald-500/40 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20"
       >
         📊 إكسل
@@ -373,6 +375,36 @@ export default function HR() {
     if (!s) return '';
     return s.code === 'HQ' ? (ar ? 'المصنع' : 'Plant') : (s.name ?? s.code ?? '');
   };
+  // Vehicles statement summary: per-type totals split by branch and by status.
+  const vehSummary = (() => {
+    const byType: Record<string, { total: number; branches: Record<string, number>; st: Record<string, number> }> = {};
+    for (const v of fleet) {
+      const t = vehTypeAr(v.vehicleType);
+      const g = (byType[t] ??= { total: 0, branches: {}, st: {} });
+      g.total++;
+      const br = vehBranchOf(v.id) || (ar ? 'غير محدد' : 'Unspecified');
+      g.branches[br] = (g.branches[br] ?? 0) + 1;
+      const s = vehRd.map[v.id]?.status ?? null;
+      const sk = s ? (RD_AR[s] ?? s) : (ar ? 'غير محدد' : 'Unspecified');
+      g.st[sk] = (g.st[sk] ?? 0) + 1;
+    }
+    return byType;
+  })();
+  const vehSummaryRows: ExportRow[] = [];
+  for (const [t, g] of Object.entries(vehSummary)) {
+    vehSummaryRows.push({ label: `${t} — ${ar ? 'الإجمالي' : 'Total'}: ${g.total}`, value: '' });
+    for (const [b, n] of Object.entries(g.branches)) vehSummaryRows.push({ label: `  ${b}`, value: n });
+    for (const [s, n] of Object.entries(g.st)) vehSummaryRows.push({ label: `  ${ar ? 'الحالة' : 'Status'}: ${s}`, value: n });
+  }
+  const vehSummaryHtml =
+    `<h2 style="font-size:15px;margin:0 0 8px;">${ar ? 'الخلاصة' : 'Summary'}</h2>` +
+    Object.entries(vehSummary).map(([t, g]) =>
+      `<h3 style="font-size:13px;margin:10px 0 4px;">${t} — ${ar ? 'إجمالي' : 'total'}: ${g.total}</h3>` +
+      `<table><tbody>` +
+      Object.entries(g.branches).map(([b, n]) => `<tr><td style="width:70%;">${b}</td><td>${n}</td></tr>`).join('') +
+      Object.entries(g.st).map(([s, n]) => `<tr><td>${ar ? 'الحالة' : 'Status'}: ${s}</td><td>${n}</td></tr>`).join('') +
+      `</tbody></table>`
+    ).join('');
   const [editVeh, setEditVeh] = useState<Record<string, { istimara: string; istimaraLast: string; insurance: string; insuranceLast: string; inspection: string; inspectionLast: string }>>({});
   const [editVehInfo, setEditVehInfo] = useState<Record<string, { code: string; plate: string; type: string; make: string; model: string; year: string; target: string }>>({});
   const VEH_TYPES = [
@@ -2860,6 +2892,8 @@ function ageOf(raw: unknown): number | null {
                   { header: 'الإقامة', key: 'iqama' },
                 ]}
                 branding={brandParam}
+                footerHtml={vehSummaryHtml || undefined}
+                extraSheets={vehSummaryRows.length ? [{ name: 'الخلاصة', columns: [{ header: 'البيان', key: 'label' }, { header: 'العدد', key: 'value' }], rows: vehSummaryRows }] : undefined}
                 rows={fleet.map((v) => {
                   const d = vehDriverOf(v);
                   const st = vehRd.map[v.id]?.status ?? null;
