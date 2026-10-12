@@ -357,6 +357,16 @@ export default function HR() {
     w.document.close();
   };
   const [fleet, setFleet] = useState<any[]>([]);
+  // Readiness snapshot for the statement: branch + status per vehicle.
+  const [vehRd, setVehRd] = useState<{ map: Record<string, { status: string | null; siteId: string | null }>; sites: any[] }>({ map: {}, sites: [] });
+  const RD_AR: Record<string, string> = { WORKING: 'شغال', IDLE: 'عاطل', IN_WORKSHOP: 'ورشة', STORED: 'مخزن' };
+  const vehBranchOf = (vehicleId: string) => {
+    const siteId = vehRd.map[vehicleId]?.siteId ?? null;
+    if (!siteId) return '';
+    const s = vehRd.sites.find((x) => x.id === siteId);
+    if (!s) return '';
+    return s.code === 'HQ' ? (ar ? 'المصنع' : 'Plant') : (s.name ?? s.code ?? '');
+  };
   const [editVeh, setEditVeh] = useState<Record<string, { istimara: string; istimaraLast: string; insurance: string; insuranceLast: string; inspection: string; inspectionLast: string }>>({});
   const [editVehInfo, setEditVehInfo] = useState<Record<string, { code: string; plate: string; type: string; make: string; model: string; year: string; target: string }>>({});
   const VEH_TYPES = [
@@ -1574,6 +1584,14 @@ function ageOf(raw: unknown): number | null {
       setFleet(Array.isArray(fl?.vehicles) ? fl.vehicles : []);
     } catch { setFleet([]); }
     try {
+      const rd = await api.get<{ rows?: any[]; sites?: any[] }>('/api/fleet/readiness');
+      const map: Record<string, { status: string | null; siteId: string | null }> = {};
+      for (const r of (rd as any)?.rows ?? []) {
+        if (r?.vehicleId) map[r.vehicleId] = { status: r.status ?? null, siteId: r.siteId ?? null };
+      }
+      setVehRd({ map, sites: Array.isArray((rd as any)?.sites) ? (rd as any).sites : [] });
+    } catch { setVehRd({ map: {}, sites: [] }); }
+    try {
       const vi = await api.get<{ violations?: any[] }>('/api/hr/violations');
       setVios(Array.isArray(vi?.violations) ? vi.violations : []);
     } catch { setVios([]); }
@@ -2726,6 +2744,8 @@ function ageOf(raw: unknown): number | null {
                   { header: 'الكود', key: 'code' },
                   { header: 'اللوحة', key: 'plate' },
                   { header: 'النوع', key: 'type' },
+                  { header: 'الفرع', key: 'branch' },
+                  { header: 'الحالة', key: 'status' },
                   { header: 'السائق', key: 'driver' },
                   { header: 'جوال السائق', key: 'phone' },
                   { header: 'الإقامة', key: 'iqama' },
@@ -2733,9 +2753,11 @@ function ageOf(raw: unknown): number | null {
                 branding={brandParam}
                 rows={fleet.map((v) => {
                   const d = vehDriverOf(v);
+                  const st = vehRd.map[v.id]?.status ?? null;
                   return {
                     code: v.vehicleCode ?? '', plate: v.plateNumber ?? '',
-                    type: vehTypeAr(v.vehicleType), driver: d.name,
+                    type: vehTypeAr(v.vehicleType), branch: vehBranchOf(v.id),
+                    status: st ? (RD_AR[st] ?? st) : '', driver: d.name,
                     phone: d.phone, iqama: d.iqama,
                   };
                 })}
