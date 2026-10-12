@@ -57,6 +57,7 @@ const CreateEmployeeSchema = z.object({
   iqamaExpiry: z.string().min(1).optional(),
   vehiclePlate: z.string().max(20).optional(),
   vehicleOwnership: z.enum(["PRIVATE", "COMPANY"]).optional(),
+  sponsorship: z.string().trim().min(1).max(60).optional(),
   photoUrl: z.string().min(1).max(1_500_000).optional(),
   dateOfBirth: z.string().min(1).optional(),
   bloodGroup: z.string().max(5).optional(),

@@ -3736,6 +3736,8 @@ export const payrollEmployees = pgTable(
     vehiclePlate: varchar("vehicle_plate", { length: 20 }),
     /** PRIVATE | COMPANY */
     vehicleOwnership: varchar("vehicle_ownership", { length: 10 }),
+    /** Sponsorship affiliation (تابعية الكفالة): المطور (default) | others */
+    sponsorship: varchar("sponsorship", { length: 60 }).notNull().default("المطور"),
     /** SAUDI | NON_SAUDI */
     nationality: varchar("nationality", { length: 12 }).notNull().default("NON_SAUDI"),
     /**

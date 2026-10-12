@@ -54,6 +54,7 @@ const UpdateEmployeeSchema = z.object({
   iqamaExpiry: z.string().min(1).optional(),
   vehiclePlate: z.string().max(20).optional(),
   vehicleOwnership: z.enum(["PRIVATE", "COMPANY"]).optional(),
+  sponsorship: z.string().trim().min(1).max(60).optional(),
 });
 
 export async function PUT(

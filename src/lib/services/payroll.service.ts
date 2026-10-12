@@ -142,6 +142,7 @@ export async function createEmployee(
     iqamaExpiry?: string;
     vehiclePlate?: string;
     vehicleOwnership?: string;
+    sponsorship?: string;
     dateOfBirth?: string;
     bloodGroup?: string;
     photoUrl?: string;
@@ -178,6 +179,7 @@ export async function createEmployee(
       iqamaExpiry: input.iqamaExpiry ? new Date(input.iqamaExpiry) : null,
       vehiclePlate: input.vehiclePlate,
       vehicleOwnership: input.vehicleOwnership,
+      sponsorship: input.sponsorship ?? "المطور",
       dateOfBirth: input.dateOfBirth ? new Date(input.dateOfBirth) : null,
       bloodGroup: input.bloodGroup,
       photoUrl: input.photoUrl,
@@ -220,6 +222,7 @@ export async function updateEmployee(
     iqamaExpiry?: string;
     vehiclePlate?: string;
     vehicleOwnership?: string;
+    sponsorship?: string;
   }>
 ) {
   const patch: Record<string, unknown> = { updatedAt: new Date() };
@@ -227,7 +230,7 @@ export async function updateEmployee(
     "fullName", "nationalId", "jobTitle", "department", "bankIban", "bankName",
     "photoUrl", "bloodGroup", "countryCode", "contactPhone",
     "emergencyContactName", "emergencyContactPhone", "medicalInsuranceNo",
-    "vehiclePlate", "vehicleOwnership", "passportNo",
+    "vehiclePlate", "vehicleOwnership", "sponsorship", "passportNo",
   ] as const) {
     if (input[k] !== undefined) patch[k] = input[k];
   }

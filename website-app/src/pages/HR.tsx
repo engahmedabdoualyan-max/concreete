@@ -46,6 +46,9 @@ const DOC_KIND_AR: Record<string, string> = {
 };
 
 const TYPE_AR: Record<string, string> = { LEAVE: 'إجازة', ADVANCE: 'سلفة', SALARY_CONFIRM: 'تعريف راتب', OTHER: 'أخرى' };
+
+const SPONSORSHIP_OPTS = ['المطور', 'زاوية المطور', 'مؤسسة عبد الإله', 'أبو مبارك', 'مبارك', 'مشاري', 'عبد العزيز', 'عزبية'];
+
 const STATUS_AR: Record<string, string> = { PENDING: 'بانتظار', APPROVED: 'مقبول', REJECTED: 'مرفوض', CANCELLED: 'ملغي' };
 
 function nameOf(e: any): string {
@@ -319,7 +322,7 @@ export default function HR() {
   const [fromDate, setFromDate] = useState(() => new Date(Date.now() - 6 * 864e5).toISOString().slice(0, 10));
   const [toDate, setToDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [showAdd, setShowAdd] = useState(false);
-  const [form, setForm] = useState({ employeeCode: '', fullName: '', nationalId: '', countryCode: '', jobTitle: '', department: '', baseSalarySar: '', housingAllowanceSar: '', transportAllowanceSar: '', bankIban: '', bankName: '', hireDate: '', contactPhone: '', emergencyContactName: '', emergencyContactPhone: '', lastVacationDate: '', lastResumptionDate: '', medicalInsuranceNo: '', medicalInsuranceExpiry: '', vehiclePlate: '', vehicleOwnership: '', iqamaExpiry: '', passportNo: '', photoUrl: '' });
+  const [form, setForm] = useState({ employeeCode: '', fullName: '', nationalId: '', countryCode: '', jobTitle: '', department: '', baseSalarySar: '', housingAllowanceSar: '', transportAllowanceSar: '', bankIban: '', bankName: '', hireDate: '', contactPhone: '', emergencyContactName: '', emergencyContactPhone: '', lastVacationDate: '', lastResumptionDate: '', medicalInsuranceNo: '', medicalInsuranceExpiry: '', vehiclePlate: '', vehicleOwnership: '', sponsorship: 'المطور', iqamaExpiry: '', passportNo: '', photoUrl: '' });
   const [actions, setActions] = useState<any[]>([]);
   const [actionFilter, setActionFilter] = useState('ALL');
   const [showActionForm, setShowActionForm] = useState(false);
@@ -549,6 +552,7 @@ function ageOf(raw: unknown): number | null {
         passportNo: form.passportNo.trim() || undefined,
         vehiclePlate: form.vehiclePlate.trim() || undefined,
         vehicleOwnership: (form.vehicleOwnership || undefined) as 'PRIVATE' | 'COMPANY' | undefined,
+        sponsorship: form.sponsorship.trim() || undefined,
         photoUrl: form.photoUrl || undefined,
       };
       if (editingEmp) {
@@ -558,7 +562,7 @@ function ageOf(raw: unknown): number | null {
         await api.post('/api/hr/employees', { employeeCode: form.employeeCode.trim(), ...payload });
         setMsg('✅ تمت إضافة الموظف');
       }
-      setForm({ employeeCode: '', fullName: '', nationalId: '', countryCode: '', jobTitle: '', department: '', baseSalarySar: '', housingAllowanceSar: '', transportAllowanceSar: '', bankIban: '', bankName: '', hireDate: '', contactPhone: '', emergencyContactName: '', emergencyContactPhone: '', lastVacationDate: '', lastResumptionDate: '', medicalInsuranceNo: '', medicalInsuranceExpiry: '', vehiclePlate: '', vehicleOwnership: '', iqamaExpiry: '', passportNo: '', photoUrl: '' });
+      setForm({ employeeCode: '', fullName: '', nationalId: '', countryCode: '', jobTitle: '', department: '', baseSalarySar: '', housingAllowanceSar: '', transportAllowanceSar: '', bankIban: '', bankName: '', hireDate: '', contactPhone: '', emergencyContactName: '', emergencyContactPhone: '', lastVacationDate: '', lastResumptionDate: '', medicalInsuranceNo: '', medicalInsuranceExpiry: '', vehiclePlate: '', vehicleOwnership: '', sponsorship: 'المطور', iqamaExpiry: '', passportNo: '', photoUrl: '' });
       setEditingEmp(null);
       setShowAdd(false);
       await load();
@@ -583,6 +587,7 @@ function ageOf(raw: unknown): number | null {
       lastVacationDate: iso(e.lastVacationDate), lastResumptionDate: iso(e.lastResumptionDate),
       medicalInsuranceNo: e.medicalInsuranceNo ?? '', medicalInsuranceExpiry: iso(e.medicalInsuranceExpiry),
       vehiclePlate: e.vehiclePlate ?? '', vehicleOwnership: e.vehicleOwnership ?? '',
+      sponsorship: e.sponsorship ?? 'المطور',
       iqamaExpiry: iso(e.iqamaExpiry), photoUrl: e.photoUrl ?? '',
     });
     setEditingEmp(e.id);
@@ -1699,7 +1704,7 @@ function ageOf(raw: unknown): number | null {
   const team = employees.filter((e) => {
     const q = search.trim().toLowerCase();
     if (!q) return true;
-    return [e.fullName, e.full_name, e.email, e.employeeCode, e.phone, e.department, e.nationalId].filter(Boolean).join(' ').toLowerCase().includes(q);
+    return [e.fullName, e.full_name, e.email, e.employeeCode, e.phone, e.department, e.nationalId, e.sponsorship].filter(Boolean).join(' ').toLowerCase().includes(q);
   });
 
   // Vehicle paperwork watch (istimara / insurance / inspection ≤ 60 days).
@@ -1789,6 +1794,11 @@ function ageOf(raw: unknown): number | null {
             <option value="">—</option>
             {DEPTS.map((d) => <option key={d} value={d}>{d}</option>)}
           </select></label>
+                  <label className="text-[11px] text-slate-400 font-bold">{ar ? 'تابعية الكفالة' : 'Sponsorship'}
+                    <select value={form.sponsorship} onChange={(e) => setForm({ ...form, sponsorship: e.target.value })}
+                      className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none">
+                      {SPONSORSHIP_OPTS.map((o) => <option key={o} value={o}>{o}</option>)}
+                    </select></label>
         <label className="text-[11px] text-slate-400 font-bold">{ar ? 'الراتب الأساسي (ر.س)' : 'Base salary'}
           <input value={form.baseSalarySar} onChange={(e) => setForm({ ...form, baseSalarySar: e.target.value })} inputMode="decimal"
             className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
@@ -2048,11 +2058,13 @@ function ageOf(raw: unknown): number | null {
                   { header: 'المسمى', key: 'title' },
                   { header: 'الجواز', key: 'passport' },
                   { header: 'القسم', key: 'dept' },
+                  { header: 'الكفالة', key: 'sponsor' },
                 ]}
                 branding={brandParam}
                 rows={team.map((e) => ({
                   name: nameOf(e), code: e.employeeCode ?? '',
                   title: e.role ?? e.jobTitle ?? '', dept: e.department ?? '',
+                  sponsor: e.sponsorship ?? 'المطور',
                   passport: (e as any).passportNo ?? '',
                 }))}
               />
@@ -2094,6 +2106,9 @@ function ageOf(raw: unknown): number | null {
                     </p>
                     {(e as any).passportNo && (
                       <p className="text-[11px] text-slate-500 truncate">🛂 <span dir="ltr">{(e as any).passportNo}</span></p>
+                    )}
+                    {(e.sponsorship ?? 'المطور') !== 'المطور' && (
+                      <p className="text-[11px] text-slate-500 truncate">🤝 {ar ? 'الكفالة' : 'Sponsor'}: {e.sponsorship}</p>
                     )}
                     {(e.vehiclePlate || e.countryCode) && (
                       <p className="text-[11px] text-slate-500 truncate">

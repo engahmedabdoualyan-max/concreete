@@ -1,0 +1,1 @@
+ALTER TABLE "payroll_employees" ADD COLUMN "sponsorship" varchar(60) DEFAULT 'المطور' NOT NULL;
