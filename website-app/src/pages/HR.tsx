@@ -52,6 +52,11 @@ function nameOf(e: any): string {
   return e.fullName ?? e.full_name ?? e.name ?? e.email ?? e.employeeCode ?? '—';
 }
 
+// Active roster options for driver selects (official userId or HR-file emp: id).
+function driverOpts(employees: any[]) {
+  return employees.filter((e) => e?.isActive !== false);
+}
+
 function DelBtn({ onDel, busy }: { onDel: () => void; busy: boolean }) {
   return (
     <button disabled={busy} onClick={() => { if (window.confirm('حذف هذا السجل؟')) onDel(); }}
@@ -722,16 +727,20 @@ function ageOf(raw: unknown): number | null {
     }
     setBusy('vehadd');
     try {
-      await api.post('/api/hr/vehicles', {
+      const drv = vehForm.driverId.startsWith('emp:') ? '' : vehForm.driverId;
+      const created: any = await api.post('/api/hr/vehicles', {
         vehicleCode: vehForm.code.trim(),
         plateNumber: vehForm.plate.trim(),
         vehicleType: vehForm.type,
         ...(vehForm.make.trim() ? { make: vehForm.make.trim() } : {}),
         ...(vehForm.model.trim() ? { model: vehForm.model.trim() } : {}),
         ...(vehForm.year.trim() ? { year: Number(vehForm.year.trim()) } : {}),
-        ...(vehForm.driverId ? { assignedDriverId: vehForm.driverId } : {}),
+        ...(drv ? { assignedDriverId: drv } : {}),
         ...(vehForm.deviceSerial.trim() ? { deviceSerial: vehForm.deviceSerial.trim() } : {}),
       });
+      if (vehForm.driverId.startsWith('emp:') && (created as any)?.id) {
+        await api.put(`/api/hr/employees/${vehForm.driverId.slice(4)}`, { vehiclePlate: vehForm.plate.trim(), vehicleOwnership: 'COMPANY' }).catch(() => null);
+      }
       setMsg('✅ تمت إضافة المركبة');
       setVehForm({ code: '', plate: '', type: 'MIXER_TRUCK', make: '', model: '', year: '', driverId: '', deviceSerial: '' });
       setShowVehForm(false);
@@ -743,10 +752,49 @@ function ageOf(raw: unknown): number | null {
     }
   };
 
-  const assignDriver = async (id: string, driverId: string) => {
-    setBusy('vehdrv' + id);
+  // (replaced by assignDriverHr below)
+
+  // Vehicle → driver: official assignment first, then HR-file عهدة linkage.
+  const vehDriverOf = (v: any) => {
+    if (v?.assignedDriverId) {
+      const e = employees.find((x) => x.userId === v.assignedDriverId);
+      if (e) return { id: e.id, userId: e.userId, name: nameOf(e), phone: e.contactPhone ?? e.phone ?? '', iqama: e.nationalId ?? '' };
+      return { id: null, userId: v.assignedDriverId, name: v.driverName ?? '', phone: '', iqama: '' };
+    }
+    const plate = String(v?.plateNumber ?? '').trim();
+    const code = String(v?.vehicleCode ?? '').trim();
+    const fm = employees.find((x) => x?.vehicleOwnership === 'COMPANY' && String(x?.vehiclePlate ?? '').trim() !== '' && (String(x.vehiclePlate).trim() === plate || (code !== '' && String(x.vehiclePlate).trim() === code)));
+    if (fm) return { id: fm.id, userId: fm.userId ?? null, name: nameOf(fm), phone: fm.contactPhone ?? fm.phone ?? '', iqama: fm.nationalId ?? '' };
+    return { id: null, userId: null, name: '', phone: '', iqama: '' };
+  };
+  const drvSelVal = (v: any) => {
+    const d = vehDriverOf(v);
+    if (d.userId) return d.userId;
+    if (d.id) return `emp:${d.id}`;
+    if (v?.assignedDriverId) return '__custom__';
+    return '';
+  };
+  // Driver pick from the full roster: login userId, HR-file emp: id, or '' to clear both links.
+  const assignDriverHr = async (v: any, val: string) => {
+    if (val === '__custom__') return;
+    setBusy('vehdrv' + v.id);
     try {
-      await api.put(`/api/hr/vehicles/${id}`, { assignedDriverId: driverId || null });
+      if (val.startsWith('emp:')) {
+        const empId = val.slice(4);
+        await api.put(`/api/hr/employees/${empId}`, { vehiclePlate: v.plateNumber ?? '', vehicleOwnership: 'COMPANY' });
+        await api.put(`/api/hr/vehicles/${v.id}`, { assignedDriverId: null }).catch(() => null);
+      } else {
+        await api.put(`/api/hr/vehicles/${v.id}`, { assignedDriverId: val || null });
+        if (!val) {
+          const d = vehDriverOf(v);
+          if (d.id) await api.put(`/api/hr/employees/${d.id}`, { vehiclePlate: '' }).catch(() => null);
+        } else {
+          const d = vehDriverOf(v);
+          if (d.id && (employees.find((x) => x.id === d.id) as any)?.userId !== val) {
+            await api.put(`/api/hr/employees/${d.id}`, { vehiclePlate: '' }).catch(() => null);
+          }
+        }
+      }
       setMsg('✅ تم تحديث السائق');
       await load();
     } catch (e: any) {
@@ -2670,6 +2718,28 @@ function ageOf(raw: unknown): number | null {
                 className="text-[11px] font-black rounded-lg px-3 py-1.5 border border-emerald-500/50 bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25">
                 ➕ {ar ? 'إضافة مركبة' : 'Add vehicle'}
               </button>
+              <ExportBar
+                title={ar ? 'بيان المركبات والسائقين' : 'Vehicles & drivers'}
+                subtitle={`${fleet.length} ${ar ? 'مركبة' : 'vehicles'}`}
+                fileBase="hr-vehicles-drivers"
+                columns={[
+                  { header: 'الكود', key: 'code' },
+                  { header: 'اللوحة', key: 'plate' },
+                  { header: 'النوع', key: 'type' },
+                  { header: 'السائق', key: 'driver' },
+                  { header: 'جوال السائق', key: 'phone' },
+                  { header: 'الإقامة', key: 'iqama' },
+                ]}
+                branding={brandParam}
+                rows={fleet.map((v) => {
+                  const d = vehDriverOf(v);
+                  return {
+                    code: v.vehicleCode ?? '', plate: v.plateNumber ?? '',
+                    type: vehTypeAr(v.vehicleType), driver: d.name,
+                    phone: d.phone, iqama: d.iqama,
+                  };
+                })}
+              />
             </div>
             {showVehForm && (
               <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/[0.06] p-4 mb-3">
@@ -2689,7 +2759,7 @@ function ageOf(raw: unknown): number | null {
                     <select value={vehForm.driverId} onChange={(e) => setVehForm({ ...vehForm, driverId: e.target.value })}
                       className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none">
                       <option value="">—</option>
-                      {employees.filter((e) => e.userId).map((e) => <option key={e.id} value={e.userId}>{nameOf(e)} · {e.employeeCode}</option>)}
+                      {driverOpts(employees).map((e) => <option key={e.id} value={e.userId ?? `emp:${e.id}`}>{nameOf(e)} · {e.employeeCode}</option>)}
                     </select></label>
                   <label className="text-[11px] text-slate-400 font-bold">{ar ? 'الشركة المصنعة' : 'Make'}
                     <input value={vehForm.make} onChange={(e) => setVehForm({ ...vehForm, make: e.target.value })}
@@ -2721,11 +2791,14 @@ function ageOf(raw: unknown): number | null {
                     <div className="flex items-center justify-between flex-wrap gap-1">
                       <span className="font-black text-white">🚛 {v.vehicleCode} · {v.plateNumber} · {vehTypeAr(v.vehicleType)}</span>
                       <label className="flex items-center gap-1 text-[11px] text-slate-400 font-bold">{ar ? 'السائق' : 'Driver'}
-                        <select value={v.assignedDriverId ?? ''} disabled={busy === 'vehdrv' + v.id}
-                          onChange={(e) => assignDriver(v.id, e.target.value)}
-                          className="bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1 text-xs text-white outline-none disabled:opacity-50">
+                        <select value={drvSelVal(v)} disabled={busy === 'vehdrv' + v.id}
+                          onChange={(e) => assignDriverHr(v, e.target.value)}
+                          className="bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1 text-xs text-white outline-none disabled:opacity-50 max-w-[190px]">
                           <option value="">{ar ? 'بدون سائق' : 'No driver'}</option>
-                          {employees.filter((e) => e.userId).map((e) => <option key={e.id} value={e.userId}>{nameOf(e)}</option>)}
+                          {driverOpts(employees).map((e) => <option key={e.id} value={e.userId ?? `emp:${e.id}`}>{nameOf(e)}</option>)}
+                          {drvSelVal(v) === '__custom__' && (
+                            <option value="__custom__">{v.driverName || (ar ? 'مسجل سابقاً' : 'previously saved')}</option>
+                          )}
                         </select></label>
                     </div>
                     <div className="mt-1 text-[11px] text-slate-400">
