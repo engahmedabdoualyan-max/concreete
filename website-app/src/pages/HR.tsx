@@ -375,6 +375,18 @@ export default function HR() {
     if (!s) return '';
     return s.code === 'HQ' ? (ar ? 'المصنع' : 'Plant') : (s.name ?? s.code ?? '');
   };
+  const [editVeh, setEditVeh] = useState<Record<string, { istimara: string; istimaraLast: string; insurance: string; insuranceLast: string; inspection: string; inspectionLast: string }>>({});
+  const [editVehInfo, setEditVehInfo] = useState<Record<string, { code: string; plate: string; type: string; make: string; model: string; year: string; target: string }>>({});
+  const VEH_TYPES = [
+    { v: 'MIXER_TRUCK', ar: 'خلاطة', en: 'Mixer' },
+    { v: 'CONCRETE_PUMP', ar: 'بمب خرسانة', en: 'Pump' },
+    { v: 'TRANSIT_MIXER', ar: 'خلاطة ترانزيت', en: 'Transit' },
+    { v: 'TIPPER_TRUCK', ar: 'قلاب', en: 'Tipper' },
+    { v: 'WATER_TANKER', ar: 'تانكر ماء', en: 'Tanker' },
+    { v: 'SERVICE_TRUCK', ar: 'خدمة / ونش', en: 'Service' },
+  ];
+  const vehTypeAr = (t: string) => VEH_TYPES.find((x) => x.v === t)?.ar ?? t;
+
   // Vehicles statement summary: per-type totals split by branch and by status.
   const vehSummary = (() => {
     const byType: Record<string, { total: number; branches: Record<string, number>; st: Record<string, number> }> = {};
@@ -405,17 +417,6 @@ export default function HR() {
       Object.entries(g.st).map(([s, n]) => `<tr><td>${ar ? 'الحالة' : 'Status'}: ${s}</td><td>${n}</td></tr>`).join('') +
       `</tbody></table>`
     ).join('');
-  const [editVeh, setEditVeh] = useState<Record<string, { istimara: string; istimaraLast: string; insurance: string; insuranceLast: string; inspection: string; inspectionLast: string }>>({});
-  const [editVehInfo, setEditVehInfo] = useState<Record<string, { code: string; plate: string; type: string; make: string; model: string; year: string; target: string }>>({});
-  const VEH_TYPES = [
-    { v: 'MIXER_TRUCK', ar: 'خلاطة', en: 'Mixer' },
-    { v: 'CONCRETE_PUMP', ar: 'بمب خرسانة', en: 'Pump' },
-    { v: 'TRANSIT_MIXER', ar: 'خلاطة ترانزيت', en: 'Transit' },
-    { v: 'TIPPER_TRUCK', ar: 'قلاب', en: 'Tipper' },
-    { v: 'WATER_TANKER', ar: 'تانكر ماء', en: 'Tanker' },
-    { v: 'SERVICE_TRUCK', ar: 'خدمة / ونش', en: 'Service' },
-  ];
-  const vehTypeAr = (t: string) => VEH_TYPES.find((x) => x.v === t)?.ar ?? t;
   const [vios, setVios] = useState<any[]>([]);
   const [showVioForm, setShowVioForm] = useState(false);
   const [showVehForm, setShowVehForm] = useState(false);

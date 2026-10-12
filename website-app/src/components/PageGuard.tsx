@@ -9,6 +9,14 @@ export default class PageGuard extends Component<{ children: ReactNode }, { hasE
   constructor(props: { children: ReactNode }) { super(props); this.state = { hasError: false, msg: '', stack: '' }; }
   static getDerivedStateFromError(err: any) { return { hasError: true, msg: err?.message || String(err), stack: String((err as any)?.stack || '').slice(0, 1200) }; }
   componentDidCatch(err: any) { console.error('Page crash:', err); }
+  componentDidMount() {
+    // A caught error must not stick when the user moves to another page.
+    window.addEventListener('hashchange', this.reset);
+  }
+  componentWillUnmount() {
+    window.removeEventListener('hashchange', this.reset);
+  }
+  private reset = () => this.setState({ hasError: false, msg: '', stack: '' });
   render() {
     if (this.state.hasError) {
       return (
