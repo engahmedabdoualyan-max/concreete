@@ -39,6 +39,13 @@ export default function Procurement() {
   const [attachs, setAttachs] = useState<any[]>([]);
   const [uploadingAtt, setUploadingAtt] = useState(false);
   const [showNew, setShowNew] = useState(false);
+  const [showTree, setShowTree] = useState(false);
+  const [treeSearch, setTreeSearch] = useState('');
+  const [treeForm, setTreeForm] = useState({ itemCode: '', name: '', nameAr: '', category: 'SPARE_PART', warehouse: 'SPARES', unit: 'قطعة', minQty: '' });
+
+const TREE_CAT_AR: Record<string, string> = {
+  SPARE_PART: '🔧 قطع غيار', LUBRICANT: '🛢️ زيوت وشحوم', CONSUMABLE: '📦 مستهلكات', SCRAP: '♻️ هالك',
+};
   const [form, setForm] = useState({ category: 'SPARE_PARTS', itemName: '', itemCode: '', vehicleId: '', quantity: '', unit: '', reason: '', workshopRef: '' });
   const [regItems, setRegItems] = useState<any[]>([]);
   const [fleetList, setFleetList] = useState<any[]>([]);
@@ -193,6 +200,27 @@ export default function Procurement() {
     }
   };
 
+  const createItem = () =>
+    act(async () => {
+      if (!treeForm.itemCode.trim() || !treeForm.name.trim()) throw new Error(ar ? 'الكود والاسم مطلوبان' : 'required');
+      await api.post('/api/warehouse/items', {
+        itemCode: treeForm.itemCode.trim(),
+        name: treeForm.name.trim(),
+        ...(treeForm.nameAr.trim() ? { nameAr: treeForm.nameAr.trim() } : {}),
+        category: treeForm.category,
+        defaultWarehouse: treeForm.warehouse,
+        unit: treeForm.unit.trim() || 'قطعة',
+        ...(treeForm.minQty.trim() ? { minQty: Number(treeForm.minQty) } : {}),
+      });
+      setTreeForm({ itemCode: '', name: '', nameAr: '', category: 'SPARE_PART', warehouse: 'SPARES', unit: 'قطعة', minQty: '' });
+    }, ar ? 'تم تكويد الصنف' : 'Item coded', 'tree');
+
+  const treeRows = regItems.filter((it: any) => {
+    const q = treeSearch.trim().toLowerCase();
+    if (!q) return true;
+    return `${it.itemCode ?? it.code ?? ''} ${it.name ?? it.itemName ?? ''}`.toLowerCase().includes(q);
+  });
+
   const createReq = () =>
     act(async () => {
       if (!form.itemName.trim() || !form.quantity.trim()) throw new Error(ar ? 'الصنف والكمية مطلوبة' : 'required');
@@ -317,7 +345,70 @@ export default function Procurement() {
             className="text-[11px] font-black rounded-lg px-3 py-1.5 border border-sky-500/50 bg-sky-500/15 text-sky-300">
             ➕ {ar ? 'طلب شراء' : 'New request'}
           </button>
+          <button onClick={() => setShowTree((v) => !v)}
+            className={`text-[11px] font-black rounded-lg px-3 py-1.5 border ${showTree ? 'bg-emerald-400 text-black border-emerald-400' : 'border-emerald-500/50 bg-emerald-500/15 text-emerald-300'}`}>
+            🌳 {ar ? 'شجرة الأصناف' : 'Items tree'}
+          </button>
         </div>
+
+        {showTree && (
+          <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/[0.06] p-4 mt-3">
+            <h3 className="text-sm font-black text-white mb-1">🌳 {ar ? 'تكويد الخامات والأصناف' : 'Code materials & items'}</h3>
+            <p className="text-[11px] text-slate-400 mb-3">{ar ? 'الصنف المكود هنا يظهر فوراً في بحث الصنف عند إنشاء طلب الشراء.' : 'Coded items appear in the purchase-request item search.'}</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+              <label className="text-[11px] text-slate-400 font-bold">{ar ? 'الكود * (انجليزي/أرقام)' : 'Code *'}
+                <input value={treeForm.itemCode} dir="ltr" onChange={(e) => setTreeForm({ ...treeForm, itemCode: e.target.value })}
+                  placeholder="FLT-001"
+                  className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none font-mono" /></label>
+              <label className="text-[11px] text-slate-400 font-bold">{ar ? 'الاسم *' : 'Name *'}
+                <input value={treeForm.name} onChange={(e) => setTreeForm({ ...treeForm, name: e.target.value })}
+                  className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
+              <label className="text-[11px] text-slate-400 font-bold">{ar ? 'الاسم بالعربي' : 'Arabic name'}
+                <input value={treeForm.nameAr} onChange={(e) => setTreeForm({ ...treeForm, nameAr: e.target.value })}
+                  className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
+              <label className="text-[11px] text-slate-400 font-bold">{ar ? 'التصنيف' : 'Category'}
+                <select value={treeForm.category} onChange={(e) => setTreeForm({ ...treeForm, category: e.target.value })}
+                  className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none">
+                  {Object.entries(TREE_CAT_AR).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                </select></label>
+              <label className="text-[11px] text-slate-400 font-bold">{ar ? 'المخزن' : 'Warehouse'}
+                <select value={treeForm.warehouse} onChange={(e) => setTreeForm({ ...treeForm, warehouse: e.target.value })}
+                  className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none">
+                  <option value="SPARES">{ar ? 'مخزن قطع الغيار' : 'Spares'}</option>
+                  <option value="SCRAP">{ar ? 'مخزن الهالك' : 'Scrap'}</option>
+                </select></label>
+              <label className="text-[11px] text-slate-400 font-bold">{ar ? 'الوحدة' : 'Unit'}
+                <input value={treeForm.unit} onChange={(e) => setTreeForm({ ...treeForm, unit: e.target.value })}
+                  className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
+              <label className="text-[11px] text-slate-400 font-bold">{ar ? 'الحد الأدنى' : 'Min qty'}
+                <input value={treeForm.minQty} inputMode="decimal" onChange={(e) => setTreeForm({ ...treeForm, minQty: e.target.value })}
+                  className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
+            </div>
+            <button disabled={busy === 'tree'} onClick={createItem}
+              className="mt-3 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-white text-xs font-black rounded-lg px-6 py-2">
+              {busy === 'tree' ? '…' : `✅ ${ar ? 'تكويد' : 'Save'}`}
+            </button>
+            <div className="mt-4">
+              <input value={treeSearch} onChange={(e) => setTreeSearch(e.target.value)}
+                placeholder={ar ? '🔍 بحث في الشجرة بالكود أو الاسم…' : 'Search tree…'}
+                className="w-full max-w-md bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2 text-xs text-white outline-none mb-2" />
+              <p className="text-[11px] text-slate-500 mb-2">{treeRows.length} {ar ? 'صنف' : 'items'}</p>
+              <div className="space-y-1 max-h-[300px] overflow-y-auto">
+                {treeRows.slice(0, 200).map((it: any, i: number) => (
+                  <div key={it.id ?? i} className="flex items-center justify-between gap-2 rounded-lg border border-white/10 bg-white/[0.03] px-2 py-1.5 text-[11px]">
+                    <span className="font-black text-white truncate">
+                      <span dir="ltr" className="text-emerald-300 font-mono">{it.itemCode ?? it.code}</span>
+                      {' · '}{it.nameAr ?? it.name ?? it.itemName}
+                      {it.nameAr && it.name && it.name !== it.nameAr ? <span className="text-slate-500"> ({it.name})</span> : ''}
+                    </span>
+                    <span className="text-slate-400 shrink-0">{TREE_CAT_AR[it.category] ?? it.category ?? ''} · {it.unit ?? ''}</span>
+                  </div>
+                ))}
+                {treeRows.length === 0 && <p className="text-xs text-slate-500">{ar ? 'لا أصناف مطابقة.' : 'No matches.'}</p>}
+              </div>
+            </div>
+          </div>
+        )}
 
         {msg && <p className="text-xs font-bold text-slate-200 mt-3">{msg}</p>}
 
