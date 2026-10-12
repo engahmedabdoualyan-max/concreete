@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import QuickJump from '../components/QuickJump';
+import LangSelector from '../components/LangSelector';
 import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { useLang } from '../context/LangContext';
+import { useTenant } from '../hooks/useTenant';
 
 /**
  * Procurement — إدارة المشتريات.
@@ -51,6 +53,13 @@ export default function Procurement() {
   const [recvForm, setRecvForm] = useState({ itemCode: '', qty: '' });
   const [msg, setMsg] = useState('');
   const [busy, setBusy] = useState('');
+  const tenant = useTenant();
+  const [now, setNow] = useState(() => new Date());
+
+  useEffect(() => {
+    const t = window.setInterval(() => setNow(new Date()), 1000);
+    return () => window.clearInterval(t);
+  }, []);
 
   const load = useCallback(async () => {
     try {
@@ -254,11 +263,38 @@ export default function Procurement() {
   return (
     <div className="min-h-screen bg-[#080C14] text-slate-200" dir={ar ? 'rtl' : 'ltr'}>
       <div className="max-w-[1200px] mx-auto px-4 sm:px-6 py-6">
-        <h1 className="text-xl sm:text-2xl font-black text-white">🧾 {ar ? 'إدارة المشتريات' : 'Procurement'}</h1>
-        <p className="text-xs text-slate-500 mt-1">{ar ? 'طلب الورشة ← 3 عروض ← مراجعة ← اعتماد وصرف ← مخزن ← صرف للورشة ← QR' : 'Workshop → quotes → review → approve → warehouse → workshop → QR'}</p>
-        <div className="flex flex-wrap items-center gap-2 mt-3">
-          <Link to="/" className="text-slate-400 text-xs border border-white/10 px-2 py-1 rounded hover:text-white">🏠</Link>
-          <QuickJump />
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-center gap-3">
+            {tenant?.logoUrl ? (
+              <img src={tenant.logoUrl} alt={tenant.companyName} className="w-12 h-12 rounded-xl object-contain bg-white p-1 shadow-lg shrink-0" />
+            ) : (
+              <div className="w-12 h-12 rounded-xl bg-white/10 border border-white/10 flex items-center justify-center text-xl shrink-0">🧾</div>
+            )}
+            <div>
+              <h1 className="text-xl sm:text-2xl font-black text-white">
+                {ar ? 'إدارة المشتريات' : 'Procurement'}
+              </h1>
+              {tenant?.plantName && (
+                <p className="text-xs text-sky-300 font-bold mt-0.5">🏭 {tenant.plantName}</p>
+              )}
+              <p className="text-xs text-slate-500 mt-1">{ar ? 'طلب الورشة ← 3 عروض ← مراجعة ← اعتماد وصرف ← مخزن ← صرف للورشة ← QR' : 'Workshop → quotes → review → approve → warehouse → workshop → QR'}</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <span className="flex items-center gap-1.5 text-[11px] font-black text-emerald-300 bg-emerald-500/10 border border-emerald-500/30 rounded-lg px-2.5 py-1.5">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" /> {ar ? 'مباشر' : 'LIVE'}
+            </span>
+            <span className="text-center leading-tight">
+              <span className="block text-xs font-mono font-black text-slate-200">
+                {now.toLocaleTimeString(ar ? 'ar-EG' : 'en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+              </span>
+              <span className="block text-[10px] text-slate-400">
+                {now.toLocaleDateString(ar ? 'ar-EG' : 'en-US', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+              </span>
+            </span>
+            <Link to="/" className="text-slate-400 text-xs border border-white/10 px-2 py-1 rounded hover:text-white">🏠</Link> <QuickJump />
+            <LangSelector />
+          </div>
         </div>
 
         <div className="flex flex-wrap gap-2 mt-4">
