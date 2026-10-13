@@ -17,6 +17,7 @@ export type ExpenseCategory =
   | "office"
   | "materials"
   | "maintenance"
+  | "oil"
   | "utilities"
   | "rent"
   | "salary"
@@ -49,6 +50,7 @@ export const EXPENSE_CATEGORY_LABEL: Record<ExpenseCategory, string> = {
   office: "مكتبية",
   materials: "خامات",
   maintenance: "صيانة",
+  oil: "زيوت وشحوم",
   utilities: "مرافق",
   rent: "إيجار",
   salary: "رواتب",

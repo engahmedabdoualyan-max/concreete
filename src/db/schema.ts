@@ -1365,6 +1365,7 @@ export const expenseCategoryEnum = pgEnum("expense_category", [
   "office",
   "materials",
   "maintenance",
+  "oil",
   "utilities",
   "rent",
   "salary",

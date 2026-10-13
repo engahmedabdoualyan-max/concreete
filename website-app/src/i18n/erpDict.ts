@@ -91,6 +91,11 @@ const DICT: PageDict = {
   expCatRent: { en: 'Rent', ar: 'إيجار', ru: 'Аренда', de: 'Miete', it: 'Affitto', hi: 'किराया', ur: 'کرایہ', ja: '家賃', zh: '租金' },
   expCatSalary: { en: 'Salaries', ar: 'رواتب', ru: 'Зарплаты', de: 'Gehälter', it: 'Stipendi', hi: 'वेतन', ur: 'تنخواہ', ja: '給与', zh: '工资' },
   expCatOther: { en: 'Other', ar: 'أخرى', ru: 'Другое', de: 'Sonstiges', it: 'Altro', hi: 'अन्य', ur: 'دیگر', ja: 'その他', zh: '其他' },
+  expCatOil: { en: 'Oils & lubricants', ar: 'زيوت وشحوم', ru: 'Масла', de: 'Öle', it: 'Oli', hi: 'तेल', ur: 'تیل', ja: '油脂', zh: '油脂' },
+  indTitle: { en: 'Indirect cost (overheads)', ar: 'التكلفة الغير مباشرة', ru: 'Накладные', de: 'Gemeinkosten', it: 'Costi indiretti', hi: 'अप्रत्यक्ष लागत', ur: 'بالواسطہ لاگت', ja: '間接費', zh: '间接费用' },
+  indAll: { en: 'All', ar: 'الكل', ru: 'Все', de: 'Alle', it: 'Tutti', hi: 'सभी', ur: 'تمام', ja: '全て', zh: '全部' },
+  indPool: { en: 'Pool total', ar: 'إجمالي الحوض', ru: 'Итого', de: 'Summe', it: 'Totale', hi: 'कुल', ur: 'کل', ja: '合計', zh: '合计' },
+  indCat: { en: 'Category', ar: 'البند', ru: 'Статья', de: 'Posten', it: 'Voce', hi: 'मद', ur: 'مد', ja: '項目', zh: '项目' },
 
   /* ── Commitment types ── */
   commitTypeEmi: { en: 'EMI', ar: 'EMI', ru: 'ЕМИ', de: 'EMI', it: 'EMI', hi: 'ईएमआई', ur: 'ای ایم آئی', ja: 'EMI', zh: '分期付款' },
