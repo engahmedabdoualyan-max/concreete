@@ -40,6 +40,8 @@ export default function PriceAnalysis() {
   const [assets, setAssets] = useState<any[]>([]);
   const [margin, setMargin] = useState(25);
   const [years, setYears] = useState('10');
+  const [monthM3, setMonthM3] = useState('');
+  const [assetVal, setAssetVal] = useState('');
   const [withSalaries, setWithSalaries] = useState(true);
   const [prices, setPrices] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
@@ -98,12 +100,14 @@ export default function PriceAnalysis() {
     ? payRuns.filter((r: any) => String(r.period ?? '').slice(0, 7) === month && ['APPROVED', 'PAID'].includes(String(r.status ?? '')))
       .reduce((s: number, r: any) => s + (Number(r.totalGrossSar) || 0) + (Number(r.totalEmployerGosiSar) || 0), 0)
     : 0;
-  const assetCost = assets.filter((a: any) => (a.costSar ?? a.cost) != null && Number(a.costSar ?? a.cost) > 0)
+  const volumeAuto = runs.filter((r: any) => String(r.producedAt ?? '').slice(0, 7) === month)
+    .reduce((s: number, r: any) => s + (Number(r.volumeM3) || 0), 0);
+  const volume = monthM3.trim() !== '' ? (Number(monthM3) || 0) : volumeAuto;
+  const assetCostReg = assets.filter((a: any) => (a.costSar ?? a.cost) != null && Number(a.costSar ?? a.cost) > 0)
     .reduce((s: number, a: any) => s + Number(a.costSar ?? a.cost), 0);
+  const assetCost = assetVal.trim() !== '' ? (Number(assetVal) || 0) : assetCostReg;
   const assetMissing = assets.filter((a: any) => !((a.costSar ?? a.cost) != null && Number(a.costSar ?? a.cost) > 0)).length;
   const depMonthly = assetCost / (Math.max(1, Number(years) || 10) * 12);
-  const volume = runs.filter((r: any) => String(r.producedAt ?? '').slice(0, 7) === month)
-    .reduce((s: number, r: any) => s + (Number(r.volumeM3) || 0), 0);
   const indirectM3 = volume > 0 ? (pool + salTotal) / volume : 0;
   const depM3 = volume > 0 ? depMonthly / volume : 0;
 
@@ -130,6 +134,8 @@ export default function PriceAnalysis() {
             {[15, 20, 25, 30, 35, 40].map((m) => <option key={m} value={m}>{m}%</option>)}
           </select></label>
         <label className="text-xs text-slate-400 font-semibold">عمر الأصول (سنة) <input value={years} inputMode="decimal" onChange={(e) => setYears(e.target.value)} className="w-16 bg-white/[0.04] border border-white/10 rounded px-2 py-1.5 text-white text-xs mr-1" /></label>
+        <label className="text-xs text-slate-400 font-semibold">إنتاج الشهر (م³) <input value={monthM3} inputMode="decimal" placeholder={volumeAuto ? String(Math.round(volumeAuto)) : '0'} onChange={(e) => setMonthM3(e.target.value)} className="w-24 bg-white/[0.04] border border-white/10 rounded px-2 py-1.5 text-white text-xs mr-1" /></label>
+        <label className="text-xs text-slate-400 font-semibold">قيمة الأصول (ر.س) <input value={assetVal} inputMode="decimal" placeholder={assetCostReg ? String(Math.round(assetCostReg)) : '0'} onChange={(e) => setAssetVal(e.target.value)} className="w-28 bg-white/[0.04] border border-white/10 rounded px-2 py-1.5 text-white text-xs mr-1" /></label>
         <label className="text-xs text-slate-400 font-semibold flex items-center gap-1"><input type="checkbox" checked={withSalaries} onChange={(e) => setWithSalaries(e.target.checked)} /> تضمين الرواتب</label>
         <ExportButtons
           filename={`price-analysis-${month}`}
