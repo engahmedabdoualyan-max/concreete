@@ -3738,6 +3738,9 @@ export const payrollEmployees = pgTable(
     vehicleOwnership: varchar("vehicle_ownership", { length: 10 }),
     /** Sponsorship affiliation (تابعية الكفالة): المطور (default) | others */
     sponsorship: varchar("sponsorship", { length: 60 }).notNull().default("المطور"),
+    /** Insurance status (التأمين): INSURED (مومن) | UNINSURED (غير مومن, default).
+     *  Uninsured Saudis are fully exempt from GOSI in payroll math. */
+    insuranceStatus: varchar("insurance_status", { length: 10 }).notNull().default("UNINSURED"),
     /** SAUDI | NON_SAUDI */
     nationality: varchar("nationality", { length: 12 }).notNull().default("NON_SAUDI"),
     /**

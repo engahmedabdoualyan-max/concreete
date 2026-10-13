@@ -55,6 +55,7 @@ const UpdateEmployeeSchema = z.object({
   vehiclePlate: z.string().max(20).optional(),
   vehicleOwnership: z.enum(["PRIVATE", "COMPANY"]).optional(),
   sponsorship: z.string().trim().min(1).max(60).optional(),
+  insuranceStatus: z.enum(["INSURED", "UNINSURED"]).optional(),
 });
 
 export async function PUT(

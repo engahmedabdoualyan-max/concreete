@@ -327,7 +327,7 @@ export default function HR() {
   const [fromDate, setFromDate] = useState(() => new Date(Date.now() - 6 * 864e5).toISOString().slice(0, 10));
   const [toDate, setToDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [showAdd, setShowAdd] = useState(false);
-  const [form, setForm] = useState({ employeeCode: '', fullName: '', nationalId: '', countryCode: '', jobTitle: '', department: '', baseSalarySar: '', housingAllowanceSar: '', transportAllowanceSar: '', bankIban: '', bankName: '', hireDate: '', contactPhone: '', emergencyContactName: '', emergencyContactPhone: '', lastVacationDate: '', lastResumptionDate: '', medicalInsuranceNo: '', medicalInsuranceExpiry: '', vehiclePlate: '', vehicleOwnership: '', sponsorship: 'المطور', iqamaExpiry: '', passportNo: '', photoUrl: '' });
+  const [form, setForm] = useState({ employeeCode: '', fullName: '', nationalId: '', countryCode: '', jobTitle: '', department: '', baseSalarySar: '', housingAllowanceSar: '', transportAllowanceSar: '', bankIban: '', bankName: '', hireDate: '', contactPhone: '', emergencyContactName: '', emergencyContactPhone: '', lastVacationDate: '', lastResumptionDate: '', medicalInsuranceNo: '', medicalInsuranceExpiry: '', vehiclePlate: '', vehicleOwnership: '', sponsorship: 'المطور', insuranceStatus: 'UNINSURED', iqamaExpiry: '', passportNo: '', photoUrl: '' });
   const [actions, setActions] = useState<any[]>([]);
   const [actionFilter, setActionFilter] = useState('ALL');
   const [showActionForm, setShowActionForm] = useState(false);
@@ -589,6 +589,7 @@ function ageOf(raw: unknown): number | null {
         vehiclePlate: form.vehiclePlate.trim() || undefined,
         vehicleOwnership: (form.vehicleOwnership || undefined) as 'PRIVATE' | 'COMPANY' | undefined,
         sponsorship: form.sponsorship.trim() || undefined,
+        insuranceStatus: form.insuranceStatus as 'INSURED' | 'UNINSURED',
         photoUrl: form.photoUrl || undefined,
       };
       if (editingEmp) {
@@ -598,7 +599,7 @@ function ageOf(raw: unknown): number | null {
         await api.post('/api/hr/employees', { employeeCode: form.employeeCode.trim(), ...payload });
         setMsg('✅ تمت إضافة الموظف');
       }
-      setForm({ employeeCode: '', fullName: '', nationalId: '', countryCode: '', jobTitle: '', department: '', baseSalarySar: '', housingAllowanceSar: '', transportAllowanceSar: '', bankIban: '', bankName: '', hireDate: '', contactPhone: '', emergencyContactName: '', emergencyContactPhone: '', lastVacationDate: '', lastResumptionDate: '', medicalInsuranceNo: '', medicalInsuranceExpiry: '', vehiclePlate: '', vehicleOwnership: '', sponsorship: 'المطور', iqamaExpiry: '', passportNo: '', photoUrl: '' });
+      setForm({ employeeCode: '', fullName: '', nationalId: '', countryCode: '', jobTitle: '', department: '', baseSalarySar: '', housingAllowanceSar: '', transportAllowanceSar: '', bankIban: '', bankName: '', hireDate: '', contactPhone: '', emergencyContactName: '', emergencyContactPhone: '', lastVacationDate: '', lastResumptionDate: '', medicalInsuranceNo: '', medicalInsuranceExpiry: '', vehiclePlate: '', vehicleOwnership: '', sponsorship: 'المطور', insuranceStatus: 'UNINSURED', iqamaExpiry: '', passportNo: '', photoUrl: '' });
       setEditingEmp(null);
       setShowAdd(false);
       await load();
@@ -624,6 +625,7 @@ function ageOf(raw: unknown): number | null {
       medicalInsuranceNo: e.medicalInsuranceNo ?? '', medicalInsuranceExpiry: iso(e.medicalInsuranceExpiry),
       vehiclePlate: e.vehiclePlate ?? '', vehicleOwnership: e.vehicleOwnership ?? '',
       sponsorship: e.sponsorship ?? 'المطور',
+      insuranceStatus: (e as any).insuranceStatus ?? 'UNINSURED',
       iqamaExpiry: iso(e.iqamaExpiry), photoUrl: e.photoUrl ?? '',
     });
     setEditingEmp(e.id);
@@ -1864,6 +1866,12 @@ function ageOf(raw: unknown): number | null {
                         <option value={form.sponsorship}>{form.sponsorship} {ar ? '(مسجلة سابقاً)' : '(previously saved)'}</option>
                       )}
                     </select></label>
+                  <label className="text-[11px] text-slate-400 font-bold">{ar ? 'التأمين' : 'Insurance'}
+                    <select value={form.insuranceStatus} onChange={(e) => setForm({ ...form, insuranceStatus: e.target.value })}
+                      className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none">
+                      <option value="UNINSURED">{ar ? 'غير مومن' : 'Uninsured'}</option>
+                      <option value="INSURED">{ar ? 'مومن' : 'Insured'}</option>
+                    </select></label>
         <label className="text-[11px] text-slate-400 font-bold">{ar ? 'الراتب الأساسي (ر.س)' : 'Base salary'}
           <input value={form.baseSalarySar} onChange={(e) => setForm({ ...form, baseSalarySar: e.target.value })} inputMode="decimal"
             className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
@@ -2124,12 +2132,14 @@ function ageOf(raw: unknown): number | null {
                   { header: 'الجواز', key: 'passport' },
                   { header: 'القسم', key: 'dept' },
                   { header: 'الكفالة', key: 'sponsor' },
+                  { header: 'التأمين', key: 'ins' },
                 ]}
                 branding={brandParam}
                 rows={team.map((e) => ({
                   name: nameOf(e), code: e.employeeCode ?? '',
                   title: e.role ?? e.jobTitle ?? '', dept: e.department ?? '',
                   sponsor: e.sponsorship ?? 'المطور',
+                  ins: (e as any).insuranceStatus === 'INSURED' ? (ar ? 'مومن' : 'Insured') : (ar ? 'غير مومن' : 'Uninsured'),
                   passport: (e as any).passportNo ?? '',
                 }))}
               />
@@ -2174,6 +2184,9 @@ function ageOf(raw: unknown): number | null {
                     )}
                     {(e.sponsorship ?? 'المطور') !== 'المطور' && (
                       <p className="text-[11px] text-slate-500 truncate">🤝 {ar ? 'الكفالة' : 'Sponsor'}: {e.sponsorship}</p>
+                    )}
+                    {(e.nationality === 'SAUDI' || e.countryCode === 'SA' || /^1\d{9}$/.test(String(e.nationalId ?? '').trim()) || (e as any).insuranceStatus === 'INSURED') && (
+                      <p className="text-[11px] text-slate-500 truncate">🛡️ {ar ? 'التأمين' : 'Insurance'}: {(e as any).insuranceStatus === 'INSURED' ? (ar ? 'مومن' : 'Insured') : (ar ? 'غير مومن' : 'Uninsured')}</p>
                     )}
                     {(e.vehiclePlate || e.countryCode) && (
                       <p className="text-[11px] text-slate-500 truncate">
