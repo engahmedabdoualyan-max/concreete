@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useLang } from '../context/LangContext';
 import { useWorkshopDict } from '../i18n/workshopDict';
 import { api } from '../api/client';
 import QuickJump from '../components/QuickJump';
@@ -33,7 +34,7 @@ interface MixingStation {
 }
 interface PeriodicMaint { id: number; stationId: number; date: string; taskType: 'Belts'|'Greasing'|'Oiling'|'Drum Cleaning'|'General Hygiene'|'Electrical Check'|'Control Room'|'Software Update'|'Pipe Change'|'Pipe Welding'|'Pump Special Maintenance'|'Other'; description: string; technician: string; nextDue: string; status: 'Done'|'Scheduled'|'Overdue'; cost: number; notes: string; }
 
-type Tab = 'home'|'fuel'|'oil'|'spareparts'|'breakdown'|'purchaserequests'|'warehouse'|'vehiclereport'|'mixingstations'|'config'|'reports';
+type Tab = 'home'|'fuel'|'oil'|'spareparts'|'breakdown'|'purchaserequests'|'warehouse'|'vehiclereport'|'servicecard'|'mixingstations'|'config'|'reports';
 
 const DEF_ASSETS: Asset[] = [
   { id: 'm01', plate: '1234 XAD', chassis: 'WDB123456', type: 'Mixer', status: 'Ready', driver: 'Ahmed Ali', initOdo: 50000, engHours: 2400, regExpiry: '2026-12-30', insExpiry: '2026-11-15', opcardExpiry: '2026-10-01', authExpiry: '2026-09-20', gpsId: 'IMEI-869234', tare: '15', gross: '40' },
@@ -99,6 +100,8 @@ export default function Workshop() {
   const { currentUser, logout } = useAuth();
   const navigate = useNavigate();
   const t = useWorkshopDict();
+  const { lang } = useLang();
+  const ar = lang === 'ar';
   const [tab, setTab] = useState<Tab>('home');
   const [assets, setAssets] = useState<Asset[]>(DEF_ASSETS);
   const [config, setConfig] = useState(DEF_CONFIG);
@@ -131,6 +134,16 @@ export default function Workshop() {
   // and POST /api/workshop, which require vehicleId UUIDs)
   const [fleetIds, setFleetIds] = useState<Record<string, string>>({});
   const [closingWO, setClosingWO] = useState<string | null>(null);
+  const [fleetErp, setFleetErp] = useState<any[]>([]);
+  const [regItems, setRegItems] = useState<any[]>([]);
+  const [closeWO, setCloseWO] = useState<any>(null);
+  const [closeForm, setCloseForm] = useState({ actionTaken: '', labourHours: '', returnStatus: 'AVAILABLE' });
+  const [closeParts, setCloseParts] = useState<any[]>([]);
+  const [partPick, setPartPick] = useState({ itemId: '', qty: '1', cost: '' });
+  const [closeMsg, setCloseMsg] = useState('');
+  const [svcVehicle, setSvcVehicle] = useState('');
+  const [svcCards, setSvcCards] = useState<any[]>([]);
+  const [svcBusy, setSvcBusy] = useState(false);
 
   // Forms
   const [assetForm, setAssetForm] = useState({ id: '', plate: '', chassis: '', type: 'Mixer', status: 'Ready', driver: '', initOdo: '', engHours: '', regExpiry: '', insExpiry: '', opcardExpiry: '', authExpiry: '', gpsId: '', tare: '', gross: '' });
@@ -181,6 +194,16 @@ export default function Workshop() {
           setFleetIds(ids);
         }
       } catch { /* offline — keep defaults / local cache */ }
+      try {
+        const f2 = await api.get<any>('/api/fleet');
+        const rows2 = Array.isArray(f2) ? f2 : (f2?.vehicles ?? []);
+        if (!cancelled && Array.isArray(rows2)) setFleetErp(rows2);
+      } catch { /* offline */ }
+      try {
+        const it = await api.get<any>('/api/warehouse/items');
+        const arr = Array.isArray(it) ? it : (it?.items ?? []);
+        if (!cancelled && Array.isArray(arr)) setRegItems(arr);
+      } catch { /* registry optional */ }
       try {
         const d = await api.get<any>('/api/workshop');
         if (!cancelled && d?.openWorkOrders) setDriverReports(d.openWorkOrders);
@@ -276,21 +299,65 @@ export default function Workshop() {
   };
   // POST /api/workshop/[workOrderId]/close — close a driver-submitted work
   // order and return the vehicle to AVAILABLE (schema: actionTaken min 10).
-  const closeDriverWO = async (wo: any) => {
-    if (!wo?.id) return;
-    if (!confirm(`Close ${wo.workOrderNumber || 'work order'} and return vehicle to service?`)) return;
-    const actionTaken = `Repaired and verified in workshop: ${wo.faultDescription || wo.workOrderNumber || ''}`.slice(0, 500);
-    if (actionTaken.trim().length < 10) return;
-    setClosingWO(String(wo.id));
+  const openCloseWO = (wo: any) => {
+    setCloseWO(wo);
+    setCloseForm({ actionTaken: '', labourHours: '', returnStatus: 'AVAILABLE' });
+    setCloseParts([]);
+    setPartPick({ itemId: '', qty: '1', cost: '' });
+    setCloseMsg('');
+  };
+  const addClosePart = () => {
+    const it = regItems.find((x: any) => String(x.id) === partPick.itemId);
+    const qty = Number(partPick.qty) || 0;
+    if (!it || qty <= 0) { setCloseMsg(ar ? '❌ اختر الصنف والكمية' : 'Pick item + qty'); return; }
+    const cost = partPick.cost.trim() === '' ? Number(it.unitCostSar ?? it.unitCost ?? 0) || 0 : Number(partPick.cost) || 0;
+    setCloseParts((p) => [...p, { itemId: String(it.id), code: it.itemCode ?? it.code ?? '', name: it.nameAr ?? it.name ?? '', qty, cost }]);
+    setPartPick({ itemId: '', qty: '1', cost: '' });
+  };
+  const submitClose = async () => {
+    if (!closeWO?.id) return;
+    if (closeForm.actionTaken.trim().length < 10) { setCloseMsg(ar ? '❌ اكتب ما تم إصلاحه (10 أحرف على الأقل)' : 'Describe the repair (10+ chars)'); return; }
+    setClosingWO(String(closeWO.id));
     try {
-      await api.post(`/api/workshop/${wo.id}/close`, { actionTaken, returnVehicleStatus: 'AVAILABLE' });
+      const r: any = await api.post(`/api/workshop/${closeWO.id}/close`, {
+        actionTaken: closeForm.actionTaken.trim(),
+        ...(closeForm.labourHours.trim() ? { labourHours: Number(closeForm.labourHours) } : {}),
+        ...(closeParts.length ? { partsUsed: closeParts.map((x) => ({ partCode: x.code, description: x.name, quantityUsed: Number(x.qty), costSar: Number(x.cost), itemId: x.itemId })) } : {}),
+        returnVehicleStatus: closeForm.returnStatus,
+      });
+      const warns = Array.isArray(r?.stockWarnings) && r.stockWarnings.length ? ` ⚠️ ${r.stockWarnings.join('، ')}` : '';
+      const exp = r?.expenseId ? (ar ? ' (رحلت للتكلفة الغير مباشرة ✅)' : ' (posted to indirect cost)') : '';
+      setCloseMsg(`✅ ${ar ? 'تم إغلاق الأمر' : 'Closed'}${exp}${warns}`);
+      setCloseWO(null);
       const d = await api.get<any>('/api/workshop');
       if (d?.openWorkOrders) setDriverReports(d.openWorkOrders);
     } catch (err: any) {
-      alert(err?.message || 'Close failed');
+      setCloseMsg(`❌ ${err?.message || 'Close failed'}`);
     } finally {
       setClosingWO(null);
     }
+  };
+  const loadSvc = async (vid: string) => {
+    setSvcVehicle(vid);
+    if (!vid) { setSvcCards([]); return; }
+    setSvcBusy(true);
+    try {
+      const d: any = await api.get(`/api/workshop/history?vehicleId=${vid}`);
+      setSvcCards(Array.isArray(d?.cards) ? d.cards : []);
+    } catch { setSvcCards([]); }
+    finally { setSvcBusy(false); }
+  };
+  const printSvc = () => {
+    const v = fleetErp.find((x: any) => String(x.id) === svcVehicle);
+    const title = ar ? `كارت صيانة — ${v?.vehicleCode ?? ''} ${v?.plateNumber ?? ''}` : `Service card — ${v?.vehicleCode ?? ''}`;
+    const rows = svcCards.map((c: any, i: number) => {
+      const parts = Array.isArray(c.partsUsed) ? c.partsUsed.map((p: any) => `${p.partCode || ''} ${p.description || ''} × ${p.quantityUsed ?? ''} (${p.costSar ?? ''})`).join('، ') : '';
+      return `<tr><td>${i + 1}</td><td>${c.workOrderNumber ?? ''}</td><td>${c.status ?? ''}</td><td>${String(c.createdAt ?? '').slice(0, 10)}</td><td>${String(c.completedAt ?? '').slice(0, 10)}</td><td>${c.faultDescription ?? ''}</td><td>${c.actionTaken ?? ''}</td><td>${c.mechanicName ?? ''}</td><td>${c.labourHours ?? ''}</td><td>${parts}</td><td>${c.totalCostSar ?? ''}</td></tr>`;
+    }).join('');
+    const w = window.open('', '_blank', 'width=1000,height=800');
+    if (!w) return;
+    w.document.write(`<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>${title}</title><style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:'Segoe UI',Tahoma;padding:24px;color:#111}h1{font-size:20px;margin-bottom:4px}table{width:100%;border-collapse:collapse;font-size:11px;margin-top:12px}th{background:#0f172a;color:#fff;padding:6px 8px;text-align:right}td{padding:5px 8px;border-bottom:1px solid #ddd}@media print{body{padding:10mm}}</style></head><body><h1>${title}</h1><table><thead><tr><th>#</th><th>الأمر</th><th>الحالة</th><th>الدخول</th><th>الخروج</th><th>العطل</th><th>الإصلاح</th><th>الميكانيكي</th><th>ساعات</th><th>قطع الغيار</th><th>التكلفة</th></tr></thead><tbody>${rows || '<tr><td colspan=11>—</td></tr>'}</tbody></table><script>window.onload=()=>setTimeout(()=>window.print(),400);<\/script></body></html>`);
+    w.document.close();
   };
   const resolveBD = (id:number) => { setBreakdowns(p=>p.map(b=>b.id===id?{...b,status:'Resolved'}:b)); const bd=breakdowns.find(b=>b.id===id); if(bd){ const still=breakdowns.filter(b=>b.assetId===bd.assetId&&b.id!==id&&(b.status==='Open'||b.status==='In Repair')); if(still.length===0) setAssets(p=>p.map(a=>a.id===bd.assetId?{...a,status:'Ready'}:a)); } };
   const editBD = (bd: BreakdownReport) => { setEditingBdId(bd.id); setBdForm({date:bd.date,assetId:bd.assetId,reportedBy:bd.reportedBy,symptom:bd.symptom,severity:bd.severity,mechanicAssigned:bd.mechanicAssigned,repairStart:bd.repairStart,repairEnd:bd.repairEnd,repairDesc:bd.repairDesc,partsUsed:bd.partsUsed,repairCost:String(bd.repairCost),notes:bd.notes}); setTab('breakdown'); };
@@ -410,7 +477,8 @@ export default function Workshop() {
     {id:'home',label:t('home')},{id:'fuel',label:t('fuelAndDiesel')},{id:'oil',label:t('oilAndFluids')},
     {id:'spareparts',label:t('spareParts')},{id:'breakdown',label:t('breakdownReports')},
     {id:'purchaserequests',label:t('purchaseRequests')},{id:'warehouse',label:t('warehouse')},
-    {id:'vehiclereport',label:t('vehicleReport')},{id:'mixingstations',label:t('mixingStations')},{id:'config',label:t('fleetSettings')},{id:'reports',label:t('reports')},
+    {id:'vehiclereport',label:t('vehicleReport')},
+    {id:'servicecard',label:ar?'🛠️ كارت الصيانة':'Service card'},{id:'mixingstations',label:t('mixingStations')},{id:'config',label:t('fleetSettings')},{id:'reports',label:t('reports')},
   ];
 
   const sevColor = (s: string) => s==='Critical'?'bg-red-600':s==='Major'?'bg-orange-500':'bg-yellow-500 text-slate-900';
@@ -444,7 +512,61 @@ export default function Workshop() {
         {(wo.photoBase64||wo.photoUrl||wo.photo)?<a href={wo.photoBase64?`data:image/jpeg;base64,${wo.photoBase64}`:(wo.photoUrl||wo.photo)} target="_blank" rel="noreferrer" className="text-sky-400 font-bold text-xs underline mr-2">{t('photoLink')}</a>:null}
         {(wo.audioBase64||wo.audioUrl||wo.audio)?<a href={wo.audioBase64?`data:audio/m4a;base64,${wo.audioBase64}`:(wo.audioUrl||wo.audio)} target="_blank" rel="noreferrer" className="text-emerald-400 font-bold text-xs underline">{t('audioLink')}</a>:null}
         {!(wo.photoBase64||wo.photoUrl||wo.photo||wo.audioBase64||wo.audioUrl||wo.audio)?<span className="text-slate-600">—</span>:null}
-      </td><td className="p-3">{wo.createdAt?new Date(wo.createdAt).toLocaleString():'-'}</td><td className="p-3"><button onClick={()=>closeDriverWO(wo)} disabled={closingWO===String(wo.id)} className="bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-700 text-white text-xs px-2 py-1 rounded font-bold">{closingWO===String(wo.id)?'…':'Fix'}</button></td></tr>))}</tbody></table></div>
+      </td><td className="p-3">{wo.createdAt?new Date(wo.createdAt).toLocaleString():'-'}</td><td className="p-3"><button onClick={()=>openCloseWO(wo)} className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs px-2 py-1 rounded font-bold">Fix</button></td></tr>))}</tbody></table></div>
+            {closeWO && (
+            <div className="mt-3 rounded-2xl border border-emerald-500/30 bg-emerald-500/[0.06] p-4">
+              <h3 className="text-sm font-black text-white mb-3">🔧 {ar ? `إغلاق ${closeWO.workOrderNumber ?? ''} — ${closeWO.vehicleCode ?? ''}` : 'Close work order'}</h3>
+              <label className="text-[11px] text-slate-400 font-bold block mb-2">{ar ? 'ما تم إصلاحه *' : 'Action taken *'}
+                <textarea value={closeForm.actionTaken} onChange={(e) => setCloseForm({ ...closeForm, actionTaken: e.target.value })} rows={2}
+                  className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-2">
+                <label className="text-[11px] text-slate-400 font-bold">{ar ? 'ساعات العمل' : 'Labour hrs'}
+                  <input value={closeForm.labourHours} inputMode="decimal" onChange={(e) => setCloseForm({ ...closeForm, labourHours: e.target.value })}
+                    className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
+                <label className="text-[11px] text-slate-400 font-bold">{ar ? 'إرجاع المركبة' : 'Return as'}
+                  <select value={closeForm.returnStatus} onChange={(e) => setCloseForm({ ...closeForm, returnStatus: e.target.value })}
+                    className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none">
+                    <option value="AVAILABLE">{ar ? 'متاحة' : 'Available'}</option>
+                    <option value="STANDBY">{ar ? 'احتياط' : 'Standby'}</option>
+                    <option value="OUT_OF_SERVICE">{ar ? 'خارج الخدمة' : 'Out of service'}</option>
+                  </select></label>
+                <div className="text-[11px] text-slate-400 font-bold">{ar ? 'الإجمالي' : 'Total'}
+                  <p className="mt-0.5 text-sm font-black text-emerald-300">{closeParts.reduce((x, y) => x + (Number(y.qty) || 0) * (Number(y.cost) || 0), 0).toLocaleString('en-US')} {ar ? 'ر.س' : 'SAR'}</p></div>
+              </div>
+              <p className="text-[11px] font-black text-slate-300 mb-1">{ar ? 'قطع الغيار المركبة (من الشجرة — تخصم من المخزن وترحل للتكلفة)' : 'Fitted parts'}</p>
+              <div className="flex flex-wrap gap-2 mb-2">
+                <select value={partPick.itemId} onChange={(e) => {
+                  const it = regItems.find((x: any) => String(x.id) === e.target.value);
+                  setPartPick({ ...partPick, itemId: e.target.value, cost: it ? String(it.unitCostSar ?? it.unitCost ?? '') : partPick.cost });
+                }} className="flex-1 min-w-[180px] bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none">
+                  <option value="">— {ar ? 'اختر من الشجرة' : 'Pick from tree'} —</option>
+                  {regItems.map((it: any) => <option key={it.id} value={it.id}>{it.itemCode} · {it.nameAr ?? it.name} ({it.qtyOnHand ?? 0})</option>)}
+                </select>
+                <input value={partPick.qty} inputMode="decimal" onChange={(e) => setPartPick({ ...partPick, qty: e.target.value })} placeholder={ar ? 'الكمية' : 'Qty'}
+                  className="w-20 bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" />
+                <input value={partPick.cost} inputMode="decimal" onChange={(e) => setPartPick({ ...partPick, cost: e.target.value })} placeholder={ar ? 'التكلفة' : 'Cost'}
+                  className="w-24 bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" />
+                <button onClick={addClosePart} className="text-[11px] font-black rounded-lg px-3 py-1.5 border border-sky-500/50 bg-sky-500/15 text-sky-300">➕</button>
+              </div>
+              {closeParts.length > 0 && (
+              <div className="space-y-1 mb-2">
+                {closeParts.map((x, i) => (
+                  <div key={i} className="flex items-center justify-between text-[11px] rounded-lg border border-white/10 bg-white/[0.03] px-2 py-1">
+                    <span className="text-slate-200 font-bold">{x.code} · {x.name} × {x.qty} = {((Number(x.qty) || 0) * (Number(x.cost) || 0)).toLocaleString('en-US')}</span>
+                    <button onClick={() => setCloseParts((p) => p.filter((_, j) => j !== i))} className="text-red-400 px-1">✕</button>
+                  </div>
+                ))}
+              </div>
+              )}
+              {closeMsg && <p className="text-xs font-bold text-slate-200 mb-2">{closeMsg}</p>}
+              <div className="flex gap-2">
+                <button disabled={closingWO === String(closeWO.id)} onClick={submitClose}
+                  className="bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-white text-xs font-black rounded-lg px-6 py-2">
+                  {closingWO === String(closeWO.id) ? '…' : `✅ ${ar ? 'إغلاق وترحيل' : 'Close & post'}`}</button>
+                <button onClick={() => setCloseWO(null)} className="text-slate-400 text-xs border border-white/10 px-4 py-2 rounded-lg">✕</button>
+              </div>
+            </div>
+            )}
           </div>)}
           <div className="grid grid-cols-2 md:grid-cols-5 gap-3">{[{label:t('totalAssets'),value:assets.length,color:'border-sky-500'},{label:t('readyForOperation'),value:activeAssets,color:'border-emerald-500'},{label:t('inWorkshop'),value:workshopAssets,color:'border-yellow-500'},{label:t('openBreakdowns'),value:openBDs.length+driverReports.length,color:'border-red-500'},{label:t('maintenanceCosts'),value:fmtMoney(totalRepairCost),color:'border-sky-500'}].map(k=>(<div key={k.label} className={`bg-white/[0.04] border-l-4 ${k.color} rounded-lg p-4`}><p className="text-[10px] text-slate-400">{k.label}</p><p className="text-xl font-bold text-white">{k.value}</p></div>))}</div>
 
@@ -662,6 +784,45 @@ export default function Workshop() {
         </div>)}
 
         {/* ===== MIXING STATIONS & PERIODIC MAINTENANCE ===== */}
+        {tab==='servicecard'&&(<div className="bg-white/[0.04] border border-white/10 rounded-xl p-6">
+          <h3 className="text-lg font-bold text-cyan-400 mb-4">🛠️ {ar ? 'كارت صيانة لكل سيارة' : 'Per-vehicle service card'}</h3>
+          <div className="flex flex-wrap gap-2 mb-4">
+            <select value={svcVehicle} onChange={(e) => loadSvc(e.target.value)} className="flex-1 min-w-[220px] bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none">
+              <option value="">— {ar ? 'اختر المركبة' : 'Pick vehicle'} —</option>
+              {fleetErp.map((v: any) => <option key={v.id} value={v.id}>{v.vehicleCode} · {v.plateNumber}</option>)}
+            </select>
+            <button disabled={!svcVehicle} onClick={printSvc} className="text-xs font-black rounded-lg px-4 py-2 border border-white/15 bg-white/[0.05] text-slate-200 disabled:opacity-40">🖨️ {ar ? 'طباعة الكارت' : 'Print'}</button>
+          </div>
+          {svcBusy && <p className="text-xs text-slate-500">⏳ …</p>}
+          {!svcBusy && svcVehicle && svcCards.length === 0 && <p className="text-xs text-slate-500">{ar ? 'لا أوامر مسجلة لهذه المركبة.' : 'No orders for this vehicle.'}</p>}
+          <div className="space-y-2">
+            {svcCards.map((c: any) => (
+              <div key={c.id} className="rounded-xl border border-white/10 bg-white/[0.02] p-3 text-xs">
+                <div className="flex items-center justify-between flex-wrap gap-1">
+                  <span className="font-black text-white">🧾 {c.workOrderNumber} · {c.maintenanceType}</span>
+                  <span className={`text-[10px] font-black rounded px-2 py-0.5 ${c.status === 'COMPLETED' ? 'bg-emerald-500/20 text-emerald-300' : 'bg-amber-500/20 text-amber-300'}`}>{c.status}</span>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-3 gap-y-1 mt-2 text-slate-300">
+                  <p><span className="text-slate-500">{ar ? 'الدخول' : 'In'}:</span> {String(c.createdAt ?? '').slice(0, 10)}</p>
+                  <p><span className="text-slate-500">{ar ? 'الخروج' : 'Out'}:</span> {String(c.completedAt ?? '').slice(0, 10) || '—'}</p>
+                  <p><span className="text-slate-500">{ar ? 'الميكانيكي' : 'Mechanic'}:</span> {c.mechanicName ?? '—'}</p>
+                  <p><span className="text-slate-500">{ar ? 'الساعات' : 'Hrs'}:</span> {c.labourHours ?? '—'}</p>
+                </div>
+                <p className="mt-1"><span className="text-slate-500">{ar ? 'العطل' : 'Fault'}:</span> {c.faultDescription}</p>
+                {c.actionTaken && <p><span className="text-slate-500">{ar ? 'الإصلاح' : 'Fix'}:</span> {c.actionTaken}</p>}
+                {Array.isArray(c.partsUsed) && c.partsUsed.length > 0 && (
+                  <div className="mt-1 rounded-lg border border-white/10 p-2">
+                    <p className="text-[10px] font-black text-slate-400 mb-1">{ar ? 'قطع الغيار المركبة' : 'Fitted parts'}</p>
+                    {c.partsUsed.map((x: any, i: number) => (
+                      <p key={i} className="text-[11px] text-slate-200">{x.partCode} · {x.description} × {x.quantityUsed} = {((Number(x.quantityUsed) || 0) * (Number(x.costSar) || 0)).toLocaleString('en-US')} {ar ? 'ر.س' : ''}</p>
+                    ))}
+                  </div>
+                )}
+                <p className="mt-1 font-black text-emerald-300">{ar ? 'التكلفة' : 'Cost'}: {Number(c.totalCostSar ?? 0).toLocaleString('en-US')} {ar ? 'ر.س' : ''}</p>
+              </div>
+            ))}
+          </div>
+        </div>)}
         {tab==='mixingstations'&&(<div className="space-y-6">
           {/* KPIs */}
           <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
