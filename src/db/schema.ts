@@ -3741,6 +3741,8 @@ export const payrollEmployees = pgTable(
     /** Insurance status (التأمين): INSURED (مومن) | UNINSURED (غير مومن, default).
      *  Uninsured Saudis are fully exempt from GOSI in payroll math. */
     insuranceStatus: varchar("insurance_status", { length: 10 }).notNull().default("UNINSURED"),
+    /** Affiliated branch (الفرع التابع له) — site the employee works under. */
+    branchSiteId: uuid("branch_site_id").references(() => sites.id, { onDelete: "set null" }),
     /** SAUDI | NON_SAUDI */
     nationality: varchar("nationality", { length: 12 }).notNull().default("NON_SAUDI"),
     /**

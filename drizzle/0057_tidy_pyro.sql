@@ -1,0 +1,2 @@
+ALTER TABLE "payroll_employees" ADD COLUMN "branch_site_id" uuid;--> statement-breakpoint
+ALTER TABLE "payroll_employees" ADD CONSTRAINT "payroll_employees_branch_site_id_sites_id_fk" FOREIGN KEY ("branch_site_id") REFERENCES "public"."sites"("id") ON DELETE set null ON UPDATE no action;

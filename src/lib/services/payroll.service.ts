@@ -157,6 +157,7 @@ export async function createEmployee(
     vehicleOwnership?: string;
     sponsorship?: string;
     insuranceStatus?: string;
+    branchSiteId?: string | null;
     dateOfBirth?: string;
     bloodGroup?: string;
     photoUrl?: string;
@@ -195,6 +196,7 @@ export async function createEmployee(
       vehicleOwnership: input.vehicleOwnership,
       sponsorship: input.sponsorship ?? "المطور",
       insuranceStatus: input.insuranceStatus ?? "UNINSURED",
+      branchSiteId: input.branchSiteId ?? null,
       dateOfBirth: input.dateOfBirth ? new Date(input.dateOfBirth) : null,
       bloodGroup: input.bloodGroup,
       photoUrl: input.photoUrl,
@@ -239,6 +241,7 @@ export async function updateEmployee(
     vehicleOwnership?: string;
     sponsorship?: string;
     insuranceStatus?: string;
+    branchSiteId?: string | null;
   }>
 ) {
   const patch: Record<string, unknown> = { updatedAt: new Date() };
@@ -246,7 +249,7 @@ export async function updateEmployee(
     "fullName", "nationalId", "jobTitle", "department", "bankIban", "bankName",
     "photoUrl", "bloodGroup", "countryCode", "contactPhone",
     "emergencyContactName", "emergencyContactPhone", "medicalInsuranceNo",
-    "vehiclePlate", "vehicleOwnership", "sponsorship", "insuranceStatus", "passportNo",
+    "vehiclePlate", "vehicleOwnership", "sponsorship", "insuranceStatus", "branchSiteId", "passportNo",
   ] as const) {
     if (input[k] !== undefined) patch[k] = input[k];
   }

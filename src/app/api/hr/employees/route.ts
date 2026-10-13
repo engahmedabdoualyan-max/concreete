@@ -59,6 +59,7 @@ const CreateEmployeeSchema = z.object({
   vehicleOwnership: z.enum(["PRIVATE", "COMPANY"]).optional(),
   sponsorship: z.string().trim().min(1).max(60).optional(),
   insuranceStatus: z.enum(["INSURED", "UNINSURED"]).optional(),
+  branchSiteId: z.string().uuid().nullable().optional(),
   photoUrl: z.string().min(1).max(1_500_000).optional(),
   dateOfBirth: z.string().min(1).optional(),
   bloodGroup: z.string().max(5).optional(),

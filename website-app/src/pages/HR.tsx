@@ -174,6 +174,22 @@ function orgIsSaudi(e: any): boolean {
   return e?.nationality === 'SAUDI' || e?.countryCode === 'SA' || /^1\d{9}$/.test(String(e?.nationalId ?? '').trim());
 }
 
+function orgIsBlock(e: any): boolean {
+  return String(e?.jobTitle ?? e?.role ?? '').includes('بلك');
+}
+
+function orgIsConc(e: any): boolean {
+  return String(e?.jobTitle ?? e?.role ?? '').includes('خرسانة');
+}
+
+function orgIsOps(e: any): boolean {
+  return String(e?.jobTitle ?? e?.role ?? '').includes('مشغل');
+}
+
+function orgIsWs(e: any): boolean {
+  return String(e?.jobTitle ?? e?.role ?? '').includes('عامل ورشة');
+}
+
 /** Department (Arabic UI) → API role keys used by broadcasts audience. */
 const DEPT_ROLES: Record<string, string[]> = {
   'الإدارة': ['PLANT_MGR', 'SUPER_ADMIN'],
@@ -259,7 +275,13 @@ export default function HR() {
   const [orgBranch, setOrgBranch] = useState('ALL');
   const drvLbl = ar ? '🧑‍✈️ سائقين' : 'Drivers';
   const sauLbl = ar ? '🇸🇦 السعوديين' : 'Saudis';
-  const orgGroupOf = (e: any): string => orgIsDrv(e) ? drvLbl : (orgIsSaudi(e) ? sauLbl : (e.department || (ar ? 'بدون قسم' : 'Unassigned')));
+  const blkLbl = ar ? '🧱 عمالة بلك' : 'Block labor';
+  const concLbl = ar ? '🏗️ عمالة خرسانة' : 'Concrete labor';
+  const opsLbl = ar ? '⚙️ عمالة تشغيل' : 'Operations labor';
+  const wsLbl = ar ? '🔧 عمالة ورشة' : 'Workshop labor';
+  const isLabor = (e: any) => orgIsBlock(e) || orgIsConc(e) || orgIsOps(e) || orgIsWs(e);
+  const laborLbl = (e: any): string => orgIsBlock(e) ? blkLbl : (orgIsConc(e) ? concLbl : (orgIsOps(e) ? opsLbl : wsLbl));
+  const orgGroupOf = (e: any): string => orgIsDrv(e) ? drvLbl : (isLabor(e) ? laborLbl(e) : (orgIsSaudi(e) ? sauLbl : (e.department || (ar ? 'بدون قسم' : 'Unassigned'))));
   const orgSiteName = (s: any): string => (!s ? (ar ? 'غير محدد' : 'Unspecified') : (s.code === 'HQ' ? (ar ? 'المصنع' : 'Plant') : (s.name ?? s.code ?? '')));
   const orgBranchList = () => {
     const all: { id: string; label: string; vehicles: any[] }[] = (vehRd.sites || []).map((s: any) => ({
@@ -365,7 +387,7 @@ export default function HR() {
   const [fromDate, setFromDate] = useState(() => new Date(Date.now() - 6 * 864e5).toISOString().slice(0, 10));
   const [toDate, setToDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [showAdd, setShowAdd] = useState(false);
-  const [form, setForm] = useState({ employeeCode: '', fullName: '', nationalId: '', countryCode: '', jobTitle: '', department: '', baseSalarySar: '', housingAllowanceSar: '', transportAllowanceSar: '', bankIban: '', bankName: '', hireDate: '', contactPhone: '', emergencyContactName: '', emergencyContactPhone: '', lastVacationDate: '', lastResumptionDate: '', medicalInsuranceNo: '', medicalInsuranceExpiry: '', vehiclePlate: '', vehicleOwnership: '', sponsorship: 'المطور', insuranceStatus: 'UNINSURED', iqamaExpiry: '', passportNo: '', photoUrl: '' });
+  const [form, setForm] = useState({ employeeCode: '', fullName: '', nationalId: '', countryCode: '', jobTitle: '', department: '', baseSalarySar: '', housingAllowanceSar: '', transportAllowanceSar: '', bankIban: '', bankName: '', hireDate: '', contactPhone: '', emergencyContactName: '', emergencyContactPhone: '', lastVacationDate: '', lastResumptionDate: '', medicalInsuranceNo: '', medicalInsuranceExpiry: '', vehiclePlate: '', vehicleOwnership: '', sponsorship: 'المطور', insuranceStatus: 'UNINSURED', branchSiteId: '', iqamaExpiry: '', passportNo: '', photoUrl: '' });
   const [actions, setActions] = useState<any[]>([]);
   const [actionFilter, setActionFilter] = useState('ALL');
   const [showActionForm, setShowActionForm] = useState(false);
@@ -403,6 +425,16 @@ export default function HR() {
     w.document.close();
   };
   const [fleet, setFleet] = useState<any[]>([]);
+  const [vehBranchF, setVehBranchF] = useState('ALL');
+  const [vehStatusF, setVehStatusF] = useState('ALL');
+  const vehPassesFilter = (v: any) => {
+    const sid = vehRd.map[v.id]?.siteId ?? '';
+    const st = vehRd.map[v.id]?.status ?? '';
+    const bok = vehBranchF === 'ALL' || (vehBranchF === 'NONE' ? !sid : sid === vehBranchF);
+    const sok = vehStatusF === 'ALL' || (vehStatusF === 'NONE' ? !st : st === vehStatusF);
+    return bok && sok;
+  };
+  const vehFiltered = () => fleet.filter(vehPassesFilter);
   // Readiness snapshot for the statement: branch + status per vehicle.
   const [vehRd, setVehRd] = useState<{ map: Record<string, { status: string | null; siteId: string | null }>; sites: any[] }>({ map: {}, sites: [] });
   const RD_AR: Record<string, string> = { WORKING: 'شغال', IDLE: 'عاطل', IN_WORKSHOP: 'ورشة', STORED: 'مخزن' };
@@ -628,6 +660,7 @@ function ageOf(raw: unknown): number | null {
         vehicleOwnership: (form.vehicleOwnership || undefined) as 'PRIVATE' | 'COMPANY' | undefined,
         sponsorship: form.sponsorship.trim() || undefined,
         insuranceStatus: form.insuranceStatus as 'INSURED' | 'UNINSURED',
+        branchSiteId: form.branchSiteId || null,
         photoUrl: form.photoUrl || undefined,
       };
       if (editingEmp) {
@@ -637,7 +670,7 @@ function ageOf(raw: unknown): number | null {
         await api.post('/api/hr/employees', { employeeCode: form.employeeCode.trim(), ...payload });
         setMsg('✅ تمت إضافة الموظف');
       }
-      setForm({ employeeCode: '', fullName: '', nationalId: '', countryCode: '', jobTitle: '', department: '', baseSalarySar: '', housingAllowanceSar: '', transportAllowanceSar: '', bankIban: '', bankName: '', hireDate: '', contactPhone: '', emergencyContactName: '', emergencyContactPhone: '', lastVacationDate: '', lastResumptionDate: '', medicalInsuranceNo: '', medicalInsuranceExpiry: '', vehiclePlate: '', vehicleOwnership: '', sponsorship: 'المطور', insuranceStatus: 'UNINSURED', iqamaExpiry: '', passportNo: '', photoUrl: '' });
+      setForm({ employeeCode: '', fullName: '', nationalId: '', countryCode: '', jobTitle: '', department: '', baseSalarySar: '', housingAllowanceSar: '', transportAllowanceSar: '', bankIban: '', bankName: '', hireDate: '', contactPhone: '', emergencyContactName: '', emergencyContactPhone: '', lastVacationDate: '', lastResumptionDate: '', medicalInsuranceNo: '', medicalInsuranceExpiry: '', vehiclePlate: '', vehicleOwnership: '', sponsorship: 'المطور', insuranceStatus: 'UNINSURED', branchSiteId: '', iqamaExpiry: '', passportNo: '', photoUrl: '' });
       setEditingEmp(null);
       setShowAdd(false);
       await load();
@@ -663,6 +696,7 @@ function ageOf(raw: unknown): number | null {
       medicalInsuranceNo: e.medicalInsuranceNo ?? '', medicalInsuranceExpiry: iso(e.medicalInsuranceExpiry),
       vehiclePlate: e.vehiclePlate ?? '', vehicleOwnership: e.vehicleOwnership ?? '',
       sponsorship: e.sponsorship ?? 'المطور',
+      branchSiteId: (e as any).branchSiteId ?? '',
       insuranceStatus: (e as any).insuranceStatus ?? 'UNINSURED',
       iqamaExpiry: iso(e.iqamaExpiry), photoUrl: e.photoUrl ?? '',
     });
@@ -1910,6 +1944,12 @@ function ageOf(raw: unknown): number | null {
                       <option value="UNINSURED">{ar ? 'غير مومن' : 'Uninsured'}</option>
                       <option value="INSURED">{ar ? 'مومن' : 'Insured'}</option>
                     </select></label>
+                  <label className="text-[11px] text-slate-400 font-bold">{ar ? 'الفرع التابع له' : 'Branch'}
+                    <select value={form.branchSiteId} onChange={(e) => setForm({ ...form, branchSiteId: e.target.value })}
+                      className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none">
+                      <option value="">—</option>
+                      {vehRd.sites.map((x: any) => <option key={x.id} value={x.id}>{orgSiteName(x)}</option>)}
+                    </select></label>
         <label className="text-[11px] text-slate-400 font-bold">{ar ? 'الراتب الأساسي (ر.س)' : 'Base salary'}
           <input value={form.baseSalarySar} onChange={(e) => setForm({ ...form, baseSalarySar: e.target.value })} inputMode="decimal"
             className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
@@ -2171,6 +2211,7 @@ function ageOf(raw: unknown): number | null {
                   { header: 'القسم', key: 'dept' },
                   { header: 'الكفالة', key: 'sponsor' },
                   { header: 'التأمين', key: 'ins' },
+                  { header: 'الفرع', key: 'branch' },
                 ]}
                 branding={brandParam}
                 rows={team.map((e) => ({
@@ -2178,6 +2219,7 @@ function ageOf(raw: unknown): number | null {
                   title: e.role ?? e.jobTitle ?? '', dept: e.department ?? '',
                   sponsor: e.sponsorship ?? 'المطور',
                   ins: (e as any).insuranceStatus === 'INSURED' ? (ar ? 'مومن' : 'Insured') : (ar ? 'غير مومن' : 'Uninsured'),
+                  branch: (((x: any) => x ? orgSiteName(x) : '')(vehRd.sites.find((x: any) => x.id === (e as any).branchSiteId))),
                   passport: (e as any).passportNo ?? '',
                 }))}
               />
@@ -2222,6 +2264,9 @@ function ageOf(raw: unknown): number | null {
                     )}
                     {(e.sponsorship ?? 'المطور') !== 'المطور' && (
                       <p className="text-[11px] text-slate-500 truncate">🤝 {ar ? 'الكفالة' : 'Sponsor'}: {e.sponsorship}</p>
+                    )}
+                    {(e as any).branchSiteId && (
+                      <p className="text-[11px] text-slate-500 truncate">🏢 {ar ? 'الفرع' : 'Branch'}: {orgSiteName(vehRd.sites.find((x: any) => x.id === (e as any).branchSiteId) ?? null) || (ar ? 'فرع' : 'Branch')}</p>
                     )}
                     {(e.nationality === 'SAUDI' || e.countryCode === 'SA' || /^1\d{9}$/.test(String(e.nationalId ?? '').trim()) || (e as any).insuranceStatus === 'INSURED') && (
                       <p className="text-[11px] text-slate-500 truncate">🛡️ {ar ? 'التأمين' : 'Insurance'}: {(e as any).insuranceStatus === 'INSURED' ? (ar ? 'مومن' : 'Insured') : (ar ? 'غير مومن' : 'Uninsured')}</p>
@@ -2924,14 +2969,32 @@ function ageOf(raw: unknown): number | null {
               </div>
             )}
             {fleet.length === 0 && <p className="text-xs text-slate-500">{ar ? 'لا مركبات.' : 'No vehicles.'}</p>}
+            {fleet.length > 0 && vehFiltered().length === 0 && <p className="text-xs text-slate-500">{ar ? 'لا نتائج مطابقة للفلتر.' : 'No matches.'}</p>}
             <div className="flex flex-wrap items-center gap-2 mb-3">
               <button onClick={() => setShowVehForm((v) => !v)}
                 className="text-[11px] font-black rounded-lg px-3 py-1.5 border border-emerald-500/50 bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25">
                 ➕ {ar ? 'إضافة مركبة' : 'Add vehicle'}
               </button>
+              <label className="text-[11px] text-slate-400 font-bold">{ar ? 'الفرع' : 'Branch'}
+                <select value={vehBranchF} onChange={(e) => setVehBranchF(e.target.value)}
+                  className="mr-1 bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none max-w-[150px]">
+                  <option value="ALL">{ar ? 'كل الفروع' : 'All'}</option>
+                  {vehRd.sites.map((x: any) => <option key={x.id} value={x.id}>{orgSiteName(x)}</option>)}
+                  <option value="NONE">{ar ? 'غير محدد' : 'Unspecified'}</option>
+                </select></label>
+              <label className="text-[11px] text-slate-400 font-bold">{ar ? 'الحالة' : 'Status'}
+                <select value={vehStatusF} onChange={(e) => setVehStatusF(e.target.value)}
+                  className="mr-1 bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none">
+                  <option value="ALL">{ar ? 'الكل' : 'All'}</option>
+                  <option value="WORKING">{ar ? 'شغال' : 'Working'}</option>
+                  <option value="IDLE">{ar ? 'عاطل' : 'Idle'}</option>
+                  <option value="IN_WORKSHOP">{ar ? 'ورشة' : 'Workshop'}</option>
+                  <option value="STORED">{ar ? 'مخزن' : 'Stored'}</option>
+                  <option value="NONE">{ar ? 'غير محدد' : 'Unspecified'}</option>
+                </select></label>
               <ExportBar
                 title={ar ? 'بيان المركبات والسائقين' : 'Vehicles & drivers'}
-                subtitle={`${fleet.length} ${ar ? 'مركبة' : 'vehicles'}`}
+                subtitle={`${vehFiltered().length} ${ar ? 'مركبة' : 'vehicles'}`}
                 fileBase="hr-vehicles-drivers"
                 columns={[
                   { header: 'الكود', key: 'code' },
@@ -2946,7 +3009,7 @@ function ageOf(raw: unknown): number | null {
                 branding={brandParam}
                 footerHtml={vehSummaryHtml || undefined}
                 extraSheets={vehSummaryRows.length ? [{ name: 'الخلاصة', columns: [{ header: 'البيان', key: 'label' }, { header: 'العدد', key: 'value' }], rows: vehSummaryRows }] : undefined}
-                rows={fleet.map((v) => {
+                rows={vehFiltered().map((v) => {
                   const d = vehDriverOf(v);
                   const st = vehRd.map[v.id]?.status ?? null;
                   return {
@@ -2998,7 +3061,7 @@ function ageOf(raw: unknown): number | null {
               </div>
             )}
             <div className="space-y-2">
-              {fleet.map((v, i) => {
+              {vehFiltered().map((v, i) => {
                 const f = editVeh[v.id];
                 const fi = editVehInfo[v.id] ?? { code: '', plate: '', type: '', make: '', model: '', year: '', target: '' };
                 const setFi = (k: string, val: string) =>
@@ -3675,29 +3738,34 @@ function ageOf(raw: unknown): number | null {
                 {(() => {
                   const groups = new Map<string, any[]>();
                   for (const e of employees) {
-                    if (orgIsDrv(e) || orgIsSaudi(e)) continue;
+                    if (orgIsDrv(e) || orgIsSaudi(e) || isLabor(e)) continue;
                     const d = e.department || (ar ? 'بدون قسم' : 'Unassigned');
                     if (!groups.has(d)) groups.set(d, []);
                     groups.get(d)!.push(e);
                   }
                   const drvList = employees.filter(orgIsDrv);
                   if (drvList.length) groups.set(drvLbl, drvList);
-                  const sauList = employees.filter((e) => !orgIsDrv(e) && orgIsSaudi(e));
+                  const sauList = employees.filter((e) => !orgIsDrv(e) && !isLabor(e) && orgIsSaudi(e));
+                  if (sauList.length) groups.set(sauLbl, sauList);
+                  for (const [lbl, fn] of [[blkLbl, orgIsBlock], [concLbl, orgIsConc], [opsLbl, orgIsOps], [wsLbl, orgIsWs]] as const) {
+                    const lst = employees.filter((e) => !orgIsDrv(e) && (fn as any)(e));
+                    if (lst.length) groups.set(lbl, lst);
+                  }
                   if (sauList.length) groups.set(sauLbl, sauList);
                   for (const k of OPS_KIDS) if (!groups.has(k)) groups.set(k, []);
                   const baseOrdered = [...DEPTS.filter((d) => groups.has(d)), ...[...groups.keys()].filter((d) => !DEPTS.includes(d))];
                   // Operations block: التشغيل, then drivers, then its sub-departments; Saudis under Administration.
-                  const block = [drvLbl, ...OPS_KIDS].filter((k) => groups.has(k));
+                  const block = [drvLbl, blkLbl, concLbl, opsLbl, wsLbl, ...OPS_KIDS].filter((k) => groups.has(k));
                   const rest = baseOrdered.filter((d) => d !== sauLbl && !block.includes(d));
                   const ai = rest.indexOf('التشغيل');
                   const withOps = ai >= 0 ? [...rest.slice(0, ai + 1), ...block, ...rest.slice(ai + 1)] : [...rest, ...block];
                   const si = withOps.indexOf('الإدارة');
                   const finalOrder = groups.has(sauLbl) ? (si >= 0 ? [...withOps.slice(0, si + 1), sauLbl, ...withOps.slice(si + 1).filter((d) => d !== sauLbl)] : [...withOps, sauLbl]) : withOps;
                   const underOf: Record<string, string> = { [drvLbl]: ar ? '⬆ تابعة لإدارة التشغيل' : 'under Operations', [sauLbl]: ar ? '⬆ تابعة للإدارة' : 'under Administration' };
-                  for (const k of OPS_KIDS) underOf[k] = ar ? '⬆ تابعة للتشغيل' : 'under Operations';
+                  for (const k of [...OPS_KIDS, blkLbl, concLbl, opsLbl, wsLbl]) underOf[k] = ar ? '⬆ تابعة للتشغيل' : 'under Operations';
                   const ordered = finalOrder;
                   return ordered.map((d) => (
-                    <div key={d} className={`rounded-2xl border overflow-hidden ${((d === drvLbl || d === sauLbl || (OPS_KIDS as string[]).includes(d))) ? 'border-amber-500/40 bg-amber-500/[0.04]' : 'border-white/10 bg-white/[0.02]'}`}>
+                    <div key={d} className={`rounded-2xl border overflow-hidden ${((d === drvLbl || d === sauLbl || (OPS_KIDS as string[]).includes(d) || [blkLbl, concLbl, opsLbl, wsLbl].includes(d))) ? 'border-amber-500/40 bg-amber-500/[0.04]' : 'border-white/10 bg-white/[0.02]'}`}>
                       <div className="bg-white/[0.05] border-b border-white/10 px-3 py-2 flex items-center justify-between">
                         <span className="text-xs font-black text-sky-300">{d}
                           {underOf[d] && <span className="block text-[10px] font-bold text-amber-300/90">{underOf[d]}</span>}
