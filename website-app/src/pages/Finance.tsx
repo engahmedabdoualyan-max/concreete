@@ -11,6 +11,7 @@ import ErpFinance from '../components/ErpFinance';
 import ErpLedger from '../components/ErpLedger';
 import ErpCommitments from '../components/ErpCommitments';
 import ErpExpenses from '../components/ErpExpenses';
+import PriceAnalysis from '../components/PriceAnalysis';
 import ErpSuppliers from '../components/ErpSuppliers';
 import AccountingIntegration from '../components/AccountingIntegration';
 import DemandForecast from '../components/DemandForecast';
@@ -115,7 +116,7 @@ export default function Finance() {
   const { currentUser, logout } = useAuth();
   const navigate = useNavigate();
   const t = useFinanceDict();
-  const [tab, setTab] = useState<'payments' | 'reorder'>('payments');
+  const [tab, setTab] = useState<'payments' | 'reorder' | 'price'>('payments');
 
   /* ── Central API state ── */
   const [ledger, setLedger] = useState<LedgerData | null>(null);
@@ -358,6 +359,7 @@ export default function Finance() {
         <div className="grid grid-cols-2 gap-2 p-1 mb-5 bg-white/[0.04] rounded-xl border border-white/10 max-w-md backdrop-blur-xl">
           <button onClick={() => setTab('payments')} className={`py-2 px-4 rounded-lg font-bold text-sm ${tab === 'payments' ? 'bg-emerald-500 text-white' : 'text-slate-400 hover:text-sky-300'}`}>💳 Payments</button>
           <button onClick={() => setTab('reorder')} className={`py-2 px-4 rounded-lg font-bold text-sm ${tab === 'reorder' ? 'bg-amber-500 text-white' : 'text-slate-400 hover:text-sky-300'}`}>📦 Auto Reorder (POs)</button>
+          <button onClick={() => setTab('price')} className={`py-2 px-4 rounded-lg font-bold text-sm ${tab === 'price' ? 'bg-sky-500 text-white' : 'text-slate-400 hover:text-sky-300'}`}>📊 تحليل السعر</button>
         </div>
 
         {['sysadmin', 'accountant', 'ptown'].includes(currentUser.role || '') && <ErpFinance />}
@@ -465,6 +467,8 @@ export default function Finance() {
             </div>
           </div>
         )}
+
+        {tab === 'price' && <PriceAnalysis />}
 
         {tab === 'reorder' && (
           <div className="space-y-6">
