@@ -163,6 +163,17 @@ function daysUntil(raw: unknown): number | null {
 
 const DEPTS = ['الإدارة', 'المالية', 'الموارد البشرية', 'المبيعات', 'التشغيل', 'الورشة', 'المخازن', 'المختبر', 'الإنتاج', 'البحث والتطوير'];
 
+/** Operations children shown nested under التشغيل in the org chart. */
+const OPS_KIDS = ['الورشة', 'المخازن', 'التوريدات', 'المختبر'];
+
+function orgIsDrv(e: any): boolean {
+  return String(e?.jobTitle ?? e?.role ?? '').includes('سائق');
+}
+
+function orgIsSaudi(e: any): boolean {
+  return e?.nationality === 'SAUDI' || e?.countryCode === 'SA' || /^1\d{9}$/.test(String(e?.nationalId ?? '').trim());
+}
+
 /** Department (Arabic UI) → API role keys used by broadcasts audience. */
 const DEPT_ROLES: Record<string, string[]> = {
   'الإدارة': ['PLANT_MGR', 'SUPER_ADMIN'],
@@ -244,6 +255,33 @@ export default function HR() {
   const [employees, setEmployees] = useState<any[]>([]);
   const [search, setSearch] = useState('');
   const [showInactive, setShowInactive] = useState(false);
+  const [orgView, setOrgView] = useState<'depts' | 'branches' | 'all'>('depts');
+  const [orgBranch, setOrgBranch] = useState('ALL');
+  const drvLbl = ar ? '🧑‍✈️ سائقين' : 'Drivers';
+  const sauLbl = ar ? '🇸🇦 السعوديين' : 'Saudis';
+  const orgGroupOf = (e: any): string => orgIsDrv(e) ? drvLbl : (orgIsSaudi(e) ? sauLbl : (e.department || (ar ? 'بدون قسم' : 'Unassigned')));
+  const orgSiteName = (s: any): string => (!s ? (ar ? 'غير محدد' : 'Unspecified') : (s.code === 'HQ' ? (ar ? 'المصنع' : 'Plant') : (s.name ?? s.code ?? '')));
+  const orgBranchList = () => {
+    const all: { id: string; label: string; vehicles: any[] }[] = (vehRd.sites || []).map((s: any) => ({
+      id: s.id, label: orgSiteName(s),
+      vehicles: fleet.filter((v: any) => (vehRd.map[v.id]?.siteId ?? '') === s.id),
+    }));
+    all.push({
+      id: 'NONE', label: ar ? 'غير محدد' : 'Unspecified',
+      vehicles: fleet.filter((v: any) => !(vehRd.map[v.id]?.siteId ?? '')),
+    });
+    if (orgBranch === 'ALL') return all;
+    return all.filter((b) => b.id === orgBranch);
+  };
+  const orgBranchRows = () => {
+    const rows: { branch: string; code: string; plate: string; type: string; driver: string }[] = [];
+    for (const b of orgBranchList()) {
+      for (const v of b.vehicles) {
+        rows.push({ branch: b.label, code: v.vehicleCode ?? '', plate: v.plateNumber ?? '', type: vehTypeAr(v.vehicleType), driver: vehDriverOf(v).name });
+      }
+    }
+    return rows;
+  };
   const [showAllRenewals, setShowAllRenewals] = useState(false);
 
   const toggleActive = async (e: any) => {
@@ -3593,6 +3631,38 @@ function ageOf(raw: unknown): number | null {
         {/* ===== org chart: company → departments → people ===== */}
         {tab === 'org' && (
           <div className="mt-4">
+            <div className="flex flex-wrap items-center gap-2 mb-3">
+              <label className="text-[11px] text-slate-400 font-bold">{ar ? 'العرض' : 'View'}
+                <select value={orgView} onChange={(e) => setOrgView(e.target.value as any)}
+                  className="mr-1 bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none">
+                  <option value="depts">{ar ? 'الأقسام' : 'Departments'}</option>
+                  <option value="branches">{ar ? 'الفروع' : 'Branches'}</option>
+                  <option value="all">{ar ? 'الكامل (أقسام + فروع)' : 'Full'}</option>
+                </select></label>
+              {orgView !== 'depts' && (
+                <label className="text-[11px] text-slate-400 font-bold">{ar ? 'الفرع' : 'Branch'}
+                  <select value={orgBranch} onChange={(e) => setOrgBranch(e.target.value)}
+                    className="mr-1 bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none max-w-[190px]">
+                    <option value="ALL">{ar ? 'كل الفروع' : 'All branches'}</option>
+                    {vehRd.sites.map((x: any) => <option key={x.id} value={x.id}>{orgSiteName(x)}</option>)}
+                    <option value="NONE">{ar ? 'غير محدد' : 'Unspecified'}</option>
+                  </select></label>
+              )}
+              <ExportBar
+                title={ar ? 'الهيكل الوظيفي' : 'Org chart'}
+                subtitle={`${employees.length} ${ar ? 'موظف' : 'employees'}`}
+                fileBase="hr-org"
+                columns={orgView === 'branches'
+                  ? [{ header: 'الفرع', key: 'branch' }, { header: 'الكود', key: 'code' }, { header: 'اللوحة', key: 'plate' }, { header: 'النوع', key: 'type' }, { header: 'السائق', key: 'driver' }]
+                  : [{ header: 'الاسم', key: 'name' }, { header: 'الكود', key: 'code' }, { header: 'المسمى', key: 'title' }, { header: 'المجموعة', key: 'group' }, { header: 'الإقامة', key: 'iqama' }, { header: 'الجوال', key: 'phone' }]}
+                branding={brandParam}
+                extraSheets={orgView === 'all' ? [{ name: 'المركبات والفروع', columns: [{ header: 'الفرع', key: 'branch' }, { header: 'الكود', key: 'code' }, { header: 'اللوحة', key: 'plate' }, { header: 'النوع', key: 'type' }, { header: 'السائق', key: 'driver' }], rows: orgBranchRows() }] : undefined}
+                rows={orgView === 'branches' ? orgBranchRows() : employees.map((e) => ({
+                  name: nameOf(e), code: e.employeeCode ?? '', title: e.jobTitle ?? e.role ?? '',
+                  group: orgGroupOf(e), iqama: e.nationalId ?? '', phone: e.contactPhone ?? e.phone ?? '',
+                }))}
+              />
+            </div>
             <div className="flex flex-col items-center">
               <div className="rounded-2xl border border-sky-500/50 bg-sky-500/10 px-6 py-3 text-center shadow-[0_0_25px_rgba(56,189,248,0.25)]">
                 {tenant?.logoUrl && <img src={tenant.logoUrl} alt="" className="w-10 h-10 rounded-lg object-contain bg-white p-0.5 mx-auto mb-1" />}
@@ -3600,37 +3670,34 @@ function ageOf(raw: unknown): number | null {
                 <p className="text-[11px] text-slate-400">{employees.length} {ar ? 'موظف' : 'employees'}</p>
               </div>
               <div className="w-px h-6 bg-sky-500/40" />
+              {(orgView === 'depts' || orgView === 'all') && (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 w-full">
                 {(() => {
-                  const isDrv = (e: any) => String(e.jobTitle ?? e.role ?? '').includes('سائق');
-                  const isSaudi = (e: any) => e.nationality === 'SAUDI' || e.countryCode === 'SA' || /^1\d{9}$/.test(String(e.nationalId ?? '').trim());
-                  const drvLabel = ar ? '🧑‍✈️ سائقين' : 'Drivers';
-                  const sauLabel = ar ? '🇸🇦 السعوديين' : 'Saudis';
                   const groups = new Map<string, any[]>();
                   for (const e of employees) {
-                    if (isDrv(e) || isSaudi(e)) continue;
+                    if (orgIsDrv(e) || orgIsSaudi(e)) continue;
                     const d = e.department || (ar ? 'بدون قسم' : 'Unassigned');
                     if (!groups.has(d)) groups.set(d, []);
                     groups.get(d)!.push(e);
                   }
-                  const drvList = employees.filter(isDrv);
-                  if (drvList.length) groups.set(drvLabel, drvList);
-                  const sauList = employees.filter((e) => !isDrv(e) && isSaudi(e));
-                  if (sauList.length) groups.set(sauLabel, sauList);
-                  const ordered = [...DEPTS.filter((d) => groups.has(d)), ...[...groups.keys()].filter((d) => !DEPTS.includes(d))];
-                  // Drivers section lives right under Operations; Saudis right under Administration.
-                  const moveAfter = (what: string, after: string) => {
-                    const di = ordered.indexOf(what);
-                    if (di < 0) return;
-                    ordered.splice(di, 1);
-                    const ai = ordered.indexOf(after);
-                    ordered.splice(ai >= 0 ? ai + 1 : 0, 0, what);
-                  };
-                  moveAfter(drvLabel, 'التشغيل');
-                  moveAfter(sauLabel, 'الإدارة');
-                  const underOf: Record<string, string> = { [drvLabel]: ar ? '⬆ تابعة لإدارة التشغيل' : 'under Operations', [sauLabel]: ar ? '⬆ تابعة للإدارة' : 'under Administration' };
+                  const drvList = employees.filter(orgIsDrv);
+                  if (drvList.length) groups.set(drvLbl, drvList);
+                  const sauList = employees.filter((e) => !orgIsDrv(e) && orgIsSaudi(e));
+                  if (sauList.length) groups.set(sauLbl, sauList);
+                  for (const k of OPS_KIDS) if (!groups.has(k)) groups.set(k, []);
+                  const baseOrdered = [...DEPTS.filter((d) => groups.has(d)), ...[...groups.keys()].filter((d) => !DEPTS.includes(d))];
+                  // Operations block: التشغيل, then drivers, then its sub-departments; Saudis under Administration.
+                  const block = [drvLbl, ...OPS_KIDS].filter((k) => groups.has(k));
+                  const rest = baseOrdered.filter((d) => d !== sauLbl && !block.includes(d));
+                  const ai = rest.indexOf('التشغيل');
+                  const withOps = ai >= 0 ? [...rest.slice(0, ai + 1), ...block, ...rest.slice(ai + 1)] : [...rest, ...block];
+                  const si = withOps.indexOf('الإدارة');
+                  const finalOrder = groups.has(sauLbl) ? (si >= 0 ? [...withOps.slice(0, si + 1), sauLbl, ...withOps.slice(si + 1).filter((d) => d !== sauLbl)] : [...withOps, sauLbl]) : withOps;
+                  const underOf: Record<string, string> = { [drvLbl]: ar ? '⬆ تابعة لإدارة التشغيل' : 'under Operations', [sauLbl]: ar ? '⬆ تابعة للإدارة' : 'under Administration' };
+                  for (const k of OPS_KIDS) underOf[k] = ar ? '⬆ تابعة للتشغيل' : 'under Operations';
+                  const ordered = finalOrder;
                   return ordered.map((d) => (
-                    <div key={d} className={`rounded-2xl border overflow-hidden ${(d === drvLabel || d === sauLabel) ? 'border-amber-500/40 bg-amber-500/[0.04]' : 'border-white/10 bg-white/[0.02]'}`}>
+                    <div key={d} className={`rounded-2xl border overflow-hidden ${((d === drvLbl || d === sauLbl || (OPS_KIDS as string[]).includes(d))) ? 'border-amber-500/40 bg-amber-500/[0.04]' : 'border-white/10 bg-white/[0.02]'}`}>
                       <div className="bg-white/[0.05] border-b border-white/10 px-3 py-2 flex items-center justify-between">
                         <span className="text-xs font-black text-sky-300">{d}
                           {underOf[d] && <span className="block text-[10px] font-bold text-amber-300/90">{underOf[d]}</span>}
@@ -3638,6 +3705,7 @@ function ageOf(raw: unknown): number | null {
                         <span className="text-[10px] font-black text-slate-400 bg-white/10 rounded-full px-2 py-0.5">{groups.get(d)!.length}</span>
                       </div>
                       <div className="p-2 space-y-1.5 max-h-[320px] overflow-y-auto">
+                        {(groups.get(d) ?? []).length === 0 && <p className="text-[11px] text-slate-500 text-center py-2">{ar ? 'لا موظفين بعد — عيّن من ملف الموظف (الإدارة التابع لها).' : 'No staff yet.'}</p>}
                         {(groups.get(d) ?? []).map((e, i) => (
                           <div key={e.id ?? i} className="flex items-center gap-2 rounded-xl border border-white/5 bg-white/[0.02] px-2 py-1.5">
                             <button onClick={() => gotoEmpFile(e)} title={ar ? 'فتح ملف الموظف' : 'Open employee file'}
@@ -3655,6 +3723,42 @@ function ageOf(raw: unknown): number | null {
                   ));
                 })()}
               </div>
+              )}
+              {(orgView === 'branches' || orgView === 'all') && (
+              <div className="mt-4">
+                <p className="text-xs font-black text-sky-300 mb-2">🏢 {ar ? 'الفروع — المركبات وسائقوها' : 'Branches — vehicles & drivers'}</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 w-full">
+                  {orgBranchList().map((b) => (
+                    <div key={b.id} className="rounded-2xl border border-white/10 bg-white/[0.02] overflow-hidden">
+                      <div className="bg-white/[0.05] border-b border-white/10 px-3 py-2 flex items-center justify-between">
+                        <span className="text-xs font-black text-sky-300">{b.label}</span>
+                        <span className="text-[10px] font-black text-slate-400 bg-white/10 rounded-full px-2 py-0.5">{b.vehicles.length}</span>
+                      </div>
+                      <div className="p-2 space-y-1.5 max-h-[320px] overflow-y-auto">
+                        {b.vehicles.length === 0 && <p className="text-[11px] text-slate-500 text-center py-2">{ar ? 'لا مركبات مسجلة على هذا الفرع.' : 'No vehicles.'}</p>}
+                        {b.vehicles.map((v: any) => {
+                          const dr = vehDriverOf(v);
+                          return (
+                            <div key={v.id} className="flex items-center gap-2 rounded-xl border border-white/5 bg-white/[0.02] px-2 py-1.5">
+                              <div className="min-w-0 flex-1">
+                                <p className="text-[11px] font-black text-white truncate" dir="ltr">{v.vehicleCode} · {v.plateNumber}</p>
+                                <p className="text-[10px] text-slate-500 truncate">{vehTypeAr(v.vehicleType)}{dr.name ? ` · 🧑‍✈️ ${dr.name}` : ''}</p>
+                              </div>
+                              {dr.id ? (
+                                <button onClick={() => gotoEmpFile(employees.find((x) => x.id === dr.id) ?? { id: dr.id })} title={ar ? 'فتح ملف السائق' : 'Open driver file'}
+                                  className="w-7 h-7 shrink-0 rounded-full bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-xs font-black text-emerald-300 hover:bg-emerald-500/30 hover:scale-110 transition cursor-pointer">
+                                  {(dr.name || '?').trim().charAt(0)}
+                                </button>
+                              ) : null}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              )}
               {employees.length === 0 && <p className="text-xs text-slate-500 mt-3">{ar ? 'لا بيانات فريق.' : 'No team data.'}</p>}
             </div>
           </div>
