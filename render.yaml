@@ -60,3 +60,33 @@ services:
         generateValue: true
       - key: QR_SECRET
         generateValue: true
+      # Tenant recovery snapshots (RECOVERY.md). Values are set once in the
+      # Render dashboard (sync:false keeps them there on every blueprint sync):
+      #   RECOVERY_PASSWORD_HASH  from: RECOVERY_PASSWORD=... node scripts/make-recovery-hash.mjs
+      #   CRON_SECRET             openssl rand -hex 32
+      #   RECOVERY_DIR            /var/fimto-data/recovery (needs a disk; ephemeral on free)
+      #   RECOVERY_RETENTION_COUNT  28
+      - key: RECOVERY_PASSWORD_HASH
+        sync: false
+      - key: CRON_SECRET
+        sync: false
+      - key: RECOVERY_DIR
+        sync: false
+      - key: RECOVERY_RETENTION_COUNT
+        sync: false
+
+  # Tenant recovery snapshots every 6h (worst-case loss ≈ 6h).
+  # No repo code is needed here: it only curls the live API endpoint,
+  # which does all the work. Set CRON_SECRET below once in the dashboard
+  # (same value as on fimto-api-web).
+  - type: cron
+    name: fimto-recovery-cron
+    branch: main
+    schedule: "0 */6 * * *"
+    plan: free
+    region: singapore
+    buildCommand: echo "no build needed"
+    startCommand: "curl -fsS https://concrete.fimtosoft.com/api/cron/recovery-backup -H \"Authorization: Bearer $CRON_SECRET\""
+    envVars:
+      - key: CRON_SECRET
+        sync: false
