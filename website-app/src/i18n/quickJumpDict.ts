@@ -15,7 +15,7 @@ const DICT: PageDict = {
   forms: { en: '📑 Forms library', ar: '📑 مكتبة النماذج', ru: '📑 Forms', de: '📑 Forms', it: '📑 Forms', hi: '📑 Forms', ur: '📑 Forms', ja: '📑 Forms', zh: '📑 Forms' },
   gate: { en: '⚖️ Gate & Scale', ar: '⚖️ البوابة والميزان', ru: '⚖️ Gate', de: '⚖️ Gate', it: '⚖️ Gate', hi: '⚖️ Gate', ur: '⚖️ Gate', ja: '⚖️ Gate', zh: '⚖️ Gate' },
   procurement: { en: '🧾 Procurement', ar: '🧾 المشتريات', ru: '🧾 Procurement', de: '🧾 Procurement', it: '🧾 Procurement', hi: '🧾 Procurement', ur: '🧾 Procurement', ja: '🧾 Procurement', zh: '🧾 Procurement' },
-  mixing: { en: '🎛️ Mixing & Quality', ar: '🎛️ الخلط والجودة', ru: '🎛️ Mixing', de: '🎛️ Mixing', it: '🎛️ Mixing', hi: '🎛️ Mixing', ur: '🎛️ Mixing', ja: '🎛️ Mixing', zh: '🎛️ Mixing' },
+  mixing: { en: '🧪 Lab', ar: '🧪 المختبر', ru: '🧪 Лаборатория', de: '🧪 Labor', it: '🧪 Laboratorio', hi: '🧪 प्रयोगशाला', ur: '🧪 لیب', ja: '🧪 ラボ', zh: '🧪 实验室' },
   production: { en: '🏭 Production & Inventory', ar: '🏭 الإنتاج والمخزون', ru: '🏭 Production', de: '🏭 Production', it: '🏭 Production', hi: '🏭 Production', ur: '🏭 Production', ja: '🏭 Production', zh: '🏭 Production' },
   evaluation: { en: '📊 Plant OEE Evaluation', ar: '📊 تقييم المصنع', ru: '📊 Evaluation', de: '📊 Evaluation', it: '📊 Evaluation', hi: '📊 Evaluation', ur: '📊 Evaluation', ja: '📊 Evaluation', zh: '📊 Evaluation' },
   schedule: { en: '📅 Pouring Schedule', ar: '📅 جدول الصب', ru: '📅 Schedule', de: '📅 Schedule', it: '📅 Schedule', hi: '📅 Schedule', ur: '📅 Schedule', ja: '📅 Schedule', zh: '📅 Schedule' },
