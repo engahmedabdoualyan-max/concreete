@@ -3,6 +3,24 @@
 نسخة احتياطية مؤرخة (بالتاريخ والساعة) لكل مصنع/مشترك، بباسورد استرجاع،
 كل 6 ساعات → أقصى خسارة محتملة ≈ 6 ساعات (أقل من يوم).
 
+## النشر (Render — تلقائي من GitHub)
+
+الـAPI الحي يعمل على Render ويُبنى تلقائياً من فرع `main`:
+
+1. راجع وادمج فرع `feat/recovery-snapshots` في `main` (Pull Request).
+2. Render يعيد البناء والنشر تلقائياً — تحقق بعدها:
+   `curl -s https://concrete.fimtosoft.com/api/recovery/backups -H "Authorization: Bearer $TOKEN"`
+   يجب أن يرد `401` (وليس `404`) — أي أن المسارات الجديدة حية.
+
+## متغيرات البيئة (Render Dashboard → الخدمة → Environment)
+
+| المتغير | القيمة |
+|---|---|
+| `RECOVERY_PASSWORD_HASH` | ناتج السكريبت أدناه (الصقه كما هو) |
+| `CRON_SECRET` | نص عشوائي طويل (ولّده بالأمر أدناه) |
+| `RECOVERY_DIR` | `/var/fimto-data/recovery` (مع قرص دائم، راجع أدناه) |
+| `RECOVERY_RETENTION_COUNT` | `28` (4 نسخ/يوم × 7 أيام) |
+
 ## التجهيز (مرة واحدة، من جهاز المالك)
 
 ```bash
@@ -19,16 +37,23 @@ CRON_SECRET=<random-secret>
 
 ## الجدولة التلقائية (كل 6 ساعات)
 
-Vercel → Cron (يحتاج خطة تدعم أقل من يومي) على:
+Render Dashboard → **Cron Jobs** → New (نفس الريبو/البيئة):
 
-```
-GET /api/cron/recovery-backup   +   Authorization: Bearer <CRON_SECRET>
-0 0,6,12,18 * * *
-```
+- Schedule (cron): `0 */6 * * *`
+- Command:
+  `curl -fsS https://concrete.fimtosoft.com/api/cron/recovery-backup -H "Authorization: Bearer $CRON_SECRET"`
+- المتغيرات: نفس `CRON_SECRET` أعلاه.
 
-> ⚠️ ملاحظة الإنتاج: نظام ملفات Vercel مؤقت — النسخ على `/tmp` أو `backups/`
-> تضيع مع إعادة النشر. للإنتاج الحقيقي وجّه `RECOVERY_DIR` لتخزين دائم
-> (S3/Supabase Storage) قبل الاعتماد على الخاصية.
+> بديل: Vercel Cron على مشروع `concreete` بنفس المسار — لكن Render Cron
+> أنظف (نفس مضيف الـAPI بدون قفزة إضافية).
+
+## التخزين الدائم (مهم للإنتاج)
+
+نظام ملفات Render مؤقت مع كل نشر — بدون قرص دائم تضيع النسخ:
+
+1. Render Dashboard → الخدمة → **Disks** → Add Disk بالاسم `fimto-data` على المسار `/var/fimto-data`.
+2. اضبط `RECOVERY_DIR=/var/fimto-data/recovery`.
+3. بدون قرص دائم: لا تعتمد على الخاصية في الإنتاج (للتجربة فقط).
 
 ## الاستخدام اليدوي (SUPER_ADMIN فقط)
 
