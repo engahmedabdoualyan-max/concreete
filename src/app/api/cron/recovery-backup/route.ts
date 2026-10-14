@@ -18,7 +18,7 @@ import { NextRequest } from "next/server";
 import { db } from "@/db";
 import { auditLogs } from "@/db/schema";
 import { errorResponse, successResponse } from "@/lib/auth/middleware";
-import { backupTenant, isRecoveryConfigured } from "@/lib/services/recovery.service";
+import { backupTenant, isRecoveryConfigured, listTenantTables, mapLimit } from "@/lib/services/recovery.service";
 import { sql } from "drizzle-orm";
 
 export const dynamic = "force-dynamic";
@@ -49,9 +49,12 @@ export async function GET(req: NextRequest) {
   }
 
   const results: Array<{ tenantId: string; ok: boolean; totalRows?: number; sha256?: string; error?: string }> = [];
-  for (const tenantId of tenantIds) {
+  // One shared table scan for all tenants; tenants back up concurrently
+  // (bounded) so the whole run fits comfortably inside proxy timeouts.
+  const sharedTables = await listTenantTables().catch(() => null as string[] | null);
+  await mapLimit(tenantIds, 3, async (tenantId) => {
     try {
-      const manifest = await backupTenant(tenantId, null);
+      const manifest = await backupTenant(tenantId, null, sharedTables ?? undefined);
       results.push({ tenantId, ok: true, totalRows: manifest.totalRows, sha256: manifest.sha256 });
       try {
         await db.insert(auditLogs).values({
@@ -67,7 +70,7 @@ export async function GET(req: NextRequest) {
     } catch (err) {
       results.push({ tenantId, ok: false, error: err instanceof Error ? err.message : "Unknown error" });
     }
-  }
+  });
 
   const failed = results.filter((r) => !r.ok);
   return successResponse(

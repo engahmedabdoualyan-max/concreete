@@ -96,6 +96,20 @@ function quoteIdent(name: string): string {
   return `"${name}"`;
 }
 
+/** Bounded-parallel map: independent DB reads run concurrently. */
+export async function mapLimit<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+  const out: R[] = new Array(items.length);
+  let cursor = 0;
+  const workers = Array.from({ length: Math.max(1, Math.min(limit, items.length)) }, async () => {
+    while (cursor < items.length) {
+      const idx = cursor++;
+      out[idx] = await fn(items[idx]);
+    }
+  });
+  await Promise.all(workers);
+  return out;
+}
+
 /** Every base table in `public` that is scoped by tenant_id. */
 export async function listTenantTables(): Promise<string[]> {
   const rows = await db.execute(sql`
@@ -128,19 +142,27 @@ function reviveValue(value: unknown): unknown {
 /**
  * Snapshot every tenant-scoped row for one tenant.
  * Additive only — never modifies the database.
+ * Table dumps run with bounded parallelism so a full snapshot
+ * finishes in seconds, not minutes (proxy timeouts).
  */
-export async function backupTenant(tenantId: string, createdBy: string | null): Promise<RecoveryManifest> {
+export async function backupTenant(
+  tenantId: string,
+  createdBy: string | null,
+  knownTables?: string[]
+): Promise<RecoveryManifest> {
   const dir = tenantDir(tenantId);
   await fs.mkdir(dir, { recursive: true });
 
-  const tables = await listTenantTables();
-  const payload: Record<string, unknown[]> = {};
-  let totalRows = 0;
-  for (const table of tables) {
+  const tables = knownTables ?? (await listTenantTables());
+  const pairs = await mapLimit(tables, 8, async (table) => {
     const res = await db.execute(
       sql`SELECT * FROM ${sql.raw(quoteIdent(table))} WHERE ${sql.raw(quoteIdent("tenant_id"))} = ${tenantId}`
     );
-    const rows = res.rows as unknown[];
+    return [table, res.rows as unknown[]] as const;
+  });
+  const payload: Record<string, unknown[]> = {};
+  let totalRows = 0;
+  for (const [table, rows] of pairs) {
     payload[table] = rows;
     totalRows += rows.length;
   }
