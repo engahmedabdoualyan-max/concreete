@@ -227,22 +227,22 @@ export default function MixingQuality() {
           ${logo ? `<img src="${logo}" style="height:64px;max-width:110px;object-fit:contain" />` : ''}
           <div><h1>🔬 Concrete Quality Test Report</h1><h2>${currentUser?.plantName || 'Ready-Mix Concrete Plant'}</h2></div>
         </div>
-        <div style="text-align:right"><div class="field" style="font-size:12px"><b>Report Date</b>${r.date}</div><div class="field" style="font-size:12px"><b>Ticket / Bon No</b>${r.bonNo || '—'}</div></div>
+        <div style="text-align:right"><div class="field" style="font-size:12px"><b>${L('mqReportDate')}</b>${r.date}</div><div class="field" style="font-size:12px"><b>${L('mqTicket')}</b>${r.bonNo || '—'}</div></div>
       </div>
       <div class="grid">
-        <div class="field"><b>Mix Design</b>${r.design}${r.mixDesignCode ? ' (' + r.mixDesignCode + ')' : ''}</div>
-        <div class="field"><b>Mixer Truck</b>${r.truck}</div>
-        <div class="field"><b>Customer</b>${r.customer || '—'}</div>
-        <div class="field"><b>Site / Project</b>${r.site || '—'}</div>
+        <div class="field"><b>${L('mqMixDesign')}</b>${r.design}${r.mixDesignCode ? ' (' + r.mixDesignCode + ')' : ''}</div>
+        <div class="field"><b>${L('mqMixerTruck')}</b>${r.truck}</div>
+        <div class="field"><b>${L('mqCustomer')}</b>${r.customer || '—'}</div>
+        <div class="field"><b>${L('mqSite')}</b>${r.site || '—'}</div>
       </div>
       <table>
-        <tr><th>Test</th><th>Result</th><th>Requirement</th><th>Status</th></tr>
-        <tr><td>Slump Test</td><td>${r.slump} cm</td><td>Design slump</td><td>${r.slump >= 8 && r.slump <= 18 ? '<span class="pass">✓ Pass</span>' : '<span class="fail">✗ Check</span>'}</td></tr>
+        <tr><th>${L('mqTest')}</th><th>${L('mqResult')}</th><th>>${L('mqReq')}</th><th>${L('mqStatus')}</th></tr>
+        <tr><td>${L('mqSlumpTest')}</td><td>${r.slump} cm</td><td>${L('mqDesignSlump')}</td><td>${r.slump >= 8 && r.slump <= 18 ? '<span class="pass">✓ Pass</span>' : '<span class="fail">✗ Check</span>'}</td></tr>
         <tr><td>Compressive Strength — 7 Days</td><td>${r.break7d} MPa</td><td>≈ ${(target * 0.65).toFixed(1)} MPa</td><td>${r.break7d >= target * 0.65 ? '<span class="pass">✓ Pass</span>' : '<span class="fail">✗ Fail</span>'}</td></tr>
         <tr><td>Compressive Strength — 28 Days</td><td>${r.break28d} MPa</td><td>${target} MPa</td><td>${pass ? '<span class="pass">✓ Pass</span>' : '<span class="fail">✗ Fail</span>'}</td></tr>
       </table>
       <p style="font-size:11px;color:#64748b;margin-top:16px">Blade condition: <b>${r.blade}</b></p>
-      <div class="footer"><span>Certified by Fimto Soft Technical Management</span><span>This report is linked to delivery ticket (bon) for traceability</span></div>
+      <div class="footer"><span>${L('mqCert')}</span><span>${L('mqTicketNote')}</span></div>
       <script>window.onload=function(){window.print()}<\/script>
       </body></html>`);
     w.document.close();
@@ -356,7 +356,7 @@ export default function MixingQuality() {
     const blob = new Blob([csv], { type: 'text/csv' }); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'quality_records.csv'; a.click();
   };
 
-  if (!currentUser) return <div className="min-h-screen bg-[#0B111E] flex items-center justify-center"><div className="text-center"><p className="text-red-400 text-xl mb-4">🔒 Access Denied</p><Link to="/" className="text-sky-400 underline">Back to Login</Link></div></div>;
+  if (!currentUser) return <div className="min-h-screen bg-[#0B111E] flex items-center justify-center"><div className="text-center"><p className="text-red-400 text-xl mb-4">🔒 Access Denied</p><Link to="/" className="text-sky-400 underline">{L('mqBackLogin')}</Link></div></div>;
 
   return (
     <div className="min-h-screen bg-[#0B111E] text-slate-200">
@@ -397,15 +397,15 @@ export default function MixingQuality() {
             <div className="bg-white/[0.04] border border-white/10 rounded-xl p-6">
               <h3 className="text-lg font-black tracking-tight text-white mb-4">➕ Add Recipe</h3>
               <form onSubmit={addRecipe} className="space-y-3">
-                <div><label className="text-xs text-slate-400 font-semibold">Code</label><input value={recipeForm.code} onChange={e => setRecipeForm({ ...recipeForm, code: e.target.value })} placeholder="C30" className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]" required /></div>
-                <div><label className="text-xs text-slate-400 font-semibold">Cement (kg)</label><input type="number" value={recipeForm.cement} onChange={e => setRecipeForm({ ...recipeForm, cement: e.target.value })} placeholder="350" className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]" required /></div>
+                <div><label className="text-xs text-slate-400 font-semibold">{L('mqCode')}</label><input value={recipeForm.code} onChange={e => setRecipeForm({ ...recipeForm, code: e.target.value })} placeholder="C30" className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]" required /></div>
+                <div><label className="text-xs text-slate-400 font-semibold">{L('mqCementKg')}</label><input type="number" value={recipeForm.cement} onChange={e => setRecipeForm({ ...recipeForm, cement: e.target.value })} placeholder="350" className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]" required /></div>
                 <div className="grid grid-cols-2 gap-3">
-                  <div><label className="text-xs text-slate-400 font-semibold">Sand (kg)</label><input type="number" value={recipeForm.sand} onChange={e => setRecipeForm({ ...recipeForm, sand: e.target.value })} placeholder="750" className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]" required /></div>
-                  <div><label className="text-xs text-slate-400 font-semibold">Gravel (kg)</label><input type="number" value={recipeForm.gravel} onChange={e => setRecipeForm({ ...recipeForm, gravel: e.target.value })} placeholder="1100" className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]" required /></div>
+                  <div><label className="text-xs text-slate-400 font-semibold">{L('mqSandKg')}</label><input type="number" value={recipeForm.sand} onChange={e => setRecipeForm({ ...recipeForm, sand: e.target.value })} placeholder="750" className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]" required /></div>
+                  <div><label className="text-xs text-slate-400 font-semibold">{L('mqGravelKg')}</label><input type="number" value={recipeForm.gravel} onChange={e => setRecipeForm({ ...recipeForm, gravel: e.target.value })} placeholder="1100" className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]" required /></div>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
-                  <div><label className="text-xs text-slate-400 font-semibold">Water (kg)</label><input type="number" value={recipeForm.water} onChange={e => setRecipeForm({ ...recipeForm, water: e.target.value })} placeholder="160" className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]" required /></div>
-                  <div><label className="text-xs text-slate-400 font-semibold">Admixture (kg)</label><input type="number" step="0.1" value={recipeForm.admixture} onChange={e => setRecipeForm({ ...recipeForm, admixture: e.target.value })} placeholder="5.5" className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]" required /></div>
+                  <div><label className="text-xs text-slate-400 font-semibold">{L('mqWaterKg')}</label><input type="number" value={recipeForm.water} onChange={e => setRecipeForm({ ...recipeForm, water: e.target.value })} placeholder="160" className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]" required /></div>
+                  <div><label className="text-xs text-slate-400 font-semibold">{L('mqAdmixKg')}</label><input type="number" step="0.1" value={recipeForm.admixture} onChange={e => setRecipeForm({ ...recipeForm, admixture: e.target.value })} placeholder="5.5" className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]" required /></div>
                 </div>
                 <button type="submit" className="w-full bg-sky-500 hover:bg-sky-400 text-white font-bold py-3 rounded-lg shadow-[0_0_20px_rgba(56,189,248,0.3)]">💾 Save Recipe</button>
               </form>
@@ -418,7 +418,7 @@ export default function MixingQuality() {
               <div className="overflow-x-auto">
                 <table className="w-full text-xs text-slate-300">
                   <thead className="bg-white/[0.04] text-slate-400 text-[10px]">
-                    <tr><th className="p-2">Code</th><th className="p-2">Cement</th><th className="p-2">Sand</th><th className="p-2">Gravel</th><th className="p-2">Water</th><th className="p-2">Admix</th><th className="p-2">Act</th></tr>
+                    <tr><th className="p-2">{L('mqCode')}</th><th className="p-2">{L('mqCement')}</th><th className="p-2">{L('mqSand')}</th><th className="p-2">{L('mqGravel')}</th><th className="p-2">{L('mqWater')}</th><th className="p-2">{L('mqAdmix')}</th><th className="p-2">{L('mqAct')}</th></tr>
                   </thead>
                   <tbody>
                     {recipes.map((r, i) => (
@@ -426,7 +426,7 @@ export default function MixingQuality() {
                         <td className="p-2 font-bold text-purple-400">{r.code}</td>
                         <td className="p-2">{r.cement}</td><td className="p-2">{r.sand}</td><td className="p-2">{r.gravel}</td>
                         <td className="p-2">{r.water}</td><td className="p-2">{r.admixture}</td>
-                        <td className="p-2"><button onClick={() => deleteRecipe(i)} className="bg-red-600 text-white text-[10px] px-2 py-0.5 rounded">Del</button></td>
+                        <td className="p-2"><button onClick={() => deleteRecipe(i)} className="bg-red-600 text-white text-[10px] px-2 py-0.5 rounded">{L('mqDel')}</button></td>
                       </tr>
                     ))}
                   </tbody>
@@ -443,15 +443,15 @@ export default function MixingQuality() {
               <h3 className="text-lg font-black tracking-tight text-white mb-4">⚖️ Calibration Record</h3>
               <form onSubmit={addCalibration} className="space-y-3">
                 <DatePicker value={calForm.date} onChange={val => setCalForm({ ...calForm, date: val })} label="Date" required />
-                <div><label className="text-xs text-slate-400 font-semibold">Scale Type</label>
+                <div><label className="text-xs text-slate-400 font-semibold">{L('mqScaleType')}</label>
                   <select value={calForm.scaleType} onChange={e => setCalForm({ ...calForm, scaleType: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]">
                     <option>Cement Scale (500kg)</option><option>Aggregate Scale (1000kg)</option><option>Water Scale (200kg)</option>
                   </select>
                 </div>
-                <div><label className="text-xs text-slate-400 font-semibold">Measured Weight (kg)</label><input type="number" step="0.01" value={calForm.measured} onChange={e => setCalForm({ ...calForm, measured: e.target.value })} placeholder="502.5" className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]" required /></div>
-                <div><label className="text-xs text-slate-400 font-semibold">Upload Report</label><input type="file" accept=".pdf,.jpg,.png" onChange={handleFileUpload} className="w-full text-xs text-slate-400" /></div>
+                <div><label className="text-xs text-slate-400 font-semibold">{L('mqMeasW')}</label><input type="number" step="0.01" value={calForm.measured} onChange={e => setCalForm({ ...calForm, measured: e.target.value })} placeholder="502.5" className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]" required /></div>
+                <div><label className="text-xs text-slate-400 font-semibold">{L('mqUpload')}</label><input type="file" accept=".pdf,.jpg,.png" onChange={handleFileUpload} className="w-full text-xs text-slate-400" /></div>
                 {calForm.reportFileName && <p className="text-xs text-emerald-400">✓ {calForm.reportFileName}</p>}
-                <div><label className="text-xs text-slate-400 font-semibold">Accreditation</label><input value={calForm.accreditation} onChange={e => setCalForm({ ...calForm, accreditation: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]" /></div>
+                <div><label className="text-xs text-slate-400 font-semibold">{L('mqAccred')}</label><input value={calForm.accreditation} onChange={e => setCalForm({ ...calForm, accreditation: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]" /></div>
                 <button type="submit" className="w-full bg-sky-500 hover:bg-sky-400 text-white font-bold py-3 rounded-lg shadow-[0_0_20px_rgba(56,189,248,0.3)]">💾 Save Calibration</button>
               </form>
             </div>
@@ -460,7 +460,7 @@ export default function MixingQuality() {
               <div className="grid grid-cols-2 gap-3 mb-4"><DatePicker value={fromDate} onChange={setFromDate} label="From" /><DatePicker value={toDate} onChange={setToDate} label="To" /></div>
               <div className="overflow-x-auto">
                 <table className="w-full text-xs text-slate-300">
-                  <thead className="bg-white/[0.04] text-slate-400 text-[10px]"><tr><th className="p-2">Date</th><th className="p-2">Scale</th><th className="p-2">Target</th><th className="p-2">Measured</th><th className="p-2">Dev%</th><th className="p-2">Status</th><th className="p-2">Report</th><th className="p-2">Act</th></tr></thead>
+                  <thead className="bg-white/[0.04] text-slate-400 text-[10px]"><tr><th className="p-2">{L('mqDate')}</th><th className="p-2">{L('mqScale')}</th><th className="p-2">{L('mqTarget')}</th><th className="p-2">{L('mqMeasured')}</th><th className="p-2">Dev%</th><th className="p-2">{L('mqStatus')}</th><th className="p-2">{L('mqReport')}</th><th className="p-2">{L('mqAct')}</th></tr></thead>
                   <tbody>
                     {filteredCalib.map(c => (
                       <tr key={c.id} className="border-b border-white/10">
@@ -469,7 +469,7 @@ export default function MixingQuality() {
                         <td className={`p-2 font-bold ${Math.abs(c.dev) > 1.5 ? 'text-red-400' : Math.abs(c.dev) > 0.8 ? 'text-yellow-400' : 'text-emerald-400'}`}>{c.dev.toFixed(2)}%</td>
                         <td className="p-2"><span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${c.status === 'Passed' ? 'bg-emerald-500/20 text-emerald-400' : c.status === 'Warning' ? 'bg-yellow-500/20 text-yellow-400' : 'bg-red-500/20 text-red-400'}`}>{c.status}</span></td>
                         <td className="p-2">{c.reportFileName ? <a href={c.reportFile} download={c.reportFileName} className="text-sky-400 underline">📄</a> : '-'}</td>
-                        <td className="p-2"><button onClick={() => deleteCalibration(c.id)} className="bg-red-600 text-white text-[10px] px-2 py-0.5 rounded">Del</button></td>
+                        <td className="p-2"><button onClick={() => deleteCalibration(c.id)} className="bg-red-600 text-white text-[10px] px-2 py-0.5 rounded">{L('mqDel')}</button></td>
                       </tr>
                     ))}
                   </tbody>
@@ -485,14 +485,14 @@ export default function MixingQuality() {
             <div className="bg-white/[0.04] border border-white/10 rounded-xl p-6">
               <h3 className="text-lg font-black tracking-tight text-white mb-4">🧮 Mix Design Calculator</h3>
               <form onSubmit={calculateMixDesign} className="space-y-3">
-                <div><label className="text-xs text-slate-400 font-semibold">Target Strength (MPa)</label><input type="number" value={designerForm.targetStrength} onChange={e => setDesignerForm({ ...designerForm, targetStrength: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]" required /></div>
-                <div><label className="text-xs text-slate-400 font-semibold">Max Aggregate Size (mm)</label>
+                <div><label className="text-xs text-slate-400 font-semibold">{L('mqTargetStr')}</label><input type="number" value={designerForm.targetStrength} onChange={e => setDesignerForm({ ...designerForm, targetStrength: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]" required /></div>
+                <div><label className="text-xs text-slate-400 font-semibold">{L('mqMaxAgg')}</label>
                   <select value={designerForm.maxAggregateSize} onChange={e => setDesignerForm({ ...designerForm, maxAggregateSize: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]">
                     <option value="10">10mm</option><option value="20">20mm</option><option value="40">40mm</option>
                   </select>
                 </div>
-                <div><label className="text-xs text-slate-400 font-semibold">Slump (cm)</label><input type="number" value={designerForm.slump} onChange={e => setDesignerForm({ ...designerForm, slump: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]" required /></div>
-                <div><label className="text-xs text-slate-400 font-semibold">Fine Modulus</label><input type="number" step="0.1" value={designerForm.fineModulus} onChange={e => setDesignerForm({ ...designerForm, fineModulus: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]" required /></div>
+                <div><label className="text-xs text-slate-400 font-semibold">{L('mqSlumpCm')}</label><input type="number" value={designerForm.slump} onChange={e => setDesignerForm({ ...designerForm, slump: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]" required /></div>
+                <div><label className="text-xs text-slate-400 font-semibold">{L('mqFineMod')}</label><input type="number" step="0.1" value={designerForm.fineModulus} onChange={e => setDesignerForm({ ...designerForm, fineModulus: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]" required /></div>
                 <div className="grid grid-cols-2 gap-3">
                   <div><label className="text-xs text-slate-400 font-semibold">Ambient Temp (°C)</label><input type="number" value={designerForm.ambientTemp} onChange={e => setDesignerForm({ ...designerForm, ambientTemp: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]" required /></div>
                   <div><label className="text-xs text-slate-400 font-semibold">Humidity (%)</label><input type="number" value={designerForm.humidity} onChange={e => setDesignerForm({ ...designerForm, humidity: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]" required /></div>
@@ -514,22 +514,22 @@ export default function MixingQuality() {
                   <div className="bg-[#0B111E] border border-white/10 rounded-lg p-3">
                     <p className="text-xs text-slate-400 mb-1">🌡️ Environment: {designerResult.temp}°C / {designerResult.humidity}% RH</p>
                     <div className="grid grid-cols-2 gap-2 text-xs">
-                      <div className="flex justify-between"><span className="text-slate-400">Base Water</span><b className="text-white">{designerResult.base.water} kg</b></div>
-                      <div className="flex justify-between"><span className="text-yellow-400">Adjusted Water</span><b className="text-yellow-300">{designerResult.water} kg</b></div>
-                      <div className="flex justify-between"><span className="text-slate-400">Base Admixture</span><b className="text-white">{designerResult.base.admixture} kg</b></div>
-                      <div className="flex justify-between"><span className="text-yellow-400">Adjusted Admixture</span><b className="text-yellow-300">{designerResult.admixture} kg</b></div>
+                      <div className="flex justify-between"><span className="text-slate-400">{L('mqBaseWater')}</span><b className="text-white">{designerResult.base.water} kg</b></div>
+                      <div className="flex justify-between"><span className="text-yellow-400">{L('mqAdjWater')}</span><b className="text-yellow-300">{designerResult.water} kg</b></div>
+                      <div className="flex justify-between"><span className="text-slate-400">{L('mqBaseAdmix')}</span><b className="text-white">{designerResult.base.admixture} kg</b></div>
+                      <div className="flex justify-between"><span className="text-yellow-400">{L('mqAdjAdmix')}</span><b className="text-yellow-300">{designerResult.admixture} kg</b></div>
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
-                    <div className="bg-[#0B111E] rounded-lg p-4"><p className="text-xs text-slate-400">Cement</p><p className="text-lg font-black tracking-tight text-white">{designerResult.base.cement} kg</p></div>
-                    <div className="bg-[#0B111E] rounded-lg p-4"><p className="text-xs text-slate-400">Sand</p><p className="text-lg font-black tracking-tight text-white">{designerResult.base.sand} kg</p></div>
-                    <div className="bg-[#0B111E] rounded-lg p-4"><p className="text-xs text-slate-400">Gravel</p><p className="text-lg font-black tracking-tight text-white">{designerResult.base.gravel} kg</p></div>
-                    <div className="bg-[#0B111E] rounded-lg p-4"><p className="text-xs text-slate-400">Water (adjusted)</p><p className="text-lg font-bold text-yellow-300">{designerResult.water} kg</p></div>
-                    <div className="bg-[#0B111E] rounded-lg p-4"><p className="text-xs text-slate-400">Admixture (adjusted)</p><p className="text-lg font-bold text-yellow-300">{designerResult.admixture} kg</p></div>
+                    <div className="bg-[#0B111E] rounded-lg p-4"><p className="text-xs text-slate-400">{L('mqCement')}</p><p className="text-lg font-black tracking-tight text-white">{designerResult.base.cement} kg</p></div>
+                    <div className="bg-[#0B111E] rounded-lg p-4"><p className="text-xs text-slate-400">{L('mqSand')}</p><p className="text-lg font-black tracking-tight text-white">{designerResult.base.sand} kg</p></div>
+                    <div className="bg-[#0B111E] rounded-lg p-4"><p className="text-xs text-slate-400">{L('mqGravel')}</p><p className="text-lg font-black tracking-tight text-white">{designerResult.base.gravel} kg</p></div>
+                    <div className="bg-[#0B111E] rounded-lg p-4"><p className="text-xs text-slate-400">{L('mqWaterAdj')}</p><p className="text-lg font-bold text-yellow-300">{designerResult.water} kg</p></div>
+                    <div className="bg-[#0B111E] rounded-lg p-4"><p className="text-xs text-slate-400">{L('mqAdmixAdj')}</p><p className="text-lg font-bold text-yellow-300">{designerResult.admixture} kg</p></div>
                   </div>
                 </div>
               ) : (
-                <p className="text-slate-500 text-center py-12">Enter parameters and calculate</p>
+                <p className="text-slate-500 text-center py-12">{L('mqEnterCalc')}</p>
               )}
             </div>
           </div>
@@ -542,12 +542,12 @@ export default function MixingQuality() {
               <h3 className="text-lg font-black tracking-tight text-white mb-4">🔬 QC Record</h3>
               <form onSubmit={addQCRecord} className="space-y-3">
                 <div className="grid grid-cols-2 gap-3">
-                  <div><label className="text-xs text-slate-400 font-semibold">Bon / Ticket No</label><input value={qcForm.bonNo} onChange={e => setQcForm({ ...qcForm, bonNo: e.target.value })} placeholder="BON-1024" className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]" required /></div>
-                  <div><label className="text-xs text-slate-400 font-semibold">Mix Design Code</label><input value={qcForm.mixDesignCode} onChange={e => setQcForm({ ...qcForm, mixDesignCode: e.target.value })} placeholder="C30-v2" className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]" /></div>
+                  <div><label className="text-xs text-slate-400 font-semibold">{L('mqBonTicket')}</label><input value={qcForm.bonNo} onChange={e => setQcForm({ ...qcForm, bonNo: e.target.value })} placeholder="BON-1024" className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]" required /></div>
+                  <div><label className="text-xs text-slate-400 font-semibold">{L('mqMixCode')}</label><input value={qcForm.mixDesignCode} onChange={e => setQcForm({ ...qcForm, mixDesignCode: e.target.value })} placeholder="C30-v2" className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]" /></div>
                 </div>
-                <div><label className="text-xs text-slate-400 font-semibold">Customer</label><input value={qcForm.customer} onChange={e => setQcForm({ ...qcForm, customer: e.target.value })} placeholder="Client name" className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]" /></div>
-                <div><label className="text-xs text-slate-400 font-semibold">Site / Project</label><input value={qcForm.site} onChange={e => setQcForm({ ...qcForm, site: e.target.value })} placeholder="Project site" className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]" /></div>
-                <div><label className="text-xs text-slate-400 font-semibold">Truck</label><select value={qcForm.truck} onChange={e => setQcForm({ ...qcForm, truck: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]">{trucks.map(t => <option key={t} value={t}>{t}</option>)}</select></div>
+                <div><label className="text-xs text-slate-400 font-semibold">{L('mqCustomer')}</label><input value={qcForm.customer} onChange={e => setQcForm({ ...qcForm, customer: e.target.value })} placeholder="Client name" className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]" /></div>
+                <div><label className="text-xs text-slate-400 font-semibold">{L('mqSite')}</label><input value={qcForm.site} onChange={e => setQcForm({ ...qcForm, site: e.target.value })} placeholder="Project site" className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]" /></div>
+                <div><label className="text-xs text-slate-400 font-semibold">{L('mqTruck')}</label><select value={qcForm.truck} onChange={e => setQcForm({ ...qcForm, truck: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]">{trucks.map(t => <option key={t} value={t}>{t}</option>)}</select></div>
                 <div>
                   <label className="text-xs text-slate-400 font-semibold">{L('linkSampleToOrder')}</label>
                   <select value={qcForm.orderId} onChange={e => {
@@ -560,8 +560,8 @@ export default function MixingQuality() {
                     {orders.filter((o: any) => o.accountStatus === 'approved').map((o: any) => <option key={o.id} value={o.id}>{o.orderNo || o.id} · {o.customerName}</option>)}
                   </select>
                 </div>
-                <div><label className="text-xs text-slate-400 font-semibold">Design</label><select value={qcForm.design} onChange={e => setQcForm({ ...qcForm, design: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]"><option value="C25">C25</option><option value="C30">C30</option><option value="C35">C35</option><option value="C40">C40</option></select></div>
-                <div><label className="text-xs text-slate-400 font-semibold">Slump (cm)</label><input type="number" value={qcForm.slump} onChange={e => setQcForm({ ...qcForm, slump: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]" required /></div>
+                <div><label className="text-xs text-slate-400 font-semibold">{L('mqDesign')}</label><select value={qcForm.design} onChange={e => setQcForm({ ...qcForm, design: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]"><option value="C25">C25</option><option value="C30">C30</option><option value="C35">C35</option><option value="C40">C40</option></select></div>
+                <div><label className="text-xs text-slate-400 font-semibold">{L('mqSlumpCm')}</label><input type="number" value={qcForm.slump} onChange={e => setQcForm({ ...qcForm, slump: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]" required /></div>
                 <div><label className="text-xs text-slate-400 font-semibold">7-Day (MPa)</label><input type="number" step="0.1" value={qcForm.break7d} onChange={e => setQcForm({ ...qcForm, break7d: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]" required /></div>
                 <div><label className="text-xs text-slate-400 font-semibold">28-Day (MPa)</label><input type="number" step="0.1" value={qcForm.break28d} onChange={e => setQcForm({ ...qcForm, break28d: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]" required /></div>
                 <button type="submit" className="w-full bg-sky-500 hover:bg-sky-400 text-white font-bold py-3 rounded-lg shadow-[0_0_20px_rgba(56,189,248,0.3)]">💾 Save</button>
@@ -573,15 +573,15 @@ export default function MixingQuality() {
                 <button onClick={exportQCCSV} className="bg-yellow-500 text-slate-900 text-xs px-3 py-1.5 rounded font-bold">📊 Export</button>
               </div>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-                <div className="bg-[#0B111E] rounded-lg p-3"><p className="text-xs text-slate-400">Samples</p><p className="text-lg font-black tracking-tight text-white">{filteredQC.length}</p></div>
+                <div className="bg-[#0B111E] rounded-lg p-3"><p className="text-xs text-slate-400">{L('mqSamples')}</p><p className="text-lg font-black tracking-tight text-white">{filteredQC.length}</p></div>
                 <div className="bg-[#0B111E] rounded-lg p-3"><p className="text-xs text-slate-400">7-Day Avg</p><p className="text-lg font-bold text-sky-400">{(total7d / count).toFixed(1)} MPa</p></div>
                 <div className="bg-[#0B111E] rounded-lg p-3"><p className="text-xs text-slate-400">28-Day Pass</p><p className="text-lg font-bold text-emerald-400">{((passed28d / count) * 100).toFixed(0)}%</p></div>
-                <div className="bg-[#0B111E] rounded-lg p-3"><p className="text-xs text-slate-400">Slump Avg</p><p className="text-lg font-bold text-yellow-400">{(totalSlump / count).toFixed(1)} cm</p></div>
+                <div className="bg-[#0B111E] rounded-lg p-3"><p className="text-xs text-slate-400">{L('mqSlumpAvg')}</p><p className="text-lg font-bold text-yellow-400">{(totalSlump / count).toFixed(1)} cm</p></div>
               </div>
               <div className="grid grid-cols-2 gap-3 mb-4"><DatePicker value={fromDate} onChange={setFromDate} label="From" /><DatePicker value={toDate} onChange={setToDate} label="To" /></div>
               <div className="overflow-x-auto">
                 <table className="w-full text-xs text-slate-300">
-                  <thead className="bg-white/[0.04] text-slate-400 text-[10px]"><tr><th className="p-2">Date</th><th className="p-2">Bon No</th><th className="p-2">Customer</th><th className="p-2">Truck</th><th className="p-2">Design</th><th className="p-2">Slump</th><th className="p-2">7-Day</th><th className="p-2">28-Day</th><th className="p-2">Pass</th><th className="p-2">Report</th></tr></thead>
+                  <thead className="bg-white/[0.04] text-slate-400 text-[10px]"><tr><th className="p-2">{L('mqDate')}</th><th className="p-2">{L('mqBon')}</th><th className="p-2">{L('mqCustomer')}</th><th className="p-2">{L('mqTruck')}</th><th className="p-2">{L('mqDesign')}</th><th className="p-2">{L('mqSlump')}</th><th className="p-2">7-Day</th><th className="p-2">28-Day</th><th className="p-2">{L('mqPass')}</th><th className="p-2">{L('mqReport')}</th></tr></thead>
                   <tbody>
                     {filteredQC.map(r => {
                       const target = parseInt(r.design.replace('C', ''));
@@ -611,18 +611,18 @@ export default function MixingQuality() {
               <h3 className="text-lg font-black tracking-tight text-white mb-1">🤖 28-Day Strength Predictor</h3>
               <p className="text-xs text-slate-400 mb-4">Multi-feature regression trained on your QC history (design + slump + 7-day → 28-day). Predicts strength BEFORE the consultant tests, protecting you from rejection fines.</p>
               <form onSubmit={predictStrength} className="space-y-3">
-                <div><label className="text-xs text-slate-400 font-semibold">Design Strength</label>
+                <div><label className="text-xs text-slate-400 font-semibold">{L('mqDesignStr')}</label>
                   <select value={aiForm.design} onChange={e => setAiForm({ ...aiForm, design: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]">
                     <option value="C25">C25 (25 MPa)</option><option value="C30">C30 (30 MPa)</option><option value="C35">C35 (35 MPa)</option><option value="C40">C40 (40 MPa)</option>
                   </select>
                 </div>
-                <div><label className="text-xs text-slate-400 font-semibold">Expected Slump (cm)</label><input type="number" step="0.5" value={aiForm.slump} onChange={e => setAiForm({ ...aiForm, slump: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]" required /></div>
+                <div><label className="text-xs text-slate-400 font-semibold">{L('mqExpSlump')}</label><input type="number" step="0.5" value={aiForm.slump} onChange={e => setAiForm({ ...aiForm, slump: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]" required /></div>
                 <div><label className="text-xs text-slate-400 font-semibold">Expected 7-Day (MPa)</label><input type="number" step="0.1" value={aiForm.break7d} onChange={e => setAiForm({ ...aiForm, break7d: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]" required /></div>
                 <button type="submit" className="w-full bg-sky-500 hover:bg-sky-400 text-white font-bold py-3 rounded-lg shadow-[0_0_20px_rgba(56,189,248,0.3)]">🔮 Predict 28-Day Strength</button>
               </form>
               <div className="mt-4 bg-[#0B111E] border border-white/10 rounded-lg p-3 text-[11px] text-slate-400">
                 📚 Model trained on <b className="text-white">{aiTrainSamples}</b> QC samples.
-                {aiTrainSamples > 0 && <><br />Accuracy (R²): <b className="text-emerald-400">{aiR2}</b> · RMSE: <b className="text-sky-400">{aiRMSE} MPa</b></>}
+                {aiTrainSamples > 0 && <><br />{L('mqAcc')}: <b className="text-emerald-400">{aiR2}</b> · RMSE: <b className="text-sky-400">{aiRMSE} MPa</b></>}
                 {aiTrainSamples >= 8 && <><br />Reliability: {aiTrainSamples >= 15 ? <b className="text-emerald-400">🟢 High</b> : <b className="text-yellow-400">🟡 Medium</b>}</>}
                 {aiTrainSamples < 3 && <><br /><span className="text-yellow-400">⚠️ Add at least 3 QC records for a reliable model.</span></>}
               </div>

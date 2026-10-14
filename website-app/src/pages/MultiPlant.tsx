@@ -29,7 +29,7 @@ export default function MultiPlant() {
   if (!currentUser || !canManageAdmin()) {
     return (
       <div className="min-h-screen bg-[#0B111E] flex items-center justify-center">
-        <div className="text-center"><p className="text-red-400 text-xl mb-2">🔒 Owner Access Only</p><p className="text-slate-400 text-sm mb-4">This unified multi-plant dashboard is for the owner/manager role.</p><Link to="/" className="text-sky-400 underline">Back to Dashboard</Link></div>
+        <div className="text-center"><p className="text-red-400 text-xl mb-2">🔒 Owner Access Only</p><p className="text-slate-400 text-sm mb-4">{t('mpOwnerNote')}</p><Link to="/" className="text-sky-400 underline">{t('mpBackDash')}</Link></div>
       </div>
     );
   }
@@ -63,11 +63,11 @@ export default function MultiPlant() {
 
       <div className="max-w-7xl mx-auto p-6">
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
-          <div className="bg-white/[0.04] rounded-2xl p-4 border border-white/10 backdrop-blur-xl"><p className="text-xs text-slate-400">Plants</p><p className="text-xl font-bold text-white">{rows.length}</p></div>
-          <div className="bg-white/[0.04] rounded-2xl p-4 border border-white/10 backdrop-blur-xl"><p className="text-xs text-slate-400">Trips</p><p className="text-xl font-bold text-sky-400">{totalTrips}</p></div>
+          <div className="bg-white/[0.04] rounded-2xl p-4 border border-white/10 backdrop-blur-xl"><p className="text-xs text-slate-400">{t('mpPlants')}</p><p className="text-xl font-bold text-white">{rows.length}</p></div>
+          <div className="bg-white/[0.04] rounded-2xl p-4 border border-white/10 backdrop-blur-xl"><p className="text-xs text-slate-400">{t('mpTrips')}</p><p className="text-xl font-bold text-sky-400">{totalTrips}</p></div>
           <div className="bg-white/[0.04] rounded-2xl p-4 border border-white/10 backdrop-blur-xl"><p className="text-xs text-slate-400">Volume (m³)</p><p className="text-xl font-bold text-sky-400">{totalVolume.toFixed(0)}</p></div>
-          <div className="bg-white/[0.04] rounded-2xl p-4 border border-white/10 backdrop-blur-xl"><p className="text-xs text-slate-400">QC tests</p><p className="text-xl font-bold text-emerald-400">{totalQC}</p></div>
-          <div className="bg-white/[0.04] rounded-2xl p-4 border border-white/10 backdrop-blur-xl"><p className="text-xs text-slate-400">Orders</p><p className="text-xl font-bold text-orange-400">{totalOrders}</p></div>
+          <div className="bg-white/[0.04] rounded-2xl p-4 border border-white/10 backdrop-blur-xl"><p className="text-xs text-slate-400">{t('mpQc')}</p><p className="text-xl font-bold text-emerald-400">{totalQC}</p></div>
+          <div className="bg-white/[0.04] rounded-2xl p-4 border border-white/10 backdrop-blur-xl"><p className="text-xs text-slate-400">{t('mpOrders')}</p><p className="text-xl font-bold text-orange-400">{totalOrders}</p></div>
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-3 gap-2 p-1 mb-4 bg-white/[0.04] rounded-2xl border border-white/10 backdrop-blur-xl max-w-lg">
@@ -78,12 +78,12 @@ export default function MultiPlant() {
 
         {costView === 'consolidated' && (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-            <div className="bg-white/[0.04] rounded-2xl p-4 border border-emerald-500/40 backdrop-blur-xl"><p className="text-xs text-slate-400">Collected (SAR)</p><p className="text-xl font-bold text-emerald-400">{totalCollected.toLocaleString()}</p></div>
-            <div className="bg-white/[0.04] rounded-2xl p-4 border border-white/10 backdrop-blur-xl"><p className="text-xs text-slate-400">Outstanding (SAR)</p><p className="text-xl font-bold text-yellow-400">{totalOutstanding.toLocaleString()}</p></div>
-            <div className="bg-white/[0.04] rounded-2xl p-4 border border-white/10 backdrop-blur-xl"><p className="text-xs text-slate-400">PO spend (SAR)</p><p className="text-xl font-bold text-orange-400">{totalPOValue.toLocaleString()}</p></div>
-            <div className="bg-white/[0.04] rounded-2xl p-4 border border-white/10 backdrop-blur-xl"><p className="text-xs text-slate-400">Open POs</p><p className="text-xl font-bold text-white">{openPOs}</p></div>
+            <div className="bg-white/[0.04] rounded-2xl p-4 border border-emerald-500/40 backdrop-blur-xl"><p className="text-xs text-slate-400">{t('mpCollectedSar')}</p><p className="text-xl font-bold text-emerald-400">{totalCollected.toLocaleString()}</p></div>
+            <div className="bg-white/[0.04] rounded-2xl p-4 border border-white/10 backdrop-blur-xl"><p className="text-xs text-slate-400">{t('mpOutstanding')}</p><p className="text-xl font-bold text-yellow-400">{totalOutstanding.toLocaleString()}</p></div>
+            <div className="bg-white/[0.04] rounded-2xl p-4 border border-white/10 backdrop-blur-xl"><p className="text-xs text-slate-400">{t('mpPoSpend')}</p><p className="text-xl font-bold text-orange-400">{totalPOValue.toLocaleString()}</p></div>
+            <div className="bg-white/[0.04] rounded-2xl p-4 border border-white/10 backdrop-blur-xl"><p className="text-xs text-slate-400">{t('mpOpenPOs')}</p><p className="text-xl font-bold text-white">{openPOs}</p></div>
             <div className="col-span-2 md:col-span-4 bg-white/[0.03] rounded-2xl p-4 border border-emerald-500/30">
-              <p className="text-xs text-slate-400">Group net position (SAR)</p>
+              <p className="text-xs text-slate-400">{t('mpNetPos')}</p>
               <p className={`text-3xl font-black ${revenue >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{revenue >= 0 ? '+' : ''}{revenue.toLocaleString()}</p>
             </div>
           </div>
@@ -97,12 +97,12 @@ export default function MultiPlant() {
 
         <div className="mb-4"><input value={filter} onChange={e => setFilter(e.target.value)} placeholder="🔍 Filter by plant / city / username..." className="w-full max-w-md bg-white/[0.04] border border-white/10 rounded-lg p-3 text-white text-sm" /></div>
 
-        {loading && <p className="text-slate-400 text-sm animate-pulse">Loading plants...</p>}
+        {loading && <p className="text-slate-400 text-sm animate-pulse">{t('mpLoading')}</p>}
 
         <div className="bg-white/[0.04] border border-white/10 rounded-2xl overflow-hidden backdrop-blur-xl">
           <div className="overflow-x-auto">
             <table className="w-full text-xs text-slate-300">
-              <thead className="bg-white/[0.03] text-[10px]"><tr><th className="p-2">Plant</th><th className="p-2">Location</th><th className="p-2">Trips</th><th className="p-2">Volume</th><th className="p-2">Cement</th><th className="p-2">Sand</th><th className="p-2">Gravel</th><th className="p-2">QC</th><th className="p-2">Orders</th>{costView === 'separate' && <th className="p-2">Collected</th>}{costView === 'separate' && <th className="p-2">Net</th>}<th className="p-2">Health</th></tr></thead>
+              <thead className="bg-white/[0.03] text-[10px]"><tr><th className="p-2">{t('mpPlant')}</th><th className="p-2">{t('mpLocation')}</th><th className="p-2">{t('mpTrips')}</th><th className="p-2">{t('mpVolume')}</th><th className="p-2">{t('mpCement')}</th><th className="p-2">{t('mpSand')}</th><th className="p-2">{t('mpGravel')}</th><th className="p-2">QC</th><th className="p-2">{t('mpOrders')}</th>{costView === 'separate' && <th className="p-2">{t('mpCollected')}</th>}{costView === 'separate' && <th className="p-2">{t('mpNet')}</th>}<th className="p-2">{t('mpHealth')}</th></tr></thead>
               <tbody>
                 {filtered.map(r => {
                   const cement = Number(r.inventory?.cement) || 0;
@@ -130,7 +130,7 @@ export default function MultiPlant() {
               </tbody>
             </table>
           </div>
-          {!loading && filtered.length === 0 && <p className="p-6 text-center text-slate-500 text-sm">No plants match the filter.</p>}
+          {!loading && filtered.length === 0 && <p className="p-6 text-center text-slate-500 text-sm">{t('mpNoMatch')}</p>}
         </div>
       </div>
     </div>

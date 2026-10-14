@@ -1,0 +1,1 @@
+ALTER TABLE "payroll_employees" ADD COLUMN "insurance_status" varchar(10) DEFAULT 'UNINSURED' NOT NULL;

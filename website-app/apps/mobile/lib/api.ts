@@ -6,8 +6,10 @@
 import axios, { AxiosInstance, AxiosError } from "axios";
 import { API_BASE_URL } from "@/types";
 import { getItem, setItem, removeItem, STORAGE_KEYS } from "./storage";
+import { resolveApiBase } from "./server-url";
 import { socket } from "./socket";
 import type { AuthResponse, AuthUser, ApiResponse } from "@/types";
+import type { SitesNearPoint } from "./sites";
 
 class ApiClient {
   private client: AxiosInstance;
@@ -20,18 +22,25 @@ class ApiClient {
     reject: (reason?: unknown) => void;
   }> = [];
 
+  /** The free API host sleeps when idle and needs up to ~60 s to wake, so a
+   *  30 s timeout would abort the very first request after a pause (usually the
+   *  login). 90 s covers a cold start with room to spare. */
+  private static readonly TIMEOUT = 90000;
+
   constructor() {
+    const baseURL = resolveApiBase(API_BASE_URL);
+
     this.client = axios.create({
-      baseURL: API_BASE_URL,
-      timeout: 30000,
+      baseURL,
+      timeout: ApiClient.TIMEOUT,
       headers: {
         "Content-Type": "application/json",
       },
     });
 
     this.authClient = axios.create({
-      baseURL: API_BASE_URL,
-      timeout: 30000,
+      baseURL,
+      timeout: ApiClient.TIMEOUT,
       headers: {
         "Content-Type": "application/json",
       },
@@ -39,6 +48,9 @@ class ApiClient {
 
     // Request interceptor - attach token
     this.client.interceptors.request.use(async (config) => {
+      // Re-resolve on every request so a server-URL change (set on the login
+      // screen, or auto-discovered at start) applies without a restart.
+      config.baseURL = resolveApiBase(API_BASE_URL);
       const token = await getItem(STORAGE_KEYS.ACCESS_TOKEN);
       if (token) {
         config.headers.Authorization = `Bearer ${token}`;
@@ -179,6 +191,40 @@ class ApiClient {
       await removeItem(STORAGE_KEYS.ACCESS_TOKEN);
       await removeItem(STORAGE_KEYS.REFRESH_TOKEN);
       await removeItem(STORAGE_KEYS.USER);
+    }
+  }
+
+  // ─── Plant & Branch Proximity ─────────────────────────────────────
+
+  /**
+   * Sites measured from a point on the phone, nearest first.
+   *
+   * Not /fleet/positions: that answers "where is the whole fleet" and is gated on
+   * FLEET_POSITION_READ, which DRIVER does not hold — a driver does not see the
+   * other trucks. This card only needs "where am I relative to our yards", so it
+   * asks for the company's own sites and needs nothing beyond SITE_READ.
+   */
+  async getSitesNear(
+    latitude: number,
+    longitude: number
+  ): Promise<SitesNearPoint | null> {
+    try {
+      const query = new URLSearchParams({
+        lat: String(latitude),
+        lng: String(longitude),
+      });
+      // Generic is the ApiResponse envelope, matching every other method here —
+      // Axios does not unwrap the `{ success, data }` body on its own.
+      const response =
+        await this.client.get<ApiResponse<SitesNearPoint>>(
+          `/sites/near?${query.toString()}`
+        );
+      return response.data.data;
+    } catch {
+      // Best-effort: this is an informational card, and a driver in a concrete
+      // yard is often out of coverage. Failing loudly here would punish the
+      // caller for something it can simply do without.
+      return null;
     }
   }
 
@@ -490,6 +536,112 @@ class ApiClient {
 
   async getMixDesigns(): Promise<any[]> {
     const response = await this.client.get("/mix-designs");
+    return response.data.data;
+  }
+
+  // ─── Dispatch board ─────────────────────────────────────────────────────────
+
+  /**
+   * The dispatcher's operational board: what must pour, what is running, what is
+   * late, and what can be sent next. Read-only, so the screen can poll it.
+   */
+  async getDispatchBoard(params: { date?: string; horizonDays?: number } = {}): Promise<any> {
+    const query = new URLSearchParams();
+    if (params.date) query.set("date", params.date);
+    if (params.horizonDays !== undefined)
+      query.set("horizonDays", String(params.horizonDays));
+    const suffix = query.toString() ? `?${query.toString()}` : "";
+    const response = await this.client.get(`/dispatch/board${suffix}`);
+    return response.data.data;
+  }
+
+  // ─── Batch plant ────────────────────────────────────────────────────────────
+
+  async listBatchControllers(): Promise<any[]> {
+    const response = await this.client.get("/plant/controllers");
+    return response.data.data?.controllers ?? [];
+  }
+
+  /** Fire a batch, or book the consumption the plant reported. */
+  async batchAction(
+    controllerId: string,
+    body: {
+      action: "fire" | "record";
+      mixDesignId?: string;
+      ticketNumber?: string;
+      batchSizeM3?: number;
+    }
+  ): Promise<any> {
+    const response = await this.client.post(
+      `/plant/controllers/${controllerId}/batch`,
+      body
+    );
+    return response.data;
+  }
+
+  // ─── Customer self-service queue ────────────────────────────────────────────
+
+  /** Requests customers started from the magic-link portal. */
+  async getPortalRequests(params: { status?: string; limit?: number } = {}): Promise<any> {
+    const query = new URLSearchParams();
+    if (params.status) query.set("status", params.status);
+    if (params.limit) query.set("limit", String(params.limit));
+    const suffix = query.toString() ? `?${query.toString()}` : "";
+    const response = await this.client.get(`/portal/requests${suffix}`);
+    return response.data.data;
+  }
+
+  /** Approving a NEW_ORDER materialises a real DRAFT order. */
+  async decidePortalRequest(
+    requestId: string,
+    body: { decision: "APPROVED" | "REJECTED"; note?: string }
+  ): Promise<any> {
+    const response = await this.client.patch(`/portal/requests/${requestId}`, body);
+    return response.data;
+  }
+
+  // ─── ZATCA e-invoicing ─────────────────────────────────────────────────────
+
+  async getZatcaConfig(): Promise<any> {
+    const response = await this.client.get("/finance/zatca/config");
+    return response.data.data?.config;
+  }
+
+  async saveZatcaConfig(payload: Record<string, unknown>): Promise<any> {
+    const response = await this.client.post("/finance/zatca/config", payload);
+    return response.data;
+  }
+
+  async getZatcaStatus(): Promise<any> {
+    const response = await this.client.get("/finance/zatca/status");
+    return response.data.data;
+  }
+
+  /** Real handshake with Fatoora using the stored CSID. */
+  async testZatcaConnection(): Promise<any> {
+    const response = await this.client.post("/finance/zatca/test", {});
+    return response.data;
+  }
+
+  // ─── Finance: cost & margin per m³ ──────────────────────────────────────────
+
+  /**
+   * Contribution margin per order from the mix recipe × the silo price per
+   * tonne, plus whatever delivery cost the trips carry. The response also
+   * reports which material prices are missing so the UI can say the report is
+   * incomplete instead of showing a flattering number.
+   */
+  async getCostMargin(params: {
+    from: string;
+    to: string;
+    limit?: number;
+  }): Promise<any> {
+    const query = new URLSearchParams({
+      from: params.from,
+      to: params.to,
+      limit: String(params.limit ?? 50),
+    });
+    const response = await this.client.get(`/finance/cost-margin?${query.toString()}`);
     return response.data.data;
   }
 

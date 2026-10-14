@@ -2,6 +2,12 @@
   "installCommand": "npm ci",
   "framework": "vite",
   "outputDirectory": "dist",
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "https://fimto-api-web.onrender.com/api/:path*"
+    }
+  ],
   "headers": [
     {
       "source": "/(.*)",

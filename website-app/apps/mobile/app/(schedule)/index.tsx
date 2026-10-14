@@ -25,6 +25,7 @@ import { Button } from "@/components/ui/Button";
 import { erp, dataUsername } from "@/lib/firestore";
 import { useAuthStore } from "@/store/auth-store";
 import { useRouter } from "expo-router";
+import { DispatchBoard } from "./dispatch-board";
 import { ELEMENT_TYPES, BLOCK_PRODUCTS, INSULATION_TYPES, BookingForm, type SalesOrder } from "@/components/sales/BookingForm";
 import CalendarPicker from "@/components/ui/CalendarPicker";
 
@@ -120,7 +121,7 @@ export default function ScheduleMgrHome() {
   const router = useRouter();
   const qc = useQueryClient();
   const [refreshing, setRefreshing] = useState(false);
-  const [tab, setTab] = useState<"queue" | "board">("queue");
+  const [tab, setTab] = useState<"queue" | "board" | "live">("queue");
   const [day, setDay] = useState<string>(TODAY);
   const [showCalendar, setShowCalendar] = useState(false);
   const [showNewOrder, setShowNewOrder] = useState(false);
@@ -328,6 +329,39 @@ export default function ScheduleMgrHome() {
         </View>
       </View>
 
+    {tab === "live" ? (
+      <View className="flex-1">
+        <View className="px-4 pt-3 pb-1">
+          <View className="flex-row gap-2">
+            {(
+              [
+                ["queue", "⏳ طلبات الموافقة"],
+                ["board", "📋 الجدول"],
+                ["live", "🚨 لوحة التوزيع"],
+              ] as const
+            ).map(([k, label]) => (
+              <TouchableOpacity
+                key={k}
+                onPress={() => setTab(k)}
+                className={`flex-1 px-2 py-2 rounded-full ${
+                  tab === k ? "bg-teal-500" : "bg-white border border-slate-200"
+                }`}
+              >
+                <Text
+                  className={`font-bold text-[11px] text-center ${
+                    tab === k ? "text-white" : "text-slate-600"
+                  }`}
+                  numberOfLines={1}
+                >
+                  {label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+        <DispatchBoard />
+      </View>
+    ) : (
     <ScrollView
       className="flex-1"
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
@@ -423,6 +457,7 @@ export default function ScheduleMgrHome() {
           [
             ["queue", "⏳ طلبات موافقة المحاسب"],
             ["board", "📋 الجدول والترتيب"],
+            ["live", "🚨 لوحة التوزيع"],
           ] as const
         ).map(([k, label]) => (
           <TouchableOpacity
@@ -616,6 +651,7 @@ export default function ScheduleMgrHome() {
         onClose={() => setShowCalendar(false)}
       />
     </ScrollView>
+    )}
 
     {/* 🆕 New order modal (BookingForm with payment capture) */}
     <Modal visible={showNewOrder} animationType="slide" onRequestClose={() => setShowNewOrder(false)}>

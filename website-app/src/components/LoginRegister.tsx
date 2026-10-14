@@ -3,11 +3,33 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useLoginRegisterDict } from '../i18n/loginRegisterDict';
 import BrandLogo from './BrandLogo';
+import ServerSettings from './ServerSettings';
+import { isTauriRuntime } from '../field/tauri';
+
+const REMEMBER_KEY = 'fimto_remembered_login';
+
+function loadRemembered(): { identifier: string; password: string } {
+  try {
+    const raw = window.localStorage.getItem(REMEMBER_KEY);
+    if (!raw) return { identifier: '', password: '' };
+    const p = JSON.parse(raw) as { identifier?: string; password?: string };
+    return { identifier: p.identifier ?? '', password: p.password ?? '' };
+  } catch {
+    return { identifier: '', password: '' };
+  }
+}
 
 export default function LoginRegister() {
   const t = useLoginRegisterDict();
-  const [identifier, setIdentifier] = useState('');
-  const [password, setPassword] = useState('');
+  const [identifier, setIdentifier] = useState(() => loadRemembered().identifier);
+  const [password, setPassword] = useState(() => loadRemembered().password);
+  const [remember, setRemember] = useState(() => {
+    try {
+      return window.localStorage.getItem(REMEMBER_KEY) !== null;
+    } catch {
+      return false;
+    }
+  });
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
@@ -22,7 +44,18 @@ export default function LoginRegister() {
     try {
       const success = await login(identifier, password);
       if (success) {
-        navigate('/');
+        try {
+          if (remember) {
+            window.localStorage.setItem(REMEMBER_KEY, JSON.stringify({ identifier, password }));
+          } else {
+            window.localStorage.removeItem(REMEMBER_KEY);
+          }
+        } catch {
+          /* storage unavailable */
+        }
+        // Desktop workstations land on the app-like field hub; browsers keep
+        // the classic dashboard landing.
+        navigate(isTauriRuntime() ? '/field' : '/');
       } else {
         setError(t('errBadCredentials'));
       }
@@ -91,6 +124,18 @@ export default function LoginRegister() {
           </div>
 
           <div>
+            <label className="flex items-center gap-2 text-sm text-slate-300 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={remember}
+                onChange={(e) => setRemember(e.target.checked)}
+                className="w-4 h-4 accent-sky-500"
+              />
+              {t('rememberMe')}
+            </label>
+          </div>
+
+          <div>
             <button
               type="submit"
               disabled={isLoading}
@@ -103,6 +148,8 @@ export default function LoginRegister() {
           <div className="text-center text-xs text-slate-400">
             {t('accountsNote')}
           </div>
+
+          <ServerSettings />
         </form>
       </div>
     </div>

@@ -2,13 +2,14 @@ import { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { loadRnDData, saveRnDData } from '../firebase/firestore';
+import { api } from '../api/client';
 import QuickJump from '../components/QuickJump';
 import LangSelector from '../components/LangSelector';
 import BrandLogo from '../components/BrandLogo';
 import { useResearchDevelopmentDict } from '../i18n/researchDevelopmentDict';
 
 interface ResearchProject {
-  id: number;
+  id: number | string;
   title: string;
   category: 'concrete' | 'sustainability' | 'automation' | 'materials';
   status: 'planning' | 'in_progress' | 'completed';
@@ -52,19 +53,68 @@ export default function ResearchDevelopment() {
   const [projects, setProjects] = useState<ResearchProject[]>([]);
   const [innovations, setInnovations] = useState<Innovation[]>([]);
   const [trainings, setTrainings] = useState<Training[]>([]);
+  // 'api' once projects come from the central API; Firestore stays as fallback cache
+  const [plansSource, setPlansSource] = useState<'api' | 'local'>('local');
 
-  // Load from Firebase on mount
+  // ============ Central API mapping (GET/POST/PUT/DELETE /api/rnd/plans) ============
+  interface BackendPlan {
+    id: string;
+    title: string;
+    description?: string | null;
+    category?: string | null;
+    status: string;
+    startDate: string;
+    endDate: string;
+    budgetSar?: number | null;
+  }
+  const PLAN_CATEGORY_TO_API: Record<ResearchProject['category'], string> = {
+    concrete: 'PRODUCTION',
+    sustainability: 'QUALITY',
+    automation: 'TECHNOLOGY',
+    materials: 'PROCESS',
+  };
+  const mapPlanToProject = (p: BackendPlan): ResearchProject => ({
+    id: p.id,
+    title: p.title,
+    category: p.category === 'QUALITY' ? 'sustainability'
+      : p.category === 'TECHNOLOGY' ? 'automation'
+      : p.category === 'PROCESS' ? 'materials' : 'concrete',
+    status: p.status === 'IN_PROGRESS' || p.status === 'APPROVED' ? 'in_progress'
+      : p.status === 'COMPLETED' ? 'completed' : 'planning',
+    startDate: (p.startDate || '').slice(0, 10),
+    endDate: (p.endDate || '').slice(0, 10),
+    budget: p.budgetSar ?? 0,
+    team: '',
+    description: p.description ?? '',
+    results: '',
+  });
+
+  // Load: central API first, Firestore fallback (also fills innovations/trainings,
+  // which have no backend endpoints and stay Firestore-local)
   useEffect(() => {
     if (!currentUser || loadedRef.current) return;
     loadedRef.current = true;
-    loadRnDData(currentUser.username).then(d => {
-      if (d && typeof d === 'object') {
-        if (Array.isArray(d.projects)) setProjects(d.projects);
-        if (Array.isArray(d.innovations)) setInnovations(d.innovations);
-        if (Array.isArray(d.trainings)) setTrainings(d.trainings);
-      }
-      setLoaded(true);
-    }).catch(() => setLoaded(true));
+    let apiPlans: ResearchProject[] | null = null;
+    api.get<{ plans: BackendPlan[] }>('/api/rnd/plans')
+      .then(d => {
+        if (Array.isArray(d.plans)) {
+          apiPlans = d.plans.map(mapPlanToProject);
+          setProjects(apiPlans);
+          setPlansSource('api');
+        }
+      })
+      .catch(() => { /* offline — Firestore fallback below */ })
+      .finally(() => {
+        loadRnDData(currentUser.username).then(d => {
+          if (d && typeof d === 'object') {
+            if (!apiPlans && Array.isArray(d.projects)) setProjects(d.projects);
+            if (Array.isArray(d.innovations)) setInnovations(d.innovations);
+            if (Array.isArray(d.trainings)) setTrainings(d.trainings);
+          }
+          setLoaded(true);
+        }).catch(() => setLoaded(true));
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUser]);
 
   // Save to Firebase on changes
@@ -81,7 +131,21 @@ export default function ResearchDevelopment() {
   // Functions
   const addProject = () => {
     if (!projectForm.title) return;
-    setProjects([...projects, { id: Date.now(), ...projectForm, budget: parseFloat(projectForm.budget) || 0, results: '' }]);
+    const today = new Date().toISOString().split('T')[0];
+    const fallback: ResearchProject = { id: Date.now(), ...projectForm, budget: parseFloat(projectForm.budget) || 0, results: '' };
+    // POST requires startDate/endDate; default to today. Backend has no team
+    // field, so it is appended to the description to avoid data loss.
+    const payload = {
+      title: projectForm.title,
+      description: [projectForm.description, projectForm.team ? `Team: ${projectForm.team}` : ''].filter(Boolean).join('\n') || undefined,
+      category: PLAN_CATEGORY_TO_API[projectForm.category],
+      startDate: projectForm.startDate || today,
+      endDate: projectForm.endDate || projectForm.startDate || today,
+      budgetSar: Math.max(0, Math.round(parseFloat(projectForm.budget) || 0)),
+    };
+    api.post<BackendPlan>('/api/rnd/plans', payload)
+      .then(p => setProjects(prev => [...prev, mapPlanToProject(p)]))
+      .catch(() => setProjects(prev => [...prev, fallback]));
     setProjectForm({ title: '', category: 'concrete', status: 'planning', startDate: '', endDate: '', budget: '', team: '', description: '' });
   };
 
@@ -97,11 +161,26 @@ export default function ResearchDevelopment() {
     setTrainingForm({ title: '', category: 'technical', target: '', duration: '', date: '', status: 'planned' });
   };
 
-  const deleteProject = (id: number) => { if (confirm('Delete?')) setProjects(projects.filter(p => p.id !== id)); };
+  // Status advance via PUT /api/rnd/plans/[planId] (DRAFT→IN_PROGRESS→COMPLETED;
+  // finance-gate states live on other endpoints and are intentionally untouched)
+  const changeProjectStatus = (p: ResearchProject, next: ResearchProject['status']) => {
+    setProjects(prev => prev.map(x => (x.id === p.id ? { ...x, status: next } : x)));
+    if (typeof p.id === 'string' && plansSource === 'api') {
+      const backendStatus = next === 'in_progress' ? 'IN_PROGRESS' : next === 'completed' ? 'COMPLETED' : 'DRAFT';
+      api.put(`/api/rnd/plans/${p.id}`, { status: backendStatus }).catch(() => {});
+    }
+  };
+
+  const deleteProject = (id: number | string) => {
+    if (!confirm('Delete?')) return;
+    setProjects(projects.filter(p => p.id !== id));
+    // Backend deletes DRAFT plans only; other states 409 and stay server-side
+    if (typeof id === 'string' && plansSource === 'api') api.del(`/api/rnd/plans/${id}`).catch(() => {});
+  };
   const deleteInnovation = (id: number) => { if (confirm('Delete?')) setInnovations(innovations.filter(i => i.id !== id)); };
   const deleteTraining = (id: number) => { if (confirm('Delete?')) setTrainings(trainings.filter(t => t.id !== id)); };
 
-  if (!currentUser) return <div className="min-h-screen bg-[#0B111E] flex items-center justify-center"><div className="text-center"><p className="text-red-400 text-xl mb-4">🔒 Access Denied</p><Link to="/" className="text-sky-400 underline">Back to Login</Link></div></div>;
+  if (!currentUser) return <div className="min-h-screen bg-[#0B111E] flex items-center justify-center"><div className="text-center"><p className="text-red-400 text-xl mb-4">🔒 Access Denied</p><Link to="/" className="text-sky-400 underline">{L('rdBackLogin')}</Link></div></div>;
 
   return (
     <div className="min-h-screen bg-[#0B111E] text-slate-200">
@@ -139,19 +218,19 @@ export default function ResearchDevelopment() {
             {/* Stats */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div className="bg-white/[0.04] border-l-4 border-sky-500 rounded-lg p-4 backdrop-blur-xl">
-                <p className="text-xs text-slate-400">Total Projects</p>
+                <p className="text-xs text-slate-400">{L('rdProjects')}</p>
                 <p className="text-2xl font-bold text-white">{projects.length}</p>
               </div>
               <div className="bg-white/[0.04] border-l-4 border-emerald-500 rounded-lg p-4 backdrop-blur-xl">
-                <p className="text-xs text-slate-400">In Progress</p>
+                <p className="text-xs text-slate-400">{L('rdInProg')}</p>
                 <p className="text-2xl font-bold text-white">{projects.filter(p => p.status === 'in_progress').length}</p>
               </div>
               <div className="bg-white/[0.04] border-l-4 border-sky-500 rounded-lg p-4 backdrop-blur-xl">
-                <p className="text-xs text-slate-400">Total Budget</p>
+                <p className="text-xs text-slate-400">{L('rdBudget')}</p>
                 <p className="text-2xl font-bold text-white">${projects.reduce((s, p) => s + p.budget, 0).toLocaleString()}</p>
               </div>
               <div className="bg-white/[0.04] border-l-4 border-yellow-500 rounded-lg p-4 backdrop-blur-xl">
-                <p className="text-xs text-slate-400">Completed</p>
+                <p className="text-xs text-slate-400">{L('rdCompleted')}</p>
                 <p className="text-2xl font-bold text-white">{projects.filter(p => p.status === 'completed').length}</p>
               </div>
             </div>
@@ -189,7 +268,19 @@ export default function ResearchDevelopment() {
                       </div>
                       <div className="flex gap-2">
                         <span className={`px-2 py-0.5 rounded text-xs font-bold ${p.status === 'in_progress' ? 'bg-sky-500/20 text-sky-400' : p.status === 'completed' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-yellow-500/20 text-yellow-400'}`}>{p.status}</span>
-                        <button onClick={() => deleteProject(p.id)} className="bg-red-500/20 text-red-400 text-[10px] px-2 py-0.5 rounded hover:bg-red-500/30">Del</button>
+                        {typeof p.id === 'string' && (
+                          <select
+                            value={p.status}
+                            onChange={e => changeProjectStatus(p, e.target.value as ResearchProject['status'])}
+                            title="Change status (syncs to server)"
+                            className="bg-white/[0.04] border border-white/10 rounded text-[10px] px-1 py-0.5 text-slate-300"
+                          >
+                            <option value="planning">planning</option>
+                            <option value="in_progress">in_progress</option>
+                            <option value="completed">completed</option>
+                          </select>
+                        )}
+                        <button onClick={() => deleteProject(p.id)} className="bg-red-500/20 text-red-400 text-[10px] px-2 py-0.5 rounded hover:bg-red-500/30">{L('rdDel')}</button>
                       </div>
                     </div>
                     <p className="text-sm text-slate-300 mb-2">{p.description}</p>
@@ -209,15 +300,15 @@ export default function ResearchDevelopment() {
           <div className="space-y-6">
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
               <div className="bg-white/[0.04] border-l-4 border-yellow-500 rounded-lg p-4 backdrop-blur-xl">
-                <p className="text-xs text-slate-400">Total Ideas</p>
+                <p className="text-xs text-slate-400">{L('rdIdeas')}</p>
                 <p className="text-2xl font-bold text-white">{innovations.length}</p>
               </div>
               <div className="bg-white/[0.04] border-l-4 border-emerald-500 rounded-lg p-4 backdrop-blur-xl">
-                <p className="text-xs text-slate-400">Implemented</p>
+                <p className="text-xs text-slate-400">{L('rdImpl')}</p>
                 <p className="text-2xl font-bold text-white">{innovations.filter(i => i.status === 'implemented').length}</p>
               </div>
               <div className="bg-white/[0.04] border-l-4 border-sky-500 rounded-lg p-4 backdrop-blur-xl">
-                <p className="text-xs text-slate-400">High Impact</p>
+                <p className="text-xs text-slate-400">{L('rdHigh')}</p>
                 <p className="text-2xl font-bold text-white">{innovations.filter(i => i.impact === 'high').length}</p>
               </div>
             </div>
@@ -251,7 +342,7 @@ export default function ResearchDevelopment() {
                       <h4 className="font-bold text-white">{i.title}</h4>
                       <div className="flex gap-2">
                         <span className={`px-2 py-0.5 rounded text-xs font-bold ${i.impact === 'high' ? 'bg-red-500/20 text-red-400' : i.impact === 'medium' ? 'bg-yellow-500/20 text-yellow-400' : 'bg-emerald-500/20 text-emerald-400'}`}>{i.impact}</span>
-                        <button onClick={() => deleteInnovation(i.id)} className="bg-red-500/20 text-red-400 text-[10px] px-2 py-0.5 rounded hover:bg-red-500/30">Del</button>
+                        <button onClick={() => deleteInnovation(i.id)} className="bg-red-500/20 text-red-400 text-[10px] px-2 py-0.5 rounded hover:bg-red-500/30">{L('rdDel')}</button>
                       </div>
                     </div>
                     <p className="text-sm text-slate-300 mb-2">{i.description}</p>
@@ -272,15 +363,15 @@ export default function ResearchDevelopment() {
           <div className="space-y-6">
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
               <div className="bg-white/[0.04] border-l-4 border-sky-500 rounded-lg p-4 backdrop-blur-xl">
-                <p className="text-xs text-slate-400">Total Trainings</p>
+                <p className="text-xs text-slate-400">{L('rdTrainings')}</p>
                 <p className="text-2xl font-bold text-white">{trainings.length}</p>
               </div>
               <div className="bg-white/[0.04] border-l-4 border-emerald-500 rounded-lg p-4 backdrop-blur-xl">
-                <p className="text-xs text-slate-400">Completed</p>
+                <p className="text-xs text-slate-400">{L('rdCompleted')}</p>
                 <p className="text-2xl font-bold text-white">{trainings.filter(t => t.status === 'completed').length}</p>
               </div>
               <div className="bg-white/[0.04] border-l-4 border-yellow-500 rounded-lg p-4 backdrop-blur-xl">
-                <p className="text-xs text-slate-400">Planned</p>
+                <p className="text-xs text-slate-400">{L('rdPlanned')}</p>
                 <p className="text-2xl font-bold text-white">{trainings.filter(t => t.status === 'planned').length}</p>
               </div>
             </div>
@@ -315,7 +406,7 @@ export default function ResearchDevelopment() {
                       <h4 className="font-bold text-white">{t.title}</h4>
                       <div className="flex gap-2">
                         <span className={`px-2 py-0.5 rounded text-xs font-bold ${t.status === 'completed' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-yellow-500/20 text-yellow-400'}`}>{t.status}</span>
-                        <button onClick={() => deleteTraining(t.id)} className="bg-red-500/20 text-red-400 text-[10px] px-2 py-0.5 rounded hover:bg-red-500/30">Del</button>
+                        <button onClick={() => deleteTraining(t.id)} className="bg-red-500/20 text-red-400 text-[10px] px-2 py-0.5 rounded hover:bg-red-500/30">{L('rdDel')}</button>
                       </div>
                     </div>
                     <div className="flex gap-4 text-xs text-slate-400">

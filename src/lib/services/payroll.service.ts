@@ -48,7 +48,7 @@ function anchorYearForPeriod(period: string): number {
 }
 
 export interface GosiBreakdown {
-  gosiSystem: "LEGACY" | "NEW" | "EXPAT";
+  gosiSystem: "LEGACY" | "NEW" | "EXPAT" | "EXEMPT";
   contributoryWage: number;
   employeeRatePct: number;
   employerRatePct: number;
@@ -61,10 +61,23 @@ export function computeGosi(
   gosiSystem: string,
   baseSalary: number,
   housing: number,
-  period: string
+  period: string,
+  insured = true
 ): GosiBreakdown {
   const wage = Math.min(GOSI_CAP_SAR, Math.max(0, baseSalary + housing));
   const r2 = (n: number) => Math.round(n * 100) / 100;
+
+  // Uninsured Saudis are fully exempt from GOSI (no employee, no employer share).
+  if (nationality === "SAUDI" && !insured) {
+    return {
+      gosiSystem: "EXEMPT",
+      contributoryWage: 0,
+      employeeRatePct: 0,
+      employerRatePct: 0,
+      employeeGosi: 0,
+      employerGosi: 0,
+    };
+  }
 
   if (nationality !== "SAUDI") {
     const employer = r2((wage * 2) / 100);
@@ -131,6 +144,24 @@ export async function createEmployee(
     bankIban?: string;
     bankName?: string;
     hireDate?: string;
+    countryCode?: string;
+    contactPhone?: string;
+    emergencyContactName?: string;
+    emergencyContactPhone?: string;
+    lastVacationDate?: string;
+    lastResumptionDate?: string;
+    medicalInsuranceNo?: string;
+    medicalInsuranceExpiry?: string;
+    iqamaExpiry?: string;
+    vehiclePlate?: string;
+    vehicleOwnership?: string;
+    sponsorship?: string;
+    insuranceStatus?: string;
+    branchSiteId?: string | null;
+    dateOfBirth?: string;
+    bloodGroup?: string;
+    photoUrl?: string;
+    passportNo?: string;
   }
 ) {
   const [created] = await db
@@ -152,6 +183,24 @@ export async function createEmployee(
       bankIban: input.bankIban,
       bankName: input.bankName,
       hireDate: input.hireDate ? new Date(input.hireDate) : null,
+      countryCode: input.countryCode,
+      contactPhone: input.contactPhone,
+      emergencyContactName: input.emergencyContactName,
+      emergencyContactPhone: input.emergencyContactPhone,
+      lastVacationDate: input.lastVacationDate ? new Date(input.lastVacationDate) : null,
+      lastResumptionDate: input.lastResumptionDate ? new Date(input.lastResumptionDate) : null,
+      medicalInsuranceNo: input.medicalInsuranceNo,
+      medicalInsuranceExpiry: input.medicalInsuranceExpiry ? new Date(input.medicalInsuranceExpiry) : null,
+      iqamaExpiry: input.iqamaExpiry ? new Date(input.iqamaExpiry) : null,
+      vehiclePlate: input.vehiclePlate,
+      vehicleOwnership: input.vehicleOwnership,
+      sponsorship: input.sponsorship ?? "المطور",
+      insuranceStatus: input.insuranceStatus ?? "UNINSURED",
+      branchSiteId: input.branchSiteId ?? null,
+      dateOfBirth: input.dateOfBirth ? new Date(input.dateOfBirth) : null,
+      bloodGroup: input.bloodGroup,
+      photoUrl: input.photoUrl,
+      passportNo: input.passportNo || null,
     })
     .returning();
   return created;
@@ -163,6 +212,7 @@ export async function updateEmployee(
   input: Partial<{
     fullName: string;
     nationalId: string;
+    passportNo: string;
     nationality: string;
     gosiSystem: string;
     jobTitle: string;
@@ -174,11 +224,32 @@ export async function updateEmployee(
     bankIban: string;
     bankName: string;
     isActive: boolean;
+    photoUrl?: string;
+    dateOfBirth?: string;
+    bloodGroup?: string;
+    hireDate?: string;
+    countryCode?: string;
+    contactPhone?: string;
+    emergencyContactName?: string;
+    emergencyContactPhone?: string;
+    lastVacationDate?: string;
+    lastResumptionDate?: string;
+    medicalInsuranceNo?: string;
+    medicalInsuranceExpiry?: string;
+    iqamaExpiry?: string;
+    vehiclePlate?: string;
+    vehicleOwnership?: string;
+    sponsorship?: string;
+    insuranceStatus?: string;
+    branchSiteId?: string | null;
   }>
 ) {
   const patch: Record<string, unknown> = { updatedAt: new Date() };
   for (const k of [
     "fullName", "nationalId", "jobTitle", "department", "bankIban", "bankName",
+    "photoUrl", "bloodGroup", "countryCode", "contactPhone",
+    "emergencyContactName", "emergencyContactPhone", "medicalInsuranceNo",
+    "vehiclePlate", "vehicleOwnership", "sponsorship", "insuranceStatus", "branchSiteId", "passportNo",
   ] as const) {
     if (input[k] !== undefined) patch[k] = input[k];
   }
@@ -192,6 +263,15 @@ export async function updateEmployee(
     if (input[k] !== undefined) patch[k] = String(input[k]);
   }
   if (input.isActive !== undefined) patch.isActive = input.isActive;
+  if (input.dateOfBirth !== undefined)
+    patch.dateOfBirth = input.dateOfBirth ? new Date(input.dateOfBirth) : null;
+  if (input.hireDate !== undefined)
+    patch.hireDate = input.hireDate ? new Date(input.hireDate) : null;
+  for (const k of [
+    "lastVacationDate", "lastResumptionDate", "medicalInsuranceExpiry", "iqamaExpiry",
+  ] as const) {
+    if (input[k] !== undefined) patch[k] = input[k] ? new Date(input[k] as string) : null;
+  }
 
   const [updated] = await db
     .update(payrollEmployees)
@@ -285,7 +365,7 @@ export async function createRun(
     const allowances = r2(housing + transport + other);
     const gross = r2(base + allowances);
 
-    const g = computeGosi(e.nationality, e.gosiSystem, base, housing, period);
+    const g = computeGosi(e.nationality, e.gosiSystem, base, housing, period, (e as any).insuranceStatus === "INSURED");
     const deductions = r2(adj?.deductionsSar ?? 0);
     const net = r2(gross - g.employeeGosi - deductions);
 

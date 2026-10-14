@@ -24,7 +24,7 @@
 import crypto from "node:crypto";
 import { db } from "@/db";
 import { tenants, users, userSessions } from "@/db/schema";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import jwt from "jsonwebtoken";
 import { issueTokenPair } from "../auth/jwt";
 import {
@@ -318,11 +318,19 @@ export async function ssoCallback(code: string, state: string, ip: string) {
 
   const { email } = await verifyIdToken(doc, provider.clientId, tokens.id_token);
 
-  // Secure default: the email must already belong to an ACTIVE tenant user
+  // Secure default: the email must already belong to an ACTIVE tenant user.
+  // Folded on both sides — an IdP is free to return `Workshop.Mgr@…` for an
+  // address stored as `workshopMgr@…`, and an exact match would reject a real
+  // employee at the front door rather than let them in.
   const userRows = await db
     .select()
     .from(users)
-    .where(and(eq(users.email, email), eq(users.tenantId, payload.tenantId)))
+    .where(
+      and(
+        sql`lower(${users.email}) = lower(${email})`,
+        eq(users.tenantId, payload.tenantId)
+      )
+    )
     .limit(1);
   const user = userRows[0];
   if (!user) {

@@ -26,7 +26,7 @@
 
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { db } from "@/db";
+import { db, withDbRetry } from "@/db";
 import { userSessions, users } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import {
@@ -119,52 +119,76 @@ export async function requireAuth(
   }
 
   // 3. Check session revocation in database (prevents forced-logout bypass)
+  //    Retried on a dropped connection, and reported as 503 (not 401) when the
+  //    database is genuinely unreachable — a 401 here used to log a perfectly
+  //    valid user out every time the free server woke up.
+  let sessionRows: Array<{ isRevoked: boolean | null }>;
   try {
-    const sessionRows = await db
-      .select({ isRevoked: userSessions.isRevoked })
-      .from(userSessions)
-      .where(
-        and(
-          eq(userSessions.jti, payload.jti),
-          eq(userSessions.userId, payload.sub),
-          eq(userSessions.tenantId, payload.tenantId)
-        )
-      )
-      .limit(1);
-
-    if (sessionRows.length === 0) {
-      return unauthorizedResponse("TOKEN_REVOKED", "Session not found — please log in again");
-    }
-
-    if (sessionRows[0].isRevoked) {
-      return unauthorizedResponse("TOKEN_REVOKED", "Session has been revoked — please log in again");
-    }
+    sessionRows = await withDbRetry(
+      () =>
+        db
+          .select({ isRevoked: userSessions.isRevoked })
+          .from(userSessions)
+          .where(
+            and(
+              eq(userSessions.jti, payload.jti),
+              eq(userSessions.userId, payload.sub),
+              eq(userSessions.tenantId, payload.tenantId),
+            ),
+          )
+          .limit(1),
+      "auth.session-check",
+    );
   } catch {
     // If DB check fails, reject to be safe (fail-secure)
-    return unauthorizedResponse("SERVER_ERROR", "Unable to validate session");
+    return NextResponse.json(
+      {
+        success: false,
+        errorCode: "SERVICE_UNAVAILABLE",
+        message: "Database temporarily unavailable — please try again",
+        timestamp: new Date().toISOString(),
+      },
+      { status: 503, headers: { "Retry-After": "5" } },
+    );
+  }
+
+  if (sessionRows.length === 0) {
+    return unauthorizedResponse("TOKEN_REVOKED", "Session not found — please log in again");
+  }
+
+  if (sessionRows[0].isRevoked) {
+    return unauthorizedResponse("TOKEN_REVOKED", "Session has been revoked — please log in again");
   }
 
   // 4. Verify user account is still active
+  let userRows: Array<{ isActive: boolean | null }>;
   try {
-    const userRows = await db
-      .select({ isActive: users.isActive })
-      .from(users)
-      .where(
-        and(
-          eq(users.id, payload.sub),
-          eq(users.tenantId, payload.tenantId)
-        )
-      )
-      .limit(1);
-
-    if (userRows.length === 0 || !userRows[0].isActive) {
-      return unauthorizedResponse(
-        "ACCOUNT_DISABLED",
-        "Your account has been deactivated. Contact your administrator."
-      );
-    }
+    userRows = await withDbRetry(
+      () =>
+        db
+          .select({ isActive: users.isActive })
+          .from(users)
+          .where(and(eq(users.id, payload.sub), eq(users.tenantId, payload.tenantId)))
+          .limit(1),
+      "auth.account-check",
+    );
   } catch {
-    return unauthorizedResponse("SERVER_ERROR", "Unable to validate account status");
+    return NextResponse.json(
+      {
+        success: false,
+        errorCode: "SERVICE_UNAVAILABLE",
+        message: "Database temporarily unavailable — please try again",
+        timestamp: new Date().toISOString(),
+      },
+      { status: 503, headers: { "Retry-After": "5" } },
+    );
+  }
+
+  if (userRows.length === 0 || !userRows[0].isActive) {
+    return unauthorizedResponse(
+      "ACCOUNT_DISABLED",
+      "Your account has been deactivated. Contact your administrator."
+    );
   }
 
   return { user: payload };

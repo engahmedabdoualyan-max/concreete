@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { loadPlants, savePlants, loadBlockPlants, saveBlockPlants } from '../firebase/firestore';
+import { useAdminDict } from '../i18n/adminDict';
 
 interface Plant {
   id: string; name: string; location: string; type: string; status: string;
@@ -40,6 +41,7 @@ function Prog({ target, actual }: { target: number; actual: number }) {
 
 export default function PlantsManager({ onToast }: { onToast: (msg: string) => void }) {
   const { currentUser } = useAuth();
+  const t = useAdminDict();
   const [plants, setPlants] = useState<Plant[]>([]);
   const [blocks, setBlocks] = useState<BlockPlant[]>([]);
   const [loaded, setLoaded] = useState(false);
@@ -131,7 +133,7 @@ export default function PlantsManager({ onToast }: { onToast: (msg: string) => v
             <div className="mt-4"><label className="block text-xs text-slate-400 mb-1">Notes</label><input value={pf.notes} onChange={e => setPf({ ...pf, notes: e.target.value })} className={inputCls} /></div>
             <div className="flex gap-2 mt-4">
               <button onClick={addPlant} className="bg-sky-500 hover:bg-sky-400 text-white px-6 py-2 rounded-lg font-bold text-sm shadow-[0_0_20px_rgba(56,189,248,0.3)]">{editingP ? '💾 Save Plant' : '➕ Add Plant'}</button>
-              {editingP && <button onClick={() => { setEditingP(null); setPf({ id: '', name: '', location: '', type: 'Ready-Mix Batching Plant', status: 'Active', target: 0, actual: 0, capacity: 0, mixerCount: 0, notes: '' }); }} className="bg-white/[0.06] hover:bg-white/[0.1] text-white px-4 py-2 rounded-lg font-bold text-sm">Cancel</button>}
+              {editingP && <button onClick={() => { setEditingP(null); setPf({ id: '', name: '', location: '', type: 'Ready-Mix Batching Plant', status: 'Active', target: 0, actual: 0, capacity: 0, mixerCount: 0, notes: '' }); }} className="bg-white/[0.06] hover:bg-white/[0.1] text-white px-4 py-2 rounded-lg font-bold text-sm">{t('cmCancel')}</button>}
             </div>
           </div>
 
@@ -183,7 +185,7 @@ export default function PlantsManager({ onToast }: { onToast: (msg: string) => v
             <div className="mt-4"><label className="block text-xs text-slate-400 mb-1">Notes</label><input value={bf.notes} onChange={e => setBf({ ...bf, notes: e.target.value })} className={inputCls} /></div>
             <div className="flex gap-2 mt-4">
               <button onClick={addBlock} className="bg-sky-500 hover:bg-sky-400 text-white px-6 py-2 rounded-lg font-bold text-sm shadow-[0_0_20px_rgba(56,189,248,0.3)]">{editingB ? '💾 Save Line' : '➕ Add Line'}</button>
-              {editingB && <button onClick={() => { setEditingB(null); setBf({ id: '', name: '', location: '', blockType: BLOCK_TYPES[0], status: 'Active', target: 0, actual: 0, capacity: 0, workers: 0, machines: 0, notes: '' }); }} className="bg-white/[0.06] hover:bg-white/[0.1] text-white px-4 py-2 rounded-lg font-bold text-sm">Cancel</button>}
+              {editingB && <button onClick={() => { setEditingB(null); setBf({ id: '', name: '', location: '', blockType: BLOCK_TYPES[0], status: 'Active', target: 0, actual: 0, capacity: 0, workers: 0, machines: 0, notes: '' }); }} className="bg-white/[0.06] hover:bg-white/[0.1] text-white px-4 py-2 rounded-lg font-bold text-sm">{t('cmCancel')}</button>}
             </div>
           </div>
 

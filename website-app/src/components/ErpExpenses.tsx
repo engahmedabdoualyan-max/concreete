@@ -53,7 +53,7 @@ interface SalariesData {
 
 const CAT_LABEL: Record<string, string> = {
   vehicle: 'expCatVehicle', fuel: 'expCatFuel', office: 'expCatOffice', materials: 'expCatMaterials',
-  maintenance: 'expCatMaintenance', utilities: 'expCatUtilities', rent: 'expCatRent', salary: 'expCatSalary', other: 'expCatOther',
+  maintenance: 'expCatMaintenance', oil: 'expCatOil', utilities: 'expCatUtilities', rent: 'expCatRent', salary: 'expCatSalary', other: 'expCatOther',
 };
 
 const PAY_LABEL: Record<string, string> = {
@@ -61,6 +61,50 @@ const PAY_LABEL: Record<string, string> = {
 };
 
 const fmtSar = (n: number) => (Number(n) / 100).toLocaleString('en-US', { maximumFractionDigits: 2 });
+
+const INDIRECT_CATS = ['maintenance', 'fuel', 'oil', 'utilities', 'rent', 'office', 'vehicle', 'other'];
+
+function IndirectPool({ expData, t, expMonth, setExpMonth, onReload }: {
+  expData: ExpensesData | null; t: (k: any) => string;
+  expMonth: string; setExpMonth: (v: string) => void; onReload: () => void;
+}) {
+  const catLabel = (c: string) => t((CAT_LABEL as Record<string, string>)[c] ?? c);
+  const pool = INDIRECT_CATS.map((c) => ({
+    category: c,
+    total: (expData?.expenses ?? []).filter((x) => x.category === c).reduce((x, y) => x + (Number(y.amountSar) || 0), 0),
+  }));
+  const poolTotal = pool.reduce((x, y) => x + y.total, 0);
+  return (
+    <div className="rounded-xl border border-amber-500/30 bg-amber-500/[0.05] p-3 mb-4">
+      <div className="flex flex-wrap items-center gap-2 mb-2">
+        <span className="text-xs font-black text-amber-300">🏭 {t('indTitle')}</span>
+        <input type="month" value={expMonth} onChange={(e) => { setExpMonth(e.target.value); }} onBlur={onReload}
+          className="bg-white/[0.04] border border-white/10 rounded px-2 py-1 text-white text-[11px] outline-none" />
+        <button onClick={() => { setExpMonth(''); setTimeout(onReload, 0); }}
+          className="text-[10px] text-slate-400 border border-white/10 rounded px-2 py-1">{t('indAll')}</button>
+        <button onClick={onReload} className="text-[10px] text-slate-300 border border-white/10 rounded px-2 py-1">🔄</button>
+        <span className="text-[11px] font-black text-white mr-auto">{t('indPool')}: <span className="text-amber-300">{fmtSar(poolTotal)} {t('sar')}</span></span>
+        <ExportButtons
+          filename={`indirect-${expMonth || 'all'}`}
+          title={t('indTitle')}
+          subtitle={`${expMonth || t('indAll')} · ${fmtSar(poolTotal)} ${t('sar')}`}
+          columns={[{ header: t('indCat'), key: 'cat' }, { header: t('amount'), key: 'amount' }]}
+          rows={[
+            ...pool.map((x) => ({ cat: catLabel(x.category), amount: `${fmtSar(x.total)} ${t('sar')}` })),
+            { cat: t('indPool'), amount: `${fmtSar(poolTotal)} ${t('sar')}` },
+          ]}
+        />
+      </div>
+      <div className="flex flex-wrap gap-1.5">
+        {pool.map((x) => (
+          <span key={x.category} className="text-[10px] px-2 py-0.5 rounded bg-white/5 text-slate-200 border border-white/10">
+            {catLabel(x.category)}: <b className="text-amber-200">{fmtSar(x.total)}</b>
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 export default function ErpExpenses() {
   const t = useErpDict();
@@ -80,9 +124,12 @@ export default function ErpExpenses() {
     employeeId: '', amountSar: '', month: new Date().toISOString().slice(0, 7) + '-01', paidOn: new Date().toISOString().slice(0, 10),
   });
 
-  const loadExpenses = () => {
+  const [expMonth, setExpMonth] = useState(() => new Date().toISOString().slice(0, 7));
+  const loadExpenses = (month?: string) => {
+    const m = month ?? expMonth;
     setError('');
-    api.get<ExpensesData>('/api/finance/expenses')
+    const qs = m ? `?year=${m.slice(0, 4)}&month=${Number(m.slice(5, 7))}` : '';
+    api.get<ExpensesData>(`/api/finance/expenses${qs}`)
       .then(setExpData)
       .catch((e: any) => setError(e?.message || t('errLoadExpenses')));
   };
@@ -202,6 +249,8 @@ export default function ErpExpenses() {
 
       {error && <div className="text-xs text-red-400 bg-red-500/10 border border-red-500/30 rounded p-2 mb-3">{error}</div>}
 
+      {/* Indirect cost pool — التكلفة الغير مباشرة */}
+      {tab === 'expenses' && <IndirectPool expData={expData} t={t} expMonth={expMonth} setExpMonth={setExpMonth} onReload={() => loadExpenses()} />}
       {/* Summary */}
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-4">
         <div className="bg-white/[0.03] border border-white/10 rounded-lg p-2 text-center">

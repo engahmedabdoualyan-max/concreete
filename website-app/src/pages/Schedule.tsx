@@ -536,7 +536,7 @@ export default function Schedule() {
       <div className="min-h-screen bg-[#0B111E] flex items-center justify-center">
         <div className="text-center">
           <p className="text-red-400 text-xl mb-4">🔒 Access Denied</p>
-          <Link to="/" className="text-sky-400 underline">Back to Login</Link>
+          <Link to="/" className="text-sky-400 underline">{t('scBackLogin')}</Link>
         </div>
       </div>
     );
@@ -562,7 +562,7 @@ export default function Schedule() {
         <div className="flex flex-wrap items-center gap-3">
           <span className="bg-emerald-500/15 text-emerald-500 text-xs px-3 py-1.5 rounded-lg font-bold border border-emerald-500/30">🟢 {currentUser.plantName}</span>
           <button onClick={() => { logout(); navigate('/'); }} className="bg-white/[0.05] text-slate-300 text-xs px-3 py-1.5 rounded-lg font-bold border border-white/10 hover:border-red-400/60 hover:text-red-300 transition-colors">{t('logout')}</button>
-          <p className="text-[10px] text-emerald-500/80">Dr. Ahmad Abdo Alyan</p>
+          <p className="text-[10px] text-emerald-500/80">{t('scDesigner')}</p>
         </div>
       </div>
 
@@ -989,21 +989,21 @@ export default function Schedule() {
               <thead>
                 <tr className="bg-slate-700 text-white">
                   <th className="p-2 border">#</th>
-                  <th className="p-2 border">Code</th>
-                  <th className="p-2 border">Customer</th>
-                  <th className="p-2 border">Phone</th>
-                  <th className="p-2 border">Project</th>
-                  <th className="p-2 border">Type</th>
-                  <th className="p-2 border">Element</th>
-                  <th className="p-2 border">Pay</th>
-                  <th className="p-2 border">Cat</th>
-                  <th className="p-2 border">Prio</th>
-                  <th className="p-2 border">Qty</th>
-                  <th className="p-2 border">Concrete</th>
-                  <th className="p-2 border">Slump</th>
-                  <th className="p-2 border">Distance</th>
-                  <th className="p-2 border">Duration</th>
-                  <th className="p-2 border">Time</th>
+                  <th className="p-2 border">{t('scCode')}</th>
+                  <th className="p-2 border">{t('scCustomer')}</th>
+                  <th className="p-2 border">{t('scPhone')}</th>
+                  <th className="p-2 border">{t('scProject')}</th>
+                  <th className="p-2 border">{t('scType')}</th>
+                  <th className="p-2 border">{t('scElement')}</th>
+                  <th className="p-2 border">{t('scPay')}</th>
+                  <th className="p-2 border">{t('scCat')}</th>
+                  <th className="p-2 border">{t('scPrio')}</th>
+                  <th className="p-2 border">{t('scQty')}</th>
+                  <th className="p-2 border">{t('scConcrete')}</th>
+                  <th className="p-2 border">{t('scSlump')}</th>
+                  <th className="p-2 border">{t('scDistance')}</th>
+                  <th className="p-2 border">{t('scDuration')}</th>
+                  <th className="p-2 border">{t('scTime')}</th>
                 </tr>
               </thead>
               <tbody>

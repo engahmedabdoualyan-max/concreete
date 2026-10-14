@@ -1,0 +1,16 @@
+# Keep the Docker build context tiny: the API image only downloads the
+# prebuilt bundle from a GitHub Release, so it needs no source files at all.
+node_modules
+**/node_modules
+.next
+**/.next
+.git
+**/.git
+dist
+**/dist
+website-app
+desktop-app-mobile
+desktop-app-exe
+*.log
+.env
+.env.*

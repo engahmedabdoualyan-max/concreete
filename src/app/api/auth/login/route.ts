@@ -9,7 +9,7 @@
 import { NextRequest } from "next/server";
 import { db } from "@/db";
 import { users, userSessions } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import { issueTokenPair } from "@/lib/auth/jwt";
 import { errorResponse, successResponse } from "@/lib/auth/middleware";
@@ -76,10 +76,16 @@ export async function POST(req: NextRequest) {
   // 2. Fetch user by normalized phone, email, or username
   let userRows: any[] = [];
   if (rawIdentifier.includes("@")) {
+    // Case-insensitive on BOTH sides. Folding only the input looks right and is
+    // not: stored addresses are a mix of cases (`workshopMgr@`, `labTech@`, and
+    // every migrated `ADMIN.driver1@` row), and `email = lower(input)` then
+    // matches none of them, so those accounts could never log in at all. Folding
+    // the column too is what "email is case-insensitive" actually means, and it
+    // matches how tree-sync.service.ts already resolves the same column.
     userRows = await db
       .select()
       .from(users)
-      .where(eq(users.email, rawIdentifier.trim().toLowerCase()))
+      .where(sql`lower(${users.email}) = lower(${rawIdentifier.trim()})`)
       .limit(1);
   } else if (/^\+?[\d\s()-]{6,}$/.test(rawIdentifier)) {
     const normalizedPhone = normalizePhone(rawIdentifier);

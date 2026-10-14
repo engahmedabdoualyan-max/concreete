@@ -5,8 +5,7 @@
 
 import { create } from "zustand";
 import { api } from "@/lib/api";
-import { setItem, removeItem, STORAGE_KEYS } from "@/lib/storage";
-import { findTreeAccount, treeAccountToUser } from "@/lib/tree-auth";
+import { getItem, setItem, removeItem, STORAGE_KEYS } from "@/lib/storage";
 import { erp } from "@/lib/firestore";
 import type { AuthUser, UserRole } from "@/types";
 
@@ -72,26 +71,18 @@ export const useAuthStore = create<AuthState>((set) => ({
         .then((m) => m.registerForPush())
         .catch(() => {});
     } catch (apiError) {
-      // Backend unreachable (or no such server account): fall back to the
-      // owner's app-tree accounts (Firestore companyTrees).
-      let tree: Awaited<ReturnType<typeof findTreeAccount>> = null;
-      try {
-        tree = await findTreeAccount(phone, password);
-      } catch {
-        // Production intentionally disables the client-side tree fallback.
-      }
-      if (!tree) {
-        set({
-          error: "بيانات الدخول غير صحيحة",
-          isLoading: false,
-          isAuthenticated: false,
-        });
-        throw apiError;
-      }
-      const treeUser = await withPlantName(treeAccountToUser(tree));
-      // Persist the local session (no server tokens exist for tree accounts).
-      await setItem(STORAGE_KEYS.USER, JSON.stringify(treeUser));
-      set({ user: treeUser, isAuthenticated: true, isLoading: false });    }
+      // The ERP API is the only login path. It used to fall back to listing the
+      // owner's app-tree accounts from Firestore and comparing a password hash in
+      // the client; that path is gone: it could only be "saved" by the Firestore
+      // rules denying public reads, and it turns any future rule change into a
+      // full account-takeover hole.
+      set({
+        error: "بيانات الدخول غير صحيحة",
+        isLoading: false,
+        isAuthenticated: false,
+      });
+      throw apiError;
+    }
   },
 
   logout: async () => {
@@ -119,12 +110,25 @@ export const useAuthStore = create<AuthState>((set) => ({
         user = await withPlantName(await withSubscription(user));
         if (user) await setItem(STORAGE_KEYS.USER, JSON.stringify(user));
         set({ user, isAuthenticated: true, isLoading: false });
-      } else {
-        set({ user: null, isAuthenticated: false, isLoading: false });
+        return;
       }
-    } catch (error) {
-      set({ user: null, isAuthenticated: false, isLoading: false });
+    } catch {
+      // Server unreachable (ERP backend not deployed): fall through to the
+      // persisted tree session instead of dropping the login on every restart.
     }
+    try {
+      const raw = await getItem(STORAGE_KEYS.USER);
+      if (raw) {
+        const saved = JSON.parse(raw) as AuthUser;
+        if (saved && typeof saved === "object" && (saved as AuthUser).role) {
+          set({ user: saved as AuthUser, isAuthenticated: true, isLoading: false });
+          return;
+        }
+      }
+    } catch {
+      /* corrupted cache — stay logged out */
+    }
+    set({ user: null, isAuthenticated: false, isLoading: false });
   },
 
   clearError: () => set({ error: null }),

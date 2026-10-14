@@ -65,6 +65,32 @@ export interface BatchTicketData {
   source: BatchControllerProvider;
 }
 
+/**
+ * A command to send to the plant controller.
+ *
+ * `startBatch` is what turns a signed-off mix design into a running batch:
+ * the design code plus the target weights per material, already scaled to the
+ * uint16 the panel expects. The operator still confirms on the vendor panel
+ * unless the controller is explicitly commissioned for remote writes.
+ */
+export interface BatchCommand {
+  /** startBatch = fire, abortBatch = stop */
+  action: "startBatch" | "abortBatch";
+  /** design code the panel should run (its own numeric/ASCII id) */
+  designCode?: number;
+  /** target kg per m³, keyed like the register map weights */
+  targetWeightsKg?: Record<string, number>;
+}
+
+export interface BatchCommandResult {
+  ok: boolean;
+  written: number;
+  message: string;
+  latencyMs?: number;
+  /** true when the write was simulated, not sent to hardware */
+  simulated?: boolean;
+}
+
 export interface BatchController {
   provider: BatchControllerProvider;
   testConnection(
@@ -77,4 +103,13 @@ export interface BatchController {
     settings: Record<string, unknown>,
     ticketNumber?: string
   ): Promise<BatchTicketData>;
+  /**
+   * Optional: only providers commissioned for writes implement this. Callers
+   * must check `canWriteRemote(settings)` first and fall back to "the operator
+   * fires it on the panel" when it is unavailable.
+   */
+  writeCommand?(
+    settings: Record<string, unknown>,
+    command: BatchCommand
+  ): Promise<BatchCommandResult>;
 }

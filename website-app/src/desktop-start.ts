@@ -1,0 +1,51 @@
+import { isTauriRuntime } from "./field/tauri";
+import { loadSession } from "./api/client";
+
+/**
+ * Desktop-only startup behaviour (Tauri builds).
+ * The website intentionally opens in guest mode, but the desktop app is a
+ * plant workstation: it must open on the login screen (which also hosts
+ * server settings) when no session exists. Web browsers are untouched.
+ */
+function hasSavedSession(): boolean {
+  try {
+    // Real ERP login — stays where it is.
+    if (loadSession()) return true;
+  } catch {
+    /* fall through to website sessions */
+  }
+  try {
+    // Website AuthContext sessions: a persisted GUEST session does NOT count —
+    // otherwise the desktop app would reopen in guest mode forever instead of
+    // showing the login screen.
+    for (const store of [window.localStorage, window.sessionStorage]) {
+      const raw = store.getItem("currentUserSession");
+      if (!raw) continue;
+      try {
+        const s = JSON.parse(raw) as { username?: string; status?: string; role?: string };
+        const tag = `${s.username ?? ""} ${s.status ?? ""} ${s.role ?? ""}`.toLowerCase();
+        if (!tag.includes("guest")) return true;
+      } catch {
+        return true; // unreadable blob — assume a real session, don't redirect
+      }
+    }
+    return false;
+  } catch {
+    return false;
+  }
+}
+
+export function redirectDesktopToLogin(): void {
+  try {
+    if (!isTauriRuntime()) return;
+    const h = window.location.hash || "#/";
+    if (h === "#/" || h === "#" || h === "") {
+      // Desktop landing: logged-in users open the field hub, everyone else
+      // opens the login screen. (Returning users skip login entirely, so the
+      // post-login navigate() in LoginRegister never fires for them.)
+      window.location.hash = hasSavedSession() ? "#/field" : "#/login";
+    }
+  } catch {
+    /* never block startup */
+  }
+}

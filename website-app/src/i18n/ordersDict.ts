@@ -5,6 +5,9 @@ export function useOrdersDict() {
 }
 
 const DICT: PageDict = {
+  backLogin: { en: 'Back to Login', ar: 'عودة للدخول', ru: 'Back to Login', de: 'Back to Login', it: 'Back to Login', hi: 'Back to Login', ur: 'Back to Login', ja: 'Back to Login', zh: 'Back to Login' },
+  slumpCm: { en: 'Slump (cm)', ar: 'الهبوط (سم)', ru: 'Slump (cm)', de: 'Slump (cm)', it: 'Slump (cm)', hi: 'Slump (cm)', ur: 'Slump (cm)', ja: 'Slump (cm)', zh: 'Slump (cm)' },
+
   ordersSystem: { en: '📦 Orders System', ar: '📦 نظام الطلبات', ru: '📦 Система заказов', de: '📦 Bestellsystem', it: '📦 Sistema ordini', hi: '📦 आर्डर सिस्टम', ur: '📦 آرڈر سسٹم', ja: '📦 注文システム', zh: '📦 订单系统' },
   logout: { en: '🚪 Logout', ar: '🚪 خروج', ru: '🚪 Выйти', de: '🚪 Abmelden', it: '🚪 Esci', hi: '🚪 लॉगआउट', ur: '🚪 لاگ آؤٹ', ja: '🚪 ログアウト', zh: '🚪 退出' },
   manageCustomers: { en: '👥 Manage customers', ar: '👥 إدارة العملاء', ru: '👥 Управление клиентами', de: '👥 Kunden verwalten', it: '👥 Gestisci clienti', hi: '👥 ग्राहक प्रबंधित करें', ur: '👥 صارفین کا انتظام', ja: '👥 顧客管理', zh: '👥 管理客户' },
@@ -96,6 +99,15 @@ const DICT: PageDict = {
   thDebt: { en: 'Debt', ar: 'الديون', ru: 'Долг', de: 'Schulden', it: 'Debiti', hi: 'कर्ज़', ur: 'قرض', ja: '負債', zh: '欠款' },
   thStatus: { en: 'Status', ar: 'الحالة', ru: 'Статус', de: 'Status', it: 'Stato', hi: 'स्थिति', ur: 'حالت', ja: 'ステータス', zh: '状态' },
   thActions: { en: 'Actions', ar: 'إجراءات', ru: 'Действия', de: 'Aktionen', it: 'Azioni', hi: 'कार्य', ur: 'اقدامات', ja: '操作', zh: '操作' },
+  erpOrderTitle: { en: 'Central order (concrete)', ar: 'طلب مركزي (خرسانة)', ru: 'Central order', de: 'Central order', it: 'Central order', hi: 'Central order', ur: 'Central order', ja: 'Central order', zh: 'Central order' },
+  erpOrderHint: { en: 'Recorded centrally: client + site + mix + finance, dispatch and gate.', ar: 'يُسجل في النظام المركزي: العميل + الموقع + الخلطة + المالية والتشغيل والبوابة.', ru: '', de: '', it: '', hi: '', ur: '', ja: '', zh: '' },
+  mixLabel: { en: 'Mix', ar: 'الخلطة', ru: 'Mix', de: 'Mix', it: 'Mix', hi: 'Mix', ur: 'Mix', ja: 'Mix', zh: 'Mix' },
+  priceLabel: { en: 'Price/m³', ar: 'السعر/م³', ru: 'Price', de: 'Price', it: 'Price', hi: 'Price', ur: 'Price', ja: 'Price', zh: 'Price' },
+  phoneLabel: { en: 'Phone', ar: 'الجوال', ru: 'Phone', de: 'Phone', it: 'Phone', hi: 'Phone', ur: 'Phone', ja: 'Phone', zh: 'Phone' },
+  vatLabel: { en: 'VAT number', ar: 'الرقم الضريبي', ru: 'VAT', de: 'VAT', it: 'VAT', hi: 'VAT', ur: 'VAT', ja: 'VAT', zh: 'VAT' },
+  cityLabel: { en: 'City', ar: 'المدينة', ru: 'City', de: 'City', it: 'City', hi: 'City', ur: 'City', ja: 'City', zh: 'City' },
+  approveLabel: { en: 'Approve', ar: 'اعتماد', ru: 'Approve', de: 'Approve', it: 'Approve', hi: 'Approve', ur: 'Approve', ja: 'Approve', zh: 'Approve' },
+  rejectLabel: { en: 'Reject', ar: 'رفض', ru: 'Reject', de: 'Reject', it: 'Reject', hi: 'Reject', ur: 'Reject', ja: 'Reject', zh: 'Reject' },
   noOrders: { en: 'No orders', ar: 'لا توجد طلبات', ru: 'Нет заказов', de: 'Keine Aufträge', it: 'Nessun ordine', hi: 'कोई ऑर्डर नहीं', ur: 'کوئی آرڈر نہیں', ja: '注文がありません', zh: '暂无订单' },
   salesRep: { en: 'Sales rep', ar: 'المندوب', ru: 'Агент', de: 'Vertriebsmitarbeiter', it: 'Agente', hi: 'सेल्स रेप', ur: 'مندوب', ja: '営業担当者', zh: '销售代表' },
   m3: { en: 'm³', ar: 'م³', ru: 'м³', de: 'm³', it: 'm³', hi: 'm³', ur: 'm³', ja: 'm³', zh: 'm³' },

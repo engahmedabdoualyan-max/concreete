@@ -2,8 +2,10 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
+import { useLang } from '../context/LangContext';
 import BrandLogo from '../components/BrandLogo';
 import LangSelector from '../components/LangSelector';
+import QuickJump from '../components/QuickJump';
 
 /**
  * ============================================================
@@ -59,6 +61,9 @@ const STATUS_STYLE: Record<string, string> = {
 
 export default function ZatcaCompliance() {
   const { currentUser } = useAuth();
+  const { lang } = useLang();
+  const ar = lang === 'ar';
+  const L = (a: string, e: string) => (ar ? a : e);
   const [config, setConfig] = useState<ZatcaConfig | null>(null);
   const [summary, setSummary] = useState<Summary | null>(null);
   const [docs, setDocs] = useState<ZatcaDoc[]>([]);
@@ -68,6 +73,7 @@ export default function ZatcaCompliance() {
   const [form, setForm] = useState({ sellerName: '', vatNumber: '', street: '', city: '', branchName: '', env: 'sandbox' as 'sandbox' | 'simulation' | 'production', binaryToken: '', secret: '' });
   const [issueOrderId, setIssueOrderId] = useState('');
   const [issueType, setIssueType] = useState<'STANDARD' | 'SIMPLIFIED'>('STANDARD');
+  const [testResult, setTestResult] = useState<{ ok: boolean; env: string; message: string; testedAt: string } | null>(null);
 
   const load = async () => {
     try {
@@ -136,7 +142,20 @@ export default function ZatcaCompliance() {
     setBusy(false);
   };
 
-  if (!currentUser) return <div className="min-h-screen bg-[#0B111E] flex items-center justify-center"><div className="text-center"><p className="text-red-400 text-xl mb-4">🔒 Access Denied</p><Link to="/" className="text-sky-400 underline">Back to Login</Link></div></div>;
+  // NOTE: the backend exposes only POST /api/finance/zatca/test (no GET).
+  const testConnection = async () => {
+    setBusy(true);
+    setTestResult(null);
+    try {
+      const res = await api.post<{ ok: boolean; env: string; message: string; testedAt: string }>(
+        '/api/finance/zatca/test');
+      setTestResult(res);
+      setMsg(res.ok ? `✅ ${res.message}` : `⚠️ ${res.message}`);
+    } catch (e: any) { setMsg(`⚠️ ${e?.message || 'Test failed.'}`); }
+    setBusy(false);
+  };
+
+  if (!currentUser) return <div className="min-h-screen bg-[#0B111E] flex items-center justify-center"><div className="text-center"><p className="text-red-400 text-xl mb-4">🔒 Access Denied</p><Link to="/" className="text-sky-400 underline">{L('عودة للدخول', 'Back to Login')}</Link></div></div>;
 
   const inputCls = 'w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm';
 
@@ -146,7 +165,7 @@ export default function ZatcaCompliance() {
         <div className="flex items-center gap-3">
           <BrandLogo width={56} />
           <Link to="/" className="text-slate-400 text-xs border border-white/10 px-2 py-1 rounded hover:text-white">← Dashboard</Link>
-          <LangSelector />
+          <QuickJump /> <LangSelector />
           <h1 className="text-sm font-bold text-white">🧾 ZATCA Phase-2 Compliance</h1>
         </div>
         {config && (
@@ -170,10 +189,10 @@ export default function ZatcaCompliance() {
         {/* Stats */}
         {summary && (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="bg-white/[0.04] border-l-4 border-sky-500 rounded-lg p-4"><p className="text-xs text-slate-400">Documents</p><p className="text-2xl font-bold text-white">{summary.total}</p></div>
-            <div className="bg-white/[0.04] border-l-4 border-emerald-500 rounded-lg p-4"><p className="text-xs text-slate-400">Acceptance</p><p className="text-2xl font-bold text-white">{summary.acceptanceRatePct}%</p></div>
-            <div className="bg-white/[0.04] border-l-4 border-amber-500 rounded-lg p-4"><p className="text-xs text-slate-400">Pending (QR-only)</p><p className="text-2xl font-bold text-white">{summary.pending}</p></div>
-            <div className="bg-white/[0.04] border-l-4 border-red-500 rounded-lg p-4"><p className="text-xs text-slate-400">Rejected</p><p className="text-2xl font-bold text-white">{summary.byStatus.REJECTED ?? 0}</p></div>
+            <div className="bg-white/[0.04] border-l-4 border-sky-500 rounded-lg p-4"><p className="text-xs text-slate-400">{L('المستندات', 'Documents')}</p><p className="text-2xl font-bold text-white">{summary.total}</p></div>
+            <div className="bg-white/[0.04] border-l-4 border-emerald-500 rounded-lg p-4"><p className="text-xs text-slate-400">{L('القبول', 'Acceptance')}</p><p className="text-2xl font-bold text-white">{summary.acceptanceRatePct}%</p></div>
+            <div className="bg-white/[0.04] border-l-4 border-amber-500 rounded-lg p-4"><p className="text-xs text-slate-400">{L('بانتظار (QR فقط)', 'Pending (QR-only)')}</p><p className="text-2xl font-bold text-white">{summary.pending}</p></div>
+            <div className="bg-white/[0.04] border-l-4 border-red-500 rounded-lg p-4"><p className="text-xs text-slate-400">{L('مرفوضة', 'Rejected')}</p><p className="text-2xl font-bold text-white">{summary.byStatus.REJECTED ?? 0}</p></div>
           </div>
         )}
 
@@ -195,6 +214,13 @@ export default function ZatcaCompliance() {
             <input value={form.secret} onChange={e => setForm({ ...form, secret: e.target.value })} placeholder="Fatoora Secret (leave blank to keep)" type="password" className={inputCls} />
           </div>
           <button onClick={saveConfig} disabled={busy} className="mt-4 w-full bg-sky-500 hover:bg-sky-400 disabled:opacity-50 text-white font-bold py-3 rounded-lg">💾 Save (tokens AES-encrypted)</button>
+          <button onClick={testConnection} disabled={busy} className="mt-2 w-full bg-violet-500 hover:bg-violet-400 disabled:opacity-50 text-white font-bold py-3 rounded-lg">🔌 اختبار الاتصال (Test Connection)</button>
+          {testResult && (
+            <div className={`mt-3 border rounded-lg px-4 py-3 text-sm font-bold ${testResult.ok ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300' : 'bg-amber-500/10 border-amber-500/30 text-amber-300'}`}>
+              {testResult.ok ? '✅' : '⚠️'} [{testResult.env}] {testResult.message}
+              <span className="block text-[11px] font-normal opacity-70 mt-1">{new Date(testResult.testedAt).toLocaleString()}</span>
+            </div>
+          )}
         </div>
 
         {/* Issue */}
@@ -229,7 +255,7 @@ export default function ZatcaCompliance() {
                 {d.rejectionReason && <p className="text-[11px] text-red-400 mt-1">❌ {d.rejectionReason}</p>}
               </div>
             ))}
-            {docs.length === 0 && <p className="text-slate-500 text-sm text-center py-4">No e-invoices yet.</p>}
+            {docs.length === 0 && <p className="text-slate-500 text-sm text-center py-4">{L('لا فواتير بعد.', 'No e-invoices yet.')}</p>}
           </div>
         </div>
       </main>

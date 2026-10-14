@@ -35,7 +35,10 @@ const patterns = [
   { name: "stripe-live-key", re: /\bsk_live_[A-Za-z0-9]{20,}\b/g, severity: "CRITICAL" },
   { name: "slack-token", re: /\bxox[baprs]-[A-Za-z0-9-]{20,}\b/g, severity: "CRITICAL" },
   { name: "expo-token-assignment", re: /\bEXPO_TOKEN\s*=\s*[^\s"'`]+/g, severity: "CRITICAL" },
-  { name: "private-env-value", re: /^\s*(?:JWT_SECRET|DATABASE_URL|TREE_SYNC_KEY|INTEGRATION_CRYPTO_KEY|TELEMATICS_INGEST_KEY)\s*=\s*(?!.*(?:<|replace-|your-|change-me|project-ref|process\.env|undefined))[^\s#]+/gim, severity: "HIGH" },
+  // A value is only suspicious when it is a literal. `$(...)` (generated at
+  // run time, e.g. openssl rand -hex 32 in deploy/vps-deploy.sh) and the usual
+  // placeholders are not secrets in the repository.
+  { name: "private-env-value", re: /^\s*(?:JWT_SECRET|DATABASE_URL|TREE_SYNC_KEY|INTEGRATION_CRYPTO_KEY|TELEMATICS_INGEST_KEY)\s*=\s*(?!.*(?:<|replace-|your-|change-me|project-ref|process\.env|undefined|[$][(]|[$][{]))[^\s#]+/gim, severity: "HIGH" },
 ];
 const firebaseInfo = /\bAIza[0-9A-Za-z_-]{20,}\b/g;
 

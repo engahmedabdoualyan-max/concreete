@@ -247,7 +247,9 @@ export function AdminProvider({ children }: { children: ReactNode }) {
 
   const canAccess = (module: string): boolean => {
     if (!currentUser) return false;
-    if (currentUser.status === 'GUEST') return import.meta.env.DEV;
+    // Owner-approved: module cards are a preview for visitors (GUEST).
+    // No design change — only the visibility gate. Real data stays behind login.
+    if (currentUser.status === 'GUEST') return true;
     const norm = (module === 'operation' ? 'operations' : module) as ModuleKey;
     if (currentUser.status === 'APP_ACCOUNT') {
       const role = String((currentUser as any).role || '');
@@ -268,7 +270,9 @@ export function AdminProvider({ children }: { children: ReactNode }) {
     if (currentUser.status === 'GUEST') return true;
     if (currentUser.status === 'APP_ACCOUNT') {
       const role = String((currentUser as any).role || '');
-      return role === 'sysadmin' || role === 'owner' || role === 'manager';
+      if (role === 'sysadmin' || role === 'owner' || role === 'manager') return true;
+      // ERP backend roles: owner + plant/operations managers manage all plants.
+      if (role === 'SUPER_ADMIN' || role === 'PLANT_MGR' || role === 'OPERATIONS_MGR') return true;
     }
     const u = users.find(x => x.username.toLowerCase() === currentUser.username.toLowerCase());
     if (!u) return true;

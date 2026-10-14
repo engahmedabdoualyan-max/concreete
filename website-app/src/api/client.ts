@@ -17,27 +17,86 @@ export const API_BASE: string =
   (import.meta.env?.VITE_API_URL as string) ||
   (import.meta.env?.DEV ? DEV_API : PROD_API);
 
+/**
+ * Runtime server-URL override (desktop app + private servers).
+ * Stored in localStorage (a plain URL is not a secret) and read on every
+ * request, so each plant can point the app at its own server without a
+ * rebuild. Changing it wipes the session (tokens belong to the old server).
+ */
+export const SERVER_URL_KEY = "fimto_server_url";
+
+export function resolveApiBase(): string {
+  try {
+    const saved = window.localStorage.getItem(SERVER_URL_KEY);
+    if (saved && /^https?:\/\//i.test(saved)) return saved.replace(/\/+$/, "");
+  } catch {
+    /* storage unavailable — fall through to default */
+  }
+  return API_BASE;
+}
+
+export function getServerUrl(): string | null {
+  try {
+    return window.localStorage.getItem(SERVER_URL_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export function setServerUrl(url: string): void {
+  const clean = url.trim().replace(/\/+$/, "");
+  if (!/^https?:\/\/[^/]+/i.test(clean)) throw new Error("رابط غير صالح");
+  window.localStorage.setItem(SERVER_URL_KEY, clean);
+  clearSession();
+}
+
+export function clearServerUrl(): void {
+  try {
+    window.localStorage.removeItem(SERVER_URL_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
 export const TOKEN_KEY = "fimto_access_token";
 export const REFRESH_KEY = "fimto_refresh_token";
 export const SESSION_KEY = "fimto_user_session";
 
 /**
- * Keep web tokens out of persistent localStorage in production. This is not a
- * replacement for HttpOnly cookies, but it reduces the lifetime of a token
- * stolen by a later XSS/extension issue. Mobile uses SecureStore separately.
+ * Token storage: persistent localStorage everywhere (web included).
+ * An earlier version kept web tokens in sessionStorage to shrink the theft
+ * window, but in practice it logged users out on every new tab and every
+ * browser restart — the DB showed ~47 fresh sessions in 48h, i.e. users
+ * re-logging hourly while 100+ orphaned sessions piled up. Server-side
+ * protection stays in place instead: 15-minute access tokens, rotating
+ * 7-day refresh with revocation, and logout clearing everything.
+ * Mobile uses SecureStore separately.
  */
 function webStorage(): Storage {
   if (typeof window === 'undefined') {
     throw new Error('Web storage is unavailable during SSR');
   }
-  return import.meta.env.PROD ? window.sessionStorage : window.localStorage;
+  return window.localStorage;
 }
 
 function removeLegacyPersistentTokens(): void {
-  if (typeof window === 'undefined' || !import.meta.env.PROD) return;
-  for (const key of [TOKEN_KEY, REFRESH_KEY, SESSION_KEY]) {
-    window.localStorage.removeItem(key);
+  // No-op now: localStorage IS the token store. Kept so old call sites and
+  // the sessionStorage→localStorage migration below keep working.
+}
+
+// One-time migration: users logged in under the old sessionStorage regime
+// keep their session instead of being logged out by this very change.
+try {
+  if (typeof window !== 'undefined' && window.sessionStorage && window.localStorage) {
+    for (const key of [TOKEN_KEY, REFRESH_KEY, SESSION_KEY]) {
+      if (!window.localStorage.getItem(key)) {
+        const v = window.sessionStorage.getItem(key);
+        if (v) window.localStorage.setItem(key, v);
+      }
+    }
   }
+} catch {
+  /* storage unavailable — login flow will handle it */
 }
 
 export interface SessionUser {
@@ -111,7 +170,7 @@ async function request<T>(path: string, opts: RequestOptions = {}): Promise<T> {
 
   let res: Response;
   try {
-    res = await fetch(`${API_BASE}${path}`, {
+    res = await fetch(`${resolveApiBase()}${path}`, {
       method,
       headers,
       body: body === undefined ? undefined : JSON.stringify(body),
@@ -149,27 +208,52 @@ async function request<T>(path: string, opts: RequestOptions = {}): Promise<T> {
   return json.data as T;
 }
 
+let refreshInflight: Promise<boolean> | null = null;
+
 async function tryRefresh(): Promise<boolean> {
   const refreshToken = getRefreshToken();
   if (!refreshToken) return false;
+  // Single-flight: N parallel 401s (a page fires ~15 calls on load) must
+  // share ONE rotation. Without this, the first rotation revokes the token
+  // the others are holding, they all fail, and the user is thrown back to
+  // "login first" on every refresh with an expired access token.
+  if (refreshInflight) return refreshInflight;
+  refreshInflight = doRefresh(refreshToken);
+  try {
+    return await refreshInflight;
+  } finally {
+    refreshInflight = null;
+  }
+}
+
+async function doRefresh(refreshToken: string): Promise<boolean> {
+  let res: Response;
   try {
     // Raw fetch (not `request`) so a 401 here cannot re-enter the refresh logic.
-    const res = await fetch(`${API_BASE}/api/auth/refresh`, {
+    res = await fetch(`${resolveApiBase()}/api/auth/refresh`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ refreshToken }),
     });
-    const json = await res.json().catch(() => ({}));
-    if (!res.ok || !json?.data?.accessToken) {
-      clearSession();
-      return false;
-    }
-    setTokens(json.data.accessToken, json.data.refreshToken);
-    return true;
   } catch {
-    clearSession();
+    // Network error (cold start, offline, deploy restart): the tokens may
+    // still be valid — NEVER wipe the session on a fetch failure.
     return false;
   }
+  let json: any = {};
+  try {
+    json = await res.json();
+  } catch {
+    return false;
+  }
+  if (!res.ok || !json?.data?.accessToken) {
+    // Only an explicit rejection means the session is dead. A 500/deploy
+    // hiccup keeps the tokens so the next call retries instead of logging out.
+    if (res.status === 401 || res.status === 403) clearSession();
+    return false;
+  }
+  setTokens(json.data.accessToken, json.data.refreshToken);
+  return true;
 }
 
 export const api = {

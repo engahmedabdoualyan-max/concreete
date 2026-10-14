@@ -5,6 +5,11 @@ export function useEvaluationDict() {
 }
 
 const DICT: PageDict = {
+  noRating: { en: 'No rating', ar: 'لا تقييم', ru: 'No rating', de: 'No rating', it: 'No rating', hi: 'No rating', ur: 'No rating', ja: 'No rating', zh: 'No rating' },
+  noRatingShort: { en: 'no data', ar: 'بلا بيانات', ru: 'no data', de: 'no data', it: 'no data', hi: 'no data', ur: 'no data', ja: 'no data', zh: 'no data' },
+  noRatingHint: { en: 'Scores appear only with real operating data (trips, orders, breakdowns).', ar: 'لا تظهر الدرجات إلا بوجود بيانات تشغيل حقيقية (رحلات، طلبات، أعطال).', ru: 'Scores appear only with real operating data (trips, orders, breakdowns).', de: 'Scores appear only with real operating data (trips, orders, breakdowns).', it: 'Scores appear only with real operating data (trips, orders, breakdowns).', hi: 'Scores appear only with real operating data (trips, orders, breakdowns).', ur: 'Scores appear only with real operating data (trips, orders, breakdowns).', ja: 'Scores appear only with real operating data (trips, orders, breakdowns).', zh: 'Scores appear only with real operating data (trips, orders, breakdowns).' },
+  backLogin: { en: 'Back to Login', ar: 'عودة للدخول', ru: 'Back to Login', de: 'Back to Login', it: 'Back to Login', hi: 'Back to Login', ur: 'Back to Login', ja: 'Back to Login', zh: 'Back to Login' },
+
   m3: { en: 'm³', ar: 'م³', ru: 'м³', de: 'm³', it: 'm³', hi: 'm³', ur: 'm³', ja: 'm³', zh: 'm³' },
   logout: { en: '🚪 Logout', ar: '🚪 خروج', ru: '🚪 Выйти', de: '🚪 Abmelden', it: '🚪 Esci', hi: '🚪 लॉगआउट', ur: '🚪 لاگ آؤٹ', ja: '🚪 ログアウト', zh: '🚪 退出' },
   evalTitle: { en: '📊 Overall plant evaluation', ar: '📊 التقييم العام للمصنع', ru: '📊 Общая оценка завода', de: '📊 Gesamtbewertung des Werks', it: '📊 Valutazione complessiva impianto', hi: '📊 प्लांट का समग्र मूल्यांकन', ur: '📊 پلانٹ کی مجموعی تشخیص', ja: '📊 プラント総合評価', zh: '📊 搅拌站综合评估' },

@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import QRCode from 'qrcode';
 import { useChallanDict } from '../i18n/challanDict';
+import { printThermalTicket } from '../lib/thermalTicket';
 
 interface ChallanProps {
   trip: any;
@@ -168,6 +169,34 @@ export default function Challan({ trip, order, challan, onClose, onSignatureSave
 
   const stage = (v?: string) => (v && v !== '00:00' ? v : '—');
   const cycle = Number(trip?.cycleTimeMin) || 0;
+  const isBlocks = (order as any)?.productType === 'BLOCKS';
+  const unitLabel = (trip as any)?.unit || (isBlocks ? 'طبلية' : 'م³');
+  const orderPrice = (() => {
+    const raw = Number((order as any)?.pricePerM3Sar ?? (order as any)?.price ?? (trip as any)?.pricePerM3 ?? 0) || 0;
+    return raw >= 1000 ? Math.round((raw / 100) * 100) / 100 : raw;
+  })();
+  const [tPrice, setTPrice] = useState('');
+  useEffect(() => {
+    setTPrice(orderPrice > 0 ? String(orderPrice) : '');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [trip?.id, orderNo]);
+  const fireThermal = () => {
+    printThermalTicket({
+      ticketNo: challanNo,
+      date: String(trip?.date || new Date().toISOString().slice(0, 10)),
+      time: new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
+      customer: customerName,
+      site: siteName,
+      product: `${mixDesign}${isBlocks ? ' (بلك)' : ''}`,
+      qty,
+      unit: unitLabel,
+      truck: String(trip?.pump || trip?.vehicle || '—'),
+      plate: (trip as any)?.plate || undefined,
+      driver: String(trip?.driver || '—'),
+      pricePerUnit: Number(tPrice) || 0,
+      qrDataUrl: qr || undefined,
+    });
+  };
 
   return (
     <div className="fixed inset-0 z-[100] bg-black/70 flex items-start justify-center overflow-y-auto p-4" onClick={onClose}>
@@ -313,7 +342,13 @@ export default function Challan({ trip, order, challan, onClose, onSignatureSave
 
           <div className="flex gap-2 mt-4">
             <button onClick={() => window.print()} className="flex-1 bg-sky-500 hover:bg-sky-400 text-white font-bold py-2.5 rounded-lg">{t('print')}</button>
+            <button onClick={fireThermal} className="flex-1 bg-amber-500 hover:bg-amber-400 text-black font-bold py-2.5 rounded-lg">{t('thermal')}</button>
             <button onClick={onClose} className="flex-1 bg-gray-300 hover:bg-gray-400 font-bold py-2.5 rounded-lg">{t('close')}</button>
+          </div>
+          <div className="flex items-center gap-2 mt-2 print:hidden">
+            <label className="text-[10px] text-gray-600 font-bold whitespace-nowrap">{t('pricePerUnit')}</label>
+            <input value={tPrice} onChange={(e) => setTPrice(e.target.value)} inputMode="decimal" placeholder="0"
+              className="flex-1 border border-gray-300 rounded p-1.5 text-xs" />
           </div>
         </div>
       </div>

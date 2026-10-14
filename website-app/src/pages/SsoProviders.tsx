@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { api } from '../api/client';
+import { api, resolveApiBase } from '../api/client';
 import { useAuth } from '../context/AuthContext';
+import { useLang } from '../context/LangContext';
 import BrandLogo from '../components/BrandLogo';
 import LangSelector from '../components/LangSelector';
+import QuickJump from '../components/QuickJump';
 
 /**
  * ============================================================
@@ -24,6 +26,9 @@ interface Provider {
 
 export default function SsoProviders() {
   const { currentUser } = useAuth();
+  const { lang } = useLang();
+  const ar = lang === 'ar';
+  const L = (a: string, e: string) => (ar ? a : e);
   const [providers, setProviders] = useState<Provider[]>([]);
   const [msg, setMsg] = useState('');
   const [busy, setBusy] = useState(false);
@@ -33,6 +38,7 @@ export default function SsoProviders() {
   const [issuer, setIssuer] = useState('');
   const [clientId, setClientId] = useState('');
   const [secret, setSecret] = useState('');
+  const [tenantCode, setTenantCode] = useState('');
 
   const load = async () => {
     try {
@@ -64,6 +70,7 @@ export default function SsoProviders() {
   };
 
   const remove = async (id: string) => {
+    // Confirm dialog before a destructive delete (kept as native confirm: small fix, no new deps).
     if (!confirm(`Remove SSO provider "${id}"?`)) return;
     try {
       await api.del(`/api/auth/sso/providers/${id}`);
@@ -72,7 +79,19 @@ export default function SsoProviders() {
     } catch { setMsg('⚠️ Remove failed.'); }
   };
 
-  if (!currentUser) return <div className="min-h-screen bg-[#0B111E] flex items-center justify-center"><div className="text-center"><p className="text-red-400 text-xl mb-4">🔒 Access Denied</p><Link to="/" className="text-sky-400 underline">Back to Login</Link></div></div>;
+  // No backend "test login" endpoint exists — copy the login URL instead.
+  const copyLoginUrl = async (providerId: string) => {
+    if (!tenantCode.trim()) { setMsg('⚠️ Enter the TENANT_CODE first to build the login URL.'); return; }
+    const url = `${resolveApiBase()}/api/auth/sso/login?tenant=${encodeURIComponent(tenantCode.trim())}&provider=${encodeURIComponent(providerId)}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      setMsg('✅ Login URL copied.');
+    } catch {
+      prompt('Copy the login URL:', url);
+    }
+  };
+
+  if (!currentUser) return <div className="min-h-screen bg-[#0B111E] flex items-center justify-center"><div className="text-center"><p className="text-red-400 text-xl mb-4">🔒 Access Denied</p><Link to="/" className="text-sky-400 underline">{L('عودة للدخول', 'Back to Login')}</Link></div></div>;
 
   const inputCls = 'w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm';
 
@@ -82,7 +101,7 @@ export default function SsoProviders() {
         <div className="flex items-center gap-3">
           <BrandLogo width={56} />
           <Link to="/" className="text-slate-400 text-xs border border-white/10 px-2 py-1 rounded hover:text-white">← Dashboard</Link>
-          <LangSelector />
+          <QuickJump /> <LangSelector />
           <h1 className="text-sm font-bold text-white">🔐 Enterprise SSO (OIDC)</h1>
         </div>
       </div>
@@ -92,6 +111,7 @@ export default function SsoProviders() {
 
         <div className="bg-white/[0.04] border border-white/10 rounded-2xl p-6 backdrop-blur-xl">
           <h3 className="text-lg font-bold text-white mb-4">🏢 Identity Providers ({providers.length})</h3>
+          <input value={tenantCode} onChange={e => setTenantCode(e.target.value)} placeholder="TENANT_CODE (for login URLs)" className={`${inputCls} mb-3 max-w-xs`} />
           <div className="space-y-2">
             {providers.map(p => (
               <div key={p.id} className="bg-white/[0.02] border border-white/10 rounded-xl px-4 py-3 flex flex-wrap items-center gap-2">
@@ -100,10 +120,11 @@ export default function SsoProviders() {
                   <p className="text-[11px] text-slate-500">{p.issuer}</p>
                 </div>
                 <span className={`text-[10px] px-2 py-0.5 rounded font-bold ${p.active ? 'bg-emerald-500/20 text-emerald-400' : 'bg-slate-500/20 text-slate-400'}`}>{p.active ? 'ACTIVE' : 'OFF'}</span>
+                <button onClick={() => copyLoginUrl(p.id)} title="Copy login URL" className="text-[11px] bg-sky-500/15 text-sky-300 border border-sky-500/30 px-3 py-1.5 rounded-lg font-bold">🔗 نسخ رابط الدخول</button>
                 <button onClick={() => remove(p.id)} className="text-[11px] bg-red-500/15 text-red-400 border border-red-500/30 px-3 py-1.5 rounded-lg font-bold">🗑️</button>
               </div>
             ))}
-            {providers.length === 0 && <p className="text-slate-500 text-sm text-center py-4">No providers yet.</p>}
+            {providers.length === 0 && <p className="text-slate-500 text-sm text-center py-4">{L('لا مزودين بعد.', 'No providers yet.')}</p>}
           </div>
         </div>
 

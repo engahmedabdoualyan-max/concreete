@@ -23,7 +23,7 @@ import {
   trips,
   tripCheckpoints,
 } from "@/db/schema";
-import { and, desc, eq, or } from "drizzle-orm";
+import { and, desc, eq, inArray, or } from "drizzle-orm";
 
 export const WORKABILITY_THRESHOLD_MINUTES = 90;
 /** RPM below this counts as a stopped drum. */
@@ -52,10 +52,29 @@ function toNum(v: unknown): number | undefined {
   return Number.isFinite(n) ? n : undefined;
 }
 
+/**
+ * Which vehicle a probe's `truck_id` refers to.
+ *
+ * Probes report whatever they were configured with, and in practice that is one
+ * of three things:
+ *   1. the vehicle code   — "MIX-01"   (works before any device is coded)
+ *   2. the vehicle UUID    — from the mobile app
+ *   3. the device serial   — "867994045123456", the IMEI printed on the probe
+ *
+ * (3) is what makes coding worth doing: the probe is installed blind, with no
+ * knowledge of which mixer it will end up on, and it keeps reporting under the
+ * same IMEI for its whole life. So the serial is resolved through the device
+ * registry to the vehicle it is currently coded onto. That is precisely why a
+ * serial may only ever be coded once (migration 0020) — a duplicate here would
+ * silently send one probe's readings to two trucks.
+ *
+ * Vehicle code is still tried first, so existing integrations are unaffected.
+ * Uncoded devices are skipped: a probe that has been removed from a truck must
+ * stop resolving rather than keep feeding readings to its last vehicle.
+ */
 async function resolveVehicle(tenantId: string, truckId: string) {
-  // NOTE: devices are tenant-scoped by header key mapping in the route layer;
-  // here we match by code-or-id within the tenant inferred from the key.
-  // The route resolves tenantId from the integration key before calling.
+  // NOTE: the tenant is inferred from the integration key by the route layer
+  // before calling, so every lookup below is scoped to it.
   const rows = await db
     .select({ id: fleetVehicles.id, tenantId: fleetVehicles.tenantId })
     .from(fleetVehicles)
@@ -64,14 +83,98 @@ async function resolveVehicle(tenantId: string, truckId: string) {
         eq(fleetVehicles.tenantId, tenantId),
         or(
           eq(fleetVehicles.vehicleCode, truckId),
-          ...( /^[0-9a-f-]{36}$/i.test(truckId)
+          ...(/^[0-9a-f-]{36}$/i.test(truckId)
             ? [eq(fleetVehicles.id, truckId)]
             : [])
         )
       )
     )
     .limit(1);
-  return rows[0] ?? null;
+  if (rows[0]) return { ...rows[0], deviceId: null };
+
+  const viaDevice = await db
+    .select({
+      id: fleetVehicles.id,
+      tenantId: fleetVehicles.tenantId,
+      deviceId: telematicsDevices.id,
+    })
+    .from(telematicsDevices)
+    .innerJoin(fleetVehicles, eq(fleetVehicles.id, telematicsDevices.vehicleId))
+    .where(
+      and(
+        eq(telematicsDevices.tenantId, tenantId),
+        eq(telematicsDevices.serialNumber, truckId),
+        eq(telematicsDevices.isActive, true),
+        eq(fleetVehicles.isActive, true)
+      )
+    )
+    .limit(1);
+
+  return viaDevice[0] ?? null;
+}
+
+/**
+ * Stamp the devices that just reported, so the registry can show which hardware
+ * is actually alive. An uncoded probe has no row, so this is a silent no-op for
+ * anything arriving by vehicle code — which is the point: `lastSeenAt` empty
+ * means "nobody has wired this hardware up yet".
+ */
+async function touchDevices(
+  deviceIds: string[],
+  seenAt: Date
+): Promise<void> {
+  const unique = [...new Set(deviceIds)].filter(Boolean);
+  if (unique.length === 0) return;
+  await db
+    .update(telematicsDevices)
+    .set({ lastSeenAt: seenAt, updatedAt: seenAt })
+    .where(inArray(telematicsDevices.id, unique));
+}
+
+/**
+ * Which tenant a probe's `truck_id` belongs to — used by the ingest route
+ * *before* the tenant is known, which is why it is not tenant-scoped.
+ *
+ * Accepts the same three identifiers as `resolveVehicle`, and looks them up in
+ * the same order, so the route and the service can never disagree about who a
+ * reading came from. Keeping one implementation matters: if the route resolved
+ * serials but the service did not (or the reverse), readings would be attributed
+ * to a tenant that then rejects them, or silently dropped as "unknown truck".
+ */
+export async function findIngestOwner(
+  truckId: string
+): Promise<{ tenantId: string; vehicleId: string; deviceId: string | null } | null> {
+  const isUuid = /^[0-9a-f-]{36}$/i.test(truckId);
+
+  const byVehicle = await db
+    .select({
+      tenantId: fleetVehicles.tenantId,
+      vehicleId: fleetVehicles.id,
+    })
+    .from(fleetVehicles)
+    .where(isUuid ? eq(fleetVehicles.id, truckId) : eq(fleetVehicles.vehicleCode, truckId))
+    .limit(1);
+  if (byVehicle[0]) {
+    return { ...byVehicle[0], deviceId: null };
+  }
+
+  const bySerial = await db
+    .select({
+      tenantId: fleetVehicles.tenantId,
+      vehicleId: fleetVehicles.id,
+      deviceId: telematicsDevices.id,
+    })
+    .from(telematicsDevices)
+    .innerJoin(fleetVehicles, eq(fleetVehicles.id, telematicsDevices.vehicleId))
+    .where(
+      and(
+        eq(telematicsDevices.serialNumber, truckId),
+        eq(telematicsDevices.isActive, true),
+        eq(fleetVehicles.isActive, true)
+      )
+    )
+    .limit(1);
+  return bySerial[0] ?? null;
 }
 
 async function activeTripFor(tenantId: string, vehicleId: string) {
@@ -130,6 +233,8 @@ export async function ingestReadings(
   // Vehicle resolution cache for batch efficiency
   const vehicleCache = new Map<string, string>();
   const tripCache = new Map<string, string | null>();
+  /** Devices that reported under their own IMEI, so they can be stamped alive. */
+  const reportingDevices: string[] = [];
 
   for (let i = 0; i < readings.length; i++) {
     const r = readings[i];
@@ -144,6 +249,7 @@ export async function ingestReadings(
       const v = await resolveVehicle(tenantId, r.truckId);
       vehicleId = v?.id ?? "";
       vehicleCache.set(r.truckId, vehicleId);
+      if (v?.deviceId) reportingDevices.push(v.deviceId);
     }
     if (!vehicleId) {
       rejected.push({ index: i, error: "Unknown truck_id" });
@@ -185,6 +291,9 @@ export async function ingestReadings(
         .set({ lastGpsAt: at, updatedAt: new Date() })
         .where(eq(fleetVehicles.id, vehicleId));
     }
+    // Only probes that identified themselves by IMEI land here; anything
+    // reporting under a vehicle code has no device row to stamp.
+    await touchDevices(reportingDevices, new Date());
   }
 
   return { accepted: accepted.length, rejected };
@@ -315,37 +424,340 @@ export async function getTripTelemetry(
 
 // ─── Device registry ──────────────────────────────────────────────────────────
 
-export async function listDevices(tenantId: string) {
-  return db
-    .select()
-    .from(telematicsDevices)
-    .where(eq(telematicsDevices.tenantId, tenantId))
-    .orderBy(telematicsDevices.createdAt);
+/** The four coded device families we mount on a vehicle. */
+export const DEVICE_TYPES = [
+  "DRUM_RPM",
+  "CONCRETE_TEMP",
+  "WATER_ADD_METER",
+  "GPS_TRACKER",
+] as const;
+export type DeviceType = (typeof DEVICE_TYPES)[number];
+
+export interface DeviceFilters {
+  vehicleId?: string;
+  deviceType?: string;
+  activeOnly?: boolean;
 }
 
-export async function registerDevice(
-  tenantId: string,
-  input: {
-    vehicleId: string;
-    deviceType: string;
-    serialNumber?: string;
+/**
+ * Devices for a tenant, joined to the vehicle they are coded onto.
+ *
+ * Ordered so the vehicle's primary device of each type comes first — that is
+ * the pairing the fleet screens and the workshop actually read.
+ */
+export async function listDevices(tenantId: string, filters: DeviceFilters = {}) {
+  const conditions = [eq(telematicsDevices.tenantId, tenantId)];
+  if (filters.vehicleId) {
+    conditions.push(eq(telematicsDevices.vehicleId, filters.vehicleId));
   }
-) {
-  const v = await db
-    .select({ id: fleetVehicles.id })
+  if (filters.deviceType) {
+    conditions.push(eq(telematicsDevices.deviceType, filters.deviceType));
+  }
+  if (filters.activeOnly) {
+    conditions.push(eq(telematicsDevices.isActive, true));
+  }
+
+  return db
+    .select({
+      id: telematicsDevices.id,
+      vehicleId: telematicsDevices.vehicleId,
+      vehicleCode: fleetVehicles.vehicleCode,
+      plateNumber: fleetVehicles.plateNumber,
+      deviceType: telematicsDevices.deviceType,
+      deviceCode: telematicsDevices.deviceCode,
+      serialNumber: telematicsDevices.serialNumber,
+      isPrimary: telematicsDevices.isPrimary,
+      isActive: telematicsDevices.isActive,
+      mountedAt: telematicsDevices.mountedAt,
+      linkedAt: telematicsDevices.linkedAt,
+      lastSeenAt: telematicsDevices.lastSeenAt,
+      createdAt: telematicsDevices.createdAt,
+    })
+    .from(telematicsDevices)
+    .innerJoin(fleetVehicles, eq(fleetVehicles.id, telematicsDevices.vehicleId))
+    .where(and(...conditions))
+    .orderBy(
+      desc(telematicsDevices.isPrimary),
+      fleetVehicles.vehicleCode,
+      telematicsDevices.createdAt
+    );
+}
+
+/** Outcome of a coding attempt, so the route can pick the right HTTP status. */
+export type CodeDeviceResult =
+  | { ok: true; device: typeof telematicsDevices.$inferSelect }
+  | { ok: false; reason: "VEHICLE_NOT_FOUND" }
+  | { ok: false; reason: "VEHICLE_INACTIVE"; vehicleCode: string }
+  | {
+      ok: false;
+      reason: "SERIAL_ALREADY_CODED";
+      existingVehicleId: string;
+      existingVehicleCode: string;
+      existingDeviceId: string;
+    }
+  | {
+      ok: false;
+      reason: "DEVICE_CODE_TAKEN";
+      existingDeviceId: string;
+      existingVehicleCode: string;
+    };
+
+export interface CodeDeviceInput {
+  vehicleId: string;
+  deviceType: DeviceType | string;
+  serialNumber?: string | null;
+  deviceCode?: string | null;
+  isPrimary?: boolean;
+  mountedAt?: string | null;
+  linkedById?: string | null;
+}
+
+/**
+ * Code a device onto a vehicle — the "ربط وتكويد" operation.
+ *
+ * A device serial is a physical identity, so it can only ever be coded once
+ * globally. The database enforces that too (0020); this function exists to turn
+ * the constraint violation into a message that names the vehicle already
+ * holding the device, instead of surfacing a raw Postgres error. The check and
+ * the insert are separated on purpose: a concurrent coding of the same IMEI is
+ * still caught by the unique index, and the route maps 23505 the same way.
+ */
+export async function codeDevice(
+  tenantId: string,
+  input: CodeDeviceInput
+): Promise<CodeDeviceResult> {
+  const serial = input.serialNumber?.trim() || null;
+  const code = input.deviceCode?.trim().toUpperCase() || null;
+
+  const vehicle = await db
+    .select({
+      id: fleetVehicles.id,
+      code: fleetVehicles.vehicleCode,
+      isActive: fleetVehicles.isActive,
+    })
     .from(fleetVehicles)
-    .where(and(eq(fleetVehicles.id, input.vehicleId), eq(fleetVehicles.tenantId, tenantId)))
+    .where(
+      and(eq(fleetVehicles.id, input.vehicleId), eq(fleetVehicles.tenantId, tenantId))
+    )
     .limit(1);
-  if (!v[0]) return null;
+
+  if (!vehicle[0]) return { ok: false, reason: "VEHICLE_NOT_FOUND" };
+  if (!vehicle[0].isActive) {
+    return {
+      ok: false,
+      reason: "VEHICLE_INACTIVE",
+      vehicleCode: vehicle[0].code,
+    };
+  }
+
+  if (serial) {
+    const clash = await db
+      .select({
+        deviceId: telematicsDevices.id,
+        vehicleId: telematicsDevices.vehicleId,
+        vehicleCode: fleetVehicles.vehicleCode,
+      })
+      .from(telematicsDevices)
+      .innerJoin(fleetVehicles, eq(fleetVehicles.id, telematicsDevices.vehicleId))
+      .where(
+        and(
+          eq(telematicsDevices.serialNumber, serial),
+          eq(telematicsDevices.isActive, true)
+        )
+      )
+      .limit(1);
+
+    if (clash[0]) {
+      return {
+        ok: false,
+        reason: "SERIAL_ALREADY_CODED",
+        existingDeviceId: clash[0].deviceId,
+        existingVehicleId: clash[0].vehicleId,
+        existingVehicleCode: clash[0].vehicleCode,
+      };
+    }
+  }
+
+  if (code) {
+    const clash = await db
+      .select({
+        deviceId: telematicsDevices.id,
+        vehicleCode: fleetVehicles.vehicleCode,
+      })
+      .from(telematicsDevices)
+      .innerJoin(fleetVehicles, eq(fleetVehicles.id, telematicsDevices.vehicleId))
+      .where(
+        and(
+          eq(telematicsDevices.tenantId, tenantId),
+          eq(telematicsDevices.deviceCode, code),
+          eq(telematicsDevices.isActive, true)
+        )
+      )
+      .limit(1);
+
+    if (clash[0]) {
+      return {
+        ok: false,
+        reason: "DEVICE_CODE_TAKEN",
+        existingDeviceId: clash[0].deviceId,
+        existingVehicleCode: clash[0].vehicleCode,
+      };
+    }
+  }
+
+  // One primary per type per vehicle: demote whatever held it before, so the
+  // partial unique index in 0020 cannot reject a legitimate replacement.
+  if (input.isPrimary) {
+    await db
+      .update(telematicsDevices)
+      .set({ isPrimary: false, updatedAt: new Date() })
+      .where(
+        and(
+          eq(telematicsDevices.vehicleId, vehicle[0].id),
+          eq(telematicsDevices.deviceType, input.deviceType as never),
+          eq(telematicsDevices.isPrimary, true)
+        )
+      );
+  }
 
   const [created] = await db
     .insert(telematicsDevices)
     .values({
       tenantId,
-      vehicleId: input.vehicleId,
+      vehicleId: vehicle[0].id,
       deviceType: input.deviceType,
-      serialNumber: input.serialNumber,
+      serialNumber: serial,
+      deviceCode: code,
+      isPrimary: input.isPrimary ?? false,
+      mountedAt: input.mountedAt ? new Date(input.mountedAt) : new Date(),
+      linkedAt: new Date(),
+      linkedById: input.linkedById ?? null,
     })
     .returning();
-  return created;
+
+  return { ok: true, device: created };
+}
+
+export type RelinkDeviceResult =
+  | { ok: true; device: typeof telematicsDevices.$inferSelect }
+  | { ok: false; reason: "DEVICE_NOT_FOUND" }
+  | { ok: false; reason: "VEHICLE_NOT_FOUND" }
+  | { ok: false; reason: "SERIAL_ALREADY_CODED"; existingVehicleCode: string }
+  | { ok: false; reason: "DEVICE_CODE_TAKEN"; existingVehicleCode: string };
+
+/**
+ * Move an already-coded device to another vehicle (a tracker swapped between
+ * trucks). The device keeps its identity, so its historical readings stay
+ * attached to it; only the vehicle it reports against changes.
+ */
+export async function relinkDevice(
+  tenantId: string,
+  deviceId: string,
+  input: { vehicleId: string; isPrimary?: boolean }
+): Promise<RelinkDeviceResult> {
+  const existing = await db
+    .select({ id: telematicsDevices.id, serialNumber: telematicsDevices.serialNumber })
+    .from(telematicsDevices)
+    .where(
+      and(
+        eq(telematicsDevices.id, deviceId),
+        eq(telematicsDevices.tenantId, tenantId)
+      )
+    )
+    .limit(1);
+  if (!existing[0]) return { ok: false, reason: "DEVICE_NOT_FOUND" };
+
+  const vehicle = await db
+    .select({ id: fleetVehicles.id, code: fleetVehicles.vehicleCode })
+    .from(fleetVehicles)
+    .where(
+      and(
+        eq(fleetVehicles.id, input.vehicleId),
+        eq(fleetVehicles.tenantId, tenantId),
+        eq(fleetVehicles.isActive, true)
+      )
+    )
+    .limit(1);
+  if (!vehicle[0]) return { ok: false, reason: "VEHICLE_NOT_FOUND" };
+
+  const [updated] = await db
+    .update(telematicsDevices)
+    .set({
+      vehicleId: vehicle[0].id,
+      isPrimary: input.isPrimary ?? undefined,
+      linkedAt: new Date(),
+      updatedAt: new Date(),
+    })
+    .where(eq(telematicsDevices.id, deviceId))
+    .returning();
+
+  return { ok: true, device: updated };
+}
+
+export type UnlinkDeviceResult =
+  | { ok: true }
+  | { ok: false; reason: "DEVICE_NOT_FOUND" };
+
+/**
+ * Uncode a device from a vehicle.
+ *
+ * The row is deactivated rather than deleted, for two reasons.
+ *
+ * `telematics_devices.vehicle_id` is `ON DELETE CASCADE`, so deleting a device
+ * is fine — but the row is the only record that this IMEI ever existed on this
+ * fleet, and `telematics_readings` attributes to the vehicle rather than to the
+ * device. Deleting would leave no trace of which physical probe produced a
+ * given drum series, which is exactly the audit trail a concrete dispute needs.
+ *
+ * Deactivating also stops the serial resolving again: `resolveVehicle` skips
+ * inactive devices, so a probe pulled off a truck for repair can no longer feed
+ * readings into its last vehicle, while the history stays readable.
+ */
+export async function unlinkDevice(
+  tenantId: string,
+  deviceId: string
+): Promise<UnlinkDeviceResult> {
+  const rows = await db
+    .update(telematicsDevices)
+    .set({ isActive: false, isPrimary: false, updatedAt: new Date() })
+    .where(
+      and(
+        eq(telematicsDevices.id, deviceId),
+        eq(telematicsDevices.tenantId, tenantId)
+      )
+    )
+    .returning({ id: telematicsDevices.id });
+
+  if (!rows[0]) return { ok: false, reason: "DEVICE_NOT_FOUND" };
+  return { ok: true };
+}
+
+/**
+ * Find the device a serial is currently coded onto, across all tenants.
+ *
+ * Active devices win over uncoded history for the same IMEI: the question this
+ * answers is "where is this hardware right now", and after a re-code the current
+ * truck is the useful answer. When every match is inactive the latest one is
+ * returned, so a lookup of a probe taken off a truck still reports where it came
+ * from rather than looking like it never existed.
+ */
+export async function findDeviceBySerial(serial: string) {
+  const rows = await db
+    .select({
+      id: telematicsDevices.id,
+      tenantId: telematicsDevices.tenantId,
+      vehicleId: telematicsDevices.vehicleId,
+      vehicleCode: fleetVehicles.vehicleCode,
+      plateNumber: fleetVehicles.plateNumber,
+      deviceType: telematicsDevices.deviceType,
+      deviceCode: telematicsDevices.deviceCode,
+      isActive: telematicsDevices.isActive,
+      linkedAt: telematicsDevices.linkedAt,
+    })
+    .from(telematicsDevices)
+    .innerJoin(fleetVehicles, eq(fleetVehicles.id, telematicsDevices.vehicleId))
+    .where(eq(telematicsDevices.serialNumber, serial))
+    .orderBy(desc(telematicsDevices.isActive), desc(telematicsDevices.linkedAt))
+    .limit(1);
+  return rows[0] ?? null;
 }

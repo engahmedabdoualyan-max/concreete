@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useLang } from '../context/LangContext';
 import { useWorkshopDict } from '../i18n/workshopDict';
-import { loadAssets, saveAssets, loadWorkshopConfig, saveWorkshopConfig, loadFuelLogs, saveFuelLogs, loadOilLogs, saveOilLogs, loadSparePartLogs, saveSparePartLogs, loadBreakdowns, saveBreakdowns, loadWarehouse, saveWarehouse, loadPurchaseReqs, savePurchaseReqs, loadStations, saveStations, loadPeriodicMaints, savePeriodicMaints } from '../firebase/firestore';
 import { api } from '../api/client';
 import QuickJump from '../components/QuickJump';
 import LangSelector from '../components/LangSelector';
@@ -34,7 +34,7 @@ interface MixingStation {
 }
 interface PeriodicMaint { id: number; stationId: number; date: string; taskType: 'Belts'|'Greasing'|'Oiling'|'Drum Cleaning'|'General Hygiene'|'Electrical Check'|'Control Room'|'Software Update'|'Pipe Change'|'Pipe Welding'|'Pump Special Maintenance'|'Other'; description: string; technician: string; nextDue: string; status: 'Done'|'Scheduled'|'Overdue'; cost: number; notes: string; }
 
-type Tab = 'home'|'fuel'|'oil'|'spareparts'|'breakdown'|'purchaserequests'|'warehouse'|'vehiclereport'|'mixingstations'|'config'|'reports';
+type Tab = 'home'|'fuel'|'oil'|'spareparts'|'breakdown'|'purchaserequests'|'warehouse'|'vehiclereport'|'servicecard'|'mixingstations'|'config'|'reports';
 
 const DEF_ASSETS: Asset[] = [
   { id: 'm01', plate: '1234 XAD', chassis: 'WDB123456', type: 'Mixer', status: 'Ready', driver: 'Ahmed Ali', initOdo: 50000, engHours: 2400, regExpiry: '2026-12-30', insExpiry: '2026-11-15', opcardExpiry: '2026-10-01', authExpiry: '2026-09-20', gpsId: 'IMEI-869234', tare: '15', gross: '40' },
@@ -44,14 +44,76 @@ const DEF_CONFIG = { stationName: 'Model Plant', globalBudget: '50000', maintBud
 
 function loadLocal<T>(key: string, def: T): T { try { const s = localStorage.getItem(key); return s ? JSON.parse(s) : def; } catch { return def; } }
 
+// ======================= ERP MAPPERS =======================
+// Backend shapes (verified against src/app/api):
+// - GET /api/fleet → fleetVehicles rows (vehicleCode, plateNumber, vehicleType,
+//   currentStatus, driverName, odometreKm, ...)
+// - GET /api/workshop → { openWorkOrders, fleetHealth, workshopVehicles, ... }
+// - GET /api/workshop/fuel → { fuelLogs } (litresAdded, odometreKm,
+//   totalFuelCostSar in cents, vehicleCode)
+function mapFleetToAssets(rows: any[]): Asset[] {
+  return rows.map((v: any) => ({
+    id: String(v.vehicleCode ?? v.id),
+    plate: String(v.plateNumber ?? ''),
+    chassis: '',
+    type: String(v.vehicleType ?? 'Mixer'),
+    status: v.currentStatus === 'IN_WORKSHOP' || v.currentStatus === 'MAJOR_BREAKDOWN' ? 'Workshop' : 'Ready',
+    driver: String(v.driverName ?? ''),
+    initOdo: Number(v.odometreKm ?? 0) || 0,
+    engHours: 0,
+    regExpiry: '',
+    insExpiry: v.insuranceExpiresAt ? String(v.insuranceExpiresAt).slice(0, 10) : '',
+    opcardExpiry: '',
+    authExpiry: '',
+    gpsId: '',
+    tare: v.tareWeightTonnes != null ? String(v.tareWeightTonnes) : '',
+    gross: '',
+    model: v.model ?? '',
+    year: v.year != null ? String(v.year) : '',
+    manufacturer: v.make ?? '',
+  }));
+}
+
+function mapFuelLog(log: any, i: number): FuelLog {
+  const liters = Number(log.litresAdded ?? 0) || 0;
+  const totalCents = Number(log.totalFuelCostSar ?? 0) || 0;
+  const ts = Date.parse(log.loggedAt ?? '') || (Date.now() + i);
+  return {
+    id: ts,
+    date: log.loggedAt ? String(log.loggedAt).slice(0, 10) : '',
+    assetId: String(log.vehicleCode ?? ''),
+    odoReading: Number(log.odometreKm ?? 0) || 0,
+    liters,
+    costPerLiter: liters > 0 ? (totalCents / 100) / liters : 0,
+    totalCost: totalCents / 100,
+    fuelType: 'Diesel',
+    station: String(log.fuelStationName ?? ''),
+    invoice: String(log.receiptNumber ?? ''),
+    notes: String(log.anomalyNotes ?? log.notes ?? ''),
+  };
+}
+
+const BD_SEVERITY_TO_ERP: Record<string, 'CRITICAL' | 'HIGH' | 'LOW'> = { Critical: 'CRITICAL', Major: 'HIGH', Minor: 'LOW' };
+const BD_SEVERITY_TO_PRIORITY: Record<string, number> = { Critical: 1, Major: 2, Minor: 4 };
+
 export default function Workshop() {
   const { currentUser, logout } = useAuth();
   const navigate = useNavigate();
   const t = useWorkshopDict();
+  const { lang } = useLang();
+  const ar = lang === 'ar';
   const [tab, setTab] = useState<Tab>('home');
   const [assets, setAssets] = useState<Asset[]>(DEF_ASSETS);
   const [config, setConfig] = useState(DEF_CONFIG);
-  const [fuelLogs, setFuelLogs] = useState<FuelLog[]>(() => loadLocal('ws_fuel', []));
+  const [fuelLogs, setFuelLogs] = useState<FuelLog[]>([]);
+  const [fuelReport, setFuelReport] = useState<any[]>([]);
+  const [fuelDays, setFuelDays] = useState('30');
+  const loadFuelReport = async (days?: string) => {
+    try {
+      const d = await api.get<{ vehicles?: any[] }>(`/api/workshop/fuel/report?days=${days ?? fuelDays}`);
+      setFuelReport(Array.isArray(d?.vehicles) ? d.vehicles : []);
+    } catch { setFuelReport([]); }
+  };
   const [oilLogs, setOilLogs] = useState<OilLog[]>(() => loadLocal('ws_oil', []));
   const [sparePartLogs, setSparePartLogs] = useState<SparePartLog[]>(() => loadLocal('ws_parts', []));
   const [breakdowns, setBreakdowns] = useState<BreakdownReport[]>(() => loadLocal('ws_breakdowns', []));
@@ -68,6 +130,20 @@ export default function Workshop() {
   ]));
   const [loaded, setLoaded] = useState(false);
   const [driverReports, setDriverReports] = useState<any[]>([]);
+  // ERP fleet UUID lookup by vehicleCode (needed for POST /api/workshop/fuel
+  // and POST /api/workshop, which require vehicleId UUIDs)
+  const [fleetIds, setFleetIds] = useState<Record<string, string>>({});
+  const [closingWO, setClosingWO] = useState<string | null>(null);
+  const [fleetErp, setFleetErp] = useState<any[]>([]);
+  const [regItems, setRegItems] = useState<any[]>([]);
+  const [closeWO, setCloseWO] = useState<any>(null);
+  const [closeForm, setCloseForm] = useState({ actionTaken: '', labourHours: '', returnStatus: 'AVAILABLE' });
+  const [closeParts, setCloseParts] = useState<any[]>([]);
+  const [partPick, setPartPick] = useState({ itemId: '', qty: '1', cost: '' });
+  const [closeMsg, setCloseMsg] = useState('');
+  const [svcVehicle, setSvcVehicle] = useState('');
+  const [svcCards, setSvcCards] = useState<any[]>([]);
+  const [svcBusy, setSvcBusy] = useState(false);
 
   // Forms
   const [assetForm, setAssetForm] = useState({ id: '', plate: '', chassis: '', type: 'Mixer', status: 'Ready', driver: '', initOdo: '', engHours: '', regExpiry: '', insExpiry: '', opcardExpiry: '', authExpiry: '', gpsId: '', tare: '', gross: '' });
@@ -100,51 +176,61 @@ export default function Workshop() {
   const [pmForm, setPmForm] = useState({ stationId: 0, date: new Date().toISOString().split('T')[0], taskType: 'Greasing' as PeriodicMaint['taskType'], description: '', technician: '', nextDue: '', status: 'Scheduled' as PeriodicMaint['status'], cost: '', notes: '' });
   const [editingPmId, setEditingPmId] = useState<number|null>(null);
 
-  // Load Firebase (assets + config + all workshop operational data)
-  useEffect(() => {
-    if (!currentUser) return;
-    Promise.all([
-      loadAssets(currentUser.username),
-      loadWorkshopConfig(currentUser.username),
-      loadFuelLogs(currentUser.username),
-      loadOilLogs(currentUser.username),
-      loadSparePartLogs(currentUser.username),
-      loadBreakdowns(currentUser.username),
-      loadWarehouse(currentUser.username),
-      loadPurchaseReqs(currentUser.username),
-      loadStations(currentUser.username),
-      loadPeriodicMaints(currentUser.username),
-    ]).then(([a, c, fuel, oil, parts, bd, wh, pr, st, pm]) => {
-      if (a?.length) setAssets(a);
-      if (c) setConfig(c);
-      if (Array.isArray(fuel) && fuel.length) setFuelLogs(fuel);
-      if (Array.isArray(oil) && oil.length) setOilLogs(oil);
-      if (Array.isArray(parts) && parts.length) setSparePartLogs(parts);
-      if (Array.isArray(bd) && bd.length) setBreakdowns(bd);
-      if (Array.isArray(wh) && wh.length) setWarehouse(wh);
-      if (Array.isArray(pr) && pr.length) setPurchaseReqs(pr);
-      if (Array.isArray(st) && st.length) setStations(st);
-      if (Array.isArray(pm) && pm.length) setPeriodicMaints(pm);
-      setLoaded(true);
-    }).catch(() => setLoaded(true));
-  }, [currentUser?.username]);
-
-  // Load ERP workshop data → driver-submitted breakdown reports (work orders)
+  // Load ERP data: fleet register (vehicle dropdowns + asset overview),
+  // workshop work orders (driver breakdown reports), fuel logs.
+  // Sections with no backend endpoint (oil, spare parts, warehouse, purchase
+  // requests, mixing stations, periodic maintenance, local breakdown notes,
+  // factory config) stay in localStorage — see mirror effects below.
   useEffect(() => {
     let cancelled = false;
-    api.get<any>('/api/workshop').then((d) => { if (!cancelled && d?.openWorkOrders) setDriverReports(d.openWorkOrders); }).catch(() => {});
+    (async () => {
+      try {
+        const f = await api.get<any>('/api/fleet');
+        const rows = Array.isArray(f) ? f : (f?.vehicles ?? []);
+        if (!cancelled && Array.isArray(rows) && rows.length) {
+          setAssets(mapFleetToAssets(rows));
+          const ids: Record<string, string> = {};
+          rows.forEach((v: any) => { if (v?.vehicleCode && v?.id) ids[String(v.vehicleCode)] = String(v.id); });
+          setFleetIds(ids);
+        }
+      } catch { /* offline — keep defaults / local cache */ }
+      try {
+        const f2 = await api.get<any>('/api/fleet');
+        const rows2 = Array.isArray(f2) ? f2 : (f2?.vehicles ?? []);
+        if (!cancelled && Array.isArray(rows2)) setFleetErp(rows2);
+      } catch { /* offline */ }
+      try {
+        const it = await api.get<any>('/api/warehouse/items');
+        const arr = Array.isArray(it) ? it : (it?.items ?? []);
+        if (!cancelled && Array.isArray(arr)) setRegItems(arr);
+      } catch { /* registry optional */ }
+      try {
+        const d = await api.get<any>('/api/workshop');
+        if (!cancelled && d?.openWorkOrders) setDriverReports(d.openWorkOrders);
+      } catch { /* offline */ }
+      try {
+        const fl = await api.get<any>('/api/workshop/fuel');
+        const logs = Array.isArray(fl) ? fl : (fl?.fuelLogs ?? []);
+        if (!cancelled && Array.isArray(logs)) setFuelLogs(logs.map(mapFuelLog));
+      } catch { /* offline */ }
+      try {
+        const rp = await api.get<any>('/api/workshop/fuel/report?days=30');
+        if (!cancelled && Array.isArray((rp as any)?.vehicles)) setFuelReport((rp as any).vehicles);
+      } catch { /* offline */ }
+      if (!cancelled) setLoaded(true);
+    })();
     return () => { cancelled = true; };
   }, []);
-  useEffect(() => { if (!loaded||!currentUser) return; localStorage.setItem('fms_assets_'+currentUser.plantName,JSON.stringify(assets)); saveAssets(currentUser.username, assets).catch(()=>{}); }, [assets,loaded]);
-  useEffect(() => { if (!loaded||!currentUser) return; localStorage.setItem('fms_cfg_'+currentUser.plantName,JSON.stringify(config)); saveWorkshopConfig(currentUser.username, config).catch(()=>{}); }, [config,loaded]);
-  useEffect(() => { if (!loaded) return; localStorage.setItem('ws_fuel', JSON.stringify(fuelLogs)); if (currentUser) saveFuelLogs(currentUser.username, fuelLogs).catch(()=>{}); }, [fuelLogs, loaded]);
-  useEffect(() => { if (!loaded) return; localStorage.setItem('ws_oil', JSON.stringify(oilLogs)); if (currentUser) saveOilLogs(currentUser.username, oilLogs).catch(()=>{}); }, [oilLogs, loaded]);
-  useEffect(() => { if (!loaded) return; localStorage.setItem('ws_parts', JSON.stringify(sparePartLogs)); if (currentUser) saveSparePartLogs(currentUser.username, sparePartLogs).catch(()=>{}); }, [sparePartLogs, loaded]);
-  useEffect(() => { if (!loaded) return; localStorage.setItem('ws_breakdowns', JSON.stringify(breakdowns)); if (currentUser) saveBreakdowns(currentUser.username, breakdowns).catch(()=>{}); }, [breakdowns, loaded]);
-  useEffect(() => { if (!loaded) return; localStorage.setItem('ws_warehouse', JSON.stringify(warehouse)); if (currentUser) saveWarehouse(currentUser.username, warehouse).catch(()=>{}); }, [warehouse, loaded]);
-  useEffect(() => { if (!loaded) return; localStorage.setItem('ws_purchreq', JSON.stringify(purchaseReqs)); if (currentUser) savePurchaseReqs(currentUser.username, purchaseReqs).catch(()=>{}); }, [purchaseReqs, loaded]);
-  useEffect(() => { if (!loaded) return; localStorage.setItem('ws_stations', JSON.stringify(stations)); if (currentUser) saveStations(currentUser.username, stations).catch(()=>{}); }, [stations, loaded]);
-  useEffect(() => { if (!loaded) return; localStorage.setItem('ws_maints', JSON.stringify(periodicMaints)); if (currentUser) savePeriodicMaints(currentUser.username, periodicMaints).catch(()=>{}); }, [periodicMaints, loaded]);
+  // Local-only mirrors (no backend endpoint for these sections yet)
+  useEffect(() => { if (!loaded||!currentUser) return; localStorage.setItem('fms_assets_'+currentUser.plantName,JSON.stringify(assets)); }, [assets,loaded]);
+  useEffect(() => { if (!loaded||!currentUser) return; localStorage.setItem('fms_cfg_'+currentUser.plantName,JSON.stringify(config)); }, [config,loaded]);
+  useEffect(() => { if (!loaded) return; localStorage.setItem('ws_oil', JSON.stringify(oilLogs)); }, [oilLogs, loaded]);
+  useEffect(() => { if (!loaded) return; localStorage.setItem('ws_parts', JSON.stringify(sparePartLogs)); }, [sparePartLogs, loaded]);
+  useEffect(() => { if (!loaded) return; localStorage.setItem('ws_breakdowns', JSON.stringify(breakdowns)); }, [breakdowns, loaded]);
+  useEffect(() => { if (!loaded) return; localStorage.setItem('ws_warehouse', JSON.stringify(warehouse)); }, [warehouse, loaded]);
+  useEffect(() => { if (!loaded) return; localStorage.setItem('ws_purchreq', JSON.stringify(purchaseReqs)); }, [purchaseReqs, loaded]);
+  useEffect(() => { if (!loaded) return; localStorage.setItem('ws_stations', JSON.stringify(stations)); }, [stations, loaded]);
+  useEffect(() => { if (!loaded) return; localStorage.setItem('ws_maints', JSON.stringify(periodicMaints)); }, [periodicMaints, loaded]);
 
   // Sync breakdowns
   useEffect(() => { if (!loaded) return; const openIds = new Set(breakdowns.filter(b => b.status==='Open'||b.status==='In Repair').map(b => b.assetId)); let changed = false; const updated = assets.map(a => { if (openIds.has(a.id) && a.status!=='Workshop') { changed=true; return {...a, status:'Workshop'}; } if (!openIds.has(a.id) && a.status==='Workshop') { changed=true; return {...a, status:'Ready'}; } return a; }); if (changed) setAssets(updated); }, [breakdowns, loaded]);
@@ -161,10 +247,118 @@ export default function Workshop() {
   const criticalOverdue = overdueBreakdowns.filter(b => calcWorkshopDuration(b).totalHours > 24);
 
   // Handlers
-  const addFuelLog = (e: React.FormEvent) => { e.preventDefault(); if(!fuelForm.assetId||!fuelForm.liters) return; const L=parseFloat(fuelForm.liters), cpl=parseFloat(fuelForm.costPerLiter)||0; setFuelLogs(p=>[...p,{id:Date.now(),...fuelForm,odoReading:parseInt(fuelForm.odoReading)||0,liters:L,costPerLiter:cpl,totalCost:L*cpl}]); setFuelForm({date:new Date().toISOString().split('T')[0],assetId:'',odoReading:'',liters:'',costPerLiter:'',fuelType:'Diesel',station:'',invoice:'',notes:''}); };
+  const addFuelLog = async (e: React.FormEvent) => {
+    e.preventDefault(); if(!fuelForm.assetId||!fuelForm.liters) return;
+    const L=parseFloat(fuelForm.liters), cpl=parseFloat(fuelForm.costPerLiter)||0;
+    const odo=parseInt(fuelForm.odoReading)||0;
+    const snapshot = {...fuelForm};
+    setFuelLogs(p=>[...p,{id:Date.now(),...snapshot,odoReading:odo,liters:L,costPerLiter:cpl,totalCost:L*cpl}]);
+    setFuelForm({date:new Date().toISOString().split('T')[0],assetId:'',odoReading:'',liters:'',costPerLiter:'',fuelType:'Diesel',station:'',invoice:'',notes:''});
+    // POST /api/workshop/fuel (schema: vehicleId uuid, logType, odometreKm,
+    // litresAdded, costPerLitreSarCents int, fuelStationName, receiptNumber, notes)
+    const vehicleId = fleetIds[snapshot.assetId];
+    if (!vehicleId) return; // unknown vehicle code → local entry only
+    try {
+      await api.post('/api/workshop/fuel', {
+        vehicleId, logType: 'REFUEL', odometreKm: odo, litresAdded: L,
+        ...(cpl > 0 ? { costPerLitreSarCents: Math.round(cpl * 100) } : {}),
+        ...(snapshot.station ? { fuelStationName: snapshot.station } : {}),
+        ...(snapshot.invoice ? { receiptNumber: snapshot.invoice } : {}),
+        ...(snapshot.notes ? { notes: snapshot.notes } : {}),
+      });
+      const fl = await api.get<any>('/api/workshop/fuel');
+      const logs = Array.isArray(fl) ? fl : (fl?.fuelLogs ?? []);
+      if (Array.isArray(logs)) setFuelLogs(logs.map(mapFuelLog));
+    } catch { /* keep optimistic local entry */ }
+  };
   const addOilLog = (e: React.FormEvent) => { e.preventDefault(); if(!oilForm.assetId||!oilForm.quantity) return; setOilLogs(p=>[...p,{id:Date.now(),...oilForm,quantity:parseFloat(oilForm.quantity),cost:parseFloat(oilForm.cost)||0,odoReading:parseInt(oilForm.odoReading)||0,nextChangeOdo:parseInt(oilForm.nextChangeOdo)||0}]); setOilForm({date:new Date().toISOString().split('T')[0],assetId:'',oilType:'Engine Oil',brand:'',quantity:'',unit:'Liters',cost:'',odoReading:'',nextChangeOdo:'',notes:''}); };
   const addSparePart = (e: React.FormEvent) => { e.preventDefault(); if(!spForm.assetId||!spForm.partName) return; const q=parseInt(spForm.quantity)||1, uc=parseFloat(spForm.unitCost)||0; setSparePartLogs(p=>[...p,{id:Date.now(),...spForm,quantity:q,unitCost:uc,totalCost:q*uc}]); setSpForm({date:new Date().toISOString().split('T')[0],assetId:'',partName:'',partNumber:'',quantity:'1',unitCost:'',supplier:'',invoice:'',warranty:'',notes:''}); };
-  const submitBD = (e: React.FormEvent) => { e.preventDefault(); if(!bdForm.assetId||!bdForm.symptom) return; if(editingBdId){ setBreakdowns(p=>p.map(b=>b.id===editingBdId?{...b,...bdForm,repairCost:parseFloat(bdForm.repairCost)||0,status:bdForm.repairDesc?'Resolved':b.status}:b)); setEditingBdId(null); } else { setBreakdowns(p=>[...p,{id:Date.now(),...bdForm,repairCost:parseFloat(bdForm.repairCost)||0,status:'Open'}]); setAssets(p=>p.map(a=>a.id===bdForm.assetId?{...a,status:'Workshop'}:a)); } setBdForm({date:new Date().toISOString().split('T')[0],assetId:'',reportedBy:'',symptom:'',severity:'Major',mechanicAssigned:'',repairStart:'',repairEnd:'',repairDesc:'',partsUsed:'',repairCost:'',notes:''}); };
+  const submitBD = async (e: React.FormEvent) => {
+    e.preventDefault(); if(!bdForm.assetId||!bdForm.symptom) return;
+    const snapshot = {...bdForm};
+    if(editingBdId){ setBreakdowns(p=>p.map(b=>b.id===editingBdId?{...b,...snapshot,repairCost:parseFloat(snapshot.repairCost)||0,status:snapshot.repairDesc?'Resolved':b.status}:b)); setEditingBdId(null); } else { setBreakdowns(p=>[...p,{id:Date.now(),...snapshot,repairCost:parseFloat(snapshot.repairCost)||0,status:'Open'}]); setAssets(p=>p.map(a=>a.id===snapshot.assetId?{...a,status:'Workshop'}:a)); }
+    setBdForm({date:new Date().toISOString().split('T')[0],assetId:'',reportedBy:'',symptom:'',severity:'Major',mechanicAssigned:'',repairStart:'',repairEnd:'',repairDesc:'',partsUsed:'',repairCost:'',notes:''});
+    // POST /api/workshop — staff-created work order (schema: vehicleId uuid,
+    // maintenanceType enum, priority 1-4, severity LOW/MEDIUM/HIGH/CRITICAL,
+    // faultDescription min 10 chars). Local note is kept regardless.
+    if (editingBdId) return;
+    const vehicleId = fleetIds[snapshot.assetId];
+    if (!vehicleId || snapshot.symptom.trim().length < 10) return;
+    try {
+      await api.post('/api/workshop', {
+        vehicleId,
+        maintenanceType: 'CORRECTIVE',
+        priority: BD_SEVERITY_TO_PRIORITY[snapshot.severity] ?? 3,
+        severity: BD_SEVERITY_TO_ERP[snapshot.severity] ?? 'MEDIUM',
+        faultDescription: snapshot.symptom,
+        isMajorBreakdown: snapshot.severity === 'Critical',
+      });
+      const d = await api.get<any>('/api/workshop');
+      if (d?.openWorkOrders) setDriverReports(d.openWorkOrders);
+    } catch { /* keep local breakdown note */ }
+  };
+  // POST /api/workshop/[workOrderId]/close — close a driver-submitted work
+  // order and return the vehicle to AVAILABLE (schema: actionTaken min 10).
+  const openCloseWO = (wo: any) => {
+    setCloseWO(wo);
+    setCloseForm({ actionTaken: '', labourHours: '', returnStatus: 'AVAILABLE' });
+    setCloseParts([]);
+    setPartPick({ itemId: '', qty: '1', cost: '' });
+    setCloseMsg('');
+  };
+  const addClosePart = () => {
+    const it = regItems.find((x: any) => String(x.id) === partPick.itemId);
+    const qty = Number(partPick.qty) || 0;
+    if (!it || qty <= 0) { setCloseMsg(ar ? '❌ اختر الصنف والكمية' : 'Pick item + qty'); return; }
+    const cost = partPick.cost.trim() === '' ? Number(it.unitCostSar ?? it.unitCost ?? 0) || 0 : Number(partPick.cost) || 0;
+    setCloseParts((p) => [...p, { itemId: String(it.id), code: it.itemCode ?? it.code ?? '', name: it.nameAr ?? it.name ?? '', qty, cost }]);
+    setPartPick({ itemId: '', qty: '1', cost: '' });
+  };
+  const submitClose = async () => {
+    if (!closeWO?.id) return;
+    if (closeForm.actionTaken.trim().length < 10) { setCloseMsg(ar ? '❌ اكتب ما تم إصلاحه (10 أحرف على الأقل)' : 'Describe the repair (10+ chars)'); return; }
+    setClosingWO(String(closeWO.id));
+    try {
+      const r: any = await api.post(`/api/workshop/${closeWO.id}/close`, {
+        actionTaken: closeForm.actionTaken.trim(),
+        ...(closeForm.labourHours.trim() ? { labourHours: Number(closeForm.labourHours) } : {}),
+        ...(closeParts.length ? { partsUsed: closeParts.map((x) => ({ partCode: x.code, description: x.name, quantityUsed: Number(x.qty), costSar: Number(x.cost), itemId: x.itemId })) } : {}),
+        returnVehicleStatus: closeForm.returnStatus,
+      });
+      const warns = Array.isArray(r?.stockWarnings) && r.stockWarnings.length ? ` ⚠️ ${r.stockWarnings.join('، ')}` : '';
+      const exp = r?.expenseId ? (ar ? ' (رحلت للتكلفة الغير مباشرة ✅)' : ' (posted to indirect cost)') : '';
+      setCloseMsg(`✅ ${ar ? 'تم إغلاق الأمر' : 'Closed'}${exp}${warns}`);
+      setCloseWO(null);
+      const d = await api.get<any>('/api/workshop');
+      if (d?.openWorkOrders) setDriverReports(d.openWorkOrders);
+    } catch (err: any) {
+      setCloseMsg(`❌ ${err?.message || 'Close failed'}`);
+    } finally {
+      setClosingWO(null);
+    }
+  };
+  const loadSvc = async (vid: string) => {
+    setSvcVehicle(vid);
+    if (!vid) { setSvcCards([]); return; }
+    setSvcBusy(true);
+    try {
+      const d: any = await api.get(`/api/workshop/history?vehicleId=${vid}`);
+      setSvcCards(Array.isArray(d?.cards) ? d.cards : []);
+    } catch { setSvcCards([]); }
+    finally { setSvcBusy(false); }
+  };
+  const printSvc = () => {
+    const v = fleetErp.find((x: any) => String(x.id) === svcVehicle);
+    const title = ar ? `كارت صيانة — ${v?.vehicleCode ?? ''} ${v?.plateNumber ?? ''}` : `Service card — ${v?.vehicleCode ?? ''}`;
+    const rows = svcCards.map((c: any, i: number) => {
+      const parts = Array.isArray(c.partsUsed) ? c.partsUsed.map((p: any) => `${p.partCode || ''} ${p.description || ''} × ${p.quantityUsed ?? ''} (${p.costSar ?? ''})`).join('، ') : '';
+      return `<tr><td>${i + 1}</td><td>${c.workOrderNumber ?? ''}</td><td>${c.status ?? ''}</td><td>${String(c.createdAt ?? '').slice(0, 10)}</td><td>${String(c.completedAt ?? '').slice(0, 10)}</td><td>${c.faultDescription ?? ''}</td><td>${c.actionTaken ?? ''}</td><td>${c.mechanicName ?? ''}</td><td>${c.labourHours ?? ''}</td><td>${parts}</td><td>${c.totalCostSar ?? ''}</td></tr>`;
+    }).join('');
+    const w = window.open('', '_blank', 'width=1000,height=800');
+    if (!w) return;
+    w.document.write(`<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>${title}</title><style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:'Segoe UI',Tahoma;padding:24px;color:#111}h1{font-size:20px;margin-bottom:4px}table{width:100%;border-collapse:collapse;font-size:11px;margin-top:12px}th{background:#0f172a;color:#fff;padding:6px 8px;text-align:right}td{padding:5px 8px;border-bottom:1px solid #ddd}@media print{body{padding:10mm}}</style></head><body><h1>${title}</h1><table><thead><tr><th>#</th><th>الأمر</th><th>الحالة</th><th>الدخول</th><th>الخروج</th><th>العطل</th><th>الإصلاح</th><th>الميكانيكي</th><th>ساعات</th><th>قطع الغيار</th><th>التكلفة</th></tr></thead><tbody>${rows || '<tr><td colspan=11>—</td></tr>'}</tbody></table><script>window.onload=()=>setTimeout(()=>window.print(),400);<\/script></body></html>`);
+    w.document.close();
+  };
   const resolveBD = (id:number) => { setBreakdowns(p=>p.map(b=>b.id===id?{...b,status:'Resolved'}:b)); const bd=breakdowns.find(b=>b.id===id); if(bd){ const still=breakdowns.filter(b=>b.assetId===bd.assetId&&b.id!==id&&(b.status==='Open'||b.status==='In Repair')); if(still.length===0) setAssets(p=>p.map(a=>a.id===bd.assetId?{...a,status:'Ready'}:a)); } };
   const editBD = (bd: BreakdownReport) => { setEditingBdId(bd.id); setBdForm({date:bd.date,assetId:bd.assetId,reportedBy:bd.reportedBy,symptom:bd.symptom,severity:bd.severity,mechanicAssigned:bd.mechanicAssigned,repairStart:bd.repairStart,repairEnd:bd.repairEnd,repairDesc:bd.repairDesc,partsUsed:bd.partsUsed,repairCost:String(bd.repairCost),notes:bd.notes}); setTab('breakdown'); };
   const deleteBD = (id:number) => { if(!confirm('Delete?')) return; const bd=breakdowns.find(b=>b.id===id); setBreakdowns(p=>p.filter(b=>b.id!==id)); if(bd){ const still=breakdowns.filter(b=>b.assetId===bd.assetId&&b.id!==id&&(b.status==='Open'||b.status==='In Repair')); if(still.length===0) setAssets(p=>p.map(a=>a.id===bd.assetId?{...a,status:'Ready'}:a)); } };
@@ -283,7 +477,8 @@ export default function Workshop() {
     {id:'home',label:t('home')},{id:'fuel',label:t('fuelAndDiesel')},{id:'oil',label:t('oilAndFluids')},
     {id:'spareparts',label:t('spareParts')},{id:'breakdown',label:t('breakdownReports')},
     {id:'purchaserequests',label:t('purchaseRequests')},{id:'warehouse',label:t('warehouse')},
-    {id:'vehiclereport',label:t('vehicleReport')},{id:'mixingstations',label:t('mixingStations')},{id:'config',label:t('fleetSettings')},{id:'reports',label:t('reports')},
+    {id:'vehiclereport',label:t('vehicleReport')},
+    {id:'servicecard',label:ar?'🛠️ كارت الصيانة':'Service card'},{id:'mixingstations',label:t('mixingStations')},{id:'config',label:t('fleetSettings')},{id:'reports',label:t('reports')},
   ];
 
   const sevColor = (s: string) => s==='Critical'?'bg-red-600':s==='Major'?'bg-orange-500':'bg-yellow-500 text-slate-900';
@@ -313,11 +508,65 @@ export default function Workshop() {
           {/* Driver Breakdown Reports (from the driver app → ERP work orders) */}
           {driverReports.length>0&&(<div className="bg-red-950/40 border border-red-500/40 rounded-xl p-5">
             <div className="flex justify-between items-center mb-4"><h3 className="text-lg font-bold text-red-300">{t('driverReportsTitle')}</h3><span className="text-xs text-red-400 font-bold">{driverReports.length} Open</span></div>
-            <div className="overflow-x-auto"><table className="w-full text-sm text-slate-300"><thead className="bg-white/[0.04] text-slate-400 text-xs"><tr><th className="p-3">{t('thWorkOrder')}</th><th className="p-3">{t('thMixer')}</th><th className="p-3">{t('thPlate')}</th><th className="p-3">{t('thSeverity')}</th><th className="p-3">{t('thVehicleType')}</th><th className="p-3">{t('thDescription')}</th><th className="p-3">{t('thAttachments')}</th><th className="p-3">{t('thDate')}</th></tr></thead><tbody>{driverReports.map(wo=>(<tr key={wo.workOrderNumber} className="border-b border-white/10"><td className="p-3 font-bold text-red-300">{wo.workOrderNumber}</td><td className="p-3 font-bold">{wo.vehicleCode}</td><td className="p-3">{wo.plateNumber||'-'}</td><td className="p-3"><span className={`px-2 py-0.5 rounded text-xs font-bold ${wo.severity==='CRITICAL'?'bg-red-500 text-white':wo.severity==='HIGH'?'bg-orange-500 text-white':wo.severity==='MEDIUM'?'bg-yellow-500 text-slate-900':'bg-emerald-500/70 text-white'}`}>{wo.severity}</span></td><td className="p-3">{wo.vehicleType||'-'}</td><td className="p-3 max-w-[280px] truncate" title={wo.faultDescription}>{wo.faultDescription}</td><td className="p-3">
+            <div className="overflow-x-auto"><table className="w-full text-sm text-slate-300"><thead className="bg-white/[0.04] text-slate-400 text-xs"><tr><th className="p-3">{t('thWorkOrder')}</th><th className="p-3">{t('thMixer')}</th><th className="p-3">{t('thPlate')}</th><th className="p-3">{t('thSeverity')}</th><th className="p-3">{t('thVehicleType')}</th><th className="p-3">{t('thDescription')}</th><th className="p-3">{t('thAttachments')}</th><th className="p-3">{t('thDate')}</th><th className="p-3">{t('actions')}</th></tr></thead><tbody>{driverReports.map(wo=>(<tr key={wo.workOrderNumber} className="border-b border-white/10"><td className="p-3 font-bold text-red-300">{wo.workOrderNumber}</td><td className="p-3 font-bold">{wo.vehicleCode}</td><td className="p-3">{wo.plateNumber||'-'}</td><td className="p-3"><span className={`px-2 py-0.5 rounded text-xs font-bold ${wo.severity==='CRITICAL'?'bg-red-500 text-white':wo.severity==='HIGH'?'bg-orange-500 text-white':wo.severity==='MEDIUM'?'bg-yellow-500 text-slate-900':'bg-emerald-500/70 text-white'}`}>{wo.severity}</span></td><td className="p-3">{wo.vehicleType||'-'}</td><td className="p-3 max-w-[280px] truncate" title={wo.faultDescription}>{wo.faultDescription}</td><td className="p-3">
         {(wo.photoBase64||wo.photoUrl||wo.photo)?<a href={wo.photoBase64?`data:image/jpeg;base64,${wo.photoBase64}`:(wo.photoUrl||wo.photo)} target="_blank" rel="noreferrer" className="text-sky-400 font-bold text-xs underline mr-2">{t('photoLink')}</a>:null}
         {(wo.audioBase64||wo.audioUrl||wo.audio)?<a href={wo.audioBase64?`data:audio/m4a;base64,${wo.audioBase64}`:(wo.audioUrl||wo.audio)} target="_blank" rel="noreferrer" className="text-emerald-400 font-bold text-xs underline">{t('audioLink')}</a>:null}
         {!(wo.photoBase64||wo.photoUrl||wo.photo||wo.audioBase64||wo.audioUrl||wo.audio)?<span className="text-slate-600">—</span>:null}
-      </td><td className="p-3">{wo.createdAt?new Date(wo.createdAt).toLocaleString():'-'}</td></tr>))}</tbody></table></div>
+      </td><td className="p-3">{wo.createdAt?new Date(wo.createdAt).toLocaleString():'-'}</td><td className="p-3"><button onClick={()=>openCloseWO(wo)} className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs px-2 py-1 rounded font-bold">Fix</button></td></tr>))}</tbody></table></div>
+            {closeWO && (
+            <div className="mt-3 rounded-2xl border border-emerald-500/30 bg-emerald-500/[0.06] p-4">
+              <h3 className="text-sm font-black text-white mb-3">🔧 {ar ? `إغلاق ${closeWO.workOrderNumber ?? ''} — ${closeWO.vehicleCode ?? ''}` : 'Close work order'}</h3>
+              <label className="text-[11px] text-slate-400 font-bold block mb-2">{ar ? 'ما تم إصلاحه *' : 'Action taken *'}
+                <textarea value={closeForm.actionTaken} onChange={(e) => setCloseForm({ ...closeForm, actionTaken: e.target.value })} rows={2}
+                  className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-2">
+                <label className="text-[11px] text-slate-400 font-bold">{ar ? 'ساعات العمل' : 'Labour hrs'}
+                  <input value={closeForm.labourHours} inputMode="decimal" onChange={(e) => setCloseForm({ ...closeForm, labourHours: e.target.value })}
+                    className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
+                <label className="text-[11px] text-slate-400 font-bold">{ar ? 'إرجاع المركبة' : 'Return as'}
+                  <select value={closeForm.returnStatus} onChange={(e) => setCloseForm({ ...closeForm, returnStatus: e.target.value })}
+                    className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none">
+                    <option value="AVAILABLE">{ar ? 'متاحة' : 'Available'}</option>
+                    <option value="STANDBY">{ar ? 'احتياط' : 'Standby'}</option>
+                    <option value="OUT_OF_SERVICE">{ar ? 'خارج الخدمة' : 'Out of service'}</option>
+                  </select></label>
+                <div className="text-[11px] text-slate-400 font-bold">{ar ? 'الإجمالي' : 'Total'}
+                  <p className="mt-0.5 text-sm font-black text-emerald-300">{closeParts.reduce((x, y) => x + (Number(y.qty) || 0) * (Number(y.cost) || 0), 0).toLocaleString('en-US')} {ar ? 'ر.س' : 'SAR'}</p></div>
+              </div>
+              <p className="text-[11px] font-black text-slate-300 mb-1">{ar ? 'قطع الغيار المركبة (من الشجرة — تخصم من المخزن وترحل للتكلفة)' : 'Fitted parts'}</p>
+              <div className="flex flex-wrap gap-2 mb-2">
+                <select value={partPick.itemId} onChange={(e) => {
+                  const it = regItems.find((x: any) => String(x.id) === e.target.value);
+                  setPartPick({ ...partPick, itemId: e.target.value, cost: it ? String(it.unitCostSar ?? it.unitCost ?? '') : partPick.cost });
+                }} className="flex-1 min-w-[180px] bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none">
+                  <option value="">— {ar ? 'اختر من الشجرة' : 'Pick from tree'} —</option>
+                  {regItems.map((it: any) => <option key={it.id} value={it.id}>{it.itemCode} · {it.nameAr ?? it.name} ({it.qtyOnHand ?? 0})</option>)}
+                </select>
+                <input value={partPick.qty} inputMode="decimal" onChange={(e) => setPartPick({ ...partPick, qty: e.target.value })} placeholder={ar ? 'الكمية' : 'Qty'}
+                  className="w-20 bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" />
+                <input value={partPick.cost} inputMode="decimal" onChange={(e) => setPartPick({ ...partPick, cost: e.target.value })} placeholder={ar ? 'التكلفة' : 'Cost'}
+                  className="w-24 bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" />
+                <button onClick={addClosePart} className="text-[11px] font-black rounded-lg px-3 py-1.5 border border-sky-500/50 bg-sky-500/15 text-sky-300">➕</button>
+              </div>
+              {closeParts.length > 0 && (
+              <div className="space-y-1 mb-2">
+                {closeParts.map((x, i) => (
+                  <div key={i} className="flex items-center justify-between text-[11px] rounded-lg border border-white/10 bg-white/[0.03] px-2 py-1">
+                    <span className="text-slate-200 font-bold">{x.code} · {x.name} × {x.qty} = {((Number(x.qty) || 0) * (Number(x.cost) || 0)).toLocaleString('en-US')}</span>
+                    <button onClick={() => setCloseParts((p) => p.filter((_, j) => j !== i))} className="text-red-400 px-1">✕</button>
+                  </div>
+                ))}
+              </div>
+              )}
+              {closeMsg && <p className="text-xs font-bold text-slate-200 mb-2">{closeMsg}</p>}
+              <div className="flex gap-2">
+                <button disabled={closingWO === String(closeWO.id)} onClick={submitClose}
+                  className="bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-white text-xs font-black rounded-lg px-6 py-2">
+                  {closingWO === String(closeWO.id) ? '…' : `✅ ${ar ? 'إغلاق وترحيل' : 'Close & post'}`}</button>
+                <button onClick={() => setCloseWO(null)} className="text-slate-400 text-xs border border-white/10 px-4 py-2 rounded-lg">✕</button>
+              </div>
+            </div>
+            )}
           </div>)}
           <div className="grid grid-cols-2 md:grid-cols-5 gap-3">{[{label:t('totalAssets'),value:assets.length,color:'border-sky-500'},{label:t('readyForOperation'),value:activeAssets,color:'border-emerald-500'},{label:t('inWorkshop'),value:workshopAssets,color:'border-yellow-500'},{label:t('openBreakdowns'),value:openBDs.length+driverReports.length,color:'border-red-500'},{label:t('maintenanceCosts'),value:fmtMoney(totalRepairCost),color:'border-sky-500'}].map(k=>(<div key={k.label} className={`bg-white/[0.04] border-l-4 ${k.color} rounded-lg p-4`}><p className="text-[10px] text-slate-400">{k.label}</p><p className="text-xl font-bold text-white">{k.value}</p></div>))}</div>
 
@@ -326,15 +575,15 @@ export default function Workshop() {
 
           {/* Workshop Duration */}
           {openBDs.length > 0 && (<div className={`rounded-xl p-5 border-2 mb-6 ${criticalOverdue.length>0?'bg-red-950/60 border-red-500 animate-pulse':overdueBreakdowns.length>0?'bg-yellow-950/40 border-yellow-500':'bg-white/[0.04] border-white/10'}`}>
-            <div className="flex justify-between items-center mb-4"><h3 className="text-lg font-bold text-white">Workshop Duration Report</h3><span className="text-xs text-slate-400">{new Date().toLocaleTimeString()}</span></div>
+            <div className="flex justify-between items-center mb-4"><h3 className="text-lg font-bold text-white">{t('workshopDuration')}</h3><span className="text-xs text-slate-400">{new Date().toLocaleTimeString()}</span></div>
             {criticalOverdue.length>0&&<div className="bg-red-600/20 border border-red-400/50 rounded-lg p-3 mb-4 animate-pulse"><p className="text-red-300 font-bold text-sm">{criticalOverdue.length} vehicles over 24h in workshop!</p></div>}
             {overdueBreakdowns.length>0&&criticalOverdue.length===0&&<div className="bg-yellow-500/10 border border-yellow-400/30 rounded-lg p-3 mb-4"><p className="text-yellow-300 font-bold text-sm">{overdueBreakdowns.length} vehicles over 12h since breakdown report</p></div>}
-            <div className="overflow-x-auto"><table className="w-full text-sm text-slate-300"><thead className="bg-white/[0.04] text-slate-400 text-xs"><tr><th className="p-3">Vehicle</th><th className="p-3">Entry Date</th><th className="p-3">Duration</th><th className="p-3">12h Blocks</th><th className="p-3">Status</th><th className="p-3">Alert</th></tr></thead><tbody>{openBDs.map(b=>{const dur=calcWorkshopDuration(b);const rowBg=dur.totalHours>24?'bg-red-500/10':dur.totalHours>12?'bg-yellow-500/5':'';return(<tr key={b.id} className={`border-b border-white/10 ${rowBg} ${dur.totalHours>24?'animate-pulse':''}`}><td className="p-3 font-bold text-lg">{b.assetId}</td><td className="p-3"><span className="text-white font-semibold">{b.date}</span></td><td className="p-3"><span className={`text-lg font-bold ${dur.totalHours>24?'text-red-400':dur.totalHours>12?'text-yellow-400':'text-emerald-400'}`}>{dur.days>0?`${dur.days}d `:''}{dur.hours}h</span></td><td className="p-3"><div className="flex gap-0.5 flex-wrap">{Array.from({length:Math.min(dur.blocks12h,8)}).map((_,i)=>(<span key={i} className={`w-5 h-5 rounded flex items-center justify-center text-[8px] font-bold ${i<2?'bg-emerald-500/60':i<4?'bg-yellow-500/60 text-slate-900':'bg-red-500/80 animate-pulse'}`}>{i+1}</span>))}{dur.blocks12h===0&&<span className="text-emerald-400 font-bold text-xs">Under 12h</span>}</div></td><td className="p-3"><span className={`px-2 py-1 rounded text-xs font-bold ${b.status==='Open'?'bg-red-500/80':'bg-yellow-500/80'} text-white`}>{b.status}</span></td><td className="p-3">{dur.totalHours>24?<span className="bg-red-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold animate-pulse block text-center">24h+</span>:dur.totalHours>12?<span className="bg-yellow-500 text-slate-900 px-3 py-1.5 rounded-lg text-xs font-bold block text-center">12h Alert</span>:<span className="bg-emerald-500/20 text-emerald-400 px-3 py-1.5 rounded-lg text-xs font-bold block text-center">OK</span>}</td></tr>)})}</tbody></table></div>
-            <div className="mt-4 pt-3 border-t border-white/10 flex flex-wrap justify-between items-center text-xs text-slate-400 gap-2"><span>Total: <b className="text-white">{openBDs.length}</b></span><span>Normal: <b className="text-emerald-400">{openBDs.length-overdueBreakdowns.length}</b></span><span>Over 12h: <b className="text-yellow-400">{overdueBreakdowns.length-criticalOverdue.length}</b></span><span>Critical 24h+: <b className="text-red-400">{criticalOverdue.length}</b></span><button onClick={()=>window.print()} className="bg-sky-600 text-white px-3 py-1 rounded font-bold hover:bg-sky-700">Print</button></div>
+            <div className="overflow-x-auto"><table className="w-full text-sm text-slate-300"><thead className="bg-white/[0.04] text-slate-400 text-xs"><tr><th className="p-3">{t('vehicle')}</th><th className="p-3">{t('entryDateLbl')}</th><th className="p-3">{t('durationLbl')}</th><th className="p-3">{t('blocksLbl')}</th><th className="p-3">{t('status')}</th><th className="p-3">{t('alertLbl')}</th></tr></thead><tbody>{openBDs.map(b=>{const dur=calcWorkshopDuration(b);const rowBg=dur.totalHours>24?'bg-red-500/10':dur.totalHours>12?'bg-yellow-500/5':'';return(<tr key={b.id} className={`border-b border-white/10 ${rowBg} ${dur.totalHours>24?'animate-pulse':''}`}><td className="p-3 font-bold text-lg">{b.assetId}</td><td className="p-3"><span className="text-white font-semibold">{b.date}</span></td><td className="p-3"><span className={`text-lg font-bold ${dur.totalHours>24?'text-red-400':dur.totalHours>12?'text-yellow-400':'text-emerald-400'}`}>{dur.days>0?`${dur.days}d `:''}{dur.hours}h</span></td><td className="p-3"><div className="flex gap-0.5 flex-wrap">{Array.from({length:Math.min(dur.blocks12h,8)}).map((_,i)=>(<span key={i} className={`w-5 h-5 rounded flex items-center justify-center text-[8px] font-bold ${i<2?'bg-emerald-500/60':i<4?'bg-yellow-500/60 text-slate-900':'bg-red-500/80 animate-pulse'}`}>{i+1}</span>))}{dur.blocks12h===0&&<span className="text-emerald-400 font-bold text-xs">Under 12h</span>}</div></td><td className="p-3"><span className={`px-2 py-1 rounded text-xs font-bold ${b.status==='Open'?'bg-red-500/80':'bg-yellow-500/80'} text-white`}>{b.status}</span></td><td className="p-3">{dur.totalHours>24?<span className="bg-red-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold animate-pulse block text-center">24h+</span>:dur.totalHours>12?<span className="bg-yellow-500 text-slate-900 px-3 py-1.5 rounded-lg text-xs font-bold block text-center">12h Alert</span>:<span className="bg-emerald-500/20 text-emerald-400 px-3 py-1.5 rounded-lg text-xs font-bold block text-center">OK</span>}</td></tr>)})}</tbody></table></div>
+            <div className="mt-4 pt-3 border-t border-white/10 flex flex-wrap justify-between items-center text-xs text-slate-400 gap-2"><span>Total: <b className="text-white">{openBDs.length}</b></span><span>Normal: <b className="text-emerald-400">{openBDs.length-overdueBreakdowns.length}</b></span><span>Over 12h: <b className="text-yellow-400">{overdueBreakdowns.length-criticalOverdue.length}</b></span><span>Critical 24h+: <b className="text-red-400">{criticalOverdue.length}</b></span><button onClick={()=>window.print()} className="bg-sky-600 text-white px-3 py-1 rounded font-bold hover:bg-sky-700">{t('printBtn')}</button></div>
           </div>)}
 
           {/* Open Breakdowns */}
-          <div className="bg-white/[0.04] border border-white/10 rounded-xl p-5"><h3 className="text-lg font-bold text-red-400 mb-4">{t('openBreakdownsList')}</h3>{openBDs.length===0?<p className="text-slate-500 text-center py-8">{t('noOpenBreakdowns')}</p>:<div className="overflow-x-auto"><table className="w-full text-sm text-slate-300"><thead className="bg-white/[0.04] text-slate-400 text-xs"><tr><th className="p-3">{t('date')}</th><th className="p-3">{t('vehicle')}</th><th className="p-3">{t('symptom')}</th><th className="p-3">{t('severity')}</th><th className="p-3">{t('status')}</th><th className="p-3">{t('mechanic')}</th><th className="p-3">{t('actions')}</th></tr></thead><tbody>{openBDs.map(b=>(<tr key={b.id} className="border-b border-white/10"><td className="p-3">{b.date}</td><td className="p-3 font-bold">{b.assetId}</td><td className="p-3">{b.symptom}</td><td className="p-3"><span className={`px-2 py-0.5 rounded text-xs font-bold ${sevColor(b.severity)}`}>{b.severity}</span></td><td className="p-3"><span className="text-yellow-400 font-bold">{b.status==='Open'?'Open':b.status==='In Repair'?'In Repair':'Done'}</span></td><td className="p-3">{b.mechanicAssigned||'-'}</td><td className="p-3 flex gap-1"><button onClick={()=>editBD(b)} className="bg-sky-500 text-white text-xs px-2 py-1 rounded">{t('edit')}</button><button onClick={()=>resolveBD(b.id)} className="bg-emerald-600 text-white text-xs px-2 py-1 rounded">Fix</button></td></tr>))}</tbody></table></div>}</div>
+          <div className="bg-white/[0.04] border border-white/10 rounded-xl p-5"><h3 className="text-lg font-bold text-red-400 mb-4">{t('openBreakdownsList')}</h3>{openBDs.length===0?<p className="text-slate-500 text-center py-8">{t('noOpenBreakdowns')}</p>:<div className="overflow-x-auto"><table className="w-full text-sm text-slate-300"><thead className="bg-white/[0.04] text-slate-400 text-xs"><tr><th className="p-3">{t('date')}</th><th className="p-3">{t('vehicle')}</th><th className="p-3">{t('symptom')}</th><th className="p-3">{t('severity')}</th><th className="p-3">{t('status')}</th><th className="p-3">{t('mechanic')}</th><th className="p-3">{t('actions')}</th></tr></thead><tbody>{openBDs.map(b=>(<tr key={b.id} className="border-b border-white/10"><td className="p-3">{b.date}</td><td className="p-3 font-bold">{b.assetId}</td><td className="p-3">{b.symptom}</td><td className="p-3"><span className={`px-2 py-0.5 rounded text-xs font-bold ${sevColor(b.severity)}`}>{b.severity}</span></td><td className="p-3"><span className="text-yellow-400 font-bold">{b.status==='Open'?'Open':b.status==='In Repair'?'In Repair':'Done'}</span></td><td className="p-3">{b.mechanicAssigned||'-'}</td><td className="p-3 flex gap-1"><button onClick={()=>editBD(b)} className="bg-sky-500 text-white text-xs px-2 py-1 rounded">{t('edit')}</button><button onClick={()=>resolveBD(b.id)} className="bg-emerald-600 text-white text-xs px-2 py-1 rounded">{t('fixBtn')}</button></td></tr>))}</tbody></table></div>}</div>
 
           {/* Fleet Overview */}
           <div className="bg-white/[0.04] border border-white/10 rounded-xl p-5"><h3 className="text-lg font-bold text-sky-400 mb-4">{t('fleetOverview')}</h3><div className="overflow-x-auto"><table className="w-full text-sm text-slate-300"><thead className="bg-white/[0.04] text-slate-400 text-xs uppercase"><tr><th className="p-3">{t('vehicleCode')}</th><th className="p-3">{t('plateNumber')}</th><th className="p-3">{t('assetType')}</th><th className="p-3">{t('driverName')}</th><th className="p-3">{t('currentOdometer')}</th><th className="p-3">{t('status')}</th></tr></thead><tbody>{assets.map(a=>{const hasBD=openBDs.some(b=>b.assetId===a.id);return(<tr key={a.id} className="border-b border-white/10"><td className="p-3 font-bold">{a.id}</td><td className="p-3">{a.plate}</td><td className="p-3">{a.type}</td><td className="p-3">{a.driver||'-'}</td><td className="p-3">{a.initOdo} km</td><td className="p-3"><span className={`px-2 py-0.5 rounded text-xs font-bold ${hasBD||a.status==='Workshop'?'bg-yellow-500/80 text-white':a.status==='Ready'?'bg-emerald-500/80 text-white':'bg-red-500/80 text-white'}`}>{hasBD?'In Workshop':a.status}</span></td></tr>);})}</tbody></table></div></div>
@@ -344,7 +593,7 @@ export default function Workshop() {
         {tab==='fuel'&&(<div className="grid grid-cols-1 lg:grid-cols-[400px_1fr] gap-6">
           <div className="bg-white/[0.04] border border-white/10 rounded-xl p-6"><h3 className="text-lg font-bold text-yellow-400 mb-4">{t('recordFuel')}</h3><form onSubmit={addFuelLog} className="space-y-3">
             <DatePicker value={fuelForm.date} onChange={val=>setFuelForm({...fuelForm,date:val})} label={t('date')} required />
-            <div><label className="text-xs text-slate-400 font-semibold">{t('vehicle')}</label><div className="flex gap-1.5"><select value={fuelForm.assetId} onChange={e=>setFuelForm({...fuelForm,assetId:e.target.value})} className="flex-1 bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm" required><option value="">{t('selectVehicle')}</option>{assets.map(a=><option key={a.id} value={a.id}>{a.id} - {a.plate}</option>)}</select><button type="button" onClick={()=>fuelForm.assetId&&fetchVehicleData(fuelForm.assetId)} disabled={!fuelForm.assetId} className="bg-sky-500 hover:bg-sky-400 disabled:bg-slate-700 text-white text-[10px] px-2 py-1.5 rounded-lg font-bold">Get</button></div></div>
+            <div><label className="text-xs text-slate-400 font-semibold">{t('vehicle')}</label><div className="flex gap-1.5"><select value={fuelForm.assetId} onChange={e=>setFuelForm({...fuelForm,assetId:e.target.value})} className="flex-1 bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm" required><option value="">{t('selectVehicle')}</option>{assets.map(a=><option key={a.id} value={a.id}>{a.id} - {a.plate}</option>)}</select><button type="button" onClick={()=>fuelForm.assetId&&fetchVehicleData(fuelForm.assetId)} disabled={!fuelForm.assetId} className="bg-sky-500 hover:bg-sky-400 disabled:bg-slate-700 text-white text-[10px] px-2 py-1.5 rounded-lg font-bold">{t('getBtn')}</button></div></div>
             <div className="grid grid-cols-2 gap-3"><div><label className="text-xs text-slate-400 font-semibold">{t('currentOdometer')}</label><input type="number" value={fuelForm.odoReading} onChange={e=>setFuelForm({...fuelForm,odoReading:e.target.value})} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm"/></div><div><label className="text-xs text-slate-400 font-semibold">{t('fuelType')}</label><select value={fuelForm.fuelType} onChange={e=>setFuelForm({...fuelForm,fuelType:e.target.value})} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm"><option>Diesel</option><option>Gasoline 92</option><option>Gasoline 95</option></select></div></div>
             <div className="grid grid-cols-2 gap-3"><div><label className="text-xs text-slate-400 font-semibold">{t('liters')}</label><input type="number" step="0.01" value={fuelForm.liters} onChange={e=>setFuelForm({...fuelForm,liters:e.target.value})} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm" required/></div><div><label className="text-xs text-slate-400 font-semibold">{t('costPerLiter')}</label><input type="number" step="0.01" value={fuelForm.costPerLiter} onChange={e=>setFuelForm({...fuelForm,costPerLiter:e.target.value})} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm"/></div></div>
             <div className="grid grid-cols-2 gap-3"><div><label className="text-xs text-slate-400 font-semibold">{t('station')}</label><input value={fuelForm.station} onChange={e=>setFuelForm({...fuelForm,station:e.target.value})} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm"/></div><div><label className="text-xs text-slate-400 font-semibold">{t('invoice')}</label><input value={fuelForm.invoice} onChange={e=>setFuelForm({...fuelForm,invoice:e.target.value})} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm"/></div></div>
@@ -352,12 +601,55 @@ export default function Workshop() {
           </form></div>
           <div className="bg-white/[0.04] border border-white/10 rounded-xl p-6"><h3 className="text-lg font-black tracking-tight text-white mb-4">{t('fuelLog')} ({fuelLogs.length})</h3><div className="overflow-x-auto"><table className="w-full text-xs text-slate-300"><thead className="bg-white/[0.04] text-slate-400 text-[10px]"><tr><th className="p-2">{t('date')}</th><th className="p-2">{t('vehicle')}</th><th className="p-2">{t('currentOdometer')}</th><th className="p-2">{t('liters')}</th><th className="p-2">{t('totalCost')}</th></tr></thead><tbody>{fuelLogs.slice(-20).reverse().map(f=><tr key={f.id} className="border-b border-white/10"><td className="p-2">{f.date}</td><td className="p-2 font-bold">{f.assetId}</td><td className="p-2">{f.odoReading}</td><td className="p-2">{f.liters}</td><td className="p-2 font-bold text-yellow-400">{fmtMoney(f.totalCost)}</td></tr>)}</tbody></table></div></div>
         </div>)}
+        {tab==='fuel' && (
+        <div className="mt-6 bg-white/[0.04] border border-amber-500/25 rounded-xl p-6">
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+            <h3 className="text-base font-black text-amber-300">⛽ تقرير استهلاك الديزل (لتر/100كم مقابل المستهدف)</h3>
+            <span className="flex items-center gap-2">
+              <select value={fuelDays} onChange={(e) => { setFuelDays(e.target.value); void loadFuelReport(e.target.value); }}
+                className="bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none">
+                <option value="7">7 أيام</option>
+                <option value="30">30 يوم</option>
+                <option value="90">90 يوم</option>
+              </select>
+              <button onClick={() => void loadFuelReport()} className="text-xs border border-white/10 rounded-lg px-3 py-1.5 text-slate-300">🔄</button>
+            </span>
+          </div>
+          {fuelReport.length === 0
+            ? <p className="text-xs text-slate-500">لا قراءات في الفترة — سجل العداد واللترات أعلاه لبدء الحكم على الديزل.</p>
+            : (
+            <div className="overflow-x-auto"><table className="w-full text-xs text-slate-300">
+              <thead className="bg-white/[0.04] text-slate-400 text-[10px]"><tr>
+                <th className="p-2">المركبة</th><th className="p-2">كم مشى</th><th className="p-2">لتر</th>
+                <th className="p-2">تعبئات</th><th className="p-2">فعلي لتر/100</th><th className="p-2">المستهدف</th>
+                <th className="p-2">الفرق</th><th className="p-2">شذوذ</th>
+              </tr></thead>
+              <tbody>{fuelReport.map((r: any) => {
+                const bad = r.variancePct !== null && r.variancePct > 15;
+                return (
+                  <tr key={r.vehicleCode} className={`border-b border-white/10 ${bad ? 'bg-red-500/10' : ''}`}>
+                    <td className="p-2 font-bold">{r.vehicleCode} <span className="text-slate-500">· {r.plateNumber}</span></td>
+                    <td className="p-2">{r.kmDriven} كم</td>
+                    <td className="p-2">{r.litresBurned}</td>
+                    <td className="p-2">{r.fills}</td>
+                    <td className="p-2 font-black">{r.avgLPer100Km ?? '—'}</td>
+                    <td className="p-2">{r.targetLPer100Km ?? '—'}</td>
+                    <td className={`p-2 font-black ${bad ? 'text-red-400' : r.variancePct !== null && r.variancePct > 0 ? 'text-yellow-300' : 'text-emerald-300'}`}>
+                      {r.variancePct === null ? '—' : `${r.variancePct > 0 ? '+' : ''}${r.variancePct}%`}
+                    </td>
+                    <td className="p-2">{r.anomalies > 0 ? `🚨 ${r.anomalies}` : '—'}</td>
+                  </tr>
+                );
+              })}</tbody>
+            </table></div>
+            )}
+        </div>)}
 
         {/* OIL */}
         {tab==='oil'&&(<div className="grid grid-cols-1 lg:grid-cols-[400px_1fr] gap-6">
           <div className="bg-white/[0.04] border border-white/10 rounded-xl p-6"><h3 className="text-lg font-bold text-sky-400 mb-4">{t('recordOil')}</h3><form onSubmit={addOilLog} className="space-y-3">
             <DatePicker value={oilForm.date} onChange={val=>setOilForm({...oilForm,date:val})} label={t('date')} required />
-            <div><label className="text-xs text-slate-400 font-semibold">{t('vehicle')}</label><div className="flex gap-1.5"><select value={oilForm.assetId} onChange={e=>setOilForm({...oilForm,assetId:e.target.value})} className="flex-1 bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm" required><option value="">{t('selectVehicle')}</option>{assets.map(a=><option key={a.id} value={a.id}>{a.id} - {a.plate}</option>)}</select><button type="button" onClick={()=>oilForm.assetId&&fetchVehicleData(oilForm.assetId)} disabled={!oilForm.assetId} className="bg-sky-500 hover:bg-sky-400 disabled:bg-slate-700 text-white text-[10px] px-2 py-1.5 rounded-lg font-bold">Get</button></div></div>
+            <div><label className="text-xs text-slate-400 font-semibold">{t('vehicle')}</label><div className="flex gap-1.5"><select value={oilForm.assetId} onChange={e=>setOilForm({...oilForm,assetId:e.target.value})} className="flex-1 bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm" required><option value="">{t('selectVehicle')}</option>{assets.map(a=><option key={a.id} value={a.id}>{a.id} - {a.plate}</option>)}</select><button type="button" onClick={()=>oilForm.assetId&&fetchVehicleData(oilForm.assetId)} disabled={!oilForm.assetId} className="bg-sky-500 hover:bg-sky-400 disabled:bg-slate-700 text-white text-[10px] px-2 py-1.5 rounded-lg font-bold">{t('getBtn')}</button></div></div>
             <div className="grid grid-cols-2 gap-3"><div><label className="text-xs text-slate-400 font-semibold">{t('oilType')}</label><select value={oilForm.oilType} onChange={e=>setOilForm({...oilForm,oilType:e.target.value})} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm"><option>Engine Oil</option><option>Hydraulic Oil</option><option>Gear Oil</option><option>Transmission Oil</option><option>Brake Fluid</option><option>Coolant</option></select></div><div><label className="text-xs text-slate-400 font-semibold">{t('brand')}</label><input value={oilForm.brand} onChange={e=>setOilForm({...oilForm,brand:e.target.value})} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm"/></div></div>
             <div className="grid grid-cols-2 gap-3"><div><label className="text-xs text-slate-400 font-semibold">{t('quantity')}</label><input type="number" step="0.1" value={oilForm.quantity} onChange={e=>setOilForm({...oilForm,quantity:e.target.value})} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm" required/></div><div><label className="text-xs text-slate-400 font-semibold">{t('totalCost')}</label><input type="number" step="0.01" value={oilForm.cost} onChange={e=>setOilForm({...oilForm,cost:e.target.value})} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm"/></div></div>
             <button type="submit" className="w-full bg-sky-500 hover:bg-sky-400 text-white font-bold py-3 rounded-lg">{t('save')}</button>
@@ -369,7 +661,7 @@ export default function Workshop() {
         {tab==='spareparts'&&(<div className="grid grid-cols-1 lg:grid-cols-[400px_1fr] gap-6">
           <div className="bg-white/[0.04] border border-white/10 rounded-xl p-6"><h3 className="text-lg font-bold text-sky-400 mb-4">{t('spareParts')}</h3><form onSubmit={addSparePart} className="space-y-3">
             <DatePicker value={spForm.date} onChange={val=>setSpForm({...spForm,date:val})} label={t('date')} required />
-            <div><label className="text-xs text-slate-400 font-semibold">{t('vehicle')}</label><div className="flex gap-1.5"><select value={spForm.assetId} onChange={e=>setSpForm({...spForm,assetId:e.target.value})} className="flex-1 bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm" required><option value="">{t('selectVehicle')}</option>{assets.map(a=><option key={a.id} value={a.id}>{a.id} - {a.plate}</option>)}</select><button type="button" onClick={()=>spForm.assetId&&fetchVehicleData(spForm.assetId)} disabled={!spForm.assetId} className="bg-sky-500 hover:bg-sky-400 disabled:bg-slate-700 text-white text-[10px] px-2 py-1.5 rounded-lg font-bold">Get</button></div></div>
+            <div><label className="text-xs text-slate-400 font-semibold">{t('vehicle')}</label><div className="flex gap-1.5"><select value={spForm.assetId} onChange={e=>setSpForm({...spForm,assetId:e.target.value})} className="flex-1 bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm" required><option value="">{t('selectVehicle')}</option>{assets.map(a=><option key={a.id} value={a.id}>{a.id} - {a.plate}</option>)}</select><button type="button" onClick={()=>spForm.assetId&&fetchVehicleData(spForm.assetId)} disabled={!spForm.assetId} className="bg-sky-500 hover:bg-sky-400 disabled:bg-slate-700 text-white text-[10px] px-2 py-1.5 rounded-lg font-bold">{t('getBtn')}</button></div></div>
             <div className="grid grid-cols-2 gap-3"><div><label className="text-xs text-slate-400 font-semibold">{t('partName')}</label><input value={spForm.partName} onChange={e=>setSpForm({...spForm,partName:e.target.value})} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm" required/></div><div><label className="text-xs text-slate-400 font-semibold">{t('partNumber')}</label><input value={spForm.partNumber} onChange={e=>setSpForm({...spForm,partNumber:e.target.value})} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm"/></div></div>
             <div className="grid grid-cols-2 gap-3"><div><label className="text-xs text-slate-400 font-semibold">{t('quantity')}</label><input type="number" value={spForm.quantity} onChange={e=>setSpForm({...spForm,quantity:e.target.value})} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm"/></div><div><label className="text-xs text-slate-400 font-semibold">{t('unitCost')}</label><input type="number" step="0.01" value={spForm.unitCost} onChange={e=>setSpForm({...spForm,unitCost:e.target.value})} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm"/></div></div>
             <button type="submit" className="w-full bg-sky-500 hover:bg-sky-400 text-white font-bold py-3 rounded-lg">{t('save')}</button>
@@ -381,14 +673,14 @@ export default function Workshop() {
         {tab==='breakdown'&&(<div className="grid grid-cols-1 lg:grid-cols-[480px_1fr] gap-6">
           <div className="bg-white/[0.04] border border-white/10 rounded-xl p-6"><h3 className="text-lg font-bold text-red-400 mb-4">{editingBdId?'Edit':'New'} Breakdown</h3><form onSubmit={submitBD} className="space-y-3">
             <DatePicker value={bdForm.date} onChange={val=>setBdForm({...bdForm,date:val})} label={t('breakdownDate')} required />
-            <div><label className="text-xs text-slate-400 font-semibold">{t('vehicle')}</label><div className="flex gap-1.5"><select value={bdForm.assetId} onChange={e=>setBdForm({...bdForm,assetId:e.target.value})} className="flex-1 bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm" required><option value="">{t('selectVehicle')}</option>{assets.map(a=><option key={a.id} value={a.id}>{a.id} - {a.plate}</option>)}</select><button type="button" onClick={()=>bdForm.assetId&&fetchVehicleData(bdForm.assetId)} disabled={!bdForm.assetId} className="bg-sky-500 hover:bg-sky-400 disabled:bg-slate-700 text-white text-[10px] px-2 py-1.5 rounded-lg font-bold">Get</button></div></div>
+            <div><label className="text-xs text-slate-400 font-semibold">{t('vehicle')}</label><div className="flex gap-1.5"><select value={bdForm.assetId} onChange={e=>setBdForm({...bdForm,assetId:e.target.value})} className="flex-1 bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm" required><option value="">{t('selectVehicle')}</option>{assets.map(a=><option key={a.id} value={a.id}>{a.id} - {a.plate}</option>)}</select><button type="button" onClick={()=>bdForm.assetId&&fetchVehicleData(bdForm.assetId)} disabled={!bdForm.assetId} className="bg-sky-500 hover:bg-sky-400 disabled:bg-slate-700 text-white text-[10px] px-2 py-1.5 rounded-lg font-bold">{t('getBtn')}</button></div></div>
             <div className="grid grid-cols-2 gap-3"><div><label className="text-xs text-slate-400 font-semibold">{t('reporter')}</label><input value={bdForm.reportedBy} onChange={e=>setBdForm({...bdForm,reportedBy:e.target.value})} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm" required/></div><div><label className="text-xs text-slate-400 font-semibold">{t('severity')}</label><select value={bdForm.severity} onChange={e=>setBdForm({...bdForm,severity:e.target.value as any})} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm"><option value="Critical">Critical</option><option value="Major">Major</option><option value="Minor">Minor</option></select></div></div>
             <div><label className="text-xs text-slate-400 font-semibold">{t('symptom')}</label><textarea value={bdForm.symptom} onChange={e=>setBdForm({...bdForm,symptom:e.target.value})} rows={3} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm resize-none" required/></div>
             {editingBdId&&(<div className="border-t border-white/10 pt-4 mt-4 space-y-3"><h4 className="text-sm font-bold text-yellow-400">Repair Details</h4><div><label className="text-xs text-slate-400 font-semibold">{t('mechanic')}</label><input value={bdForm.mechanicAssigned} onChange={e=>setBdForm({...bdForm,mechanicAssigned:e.target.value})} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm"/></div><div className="grid grid-cols-2 gap-3"><DatePicker value={bdForm.repairStart} onChange={val=>setBdForm({...bdForm,repairStart:val})} label={t('repairStart')} /><DatePicker value={bdForm.repairEnd} onChange={val=>setBdForm({...bdForm,repairEnd:val})} label={t('repairEnd')} /></div><div className="grid grid-cols-2 gap-3"><div><label className="text-xs text-slate-400 font-semibold">{t('partsUsed')}</label><input value={bdForm.partsUsed} onChange={e=>setBdForm({...bdForm,partsUsed:e.target.value})} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm"/></div><div><label className="text-xs text-slate-400 font-semibold">{t('repairCost')}</label><input type="number" step="0.01" value={bdForm.repairCost} onChange={e=>setBdForm({...bdForm,repairCost:e.target.value})} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm"/></div></div></div>)}
             <button type="submit" className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3 rounded-lg">{editingBdId?t('save'):t('submit')}</button>
             {editingBdId&&<button type="button" onClick={()=>{setEditingBdId(null);setBdForm({date:new Date().toISOString().split('T')[0],assetId:'',reportedBy:'',symptom:'',severity:'Major',mechanicAssigned:'',repairStart:'',repairEnd:'',repairDesc:'',partsUsed:'',repairCost:'',notes:''});}} className="w-full bg-white/[0.06] text-white font-bold py-2 rounded-lg text-sm">{t('cancel')}</button>}
           </form></div>
-          <div className="bg-white/[0.04] border border-white/10 rounded-xl p-6"><h3 className="text-lg font-black tracking-tight text-white mb-4">{t('breakdownsReport')} ({breakdowns.length})</h3><div className="overflow-x-auto"><table className="w-full text-xs text-slate-300"><thead className="bg-white/[0.04] text-slate-400 text-[10px]"><tr><th className="p-2">{t('date')}</th><th className="p-2">{t('vehicle')}</th><th className="p-2">{t('symptom')}</th><th className="p-2">{t('severity')}</th><th className="p-2">{t('status')}</th><th className="p-2">{t('repairCost')}</th><th className="p-2">{t('actions')}</th></tr></thead><tbody>{breakdowns.slice(-30).reverse().map(b=>(<tr key={b.id} className={`border-b border-white/10 ${b.status==='Open'?'bg-red-500/5':''}`}><td className="p-2">{b.date}</td><td className="p-2 font-bold">{b.assetId}</td><td className="p-2 max-w-[100px] truncate">{b.symptom}</td><td className="p-2"><span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${sevColor(b.severity)}`}>{b.severity}</span></td><td className="p-2 font-bold">{b.status}</td><td className="p-2">{fmtMoney(b.repairCost)}</td><td className="p-2 flex gap-1"><button onClick={()=>editBD(b)} className="bg-sky-500 text-white text-[10px] px-1.5 py-0.5 rounded">{t('edit')}</button>{b.status!=='Resolved'&&<button onClick={()=>resolveBD(b.id)} className="bg-emerald-600 text-white text-[10px] px-1.5 py-0.5 rounded">Fix</button>}<button onClick={()=>deleteBD(b.id)} className="bg-red-600 text-white text-[10px] px-1.5 py-0.5 rounded">{t('delete')}</button></td></tr>))}</tbody></table></div></div>
+          <div className="bg-white/[0.04] border border-white/10 rounded-xl p-6"><h3 className="text-lg font-black tracking-tight text-white mb-4">{t('breakdownsReport')} ({breakdowns.length})</h3><div className="overflow-x-auto"><table className="w-full text-xs text-slate-300"><thead className="bg-white/[0.04] text-slate-400 text-[10px]"><tr><th className="p-2">{t('date')}</th><th className="p-2">{t('vehicle')}</th><th className="p-2">{t('symptom')}</th><th className="p-2">{t('severity')}</th><th className="p-2">{t('status')}</th><th className="p-2">{t('repairCost')}</th><th className="p-2">{t('actions')}</th></tr></thead><tbody>{breakdowns.slice(-30).reverse().map(b=>(<tr key={b.id} className={`border-b border-white/10 ${b.status==='Open'?'bg-red-500/5':''}`}><td className="p-2">{b.date}</td><td className="p-2 font-bold">{b.assetId}</td><td className="p-2 max-w-[100px] truncate">{b.symptom}</td><td className="p-2"><span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${sevColor(b.severity)}`}>{b.severity}</span></td><td className="p-2 font-bold">{b.status}</td><td className="p-2">{fmtMoney(b.repairCost)}</td><td className="p-2 flex gap-1"><button onClick={()=>editBD(b)} className="bg-sky-500 text-white text-[10px] px-1.5 py-0.5 rounded">{t('edit')}</button>{b.status!=='Resolved'&&<button onClick={()=>resolveBD(b.id)} className="bg-emerald-600 text-white text-[10px] px-1.5 py-0.5 rounded">{t('fixBtn')}</button>}<button onClick={()=>deleteBD(b.id)} className="bg-red-600 text-white text-[10px] px-1.5 py-0.5 rounded">{t('delete')}</button></td></tr>))}</tbody></table></div></div>
         </div>)}
 
         {/* WAREHOUSE */}
@@ -415,7 +707,7 @@ export default function Workshop() {
             <div><label className="text-xs text-slate-400 font-semibold">{t('requestedBy')}</label><input value={prForm.requestedBy} onChange={e=>setPrForm({...prForm,requestedBy:e.target.value})} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm" required/></div>
             <button onClick={addPurchaseReq} className="w-full bg-orange-500 hover:bg-orange-600 text-white font-bold py-3 rounded-lg">{t('submit')}</button>
           </div></div>
-          <div className="bg-white/[0.04] border border-white/10 rounded-xl p-6"><h3 className="text-lg font-black tracking-tight text-white mb-4">{t('purchaseRequestsList')} ({purchaseReqs.length})</h3><div className="overflow-x-auto"><table className="w-full text-xs text-slate-300"><thead className="bg-white/[0.04] text-slate-400 text-[10px]"><tr><th className="p-2">{t('date')}</th><th className="p-2">{t('itemName')}</th><th className="p-2">{t('requestQty')}</th><th className="p-2">{t('priority')}</th><th className="p-2">{t('requestStatus')}</th><th className="p-2">{t('actions')}</th></tr></thead><tbody>{purchaseReqs.slice(-20).reverse().map(pr=>{const sc:Record<string,string>={Pending:'text-yellow-400',Approved:'text-emerald-400',Rejected:'text-red-400',Received:'text-sky-400'};return(<tr key={pr.id} className={`border-b border-white/10 ${pr.autoRejected?'bg-red-500/5':''}`}><td className="p-2">{pr.date}</td><td className="p-2 font-bold">{pr.itemCode} - {pr.itemName}</td><td className="p-2">{pr.qty}</td><td className="p-2">{pr.priority}</td><td className={`p-2 font-bold ${sc[pr.status]}`}>{pr.status}</td><td className="p-2 flex gap-1">{pr.status==='Pending'&&<><button onClick={()=>approvePR(pr.id)} className="bg-emerald-600 text-white text-[10px] px-1.5 py-0.5 rounded">Approve</button><button onClick={()=>rejectPR(pr.id)} className="bg-red-600 text-white text-[10px] px-1.5 py-0.5 rounded">Reject</button></>}{pr.status==='Approved'&&<button onClick={()=>receivePR(pr.id)} className="bg-sky-500 text-white text-[10px] px-1.5 py-0.5 rounded">Receive</button>}</td></tr>);})}</tbody></table></div></div>
+          <div className="bg-white/[0.04] border border-white/10 rounded-xl p-6"><h3 className="text-lg font-black tracking-tight text-white mb-4">{t('purchaseRequestsList')} ({purchaseReqs.length})</h3><div className="overflow-x-auto"><table className="w-full text-xs text-slate-300"><thead className="bg-white/[0.04] text-slate-400 text-[10px]"><tr><th className="p-2">{t('date')}</th><th className="p-2">{t('itemName')}</th><th className="p-2">{t('requestQty')}</th><th className="p-2">{t('priority')}</th><th className="p-2">{t('requestStatus')}</th><th className="p-2">{t('actions')}</th></tr></thead><tbody>{purchaseReqs.slice(-20).reverse().map(pr=>{const sc:Record<string,string>={Pending:'text-yellow-400',Approved:'text-emerald-400',Rejected:'text-red-400',Received:'text-sky-400'};return(<tr key={pr.id} className={`border-b border-white/10 ${pr.autoRejected?'bg-red-500/5':''}`}><td className="p-2">{pr.date}</td><td className="p-2 font-bold">{pr.itemCode} - {pr.itemName}</td><td className="p-2">{pr.qty}</td><td className="p-2">{pr.priority}</td><td className={`p-2 font-bold ${sc[pr.status]}`}>{pr.status}</td><td className="p-2 flex gap-1">{pr.status==='Pending'&&<><button onClick={()=>approvePR(pr.id)} className="bg-emerald-600 text-white text-[10px] px-1.5 py-0.5 rounded">{t('approveBtn')}</button><button onClick={()=>rejectPR(pr.id)} className="bg-red-600 text-white text-[10px] px-1.5 py-0.5 rounded">{t('rejectBtn')}</button></>}{pr.status==='Approved'&&<button onClick={()=>receivePR(pr.id)} className="bg-sky-500 text-white text-[10px] px-1.5 py-0.5 rounded">{t('receiveBtn')}</button>}</td></tr>);})}</tbody></table></div></div>
         </div>)}
 
         {/* ===== VEHICLE REPORT WITH TARGETS & ALERTS ===== */}
@@ -440,7 +732,7 @@ export default function Workshop() {
 
             {/* Alerts */}
             <div className="mb-6 space-y-2">
-              <h4 className="text-xs font-bold text-slate-400 mb-2">Performance vs Targets</h4>
+              <h4 className="text-xs font-bold text-slate-400 mb-2">{t('perfVsTargets')}</h4>
               {vehicleAlerts.map((a,i)=>(
                 <div key={i} className={`flex items-center gap-3 px-4 py-3 rounded-lg text-sm ${
                   a.type==='danger'?'bg-red-500/10 border border-red-500/30 text-red-300':
@@ -492,6 +784,45 @@ export default function Workshop() {
         </div>)}
 
         {/* ===== MIXING STATIONS & PERIODIC MAINTENANCE ===== */}
+        {tab==='servicecard'&&(<div className="bg-white/[0.04] border border-white/10 rounded-xl p-6">
+          <h3 className="text-lg font-bold text-cyan-400 mb-4">🛠️ {ar ? 'كارت صيانة لكل سيارة' : 'Per-vehicle service card'}</h3>
+          <div className="flex flex-wrap gap-2 mb-4">
+            <select value={svcVehicle} onChange={(e) => loadSvc(e.target.value)} className="flex-1 min-w-[220px] bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none">
+              <option value="">— {ar ? 'اختر المركبة' : 'Pick vehicle'} —</option>
+              {fleetErp.map((v: any) => <option key={v.id} value={v.id}>{v.vehicleCode} · {v.plateNumber}</option>)}
+            </select>
+            <button disabled={!svcVehicle} onClick={printSvc} className="text-xs font-black rounded-lg px-4 py-2 border border-white/15 bg-white/[0.05] text-slate-200 disabled:opacity-40">🖨️ {ar ? 'طباعة الكارت' : 'Print'}</button>
+          </div>
+          {svcBusy && <p className="text-xs text-slate-500">⏳ …</p>}
+          {!svcBusy && svcVehicle && svcCards.length === 0 && <p className="text-xs text-slate-500">{ar ? 'لا أوامر مسجلة لهذه المركبة.' : 'No orders for this vehicle.'}</p>}
+          <div className="space-y-2">
+            {svcCards.map((c: any) => (
+              <div key={c.id} className="rounded-xl border border-white/10 bg-white/[0.02] p-3 text-xs">
+                <div className="flex items-center justify-between flex-wrap gap-1">
+                  <span className="font-black text-white">🧾 {c.workOrderNumber} · {c.maintenanceType}</span>
+                  <span className={`text-[10px] font-black rounded px-2 py-0.5 ${c.status === 'COMPLETED' ? 'bg-emerald-500/20 text-emerald-300' : 'bg-amber-500/20 text-amber-300'}`}>{c.status}</span>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-3 gap-y-1 mt-2 text-slate-300">
+                  <p><span className="text-slate-500">{ar ? 'الدخول' : 'In'}:</span> {String(c.createdAt ?? '').slice(0, 10)}</p>
+                  <p><span className="text-slate-500">{ar ? 'الخروج' : 'Out'}:</span> {String(c.completedAt ?? '').slice(0, 10) || '—'}</p>
+                  <p><span className="text-slate-500">{ar ? 'الميكانيكي' : 'Mechanic'}:</span> {c.mechanicName ?? '—'}</p>
+                  <p><span className="text-slate-500">{ar ? 'الساعات' : 'Hrs'}:</span> {c.labourHours ?? '—'}</p>
+                </div>
+                <p className="mt-1"><span className="text-slate-500">{ar ? 'العطل' : 'Fault'}:</span> {c.faultDescription}</p>
+                {c.actionTaken && <p><span className="text-slate-500">{ar ? 'الإصلاح' : 'Fix'}:</span> {c.actionTaken}</p>}
+                {Array.isArray(c.partsUsed) && c.partsUsed.length > 0 && (
+                  <div className="mt-1 rounded-lg border border-white/10 p-2">
+                    <p className="text-[10px] font-black text-slate-400 mb-1">{ar ? 'قطع الغيار المركبة' : 'Fitted parts'}</p>
+                    {c.partsUsed.map((x: any, i: number) => (
+                      <p key={i} className="text-[11px] text-slate-200">{x.partCode} · {x.description} × {x.quantityUsed} = {((Number(x.quantityUsed) || 0) * (Number(x.costSar) || 0)).toLocaleString('en-US')} {ar ? 'ر.س' : ''}</p>
+                    ))}
+                  </div>
+                )}
+                <p className="mt-1 font-black text-emerald-300">{ar ? 'التكلفة' : 'Cost'}: {Number(c.totalCostSar ?? 0).toLocaleString('en-US')} {ar ? 'ر.س' : ''}</p>
+              </div>
+            ))}
+          </div>
+        </div>)}
         {tab==='mixingstations'&&(<div className="space-y-6">
           {/* KPIs */}
           <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
@@ -526,7 +857,7 @@ export default function Workshop() {
                 <div><label className="text-xs text-slate-400 font-semibold">{t('locationLabel')}</label><input value={stForm.location} onChange={e=>setStForm({...stForm,location:e.target.value})} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm"/></div>
                 <div><label className="text-xs text-slate-400 font-semibold">{t('notesLabel')}</label><input value={stForm.notes} onChange={e=>setStForm({...stForm,notes:e.target.value})} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm"/></div>
                 <button onClick={saveStation} className="w-full bg-cyan-500 hover:bg-cyan-600 text-white font-bold py-3 rounded-lg">{editingStId?'Update Station':'Register Station'}</button>
-                {editingStId&&<button onClick={()=>{setEditingStId(null);setStForm({plantId:'',name:'',productType:'concrete',operator:'',designCap:'',actualCap:'',unit:'m³/h',location:'',installDate:'',status:'Running',notes:''});}} className="w-full bg-white/[0.06] text-white font-bold py-2 rounded-lg text-sm">Cancel</button>}
+                {editingStId&&<button onClick={()=>{setEditingStId(null);setStForm({plantId:'',name:'',productType:'concrete',operator:'',designCap:'',actualCap:'',unit:'m³/h',location:'',installDate:'',status:'Running',notes:''});}} className="w-full bg-white/[0.06] text-white font-bold py-2 rounded-lg text-sm">{t('cancel')}</button>}
               </div>
             </div>
 
@@ -534,8 +865,8 @@ export default function Workshop() {
             <div className="bg-white/[0.04] border border-white/10 rounded-xl p-6">
               <h3 className="text-lg font-black tracking-tight text-white mb-4">Registered Stations ({stations.length})</h3>
               <div className="overflow-x-auto">
-                <table className="w-full text-xs text-slate-300"><thead className="bg-white/[0.04] text-slate-400 text-[10px]"><tr><th className="p-2">Name</th><th className="p-2">Product</th><th className="p-2">Operator</th><th className="p-2">Design</th><th className="p-2">Actual</th><th className="p-2">Efficiency</th><th className="p-2">Status</th><th className="p-2">Actions</th></tr></thead>
-                  <tbody>{stations.map(s=>{const eff=Math.round((s.actualCap/(s.designCap||1))*100);return(<tr key={s.id} className="border-b border-white/10"><td className="p-2 font-bold">{s.name}</td><td className="p-2"><span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${s.productType==='concrete'?'bg-sky-500/20 text-sky-400':s.productType==='blocks'?'bg-sky-500/20 text-sky-400':'bg-cyan-500/20 text-cyan-400'}`}>{s.productType==='concrete'?'🏗️ Concrete':s.productType==='blocks'?'🧱 Blocks':'🔄 Both'}</span></td><td className="p-2 text-[10px]">{s.operator}</td><td className="p-2">{s.designCap} {s.unit}</td><td className="p-2 font-bold">{s.actualCap} {s.unit}</td><td className="p-2"><div className="flex items-center gap-1"><div className="h-1.5 flex-1 bg-white/[0.06] rounded-full overflow-hidden"><div className={`h-full rounded-full ${eff>=90?'bg-emerald-500':eff>=60?'bg-yellow-500':'bg-red-500'}`} style={{width:eff+'%'}}/></div><span className="text-[10px]">{eff}%</span></div></td><td className="p-2"><span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${s.status==='Running'?'bg-emerald-500/80':s.status==='Maintenance'?'bg-yellow-500/80':'bg-red-500/80'} text-white`}>{s.status==='Running'?'🟢':s.status==='Maintenance'?'🟡':'🔴'} {s.status}</span></td><td className="p-2 flex gap-1"><button onClick={()=>editStation(s)} className="bg-sky-500 text-white text-[10px] px-1.5 py-0.5 rounded">Edit</button><button onClick={()=>deleteStation(s.id)} className="bg-red-600 text-white text-[10px] px-1.5 py-0.5 rounded">Del</button></td></tr>)})}</tbody></table>
+                <table className="w-full text-xs text-slate-300"><thead className="bg-white/[0.04] text-slate-400 text-[10px]"><tr><th className="p-2">{t('nameLbl')}</th><th className="p-2">{t('productLbl')}</th><th className="p-2">{t('operatorLbl')}</th><th className="p-2">{t('designLbl')}</th><th className="p-2">{t('actualLbl')}</th><th className="p-2">{t('efficLbl')}</th><th className="p-2">{t('status')}</th><th className="p-2">{t('actions')}</th></tr></thead>
+                  <tbody>{stations.map(s=>{const eff=Math.round((s.actualCap/(s.designCap||1))*100);return(<tr key={s.id} className="border-b border-white/10"><td className="p-2 font-bold">{s.name}</td><td className="p-2"><span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${s.productType==='concrete'?'bg-sky-500/20 text-sky-400':s.productType==='blocks'?'bg-sky-500/20 text-sky-400':'bg-cyan-500/20 text-cyan-400'}`}>{s.productType==='concrete'?'🏗️ Concrete':s.productType==='blocks'?'🧱 Blocks':'🔄 Both'}</span></td><td className="p-2 text-[10px]">{s.operator}</td><td className="p-2">{s.designCap} {s.unit}</td><td className="p-2 font-bold">{s.actualCap} {s.unit}</td><td className="p-2"><div className="flex items-center gap-1"><div className="h-1.5 flex-1 bg-white/[0.06] rounded-full overflow-hidden"><div className={`h-full rounded-full ${eff>=90?'bg-emerald-500':eff>=60?'bg-yellow-500':'bg-red-500'}`} style={{width:eff+'%'}}/></div><span className="text-[10px]">{eff}%</span></div></td><td className="p-2"><span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${s.status==='Running'?'bg-emerald-500/80':s.status==='Maintenance'?'bg-yellow-500/80':'bg-red-500/80'} text-white`}>{s.status==='Running'?'🟢 '+t('stRunning'):s.status==='Maintenance'?'🟡 '+t('stMaintenance'):'🔴 '+s.status}</span></td><td className="p-2 flex gap-1"><button onClick={()=>editStation(s)} className="bg-sky-500 text-white text-[10px] px-1.5 py-0.5 rounded">{t('edit')}</button><button onClick={()=>deleteStation(s.id)} className="bg-red-600 text-white text-[10px] px-1.5 py-0.5 rounded">{t('delBtn')}</button></td></tr>)})}</tbody></table>
               </div>
             </div>
           </div>
@@ -571,18 +902,18 @@ export default function Workshop() {
                 </div>
                 <div><label className="text-xs text-slate-400 font-semibold">{t('costLabel')} ({cur.symbol})</label><input type="number" step="0.01" value={pmForm.cost} onChange={e=>setPmForm({...pmForm,cost:e.target.value})} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm"/></div>
                 <button onClick={savePeriodicMaint} className="w-full bg-orange-500 hover:bg-orange-600 text-white font-bold py-3 rounded-lg">{editingPmId?'Update':'Schedule Maintenance'}</button>
-                {editingPmId&&<button onClick={()=>{setEditingPmId(null);setPmForm({stationId:0,date:new Date().toISOString().split('T')[0],taskType:'Greasing',description:'',technician:'',nextDue:'',status:'Scheduled',cost:'',notes:''});}} className="w-full bg-white/[0.06] text-white font-bold py-2 rounded-lg text-sm">Cancel</button>}
+                {editingPmId&&<button onClick={()=>{setEditingPmId(null);setPmForm({stationId:0,date:new Date().toISOString().split('T')[0],taskType:'Greasing',description:'',technician:'',nextDue:'',status:'Scheduled',cost:'',notes:''});}} className="w-full bg-white/[0.06] text-white font-bold py-2 rounded-lg text-sm">{t('cancel')}</button>}
               </div>
             </div>
 
             {/* Maintenance Schedule Table */}
             <div className="bg-white/[0.04] border border-white/10 rounded-xl p-6">
-              <div className="flex justify-between items-center mb-4"><h3 className="text-lg font-bold text-white">Periodic Maintenance Schedule ({periodicMaints.length})</h3><button onClick={()=>window.print()} className="bg-sky-600 text-white text-xs px-3 py-1 rounded font-bold">Print</button></div>
+              <div className="flex justify-between items-center mb-4"><h3 className="text-lg font-bold text-white">Periodic Maintenance Schedule ({periodicMaints.length})</h3><button onClick={()=>window.print()} className="bg-sky-600 text-white text-xs px-3 py-1 rounded font-bold">{t('printBtn')}</button></div>
               {/* Overdue alerts */}
               {periodicMaints.filter(m=>m.status==='Overdue').length>0&&(<div className="bg-red-500/10 border border-red-400/30 rounded-lg p-3 mb-4"><p className="text-red-300 font-bold text-sm">{periodicMaints.filter(m=>m.status==='Overdue').length} overdue maintenance tasks!</p></div>)}
               <div className="overflow-x-auto">
-                <table className="w-full text-xs text-slate-300"><thead className="bg-white/[0.04] text-slate-400 text-[10px]"><tr><th className="p-2">Station</th><th className="p-2">Date</th><th className="p-2">Task</th><th className="p-2">Description</th><th className="p-2">Next Due</th><th className="p-2">Status</th><th className="p-2">Cost</th><th className="p-2">Actions</th></tr></thead>
-                  <tbody>{periodicMaints.slice(-30).reverse().map(pm=>{const st=stations.find(s=>s.id===pm.stationId);return(<tr key={pm.id} className={`border-b border-white/10 ${pm.status==='Overdue'?'bg-red-500/5':pm.status==='Done'?'bg-emerald-500/5':''}`}><td className="p-2 font-bold">{st?.name||'Station #'+pm.stationId}</td><td className="p-2">{pm.date}</td><td className="p-2"><span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${pm.taskType==='Belts'?'bg-sky-500/20 text-sky-400':pm.taskType==='Greasing'?'bg-yellow-500/20 text-yellow-400':pm.taskType==='Oiling'?'bg-sky-500/20 text-sky-400':pm.taskType==='Drum Cleaning'?'bg-red-500/20 text-red-400':pm.taskType==='Electrical Check'?'bg-orange-500/20 text-orange-400':pm.taskType==='Software Update'?'bg-cyan-500/20 text-cyan-400':pm.taskType==='Pipe Change'?'bg-teal-500/20 text-teal-400':pm.taskType==='Pipe Welding'?'bg-pink-500/20 text-pink-400':pm.taskType==='Pump Special Maintenance'?'bg-sky-500/20 text-sky-400':'bg-slate-500/20 text-slate-400'}`}>{pm.taskType}</span></td><td className="p-2 max-w-[120px] truncate">{pm.description}</td><td className={`p-2 font-bold ${pm.nextDue&&new Date(pm.nextDue)<new Date()&&pm.status!=='Done'?'text-red-400':''}`}>{pm.nextDue||'-'}</td><td className="p-2"><span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${pm.status==='Done'?'bg-emerald-500/80':pm.status==='Scheduled'?'bg-yellow-500/80':'bg-red-500/80'} text-white`}>{pm.status}</span></td><td className="p-2 font-bold">{pm.cost>0?fmtMoney(pm.cost):'-'}</td><td className="p-2 flex gap-1"><button onClick={()=>editPeriodicMaint(pm)} className="bg-sky-500 text-white text-[10px] px-1.5 py-0.5 rounded">Edit</button>{pm.status!=='Done'&&<button onClick={()=>markMaintDone(pm.id)} className="bg-emerald-600 text-white text-[10px] px-1.5 py-0.5 rounded">Done</button>}<button onClick={()=>deletePeriodicMaint(pm.id)} className="bg-red-600 text-white text-[10px] px-1.5 py-0.5 rounded">Del</button></td></tr>)})}</tbody></table>
+                <table className="w-full text-xs text-slate-300"><thead className="bg-white/[0.04] text-slate-400 text-[10px]"><tr><th className="p-2">{t('stationLbl')}</th><th className="p-2">{t('date')}</th><th className="p-2">{t('taskLbl')}</th><th className="p-2">{t('descLbl')}</th><th className="p-2">{t('nextDueLbl')}</th><th className="p-2">{t('status')}</th><th className="p-2">{t('costLbl')}</th><th className="p-2">{t('actions')}</th></tr></thead>
+                  <tbody>{periodicMaints.slice(-30).reverse().map(pm=>{const st=stations.find(s=>s.id===pm.stationId);return(<tr key={pm.id} className={`border-b border-white/10 ${pm.status==='Overdue'?'bg-red-500/5':pm.status==='Done'?'bg-emerald-500/5':''}`}><td className="p-2 font-bold">{st?.name||'Station #'+pm.stationId}</td><td className="p-2">{pm.date}</td><td className="p-2"><span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${pm.taskType==='Belts'?'bg-sky-500/20 text-sky-400':pm.taskType==='Greasing'?'bg-yellow-500/20 text-yellow-400':pm.taskType==='Oiling'?'bg-sky-500/20 text-sky-400':pm.taskType==='Drum Cleaning'?'bg-red-500/20 text-red-400':pm.taskType==='Electrical Check'?'bg-orange-500/20 text-orange-400':pm.taskType==='Software Update'?'bg-cyan-500/20 text-cyan-400':pm.taskType==='Pipe Change'?'bg-teal-500/20 text-teal-400':pm.taskType==='Pipe Welding'?'bg-pink-500/20 text-pink-400':pm.taskType==='Pump Special Maintenance'?'bg-sky-500/20 text-sky-400':'bg-slate-500/20 text-slate-400'}`}>{pm.taskType}</span></td><td className="p-2 max-w-[120px] truncate">{pm.description}</td><td className={`p-2 font-bold ${pm.nextDue&&new Date(pm.nextDue)<new Date()&&pm.status!=='Done'?'text-red-400':''}`}>{pm.nextDue||'-'}</td><td className="p-2"><span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${pm.status==='Done'?'bg-emerald-500/80':pm.status==='Scheduled'?'bg-yellow-500/80':'bg-red-500/80'} text-white`}>{pm.status==='Done'?t('stDone'):pm.status==='Scheduled'?t('stScheduled'):pm.status==='Overdue'?t('stOverdue'):pm.status}</span></td><td className="p-2 font-bold">{pm.cost>0?fmtMoney(pm.cost):'-'}</td><td className="p-2 flex gap-1"><button onClick={()=>editPeriodicMaint(pm)} className="bg-sky-500 text-white text-[10px] px-1.5 py-0.5 rounded">{t('edit')}</button>{pm.status!=='Done'&&<button onClick={()=>markMaintDone(pm.id)} className="bg-emerald-600 text-white text-[10px] px-1.5 py-0.5 rounded">{t('doneBtn')}</button>}<button onClick={()=>deletePeriodicMaint(pm.id)} className="bg-red-600 text-white text-[10px] px-1.5 py-0.5 rounded">{t('delBtn')}</button></td></tr>)})}</tbody></table>
               </div>
             </div>
           </div>
@@ -590,7 +921,7 @@ export default function Workshop() {
 
         {/* CONFIG */}
         {tab==='config'&&(<div className="space-y-6">
-          <div className="bg-white/[0.04] border border-white/10 rounded-xl p-6"><h3 className="text-lg font-black tracking-tight text-white mb-4">{t('fleetRegistration')}</h3><div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-6">{[{key:'id',label:t('assetCode')},{key:'plate',label:t('plateNumber')},{key:'chassis',label:'Chassis'},{key:'driver',label:t('driverName')},{key:'gpsId',label:'GPS ID'},{key:'tare',label:'Tare (Ton)'}].map(f=>(<div key={f.key}><label className="text-[10px] text-slate-400 font-semibold">{f.label}</label><input value={(assetForm as any)[f.key]} onChange={e=>setAssetForm({...assetForm,[f.key]:e.target.value})} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-xs"/></div>))}<div><label className="text-[10px] text-slate-400 font-semibold">{t('assetType')}</label><select value={assetForm.type} onChange={e=>setAssetForm({...assetForm,type:e.target.value})} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-xs"><option>Mixer</option><option>Mobile Pump</option><option>Light Vehicle</option><option>Loader</option></select></div><div><label className="text-[10px] text-slate-400 font-semibold">{t('status')}</label><select value={assetForm.status} onChange={e=>setAssetForm({...assetForm,status:e.target.value})} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-xs"><option>Ready</option><option>Workshop</option><option>Out of Service</option><option>Scrap</option></select></div><div><label className="text-[10px] text-slate-400 font-semibold">{t('currentOdometer')}</label><input type="number" value={assetForm.initOdo} onChange={e=>setAssetForm({...assetForm,initOdo:e.target.value})} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-xs"/></div><div><label className="text-[10px] text-slate-400 font-semibold">{t('engineHours')}</label><input type="number" value={assetForm.engHours} onChange={e=>setAssetForm({...assetForm,engHours:e.target.value})} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-xs"/></div></div><button onClick={addAsset} className="bg-orange-600 hover:bg-orange-700 text-white font-bold py-3 px-8 rounded-lg">{t('saveAsset')}</button></div>
+          <div className="bg-white/[0.04] border border-white/10 rounded-xl p-6"><h3 className="text-lg font-black tracking-tight text-white mb-4">{t('fleetRegistration')}</h3><div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-6">{[{key:'id',label:t('assetCode')},{key:'plate',label:t('plateNumber')},{key:'chassis',label:t('chassisLbl')},{key:'driver',label:t('driverName')},{key:'gpsId',label:t('gpsIdLbl')},{key:'tare',label:t('tareLbl')}].map(f=>(<div key={f.key}><label className="text-[10px] text-slate-400 font-semibold">{f.label}</label><input value={(assetForm as any)[f.key]} onChange={e=>setAssetForm({...assetForm,[f.key]:e.target.value})} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-xs"/></div>))}<div><label className="text-[10px] text-slate-400 font-semibold">{t('assetType')}</label><select value={assetForm.type} onChange={e=>setAssetForm({...assetForm,type:e.target.value})} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-xs"><option>Mixer</option><option>Mobile Pump</option><option>Light Vehicle</option><option>Loader</option></select></div><div><label className="text-[10px] text-slate-400 font-semibold">{t('status')}</label><select value={assetForm.status} onChange={e=>setAssetForm({...assetForm,status:e.target.value})} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-xs"><option>Ready</option><option>Workshop</option><option>Out of Service</option><option>Scrap</option></select></div><div><label className="text-[10px] text-slate-400 font-semibold">{t('currentOdometer')}</label><input type="number" value={assetForm.initOdo} onChange={e=>setAssetForm({...assetForm,initOdo:e.target.value})} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-xs"/></div><div><label className="text-[10px] text-slate-400 font-semibold">{t('engineHours')}</label><input type="number" value={assetForm.engHours} onChange={e=>setAssetForm({...assetForm,engHours:e.target.value})} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-xs"/></div></div><button onClick={addAsset} className="bg-orange-600 hover:bg-orange-700 text-white font-bold py-3 px-8 rounded-lg">{t('saveAsset')}</button></div>
           <div className="bg-white/[0.04] border border-white/10 rounded-xl p-6"><h3 className="text-lg font-black tracking-tight text-white mb-4">{t('factorySettings')}</h3><div className="grid grid-cols-2 md:grid-cols-4 gap-3">{Object.entries(config).map(([k,v])=>(<div key={k}><label className="text-[10px] text-slate-400 font-semibold capitalize">{k.replace(/([A-Z])/g,' $1')}</label><input value={String(v)} onChange={e=>setConfig({...config,[k]:e.target.value})} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-xs"/></div>))}</div><button onClick={saveConfigFn} className="mt-4 bg-sky-500 hover:bg-sky-400 text-white font-bold py-2.5 px-6 rounded-lg">{t('saveSettings')}</button></div>
         </div>)}
 

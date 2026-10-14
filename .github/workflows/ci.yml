@@ -11,17 +11,20 @@ permissions:
 jobs:
   static-checks:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # The full chain (install → 11 audits → typecheck of 3 workspaces → Vite
+    # build → Next build) needs more than the 20 minutes the job used to allow
+    # on a cold runner.
+    timeout-minutes: 45
     steps:
       - name: Checkout
         uses: actions/checkout@v4
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --no-audit --no-fund
       - name: Secret scan
         run: npm run security:audit
       - name: Firestore rules static audit

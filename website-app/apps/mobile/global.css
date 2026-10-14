@@ -1,3 +1,135 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* The Expo web export nests the app inside one wrapper <div> under #root.
+   That wrapper is a flex item with `flex: 0 1 auto`, so it shrink-wraps to the
+   content width and the whole UI collapses into a corner of the window (this
+   is what WebKitGTK did on the desktop; Chromium happened to stretch it).
+   Force the wrapper — and therefore the app — to fill the window. */
+#root > div {
+  display: flex;
+  flex: 1 1 0%;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+}
+
+/* The screen navigator's own containers shrink-wrap on the web build: the
+   per-screen `flex-1` classNames never reach the DOM, so every screen ended up
+   sized to its content (~300px) inside the tablet column. Force the first
+   levels of the navigator subtree to fill the frame instead. */
+/* react-native-web never receives its base View styles in this export, so every
+   `<View>` lands on the page as a plain block box. On the phone React Native
+   makes each View a flex column, and utility classes such as `flex-row` assume
+   that (they only set `flex-direction`). Without this rule every screen stacks
+   vertically instead of laying out. `:where()` keeps the specificity at zero so
+   Tailwind utilities always win. */
+:where(#root) :where(div) {
+  display: flex;
+  flex-direction: column;
+}
+
+/* The navigator's internal containers additionally need to fill the frame —
+   they carry `flex: 0 1 auto` and would otherwise shrink-wrap the screen. */
+.fimto-content,
+.fimto-content > *:not(:has(h1)),
+.fimto-content > * > *:not(:has(h1)),
+.fimto-content > * > * > *:not(:has(h1)),
+.fimto-content > * > * > * > *:not(:has(h1)),
+.fimto-content > * > * > * > * > *:not(:has(h1)),
+.fimto-content > * > * > * > * > * > *:not(:has(h1)),
+.fimto-content > * > * > * > * > * > * > *:not(:has(h1)),
+.fimto-content > * > * > * > * > * > * > * > *:not(:has(h1)),
+.fimto-content > * > * > * > * > * > * > * > * > *:not(:has(h1)),
+.fimto-content > * > * > * > * > * > * > * > * > * > *:not(:has(h1)) {
+  flex: 1 1 0% !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-height: 0;
+}
+
+/* react-native-screens renders the navigation header *after* the scene on the
+   web build, so the box that owns the title has to be pulled to the top and
+   given the app's amber colour. Its slots stack vertically here (the web
+   header has no row layout of its own), so the band is sized to hold all of
+   them — home · title · plant · logout — instead of clipping the logout. */
+.fimto-content > *:has(h1),
+.fimto-content > * > *:has(h1),
+.fimto-content > * > * > *:has(h1),
+.fimto-content > * > * > * > *:has(h1),
+.fimto-content > * > * > * > * > *:has(h1),
+.fimto-content > * > * > * > * > * > *:has(h1),
+.fimto-content > * > * > * > * > * > * > *:has(h1),
+.fimto-content > * > * > * > * > * > * > * > *:has(h1),
+.fimto-content > * > * > * > * > * > * > * > * > *:has(h1) {
+  order: -1 !important;
+  flex: 0 0 auto !important;
+  height: auto !important;
+  min-height: 64px !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  background-color: #f59e0b !important;
+  overflow: visible !important;
+}
+
+/* The header's own row (home · title · plant · logout). react-native-web never
+   receives its row layout for the header, so the slots stack vertically and the
+   logout button falls off the bottom of the band. Only boxes that directly
+   contain the screen title are targeted — those live inside the header, so this
+   can never reach the scene below it. */
+.fimto-content div:has(> h1),
+.fimto-content div:has(> div > h1),
+.fimto-content div:has(> div > div > h1),
+.fimto-content div:has(> div > div > div > h1) {
+  flex-direction: row !important;
+  align-items: center !important;
+}
+
+/* Scrolling: nested react-native-web scroll boxes never got a definite height
+   in this export, so tall screens were clipped with no way to reach the bottom.
+   Let everything stay unclipped and make the app frame the single scroll
+   container — one visible scrollbar for the whole window. */
+:where(#root) :where(div) {
+  overflow: visible !important;
+}
+
+.fimto-frame {
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  overscroll-behavior: contain;
+}
+
+/* Mouse cursor: without an explicit cursor every react-native-web box inherits
+   the text I-beam, so buttons looked like text fields. */
+:where(#root) :where(div) {
+  cursor: default;
+}
+
+:where(#root) :where([role="button"]),
+:where(#root) :where(button),
+:where(#root) :where(a),
+:where(#root) :where([tabindex]:not([tabindex="-1"])) {
+  cursor: pointer;
+}
+
+/* Visible scrollbars on desktop/web builds (Ubuntu hides overlay bars,
+   leaving users stuck above the fold with no way down). */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #94A3B8;
+  border-radius: 8px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #64748B;
+  background-clip: content-box;
+}

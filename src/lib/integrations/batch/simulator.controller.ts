@@ -10,6 +10,7 @@
  */
 
 import type {
+  BatchCommandResult,
   BatchController,
   BatchControllerStatus,
   BatchTicketData,
@@ -65,6 +66,26 @@ export const simulatorController: BatchController = {
       weightsKg,
       totalKg,
       source: "SIMULATOR",
+    };
+  },
+
+  /**
+   * The simulator accepts the same commands a commissioned panel would, so the
+   * whole flow (fire a batch → plant reports DONE → consumption is recorded)
+   * can be exercised in CI with no hardware on the network.
+   */
+  async writeCommand(settings, command): Promise<BatchCommandResult> {
+    const targets = command.targetWeightsKg ?? {};
+    const total = Object.values(targets).reduce((a, b) => a + (Number(b) || 0), 0);
+    return {
+      ok: true,
+      written: Object.keys(targets).length + 1,
+      message:
+        command.action === "startBatch"
+          ? `Simulated batch start for design ${command.designCode ?? "?"} — ${Math.round(total)} kg target`
+          : "Simulated abort acknowledged",
+      latencyMs: 1,
+      simulated: true,
     };
   },
 };

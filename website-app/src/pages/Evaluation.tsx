@@ -1,7 +1,9 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useLang } from '../context/LangContext';
 import { loadOrders, loadTrips } from '../firebase/firestore';
+import { api, ApiError } from '../api/client';
 import DatePicker from '../components/DatePicker';
 import QuickJump from '../components/QuickJump';
 import LangSelector from '../components/LangSelector';
@@ -90,6 +92,9 @@ const filterByDate = <T extends { date?: string; orderDate?: string }>(items: T[
 
 export default function Evaluation() {
   const { currentUser, logout } = useAuth();
+  const { lang } = useLang();
+  const ar = lang === 'ar';
+  const L = (a: string, e: string) => (ar ? a : e);
   const navigate = useNavigate();
   const t = useEvaluationDict();
   const [fromDate, setFromDate] = useState(() => {
@@ -105,6 +110,22 @@ export default function Evaluation() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [stations, setStations] = useState<MixingStation[]>([]);
   const [breakdowns, setBreakdowns] = useState<Breakdown[]>([]);
+
+  // ============ Central API: live evaluation (GET) + snapshot (POST) ============
+  // Local computed sections below stay as the offline fallback; this panel is
+  // the server-side rating from Postgres (GET /api/evaluation, POST to persist).
+  interface ServerEvaluation {
+    overallScore: number;
+    grade: string;
+    scores: Record<string, number>;
+    recommendations: unknown[];
+    evaluatedAt: string;
+  }
+  const [serverEval, setServerEval] = useState<ServerEvaluation | null>(null);
+  const [serverLoading, setServerLoading] = useState(false);
+  const [serverError, setServerError] = useState<string | null>(null);
+  const [snapshotMsg, setSnapshotMsg] = useState<string | null>(null);
+  const [snapshotSaving, setSnapshotSaving] = useState(false);
 
   // ============ Load Data ============
   useEffect(() => {
@@ -150,6 +171,37 @@ export default function Evaluation() {
 
   // ============ Calculations ============
   const daysCount = getDaysBetween(fromDate, toDate);
+
+  // Rolling analysis window for the central API (1–168h), derived from the
+  // selected period. POST /api/evaluation takes only this optional field,
+  // so no extra inputs are needed.
+  const windowHours = Math.min(168, Math.max(1, daysCount * 24));
+
+  const refreshServerEval = () => {
+    setServerLoading(true);
+    setServerError(null);
+    api.get<{ evaluation: ServerEvaluation }>(`/api/evaluation?windowHours=${windowHours}`)
+      .then(d => setServerEval(d.evaluation))
+      .catch((e: unknown) => setServerError(e instanceof ApiError ? e.message : String(e)))
+      .finally(() => setServerLoading(false));
+  };
+
+  const saveSnapshot = () => {
+    setSnapshotSaving(true);
+    setSnapshotMsg(null);
+    api.post<{ evaluation: ServerEvaluation }>('/api/evaluation', { windowHours })
+      .then(d => {
+        setServerEval(d.evaluation);
+        setSnapshotMsg(`✅ تم حفظ اللقطة — التقييم: ${d.evaluation.overallScore}/100 (${d.evaluation.grade})`);
+      })
+      .catch((e: unknown) => setSnapshotMsg(e instanceof ApiError ? `❌ ${e.message}` : `❌ ${String(e)}`))
+      .finally(() => setSnapshotSaving(false));
+  };
+
+  useEffect(() => {
+    refreshServerEval();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [windowHours]);
 
   // 1. Mixing Stations Rating
   const mixingStationsRating = useMemo(() => {
@@ -285,7 +337,7 @@ export default function Evaluation() {
 
   // 4. Workshop Rating
   const workshopRating = useMemo(() => {
-    if (filteredBreakdowns.length === 0 && breakdowns.length === 0) return { score: 100, details: t('noBreakdowns'), maxScore: 100 };
+    if (filteredBreakdowns.length === 0 && breakdowns.length === 0) return { score: 0, details: t('noBreakdowns'), maxScore: 100, hasData: false };
 
     const totalBreakdowns = filteredBreakdowns.length;
     const resolvedBreakdowns = filteredBreakdowns.filter(b => b.status === 'Resolved').length;
@@ -365,21 +417,6 @@ export default function Evaluation() {
     };
   }, [filteredOrders, t]);
 
-  // ============ Final Rating ============
-  const finalRating = useMemo(() => {
-    const ratings = [
-      mixingStationsRating.score,
-      mixerTrucksRating.score,
-      pumpsRating.score,
-      workshopRating.score,
-      salesRating.score,
-      ordersRating.score
-    ].filter(score => score > 0); // Exclude sections with no data
-
-    if (ratings.length === 0) return 0;
-
-    return Math.round(ratings.reduce((sum, score) => sum + score, 0) / ratings.length);
-  }, [mixingStationsRating, mixerTrucksRating, pumpsRating, workshopRating, salesRating, ordersRating]);
 
   const getRatingColor = (score: number): string => {
     if (score >= 85) return 'text-emerald-400';
@@ -405,15 +442,17 @@ export default function Evaluation() {
     return 'bg-red-500';
   };
 
-  // ============ Rating Sections ============
-  const ratingSections: RatingSection[] = [
+  // ============ Rating Sections (real data only — no data means no rating) ============
+  const hasTrips = filteredTrips.length > 0;
+  const ratingSections: (RatingSection & { hasData: boolean })[] = [
     {
       name: 'secMixing',
       icon: '🏭',
       score: mixingStationsRating.score,
       maxScore: mixingStationsRating.maxScore,
       details: mixingStationsRating.details,
-      color: 'border-sky-500'
+      color: 'border-sky-500',
+      hasData: stations.length > 0 && hasTrips,
     },
     {
       name: 'secTrucks',
@@ -421,7 +460,8 @@ export default function Evaluation() {
       score: mixerTrucksRating.score,
       maxScore: mixerTrucksRating.maxScore,
       details: mixerTrucksRating.details,
-      color: 'border-green-500'
+      color: 'border-green-500',
+      hasData: hasTrips,
     },
     {
       name: 'secPumps',
@@ -429,7 +469,8 @@ export default function Evaluation() {
       score: pumpsRating.score,
       maxScore: pumpsRating.maxScore,
       details: pumpsRating.details,
-      color: 'border-sky-500'
+      color: 'border-sky-500',
+      hasData: hasTrips,
     },
     {
       name: 'secWorkshop',
@@ -437,7 +478,8 @@ export default function Evaluation() {
       score: workshopRating.score,
       maxScore: workshopRating.maxScore,
       details: workshopRating.details,
-      color: 'border-orange-500'
+      color: 'border-orange-500',
+      hasData: (workshopRating as any).hasData !== false && breakdowns.length > 0,
     },
     {
       name: 'secSales',
@@ -445,7 +487,8 @@ export default function Evaluation() {
       score: salesRating.score,
       maxScore: salesRating.maxScore,
       details: salesRating.details,
-      color: 'border-emerald-500'
+      color: 'border-emerald-500',
+      hasData: hasTrips,
     },
     {
       name: 'secOrders',
@@ -453,16 +496,24 @@ export default function Evaluation() {
       score: ordersRating.score,
       maxScore: ordersRating.maxScore,
       details: ordersRating.details,
-      color: 'border-cyan-500'
+      color: 'border-cyan-500',
+      hasData: filteredOrders.length > 0,
     }
   ];
+
+  // ============ Final Rating (real data only) ============
+  const finalRating = useMemo(() => {
+    const rated = ratingSections.filter((s) => s.hasData && s.score > 0);
+    if (rated.length === 0) return null;
+    return Math.round(rated.reduce((sum, s) => sum + s.score, 0) / rated.length);
+  }, [ratingSections]);
 
   if (!currentUser) {
     return (
       <div className="min-h-screen bg-[#0B111E] flex items-center justify-center">
         <div className="text-center">
           <p className="text-red-400 text-xl mb-4">🔒 Access Denied</p>
-          <Link to="/" className="text-sky-400 underline">Back to Login</Link>
+          <Link to="/" className="text-sky-400 underline">{L('عودة للدخول', 'Back to Login')}</Link>
         </div>
       </div>
     );
@@ -507,9 +558,62 @@ export default function Evaluation() {
           </div>
         </div>
 
+        {/* Central API — live server evaluation (GET) + snapshot (POST) */}
+        <div className="bg-white/[0.04] border border-white/10 rounded-xl p-4 mb-6 backdrop-blur-xl">
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+            <h3 className="text-sm font-bold text-white">🛰️ تقييم الخادم المركزي (مباشر)</h3>
+            <div className="flex gap-2">
+              <button
+                onClick={refreshServerEval}
+                disabled={serverLoading}
+                className="bg-white/[0.05] text-slate-300 text-xs px-3 py-1.5 rounded-lg font-bold border border-white/10 hover:text-white disabled:opacity-50"
+              >
+                {serverLoading ? '... جارٍ التحميل' : '🔄 تحديث'}
+              </button>
+              <button
+                onClick={saveSnapshot}
+                disabled={snapshotSaving}
+                className="bg-emerald-500 hover:bg-emerald-400 text-white text-xs px-3 py-1.5 rounded-lg font-bold disabled:opacity-50"
+              >
+                {snapshotSaving ? '... جارٍ الحفظ' : '💾 حفظ لقطة'}
+              </button>
+            </div>
+          </div>
+          {serverError && (
+            <p className="text-xs text-red-400 mb-2">⚠️ تعذر الاتصال بالخادم: {serverError} — الأقسام أدناه محسوبة محلياً.</p>
+          )}
+          {serverEval && (
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+              <div className="bg-white/[0.02] rounded-lg p-3 text-center">
+                <p className="text-xs text-slate-400 mb-1">التقييم العام</p>
+                <p className={`text-2xl font-bold ${getRatingColor(serverEval.overallScore)}`}>{serverEval.overallScore}</p>
+                <p className="text-[10px] text-slate-500">{serverEval.grade}</p>
+              </div>
+              {Object.entries(serverEval.scores).map(([k, v]) => (
+                <div key={k} className="bg-white/[0.02] rounded-lg p-3 text-center">
+                  <p className="text-xs text-slate-400 mb-1">{k}</p>
+                  <p className={`text-2xl font-bold ${getRatingColor(v)}`}>{v}</p>
+                </div>
+              ))}
+              <div className="bg-white/[0.02] rounded-lg p-3 text-center">
+                <p className="text-xs text-slate-400 mb-1">التوصيات</p>
+                <p className="text-2xl font-bold text-white">{serverEval.recommendations.length}</p>
+              </div>
+            </div>
+          )}
+          {snapshotMsg && <p className="text-xs mt-2 text-slate-300">{snapshotMsg}</p>}
+        </div>
+
         {/* Final Rating */}
         <div className="bg-gradient-to-br from-white/[0.06] to-white/[0.02] border-2 border-white/10 rounded-xl p-8 mb-6 text-center backdrop-blur-xl">
           <h2 className="text-xl font-bold text-white mb-4">{t('finalTitle')}</h2>
+          {finalRating === null ? (
+            <div>
+              <div className="text-3xl font-black text-slate-400">— {t('noRating')}</div>
+              <p className="text-xs text-slate-500 mt-2">{t('noRatingHint')}</p>
+            </div>
+          ) : (
+          <>
           <div className="relative inline-block">
             <div className={`text-7xl font-black ${getRatingColor(finalRating)}`}>
               {finalRating}
@@ -527,6 +631,8 @@ export default function Evaluation() {
               />
             </div>
           </div>
+          </>
+          )}
         </div>
 
         {/* Rating Sections */}
@@ -541,8 +647,8 @@ export default function Evaluation() {
                   <span className="text-2xl">{section.icon}</span>
                   {t(section.name)}
                 </h3>
-                <div className={`text-3xl font-black ${getRatingColor(section.score)}`}>
-                  {section.score}
+                <div className={`text-3xl font-black ${section.hasData ? getRatingColor(section.score) : 'text-slate-500'}`}>
+                  {section.hasData ? section.score : `— ${t('noRatingShort')}`}
                 </div>
               </div>
 
@@ -617,7 +723,7 @@ export default function Evaluation() {
             {ordersRating.score < 70 && (
               <li>⚠️ <strong>{t('secOrders')}:</strong> {t('recOrders')}</li>
             )}
-            {finalRating >= 85 && (
+            {(finalRating ?? 0) >= 85 && (
               <li>✅ <strong>{t('excellentTitle')}</strong> {t('excellentDesc')}</li>
             )}
           </ul>

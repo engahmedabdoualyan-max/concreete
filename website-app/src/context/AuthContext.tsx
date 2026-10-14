@@ -2,10 +2,12 @@ import { createContext, useContext, useState, useEffect, type ReactNode } from '
 import emailjs from '@emailjs/browser';
 import { saveUser, getUser, clearPresence } from '../firebase/firestore';
 import { hashPassword } from '../lib/passwords';
+import { findTreeAccount, treeResultToSession } from '../api/tree-auth';
 import {
   api,
   clearSession,
   getToken,
+  loadSession,
   saveSession,
   setTokens,
   type SessionUser,
@@ -64,7 +66,21 @@ function sessionUserToUserSession(user: SessionUser, fallbackUsername = ''): Use
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [currentUser, setCurrentUser] = useState<UserSession | null>(null);
+  // Optimistic restore: show the saved user instantly on refresh instead of
+  // flashing "login first" while /me revalidates (cold starts take ~50s).
+  // A truly dead session is still cleared when /me answers 401/403 below.
+  const [currentUser, setCurrentUser] = useState<UserSession | null>(() => {
+    try {
+      if (import.meta.env.PROD) {
+        const s = loadSession();
+        return s ? sessionUserToUserSession(s) : null;
+      }
+      const raw = localStorage.getItem('currentUserSession');
+      return raw ? (JSON.parse(raw) as UserSession) : null;
+    } catch {
+      return null;
+    }
+  });
   const [registeredUsers] = useState<UserSession[]>([]);
   const [generatedCode, setGeneratedCode] = useState('');
   const [tempUser, setTempUser] = useState<UserSession | null>(null);
@@ -75,8 +91,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Browser sessions are a development fallback only. Production must be
     // restored from a server-issued, revocable session and revalidated.
     if (import.meta.env.PROD) {
-      localStorage.removeItem('currentUserSession');
       if (!getToken()) {
+        // …or from a tree-account session (same store the Android app uses)
+        // so desktop/web refresh keeps tree users logged in.
+        try {
+          const raw = localStorage.getItem('currentUserSession');
+          if (raw) {
+            const saved = JSON.parse(raw) as UserSession;
+            if (saved && (saved.status === 'TREE_ACCOUNT' || saved.username)) {
+              setCurrentUser(saved);
+              return;
+            }
+          }
+        } catch {}
+        localStorage.removeItem('currentUserSession');
         clearSession();
         return;
       }
@@ -85,7 +113,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           saveSession(user);
           setCurrentUser(sessionUserToUserSession(user));
         })
-        .catch(() => clearSession());
+        .catch((e: any) => {
+          // Only a 401/403 means the session is actually dead (revoked or
+          // invalid) and deserves a logout. Anything else — Render cold
+          // start (~50s on free), a deploy restart, or offline — is
+          // transient: wiping the session here is what threw users back to
+          // "login first" on every refresh during updates. Keep the token
+          // and fall back to the stored user; live calls retry on their own.
+          const status = e?.status ?? 0;
+          if (status === 401 || status === 403) {
+            clearSession();
+            return;
+          }
+          try {
+            const saved = loadSession();
+            if (saved) setCurrentUser(sessionUserToUserSession(saved));
+          } catch {
+            /* keep logged-out state */
+          }
+        });
       return;
     }
     try {
@@ -102,6 +148,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = async (username: string, password: string): Promise<boolean> => {
     if (import.meta.env.PROD) {
+      // 1) ERP backend when deployed…
       try {
         const result = await api.post<{
           accessToken: string;
@@ -113,9 +160,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setCurrentUser(sessionUserToUserSession(result.user, username));
         return true;
       } catch (error) {
-        console.warn('Server login failed', error);
-        return false;
+        console.warn('Server login failed, trying tree accounts', error);
       }
+      // 2) …otherwise the tree accounts (same store the Android app uses).
+      try {
+        const found = await findTreeAccount(username, password);
+        if (found) {
+          const session = treeResultToSession(found);
+          setCurrentUser(session);
+          localStorage.setItem('currentUserSession', JSON.stringify(stripSecrets(session)));
+          return true;
+        }
+      } catch (error) {
+        console.warn('Tree login failed', error);
+      }
+      return false;
     }
 
     // Development-only Firebase/local fallback.

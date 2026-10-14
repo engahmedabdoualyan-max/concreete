@@ -1,0 +1,698 @@
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { api, getToken, resolveApiBase } from '../api/client';
+import { useAuth } from '../context/AuthContext';
+import { useLang } from '../context/LangContext';
+import LangSelector from '../components/LangSelector';
+import QuickJump from '../components/QuickJump';
+import BrandLogo from '../components/BrandLogo';
+
+type Dir = 'IN' | 'OUT';
+
+const IN_CATS = [
+  { v: 'RAW_CEMENT', ar: 'أسمنت' },
+  { v: 'RAW_SAND', ar: 'رمل' },
+  { v: 'RAW_GRAVEL_10', ar: 'بحص 10مم' },
+  { v: 'RAW_GRAVEL_20', ar: 'بحص 20مم' },
+  { v: 'RAW_GRAVEL_40', ar: 'بحص 40مم' },
+  { v: 'RAW_WATER', ar: 'ماء' },
+  { v: 'RAW_ADMIXTURE', ar: 'إضافات' },
+  { v: 'SPARE_PART', ar: 'قطع غيار' },
+  { v: 'SUPPLY_OTHER', ar: 'توريد آخر' },
+];
+const OUT_CATS = [
+  { v: 'CONCRETE', ar: 'خرسانة (م³)' },
+  { v: 'BLOCK', ar: 'بلك (وحدة)' },
+];
+const CAT_AR: Record<string, string> = {};
+for (const c of [...IN_CATS, ...OUT_CATS]) CAT_AR[c.v] = c.ar;
+
+/**
+ * Loose bulk densities (t/m³) — industry standards for weight↔volume
+ * conversion at the gate. Concrete 2.4, aggregates ~1.55, sand 1.6,
+ * bulk cement ~1.44, water 1.0, liquid admixture ~1.1.
+ */
+const DENSITY: Record<string, number> = {
+  RAW_CEMENT: 1.44,
+  RAW_SAND: 1.6,
+  RAW_GRAVEL_10: 1.55,
+  RAW_GRAVEL_20: 1.55,
+  RAW_GRAVEL_40: 1.55,
+  RAW_WATER: 1.0,
+  RAW_ADMIXTURE: 1.1,
+  CONCRETE: 2.4,
+};
+const kgToM3 = (kg: number, cat: string) =>
+  DENSITY[cat] ? kg / 1000 / DENSITY[cat] : null;
+const m3ToTon = (m3: number, cat: string) =>
+  DENSITY[cat] ? (m3 * DENSITY[cat]) : null;
+
+export default function GateScale() {
+  const { currentUser } = useAuth();
+  const { lang } = useLang();
+  const ar = lang === 'ar';
+  const L = (a: string, e: string) => (ar ? a : e);
+
+  const [dir, setDir] = useState<Dir>('IN');
+  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [tickets, setTickets] = useState<any[]>([]);
+  const [summary, setSummary] = useState<any>(null);
+  const [fleet, setFleet] = useState<any[]>([]);
+  const [msg, setMsg] = useState('');
+  const [busy, setBusy] = useState('');
+  const [f, setF] = useState({
+    category: 'RAW_CEMENT', vehicleId: '', externalPlate: '', partyName: '',
+    driverName: '', entryWeightKg: '', exitWeightKg: '', quantity: '', notes: '',
+    officer: '', docName: '',
+  });
+  const [docFile, setDocFile] = useState<File | null>(null);
+  const [camOn, setCamOn] = useState(false);
+  const [camShot, setCamShot] = useState<string | null>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  // Weighbridge serial link (Web Serial API — Chrome/Edge over HTTPS).
+  const [scaleInfo, setScaleInfo] = useState('');
+  const [scaleOn, setScaleOn] = useState(false);
+  const [scaleTarget, setScaleTarget] = useState<'entry' | 'exit'>('entry');
+  const portRef = useRef<any>(null);
+  const scaleStopRef = useRef(false);
+
+  const stopCam = () => {
+    try {
+      streamRef.current?.getTracks().forEach((t) => t.stop());
+    } catch { /* ignore */ }
+    streamRef.current = null;
+    setCamOn(false);
+  };
+
+  useEffect(() => () => {
+    stopCam();
+    scaleStopRef.current = true;
+    try {
+      portRef.current?.close?.();
+    } catch { /* ignore */ }
+  }, []);
+
+  const startCam = async () => {
+    try {
+      const s = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
+      streamRef.current = s;
+      setCamOn(true);
+      requestAnimationFrame(() => {
+        if (videoRef.current) videoRef.current.srcObject = s;
+      });
+    } catch {
+      setMsg(`❌ ${L('تعذر فتح الكاميرا — تأكد من السماح بالوصول', 'Camera unavailable')}`);
+    }
+  };
+
+  const snapCam = () => {
+    const v = videoRef.current;
+    if (!v || v.videoWidth === 0) return;
+    const c = document.createElement('canvas');
+    c.width = v.videoWidth;
+    c.height = v.videoHeight;
+    c.getContext('2d')?.drawImage(v, 0, 0);
+    const url = c.toDataURL('image/jpeg', 0.85);
+    setCamShot(url);
+    stopCam();
+  };
+
+  const connectScale = async () => {
+    const nav = navigator as any;
+    if (!nav.serial) {
+      setScaleInfo(L('المتصفح لا يدعم المنفذ التسلسلي — استخدم Chrome/Edge', 'Web Serial unsupported — use Chrome/Edge'));
+      return;
+    }
+    try {
+      const port = await nav.serial.requestPort();
+      await port.open({ baudRate: 9600, dataBits: 8, stopBits: 1, parity: 'none' });
+      portRef.current = port;
+      scaleStopRef.current = false;
+      setScaleOn(true);
+      setScaleInfo(L('متصل — اضغط قراءة الوزن', 'Connected — press read'));
+      const dec = new TextDecoder();
+      let buf = '';
+      const reader = port.readable.getReader();
+      const read = async (): Promise<void> => {
+        try {
+          for (;;) {
+            if (scaleStopRef.current) break;
+            const { value, done } = await reader.read();
+            if (done) break;
+            buf += dec.decode(value, { stream: true });
+            // Generic indicator frames (XK3190 & compatibles): continuous ASCII
+            // with the stable weight; take the last number in the buffer.
+            const nums = buf.match(/-?\d+(?:\.\d+)?/g);
+            if (nums && nums.length) {
+              const last = nums[nums.length - 1];
+              setScaleInfo(`${L('الميزان', 'Scale')}: ${last} ${L('كجم', 'kg')}`);
+              (connectScale as any)._last = last;
+            }
+            if (buf.length > 400) buf = buf.slice(-200);
+          }
+        } catch { /* port closed */ } finally {
+          try { reader.releaseLock(); } catch { /* ignore */ }
+        }
+      };
+      void read();
+    } catch {
+      setScaleInfo(L('أُلغي الاتصال', 'Connection cancelled'));
+    }
+  };
+
+  const readScale = () => {
+    const last = (connectScale as any)._last as string | undefined;
+    if (!last) {
+      setMsg(`❌ ${L('لا قراءة بعد — انتظر استقرار الوزن', 'No reading yet')}`);
+      return;
+    }
+    if (scaleTarget === 'entry') set('entryWeightKg', last);
+    else set('exitWeightKg', last);
+    setMsg(`✅ ${L('الميزان', 'Scale')}: ${last} ${L('كجم', 'kg')}`);
+  };
+  const [docView, setDocView] = useState<{ name: string; url: string } | null>(null);
+  // Network camera: owner-locked settings + snapshot capture.
+  const [camCfg, setCamCfg] = useState<{ configured?: boolean; snapshotUrl?: string } | null>(null);
+  const [camLock, setCamLock] = useState('');
+  const [camOpen, setCamOpen] = useState(false);
+  const [camForm, setCamForm] = useState({ url: '', user: '', pass: '', admin: '' });
+
+  const loadCamCfg = async () => {
+    try {
+      const d = await api.get<{ configured?: boolean; snapshotUrl?: string }>('/api/gate/camera');
+      setCamCfg(d ?? null);
+    } catch { setCamCfg(null); }
+  };
+
+  const unlockCam = async () => {
+    if (!camLock.trim()) return;
+    setBusy('camlock');
+    try {
+      await api.post('/api/gate/camera/unlock', { password: camLock });
+      setCamOpen(true);
+      setCamLock('');
+      if (camCfg?.snapshotUrl) setCamForm((p) => ({ ...p, url: camCfg.snapshotUrl ?? '' }));
+      setMsg('✅ فُتح الضبط');
+    } catch (e: any) {
+      setMsg(`❌ ${e?.message ?? ''}`);
+    } finally {
+      setBusy('');
+    }
+  };
+
+  const saveCam = async () => {
+    if (!camForm.url.trim() || !camForm.admin) {
+      setMsg('❌ الرابط وكلمة سر الضبط مطلوبان');
+      return;
+    }
+    setBusy('camsave');
+    try {
+      await api.put('/api/gate/camera', {
+        snapshotUrl: camForm.url.trim(),
+        ...(camForm.user.trim() ? { camUsername: camForm.user.trim() } : {}),
+        ...(camForm.pass ? { camPassword: camForm.pass } : {}),
+        adminPassword: camForm.admin,
+      });
+      setMsg('✅ تم ربط الكاميرا');
+      setCamForm({ url: '', user: '', pass: '', admin: '' });
+      setCamOpen(false);
+      await loadCamCfg();
+    } catch (e: any) {
+      setMsg(`❌ ${e?.message ?? ''}`);
+    } finally {
+      setBusy('');
+    }
+  };
+
+  const snapNet = async () => {
+    setBusy('snapnet');
+    try {
+      const res = await fetch(`${resolveApiBase()}/api/gate/camera/snapshot`, {
+        headers: getToken() ? { Authorization: `Bearer ${getToken()}` } : {},
+      });
+      if (!res.ok) throw new Error(`camera ${res.status}`);
+      const blob = await res.blob();
+      const url = await new Promise<string>((resolve, reject) => {
+        const r = new FileReader();
+        r.onload = () => resolve(String(r.result));
+        r.onerror = reject;
+        r.readAsDataURL(blob);
+      });
+      setCamShot(url);
+      setMsg('✅ لقطة الشبكة جاهزة ستُرفق مع التذكرة');
+    } catch {
+      setMsg(`❌ ${L('تعذر لقطة الشبكة — تحقق من الربط', 'Snapshot failed')}`);
+    } finally {
+      setBusy('');
+    }
+  };
+  const [closeW, setCloseW] = useState<Record<string, string>>({});
+
+  const cats = dir === 'IN' ? IN_CATS : OUT_CATS;
+
+  const load = useCallback(async () => {
+    try {
+      const d = await api.get<{ tickets?: any[]; summary?: any }>(
+        `/api/gate?date=${date}&direction=${dir}`
+      );
+      setTickets(Array.isArray(d?.tickets) ? d.tickets : []);
+      setSummary(d?.summary ?? null);
+    } catch {
+      setTickets([]);
+    }
+  }, [date, dir]);
+
+  useEffect(() => {
+    if (!currentUser) return;
+    load();
+    api.get<any[]>('/api/fleet').then((v) => setFleet(Array.isArray(v) ? v : [])).catch(() => {});
+    loadCamCfg();
+  }, [currentUser, load]);
+
+  const set = (k: string, v: string) => setF((p) => ({ ...p, [k]: v }));
+
+  const convPreview = () => {
+    const parts: string[] = [];
+    const e = parseFloat(f.entryWeightKg);
+    const x = parseFloat(f.exitWeightKg);
+    if (!Number.isNaN(e) && !Number.isNaN(x)) {
+      const net = Math.abs(e - x);
+      const m3 = kgToM3(net, f.category);
+      if (m3 !== null) parts.push(`${L('الصافي', 'Net')} ${(net / 1000).toFixed(2)} ${L('طن', 't')} ≈ ${m3.toFixed(2)} ${L('م³', 'm³')}`);
+    } else if (!Number.isNaN(e)) {
+      const m3 = kgToM3(e, f.category);
+      if (m3 !== null) parts.push(`${(e / 1000).toFixed(2)} ${L('طن', 't')} ≈ ${m3.toFixed(2)} ${L('م³', 'm³')}`);
+    }
+    const q = parseFloat(f.quantity);
+    if (!Number.isNaN(q) && dir === 'OUT' && f.category === 'CONCRETE') {
+      const t = m3ToTon(q, 'CONCRETE');
+      if (t !== null) parts.push(`${q} ${L('م³', 'm³')} ≈ ${t.toFixed(2)} ${L('طن', 't')}`);
+    }
+    return parts.join(' · ') || '—';
+  };
+
+  const open = async () => {
+    if (!f.vehicleId && !f.externalPlate.trim()) {
+      setMsg(`❌ ${L('اختر مركبة الأسطول أو اكتب لوحة خارجية', 'Pick a fleet vehicle or an external plate')}`);
+      return;
+    }
+    if (!f.entryWeightKg.trim()) {
+      setMsg(`❌ ${L('اكتب وزنة الدخول', 'Enter the entry weight')}`);
+      return;
+    }
+    setBusy('open');
+    try {
+      let docData: string | undefined;
+      let docName: string | undefined;
+      if (docFile) {
+        if (docFile.size > 8 * 1024 * 1024) throw new Error(L('المستند أكبر من 8MB', 'Document over 8MB'));
+        docData = await new Promise<string>((resolve, reject) => {
+          const r = new FileReader();
+          r.onload = () => resolve(String(r.result));
+          r.onerror = reject;
+          r.readAsDataURL(docFile);
+        });
+        docName = docFile.name;
+      } else if (camShot) {
+        docData = camShot;
+        docName = `gate-${Date.now()}.jpg`;
+      }
+      const officer = f.officer.trim() || (currentUser as any)?.fullName || '';
+      const r = await api.post<{ ticketNo?: string }>('/api/gate', {
+        direction: dir,
+        category: f.category,
+        ...(f.vehicleId ? { vehicleId: f.vehicleId } : {}),
+        ...(f.externalPlate.trim() ? { externalPlate: f.externalPlate.trim() } : {}),
+        ...(f.partyName.trim() ? { partyName: f.partyName.trim() } : {}),
+        ...(f.driverName.trim() ? { driverName: f.driverName.trim() } : {}),
+        entryWeightKg: Number(f.entryWeightKg),
+        ...(f.exitWeightKg.trim() ? { exitWeightKg: Number(f.exitWeightKg) } : {}),
+        ...(f.quantity.trim() ? { quantity: Number(f.quantity), quantityUnit: dir === 'IN' ? 'KG' : f.category === 'CONCRETE' ? 'M3' : 'UNIT' } : {}),
+        ...(f.notes.trim() ? { notes: f.notes.trim() } : {}),
+        ...(officer ? { officerName: officer } : {}),
+        ...(docData ? { docName: docName ?? 'document', docData } : {}),
+      });
+      setMsg(`✅ ${L('تم فتح التذكرة', 'Ticket opened')} ${r?.ticketNo ?? ''}`);
+      setDocFile(null);
+      setCamShot(null);
+      setF({
+        category: dir === 'IN' ? 'RAW_CEMENT' : 'CONCRETE', vehicleId: '', externalPlate: '',
+        partyName: '', driverName: '', entryWeightKg: '', exitWeightKg: '', quantity: '', notes: '',
+        officer: '', docName: '',
+      });
+      await load();
+    } catch (e: any) {
+      setMsg(`❌ ${e?.message ?? L('فشل الفتح', 'Failed')}`);
+    } finally {
+      setBusy('');
+    }
+  };
+
+  const close = async (id: string) => {
+    const w = (closeW[id] ?? '').trim();
+    if (!w) {
+      setMsg(`❌ ${L('اكتب وزنة الخروج', 'Enter the exit weight')}`);
+      return;
+    }
+    setBusy('close' + id);
+    try {
+      const r = await api.put<{ netWeightKg?: number }>(`/api/gate/${id}/close`, { weightKg: Number(w) });
+      setMsg(`✅ ${L('أغلقت — الصافي', 'Closed — net')} ${r?.netWeightKg ?? ''} ${L('كجم', 'kg')}`);
+      setCloseW((p) => ({ ...p, [id]: '' }));
+      await load();
+    } catch (e: any) {
+      setMsg(`❌ ${e?.message ?? L('فشل الإغلاق', 'Failed')}`);
+    } finally {
+      setBusy('');
+    }
+  };
+
+  const openDoc = async (t: any) => {
+    setBusy('doc' + t.id);
+    try {
+      const d = await api.get<{ docName?: string; docUrl?: string }>(`/api/gate/${t.id}`);
+      if (!d?.docUrl) {
+        setMsg(`❌ ${L('لا مستند مرفق', 'No document')}`);
+        return;
+      }
+      setDocView({ name: d.docName ?? t.docName ?? 'document', url: d.docUrl });
+    } catch (e: any) {
+      setMsg(`❌ ${e?.message ?? L('تعذر الفتح', 'Failed')}`);
+    } finally {
+      setBusy('');
+    }
+  };
+
+  const downloadDoc = async () => {
+    if (!docView) return;
+    try {
+      const res = await fetch(docView.url);
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = docView.name;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+    } catch {
+      setMsg(`❌ ${L('تعذر التنزيل', 'Failed')}`);
+    }
+  };
+
+  if (!currentUser) {
+    return (
+      <div className="min-h-screen bg-[#080C14] text-slate-200 flex items-center justify-center p-6 text-center">
+        <p>{ar ? 'سجل الدخول أولاً.' : 'Log in first.'}</p>
+      </div>
+    );
+  }
+
+  const inputCls =
+    'mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none';
+
+  return (
+    <div className="min-h-screen bg-[#080C14] text-slate-200" dir={ar ? 'rtl' : 'ltr'}>
+      <div className="max-w-6xl mx-auto p-4">
+        <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
+          <div className="flex items-center gap-3">
+            <BrandLogo width={48} />
+            <div>
+              <h1 className="text-base font-black text-white">⚖️ {L('البوابة والميزان', 'Gate & Scale')}</h1>
+              <p className="text-[11px] text-slate-400">
+                {L('إثبات دخول الخامات والتوريدات وخروج الخرسانة والبلك', 'Proof of material entries and concrete/block exits')}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Link to="/" className="text-slate-400 text-xs border border-white/10 px-2 py-1 rounded hover:text-white">🏠</Link>
+            <QuickJump /> <LangSelector />
+          </div>
+        </div>
+
+        {msg && <p className="text-xs mb-2 font-bold">{msg}</p>}
+
+        <div className="flex gap-2 mb-3">
+          {(['IN', 'OUT'] as Dir[]).map((d) => (
+            <button key={d} onClick={() => { setDir(d); setF((p) => ({ ...p, category: d === 'IN' ? 'RAW_CEMENT' : 'CONCRETE' })); }}
+              className={`text-xs font-black rounded-xl px-6 py-2 border ${
+                dir === d
+                  ? d === 'IN'
+                    ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-300'
+                    : 'bg-sky-500/20 border-sky-500/50 text-sky-300'
+                  : 'border-white/10 text-slate-400'
+              }`}>
+              {d === 'IN' ? `📥 ${L('دخول خامات وتوريدات', 'Entries')}` : `📤 ${L('خروج خرسانة وبلك', 'Exits')}`}
+            </button>
+          ))}
+          <input type="date" value={date} onChange={(e) => setDate(e.target.value)}
+            className="bg-white/[0.04] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" />
+        </div>
+
+        {summary && (
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mb-3">
+            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-2 text-center">
+              <p className="text-[10px] text-slate-400 font-bold">{L('تذاكر الدخول', 'Entries')}</p>
+              <p className="text-lg font-black text-emerald-300">{summary.inTickets}</p>
+            </div>
+            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-2 text-center">
+              <p className="text-[10px] text-slate-400 font-bold">{L('تذاكر الخروج', 'Exits')}</p>
+              <p className="text-lg font-black text-sky-300">{summary.outTickets}</p>
+            </div>
+            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-2 text-center">
+              <p className="text-[10px] text-slate-400 font-bold">{L('صافي الداخل (طن)', 'In (t)')}</p>
+              <p className="text-lg font-black text-white">{(summary.inKg / 1000).toFixed(1)}</p>
+            </div>
+            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-2 text-center">
+              <p className="text-[10px] text-slate-400 font-bold">{L('خرسانة (م³)', 'Concrete m³')}</p>
+              <p className="text-lg font-black text-white">{summary.concreteM3}</p>
+            </div>
+            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-2 text-center">
+              <p className="text-[10px] text-slate-400 font-bold">{L('بلك (وحدة)', 'Blocks')}</p>
+              <p className="text-lg font-black text-white">{summary.blockUnits}</p>
+            </div>
+          </div>
+        )}
+
+        <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-4 mb-3">
+          <h3 className="text-xs font-black text-white mb-2">
+            ➕ {dir === 'IN' ? L('تذكرة دخول (وزنة الشاحنة محملة)', 'Entry ticket (truck weighed loaded)') : L('تذكرة خروج (وزنة الحمولة)', 'Exit ticket')}
+          </h3>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+            <label className="text-[11px] text-slate-400 font-bold">{L('الصنف', 'Material')}
+              <select value={f.category} onChange={(e) => set('category', e.target.value)} className={inputCls}>
+                {cats.map((c) => <option key={c.v} value={c.v}>{c.ar}</option>)}
+              </select></label>
+            <label className="text-[11px] text-slate-400 font-bold">{L('مركبة الأسطول', 'Fleet vehicle')}
+              <select value={f.vehicleId} onChange={(e) => set('vehicleId', e.target.value)} className={inputCls}>
+                <option value="">—</option>
+                {(Array.isArray(fleet) ? fleet : []).map((v: any) => (
+                  <option key={v.id ?? v.vehicleId} value={v.id ?? v.vehicleId}>
+                    {v.vehicleCode ?? v.code} · {v.plateNumber ?? v.plate}
+                  </option>
+                ))}
+              </select></label>
+            <label className="text-[11px] text-slate-400 font-bold">{L('لوحة خارجية', 'External plate')}
+              <input value={f.externalPlate} onChange={(e) => set('externalPlate', e.target.value)} className={inputCls} /></label>
+            <label className="text-[11px] text-slate-400 font-bold">{dir === 'IN' ? L('المورّد', 'Supplier') : L('العميل / الموقع', 'Customer')}
+              <input value={f.partyName} onChange={(e) => set('partyName', e.target.value)} className={inputCls} /></label>
+            <label className="text-[11px] text-slate-400 font-bold">{L('السائق', 'Driver')}
+              <input value={f.driverName} onChange={(e) => set('driverName', e.target.value)} className={inputCls} /></label>
+            <label className="text-[11px] text-slate-400 font-bold">{L('وزنة الدخول (كجم) *', 'Entry kg *')}
+              <input value={f.entryWeightKg} inputMode="decimal" onChange={(e) => set('entryWeightKg', e.target.value)} className={inputCls} /></label>
+            <label className="text-[11px] text-slate-400 font-bold">{L('وزنة الخروج (كجم)', 'Exit kg')}
+              <input value={f.exitWeightKg} inputMode="decimal" onChange={(e) => set('exitWeightKg', e.target.value)} className={inputCls} /></label>
+            {dir === 'OUT' && (
+              <label className="text-[11px] text-slate-400 font-bold">{f.category === 'CONCRETE' ? L('الكمية (م³)', 'Qty m³') : L('الكمية (وحدة)', 'Qty units')}
+                <input value={f.quantity} inputMode="decimal" onChange={(e) => set('quantity', e.target.value)} className={inputCls} /></label>
+            )}
+            <label className="text-[11px] text-slate-400 font-bold">{L('ملاحظات', 'Notes')}
+              <input value={f.notes} onChange={(e) => set('notes', e.target.value)} className={inputCls} /></label>
+            <label className="text-[11px] text-slate-400 font-bold">👮 {L('مسئول البوابة', 'Gate officer')}
+              <input value={f.officer} placeholder={(currentUser as any)?.fullName ?? ''} onChange={(e) => set('officer', e.target.value)} className={inputCls} /></label>
+            <label className="text-[11px] text-slate-400 font-bold">📎 {L('مستند الاستلام (PDF/صورة)', 'Receipt doc')}
+              <input type="file" accept="application/pdf,image/*" onChange={(e) => setDocFile(e.target.files?.[0] ?? null)}
+                className="mt-0.5 w-full text-[11px] text-slate-300 file:bg-white/10 file:border file:border-white/10 file:rounded-lg file:px-2 file:py-1 file:text-white file:text-[11px]" /></label>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
+            <div className="rounded-xl border border-white/10 p-2">
+              <p className="text-[11px] font-black text-slate-300 mb-1">📷 {L('كاميرا البوابة (دليل مصور)', 'Gate camera')}</p>
+              <p className="text-[10px] text-slate-500 mb-1">
+                {camCfg?.configured
+                  ? `🟢 ${L('كاميرا شبكة مربوطة', 'Network camera linked')}`
+                  : `⚪ ${L('كاميرا الجهاز فقط', 'Device camera only')}`}
+              </p>
+              {!camOn && !camShot && (
+                <span className="flex gap-2 flex-wrap">
+                  <button onClick={startCam} className="text-[11px] font-black rounded-lg px-3 py-1.5 border border-violet-500/50 bg-violet-500/15 text-violet-300">
+                    {L('فتح الكاميرا', 'Open camera')}
+                  </button>
+                  {camCfg?.configured && (
+                    <button disabled={busy === 'snapnet'} onClick={snapNet} className="text-[11px] font-black rounded-lg px-3 py-1.5 border border-sky-500/50 bg-sky-500/15 text-sky-300 disabled:opacity-50">
+                      {busy === 'snapnet' ? '…' : `📡 ${L('لقطة الشبكة', 'Net snapshot')}`}
+                    </button>
+                  )}
+                </span>
+              )}
+              {camOn && (
+                <div>
+                  <video ref={videoRef} autoPlay playsInline muted className="w-full rounded-lg max-h-48 object-cover" />
+                  <div className="flex gap-2 mt-1">
+                    <button onClick={snapCam} className="text-[11px] font-black rounded-lg px-3 py-1.5 bg-violet-500 text-white">
+                      📸 {L('التقاط', 'Capture')}
+                    </button>
+                    <button onClick={stopCam} className="text-[11px] rounded-lg px-3 py-1.5 border border-white/15 text-slate-300">
+                      {L('إغلاق', 'Close')}
+                    </button>
+                  </div>
+                </div>
+              )}
+              {camShot && (
+                <div className="flex items-center gap-2">
+                  <img src={camShot} alt="" className="h-16 rounded-lg border border-emerald-500/40" />
+                  <span className="text-[11px] text-emerald-300 font-black">✅ {L('ستُرفق مع التذكرة', 'Will attach')}</span>
+                  <button onClick={() => setCamShot(null)} className="text-[11px] text-slate-400">✕</button>
+                </div>
+              )}
+              <div className="mt-2 rounded-lg border border-white/10 p-2">
+                <p className="text-[11px] font-black text-slate-300 mb-1">🔒 {L('ضبط الكاميرا (باسورد)', 'Camera setup')}</p>
+                {!camOpen ? (
+                  <span className="flex gap-2">
+                    <input type="password" value={camLock} inputMode="numeric"
+                      onChange={(e) => setCamLock(e.target.value)}
+                      placeholder={L('كلمة السر', 'Password')}
+                      className="flex-1 bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" />
+                    <button disabled={busy === 'camlock'} onClick={unlockCam}
+                      className="text-[11px] font-black rounded-lg px-3 py-1.5 border border-amber-500/50 text-amber-300 disabled:opacity-50">
+                      {busy === 'camlock' ? '…' : L('فتح', 'Open')}
+                    </button>
+                  </span>
+                ) : (
+                  <span className="grid grid-cols-1 gap-1.5">
+                    <input value={camForm.url} dir="ltr" onChange={(e) => setCamForm({ ...camForm, url: e.target.value })}
+                      placeholder="http://camera-ip/ISAPI/Streaming/channels/101/picture"
+                      className="bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none font-mono" />
+                    <span className="grid grid-cols-2 gap-1.5">
+                      <input value={camForm.user} onChange={(e) => setCamForm({ ...camForm, user: e.target.value })}
+                        placeholder={L('يوزر الكاميرا', 'Cam user')}
+                        className="bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" />
+                      <input type="password" value={camForm.pass} onChange={(e) => setCamForm({ ...camForm, pass: e.target.value })}
+                        placeholder={L('باسورد الكاميرا', 'Cam password')}
+                        className="bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" />
+                    </span>
+                    <input type="password" value={camForm.admin} inputMode="numeric"
+                      onChange={(e) => setCamForm({ ...camForm, admin: e.target.value })}
+                      placeholder={L('كلمة سر الضبط (تعريف/تغيير)', 'Setup password')}
+                      className="bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" />
+                    <span className="flex gap-2">
+                      <button disabled={busy === 'camsave'} onClick={saveCam}
+                        className="text-[11px] font-black rounded-lg px-3 py-1.5 bg-amber-500 text-black disabled:opacity-50">
+                        {busy === 'camsave' ? '…' : `💾 ${L('حفظ الربط', 'Save link')}`}
+                      </button>
+                      <button onClick={() => setCamOpen(false)} className="text-[11px] rounded-lg px-3 py-1.5 border border-white/15 text-slate-300">
+                        {L('إغلاق', 'Close')}
+                      </button>
+                    </span>
+                  </span>
+                )}
+              </div>
+            </div>
+            <div className="rounded-xl border border-white/10 p-2">
+              <p className="text-[11px] font-black text-slate-300 mb-1">⚖️ {L('ربط الميزان (تسلسلي)', 'Scale link')}</p>
+              {!scaleOn ? (
+                <button onClick={connectScale} className="text-[11px] font-black rounded-lg px-3 py-1.5 border border-sky-500/50 bg-sky-500/15 text-sky-300">
+                  🔌 {L('توصيل الميزان', 'Connect scale')}
+                </button>
+              ) : (
+                <div className="flex items-center gap-2 flex-wrap">
+                  <select value={scaleTarget} onChange={(e) => setScaleTarget(e.target.value as 'entry' | 'exit')}
+                    className="bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none">
+                    <option value="entry">{L('وزنة الدخول', 'Entry')}</option>
+                    <option value="exit">{L('وزنة الخروج', 'Exit')}</option>
+                  </select>
+                  <button onClick={readScale} className="text-[11px] font-black rounded-lg px-3 py-1.5 bg-sky-500 text-white">
+                    ⚖️ {L('قراءة الوزن', 'Read weight')}
+                  </button>
+                </div>
+              )}
+              {scaleInfo && <p className="text-[11px] text-slate-400 font-mono mt-1" dir="ltr">{scaleInfo}</p>}
+            </div>
+          </div>
+          {(DENSITY[f.category] && (f.entryWeightKg.trim() || f.quantity.trim())) && (
+            <p className="text-[11px] text-sky-300 font-bold mt-2">
+              ⚖️ {L('تحويل', 'Convert')}: {convPreview()}
+            </p>
+          )}
+          <button disabled={busy === 'open'} onClick={open}
+            className="mt-3 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-white text-xs font-black rounded-lg px-6 py-2">
+            {busy === 'open' ? '…' : `✅ ${L('فتح التذكرة', 'Open ticket')}`}
+          </button>
+        </div>
+
+        <div className="space-y-2">
+          {tickets.length === 0 && <p className="text-xs text-slate-500">{L('لا تذاكر في هذا اليوم.', 'No tickets this day.')}</p>}
+          {tickets.map((t) => (
+            <div key={t.id} className="rounded-xl border border-white/10 bg-white/[0.03] p-3 text-xs">
+              <div className="flex items-center justify-between flex-wrap gap-1">
+                <span className="font-black text-white">
+                  {t.direction === 'IN' ? '📥' : '📤'} <span dir="ltr">{t.ticketNo}</span> · {CAT_AR[t.category] ?? t.category} · {t.vehicleCode ?? t.externalPlate ?? '—'}
+                </span>
+                <span className={`font-black ${t.status === 'OPEN' ? 'text-amber-300' : 'text-emerald-300'}`}>
+                  {t.status === 'OPEN' ? L('مفتوحة', 'OPEN') : L('مغلقة', 'CLOSED')}
+                </span>
+              </div>
+              <p className="text-slate-400 mt-1">
+                {[t.partyName, t.driverName, t.orderRef].filter(Boolean).join(' · ')}
+                {` · ${L('دخول', 'in')} ${t.entryWeightKg ?? '—'} ${L('خروج', 'out')} ${t.exitWeightKg ?? '—'}${t.netWeightKg != null ? ` · ${L('الصافي', 'net')} ${Number(t.netWeightKg).toLocaleString()} ${L('كجم', 'kg')}` : ''}`}
+                {t.quantity != null && ` · ${t.quantity} ${t.quantityUnit ?? ''}`}
+                {t.netWeightKg != null && DENSITY[t.category] != null && ` · ≈ ${(Number(t.netWeightKg) / 1000 / DENSITY[t.category]).toFixed(2)} ${L('م³', 'm³')}`}
+                {t.category === 'CONCRETE' && t.quantity != null && ` · ≈ ${(Number(t.quantity) * DENSITY.CONCRETE).toFixed(2)} ${L('طن', 't')}`}
+              </p>
+              <p className="text-slate-500 mt-0.5">
+                👮 {t.officerName ?? t.operatorName ?? '—'}
+                {t.hasDoc && (
+                  <button disabled={busy === 'doc' + t.id} onClick={() => openDoc(t)}
+                    className="mr-2 text-[11px] font-black rounded px-2 py-0.5 border border-sky-500/40 text-sky-300 disabled:opacity-50">
+                    {busy === 'doc' + t.id ? '…' : `📎 ${t.docName ?? L('المستند', 'Doc')}`}
+                  </button>
+                )}
+              </p>
+              {t.status === 'OPEN' && (
+                <div className="flex gap-2 mt-2">
+                  <input value={closeW[t.id] ?? ''} inputMode="decimal"
+                    onChange={(e) => setCloseW((p) => ({ ...p, [t.id]: e.target.value }))}
+                    placeholder={L('وزنة الإغلاق (كجم)', 'Closing kg')}
+                    className="flex-1 bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" />
+                  <button disabled={busy === 'close' + t.id} onClick={() => close(t.id)}
+                    className="text-[11px] font-black rounded-lg px-4 py-1.5 border border-sky-500/50 bg-sky-500/15 text-sky-300 disabled:opacity-50">
+                    {busy === 'close' + t.id ? '…' : `⚖️ ${L('إغلاق بالوزن', 'Close')}`}
+                  </button>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+      {docView && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={() => setDocView(null)}>
+          <div className="w-full max-w-3xl rounded-2xl border border-white/15 bg-slate-900 p-3" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-black text-white">📎 {docView.name}</span>
+              <span className="flex gap-2">
+                <button onClick={downloadDoc} className="text-[11px] font-black rounded px-3 py-1.5 border border-emerald-500/40 text-emerald-300">⬇ {L('تنزيل', 'Save')}</button>
+                <button onClick={() => setDocView(null)} className="text-[11px] font-black rounded px-3 py-1.5 border border-white/20 text-slate-200">✕ {L('إغلاق', 'Close')}</button>
+              </span>
+            </div>
+            {/pdf/i.test(docView.name) || docView.url.startsWith('data:application/pdf') ? (
+              <embed src={docView.url} type="application/pdf" className="w-full rounded-lg bg-white" style={{ height: '70vh' }} />
+            ) : (
+              <img src={docView.url} alt={docView.name} className="w-full rounded-lg object-contain" style={{ maxHeight: '70vh' }} />
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

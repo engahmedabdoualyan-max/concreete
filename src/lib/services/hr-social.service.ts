@@ -18,9 +18,11 @@ import {
   hrRequests,
   hrBroadcasts,
   hrBroadcastReads,
+  hrLeaveBalances,
+  payrollEmployees,
   users,
 } from "@/db/schema";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { sendPush, sendPushToRoles } from "./push.service";
 
 export type HrRequestType = "LEAVE" | "ADVANCE" | "SALARY_CONFIRM" | "OTHER";
@@ -145,6 +147,15 @@ export async function reviewRequest(
     .returning();
   if (!updated) return null;
 
+  // Approving a LEAVE with a day count consumes the yearly balance (may go
+  // negative = overuse, shown as-is; the row auto-creates at 0 so no
+  // entitlement is ever invented).
+  if (decision === "APPROVED" && updated.type === "LEAVE") {
+    void consumeLeaveBalance(tenantId, updated).catch((e) =>
+      console.error("[leave-balance]", e)
+    );
+  }
+
   // Notify the requester (fire-and-forget)
   void sendPush(
     tenantId,
@@ -162,8 +173,52 @@ export async function reviewRequest(
   return updated;
 }
 
-export async function cancelRequest(tenantId: string, userId: string, requestId: string) {
-  const [updated] = await db
+async function consumeLeaveBalance(
+  tenantId: string,
+  req: { requesterId: string; startDate: Date | null; endDate: Date | null }
+): Promise<void> {
+  let days = 0;
+  if (req.startDate && req.endDate) {
+    days = Math.round((+new Date(req.endDate) - +new Date(req.startDate)) / 864e5) + 1;
+  }
+  if (!Number.isFinite(days) || days <= 0) return;
+  const year = (req.startDate ? new Date(req.startDate) : new Date()).getFullYear();
+
+  const emp = await db
+    .select({ id: payrollEmployees.id })
+    .from(payrollEmployees)
+    .where(and(eq(payrollEmployees.tenantId, tenantId), eq(payrollEmployees.userId, req.requesterId)));
+  if (emp.length === 0) return;
+
+  const existing = await db
+    .select()
+    .from(hrLeaveBalances)
+    .where(
+      and(
+        eq(hrLeaveBalances.tenantId, tenantId),
+        eq(hrLeaveBalances.employeeId, emp[0].id),
+        eq(hrLeaveBalances.year, year),
+        eq(hrLeaveBalances.leaveType, "ANNUAL")
+      )
+    );
+  if (existing.length > 0) {
+    await db
+      .update(hrLeaveBalances)
+      .set({ used: sql`${hrLeaveBalances.used} + ${days}` })
+      .where(eq(hrLeaveBalances.id, existing[0].id));
+  } else {
+    await db.insert(hrLeaveBalances).values({
+      tenantId,
+      employeeId: emp[0].id,
+      year,
+      leaveType: "ANNUAL",
+      allocated: "0",
+      used: String(days),
+    });
+  }
+}
+
+export async function cancelRequest(tenantId: string, userId: string, requestId: string) {  const [updated] = await db
     .update(hrRequests)
     .set({ status: "CANCELLED", updatedAt: new Date() })
     .where(

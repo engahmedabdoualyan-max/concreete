@@ -18,7 +18,7 @@ import { z } from "zod";
 export const dynamic = "force-dynamic";
 
 const CreateExpenseSchema = z.object({
-  category: z.enum(["vehicle", "fuel", "office", "materials", "maintenance", "utilities", "rent", "salary", "other"]),
+  category: z.enum(["vehicle", "fuel", "office", "materials", "maintenance", "oil", "utilities", "rent", "salary", "other"]),
   amountSar: z.number().int().positive("المبلغ يجب أن يكون موجباً"),
   date: z.string().min(1, "التاريخ مطلوب"),
   paymentMethod: z.enum(["cash", "bank_transfer", "credit_card", "upi", "cheque"]),

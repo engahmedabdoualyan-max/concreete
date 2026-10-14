@@ -34,19 +34,20 @@ import {
   jsonb,
   uuid,
   unique,
+  uniqueIndex,
   index,
   primaryKey,
   decimal,
   date,
 } from "drizzle-orm/pg-core";
-import { relations } from "drizzle-orm";
+import { relations, sql } from "drizzle-orm";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SECTION 1 — ENUMERATIONS
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * System-wide user roles — 10 distinct roles
+ * System-wide user roles — 25 distinct roles
  *
  * 4 PRIMARY ERP roles (web dashboard):
  *   SUPER_ADMIN · FINANCE · SALES_REP · DRIVER
@@ -58,23 +59,62 @@ import { relations } from "drizzle-orm";
  *   WORKSHOP_MECHANIC — mechanic work orders (read+close, no status mutation)
  *   LAB_TECHNICIAN   — legacy alias for LAB_TECH
  *   DISPATCHER       — fleet scheduling, trip creation
+ *
+ * Plus PLANT_MGR (the plant owner — the only role with SITE_WRITE), the HR pair,
+ * RND_MANAGER, and ten roles that exist only in the live database — see below.
+ *
+ * ORDER IS THE LIVE DATABASE'S, NOT A LOGICAL GROUPING
+ * Postgres preserves enum declaration order, and `drizzle-kit generate` diffs the
+ * declared list against the live one. Reordering it here would make the next
+ * generated migration want to "fix" a live enum that 22 accounts are using, so
+ * this list is kept in the exact order `enum_range('user_role')` returns —
+ * verified by scripts/.verify-role-enum.ts, which fails on any mismatch in
+ * value, count or order. Read the grouping from the comments, not the position.
  */
 export const userRoleEnum = pgEnum("user_role", [
   "SUPER_ADMIN",
-  "PLANT_MGR",
+  "PLANT_MGR",            // صاحب المصنع — the plant owner: only role with SITE_WRITE
   "ACCOUNTANT",
   "LAB_TECH",
   "BATCH_OPERATOR",
   "SALES_REP",
   "DRIVER",
-  "RND_MANAGER",          // مدير البحث والتطوير — owns development plans, tasks, R&D follow-up
-  "HR_OFFICER",           // موظف الموارد البشرية — leave/advance requests, broadcasts, payroll support
   // ── Operational aliases retained for live-data backward compatibility ──
   "FINANCE",
   "DISPATCHER",
   "WORKSHOP_MGR",
   "LAB_TECHNICIAN",
   "WORKSHOP_MECHANIC",
+  // ── Named roles ──
+  "RND_MANAGER",          // مدير البحث والتطوير — owns development plans, tasks, R&D follow-up
+  "HR_OFFICER",           // موظف الموارد البشرية — leave/advance requests, broadcasts, payroll support
+  // ── Roles created directly in Postgres, in active use, previously undeclared ──
+  // These ten were never added here, which was a genuine bug rather than a
+  // cosmetic mismatch: `ROLE_PERMISSIONS` is keyed by this union, so a role
+  // missing from it resolved to `undefined` and `roleHasPermission` returned
+  // false for EVERY permission. Those accounts were not merely under-privileged —
+  // they were powerless, including MECHANIC and STOREKEEPER, on which the
+  // anti-fraud trail depends.
+  //
+  // They are now declared, and each is granted the set matching the role it
+  // duplicates in the live data (see ROLE_PERMISSIONS in lib/auth/rbac.ts).
+  // Declaring them also removes the risk that a future `drizzle-kit generate`
+  // emits an enum-NARROWING migration against rows that are in use.
+  "CFO",
+  "SCHEDULE_MGR",
+  "OPERATIONS_MGR",
+  "PRODUCTION_MGR",
+  "REPS_MGR",
+  "STOREKEEPER",
+  "MECHANIC",
+  "STATION_TECH",
+  "BATCH_OP",
+  "LAB_MGR",
+  // HR_MANAGER sits last because that is where the live enum has it — it was
+  // appended to the database after the others.
+  "HR_MANAGER",           // مدير الموارد البشرية — owns the employee master: adds workers,
+                          //   creates employee cards, issues their QR codes, edits the record
+  "GATE_OPERATOR",        // مسئول البوابة والميزان — gate & scale tickets only
 ]);
 
 /** Order lifecycle states — maps directly to the Sales Pipeline module */
@@ -442,6 +482,8 @@ export const tenants = pgTable(
     defaultLocale: varchar("default_locale", { length: 10 }).notNull().default("en"),
     isActive: boolean("is_active").notNull().default(true),
     subscriptionPlan: varchar("subscription_plan", { length: 40 }).notNull().default("STANDARD"),
+    /** Company logo (data URI or hosted URL) — shown in reports + HR header */
+    logoUrl: text("logo_url"),
     settings: jsonb("settings").$type<Record<string, unknown>>().notNull().default({}),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
@@ -486,6 +528,12 @@ export const users = pgTable(
   (t) => [
     index("idx_users_role").on(t.role),
     index("idx_users_email").on(t.email),
+    // Email identity is case-insensitive: login and SSO both resolve it with
+    // lower(email), which the plain index above cannot serve. This functional
+    // unique index both backs those lookups and makes "one account per address"
+    // hold regardless of case — otherwise `Ali@` and `ali@` could be registered
+    // as two people and only one of them would ever be able to log in.
+    uniqueIndex("users_email_lower_unique").on(sql`lower(${t.email})`),
     index("idx_users_employee_code").on(t.employeeCode),
     index("idx_users_tenant").on(t.tenantId),
   ]
@@ -614,6 +662,84 @@ export const deliverySites = pgTable(
 );
 
 // ─────────────────────────────────────────────────────────────────────────────
+// COMPANY SITES — plant + branches
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const siteTypeEnum = pgEnum("site_type", [
+  "PLANT", //   المصنع الرئيسي — the batching plant everything is measured from
+  "BRANCH", //  فرع — a satellite yard or depot with its own coordinates
+  "STATION", // محطة — a batch station
+  "YARD", //    ساحة — storage/loading yard, no batching
+]);
+
+/**
+ * sites — Where this company physically operates.
+ *
+ * Vehicle monitoring needs a fixed origin before it can mean anything: how far
+ * is this truck from the plant, which branch is it nearest, has it arrived.
+ * `tenants` carried only a plant NAME, and the two existing coordinate tables
+ * are both the wrong home — `delivery_sites` belongs to a client, and `hr_zones`
+ * is a place workers clock in from. So the plant's own position had nowhere to
+ * live.
+ *
+ * The main plant is a ROW here (`is_primary`), not a column on `tenants`. A
+ * company with two yards would otherwise need nullable plant columns on
+ * `tenants` and a second copy of the same fields, which is how "which one is the
+ * real plant?" bugs start.
+ *
+ * Coordinates are NOT NULL and range-checked in the database: an unlocatable
+ * site cannot be fenced, and a sign-flipped longitude puts a plant in the ocean
+ * where every geofence then reports "arrived" forever.
+ */
+export const sites = pgTable(
+  "sites",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    siteCode: varchar("site_code", { length: 30 }).notNull(),
+    siteName: varchar("site_name", { length: 200 }).notNull(),
+    siteType: siteTypeEnum("site_type").notNull().default("BRANCH"),
+    addressLine: text("address_line"),
+    city: varchar("city", { length: 100 }),
+    latitude: decimal("latitude", { precision: 10, scale: 7 }).notNull(),
+    longitude: decimal("longitude", { precision: 10, scale: 7 }).notNull(),
+    /** How close counts as "arrived", in metres. */
+    geofenceRadiusMetres: integer("geofence_radius_metres").notNull().default(200),
+    /** The one site distances are measured from. One per tenant, DB-enforced. */
+    isPrimary: boolean("is_primary").notNull().default(false),
+    isActive: boolean("is_active").notNull().default(true),
+    notes: text("notes"),
+    createdById: uuid("created_by_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    // Code is unique per company, NOT globally: two companies may both call
+    // their main plant "HQ", and global uniqueness would fail the second signup
+    // for no business reason.
+    uniqueIndex("sites_tenant_code_unique").on(t.tenantId, t.siteCode),
+    // Partial: branches are unconstrained, but a second primary would give the
+    // company two competing origins for every distance calculation.
+    uniqueIndex("sites_one_primary_per_tenant")
+      .on(t.tenantId)
+      .where(sql`${t.isPrimary} = true`),
+    // `company_sites` prefix, not `idx_sites_*`: delivery_sites already owns
+    // that namespace, and reusing a taken index name makes CREATE INDEX IF NOT
+    // EXISTS skip silently.
+    index("idx_company_sites_tenant").on(t.tenantId),
+    index("idx_company_sites_type").on(t.siteType),
+    index("idx_company_sites_active").on(t.tenantId, t.isActive),
+    // Lets the planner prune by tenant before scanning coordinates for
+    // "nearest branch to this truck".
+    index("idx_company_sites_coords").on(t.tenantId, t.latitude, t.longitude),
+  ]
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
 // SECTION 4 — FLEET MANAGEMENT
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -677,6 +803,14 @@ export const fleetVehicles = pgTable(
     insuranceExpiresAt: timestamp("insurance_expires_at"),
     /** Inspection due date */
     inspectionDueAt: timestamp("inspection_due_at"),
+    /** Vehicle registration (istimara) expiry */
+    istimaraExpiry: timestamp("istimara_expiry"),
+    /** Last istimara renewal (HR paperwork) — informational, next date drives alerts */
+    istimaraRenewedAt: timestamp("istimara_renewed_at"),
+    /** Last insurance renewal (HR paperwork) */
+    insuranceRenewedAt: timestamp("insurance_renewed_at"),
+    /** Last inspection renewal (HR paperwork) */
+    inspectionRenewedAt: timestamp("inspection_renewed_at"),
     /**
      * LIVE GPS TELEMETRY — last known position pushed either by the driver app
      * (Socket.io) or by a third-party GPS vendor via /api/v1/fleet/gps-webhook.
@@ -1231,6 +1365,7 @@ export const expenseCategoryEnum = pgEnum("expense_category", [
   "office",
   "materials",
   "maintenance",
+  "oil",
   "utilities",
   "rent",
   "salary",
@@ -1564,6 +1699,13 @@ export const trips = pgTable(
     onSiteDurationMinutes: integer("on_site_duration_minutes"),
     returnTimeMinutes: integer("return_time_minutes"),
     totalCycleTimeMinutes: integer("total_cycle_time_minutes"),
+    /**
+     * Delivered cost of THIS trip in SAR halalas (cents) — driver overtime, pump
+     * rental, tolls, loading crew, anything spent to move this load. Recorded at
+     * dispatch; it is what makes the cost-per-m³ report real instead of a
+     * materials-only estimate. 0 = not costed yet.
+     */
+    transportCostSar: integer("transport_cost_sar").notNull().default(0),
     isCompleted: boolean("is_completed").notNull().default(false),
     isCancelled: boolean("is_cancelled").notNull().default(false),
     cancellationReason: text("cancellation_reason"),
@@ -3110,6 +3252,72 @@ export const rndCompetitorProductsRelations = relations(
 //  revocable, view-counted. The public endpoint requires NO login.
 
 /**
+ * portal_requests — self-service actions a customer started from the portal.
+ *
+ * A customer with a magic link can ask for a new delivery, an amendment or a
+ * cancellation. Nothing here mutates an order directly: every request is a row
+ * that plant staff approve or reject, which keeps the credit check, the finance
+ * gate and the customer's confirmed volume under human control. A request that
+ * was never approved must never change what the plant is obliged to deliver.
+ */
+export const portalRequestStatusEnum = pgEnum("portal_request_status", [
+  "PENDING",
+  "APPROVED",
+  "REJECTED",
+]);
+
+export const portalRequestTypeEnum = pgEnum("portal_request_type", [
+  "NEW_ORDER",
+  "AMENDMENT",
+  "CANCELLATION",
+]);
+
+export const portalRequests = pgTable(
+  "portal_requests",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    clientId: uuid("client_id")
+      .notNull()
+      .references(() => clients.id, { onDelete: "cascade" }),
+    /** the share token the request came from, for the audit trail */
+    shareTokenId: uuid("share_token_id").references(() => shareTokens.id, {
+      onDelete: "set null",
+    }),
+    requestType: portalRequestTypeEnum("request_type").notNull(),
+    status: portalRequestStatusEnum("status").notNull().default("PENDING"),
+    /** for AMENDMENT / CANCELLATION */
+    orderId: uuid("order_id").references(() => orders.id, { onDelete: "cascade" }),
+    /** what the customer asked for, in their own words + the numbers */
+    requestedVolumeM3: decimal("requested_volume_m3", { precision: 8, scale: 2 }),
+    requestedDate: timestamp("requested_date"),
+    deliverySiteId: uuid("delivery_site_id").references(() => deliverySites.id, {
+      onDelete: "set null",
+    }),
+    mixDesignId: uuid("mix_design_id").references(() => mixDesigns.id, {
+      onDelete: "set null",
+    }),
+    note: text("note"),
+    /** who handled it and why it was refused */
+    handledById: uuid("handled_by_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    handledAt: timestamp("handled_at"),
+    decisionNote: text("decision_note"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("idx_portal_req_tenant").on(t.tenantId),
+    index("idx_portal_req_status").on(t.status),
+    index("idx_portal_req_client").on(t.clientId),
+    index("idx_portal_req_order").on(t.orderId),
+  ]
+);
+
+/**
  * share_tokens — Magic links for the customer portal.
  */
 export const shareTokens = pgTable(
@@ -3145,6 +3353,11 @@ export const shareTokens = pgTable(
 /**
  * telematics_devices — Sensor registry per vehicle.
  * One row per physical probe: drum-RPM, temperature, water-add meter, tracker.
+ *
+ * Coding a device onto a vehicle is what makes its readings attributable, so
+ * the identity is protected in the database (migration 0020): `serial_number`
+ * is globally unique once set, `device_code` is unique per tenant, and only one
+ * device per type can be the primary for a vehicle.
  */
 export const telematicsDevices = pgTable(
   "telematics_devices",
@@ -3158,10 +3371,19 @@ export const telematicsDevices = pgTable(
       .references(() => fleetVehicles.id, { onDelete: "cascade" }),
     /** DRUM_RPM | CONCRETE_TEMP | WATER_ADD_METER | GPS_TRACKER */
     deviceType: varchar("device_type", { length: 30 }).notNull(),
-    /** Vendor serial / IMEI printed on the probe */
+    /** Vendor serial / IMEI printed on the probe. Globally unique when set. */
     serialNumber: varchar("serial_number", { length: 80 }),
+    /** Short human-facing code read off the dashboard (e.g. DRUM-01, GPS-04). */
+    deviceCode: varchar("device_code", { length: 40 }),
+    /** Primary device of its type for the vehicle — only one per type. */
+    isPrimary: boolean("is_primary").notNull().default(false),
     isActive: boolean("is_active").notNull().default(true),
     mountedAt: timestamp("mounted_at"),
+    /** When the device was last mounted on / linked to the vehicle. */
+    linkedAt: timestamp("linked_at"),
+    linkedById: uuid("linked_by_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
     lastSeenAt: timestamp("last_seen_at"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
@@ -3169,6 +3391,19 @@ export const telematicsDevices = pgTable(
   (t) => [
     index("idx_tm_dev_vehicle").on(t.vehicleId),
     index("idx_tm_dev_tenant").on(t.tenantId),
+    index("idx_tm_dev_serial").on(t.serialNumber),
+    index("idx_tm_dev_active_vehicle").on(t.vehicleId, t.isActive),
+    // Partial, so hardware that is registered before its vendor IMEI is known
+    // (serial_number NULL) can still be linked without colliding.
+    uniqueIndex("telematics_devices_serial_number_unique")
+      .on(t.serialNumber)
+      .where(sql`${t.serialNumber} is not null`),
+    uniqueIndex("telematics_devices_tenant_device_code_unique")
+      .on(t.tenantId, t.deviceCode)
+      .where(sql`${t.deviceCode} is not null`),
+    uniqueIndex("telematics_devices_primary_per_vehicle_type_unique")
+      .on(t.vehicleId, t.deviceType)
+      .where(sql`${t.isPrimary}`),
   ]
 );
 
@@ -3475,6 +3710,40 @@ export const payrollEmployees = pgTable(
     employeeCode: varchar("employee_code", { length: 20 }).notNull(),
     fullName: varchar("full_name", { length: 120 }).notNull(),
     nationalId: varchar("national_id", { length: 20 }),
+    /** Passport number (from iqama import file). */
+    passportNo: varchar("passport_no", { length: 30 }),
+    /** ISO country code of nationality (SA, EG, PK…) — shown with its flag */
+    countryCode: varchar("country_code", { length: 4 }),
+    /** Direct contact number of the employee */
+    contactPhone: varchar("contact_phone", { length: 20 }),
+    /** Emergency contact inside Saudi Arabia (relative) + mobile */
+    emergencyContactName: varchar("emergency_contact_name", { length: 120 }),
+    emergencyContactPhone: varchar("emergency_contact_phone", { length: 20 }),
+    /** Last vacation end-date and last resumption (return-to-work) date */
+    lastVacationDate: timestamp("last_vacation_date"),
+    lastResumptionDate: timestamp("last_resumption_date"),
+    /** Medical insurance policy number + expiry */
+    medicalInsuranceNo: varchar("medical_insurance_no", { length: 60 }),
+    medicalInsuranceExpiry: timestamp("medical_insurance_expiry"),
+    /** Employee photo (data URI, small) — shown on the file */
+    photoUrl: text("photo_url"),
+    /** Date of birth — age auto-computed in the UI */
+    dateOfBirth: timestamp("date_of_birth"),
+    /** Blood group for emergencies (A+, O-…) */
+    bloodGroup: varchar("blood_group", { length: 5 }),
+    /** Iqama (residence) expiry — drives the 60-day renewal watch */
+    iqamaExpiry: timestamp("iqama_expiry"),
+    /** Employee's car plate + whether it is PRIVATE or COMPANY custody */
+    vehiclePlate: varchar("vehicle_plate", { length: 20 }),
+    /** PRIVATE | COMPANY */
+    vehicleOwnership: varchar("vehicle_ownership", { length: 10 }),
+    /** Sponsorship affiliation (تابعية الكفالة): المطور (default) | others */
+    sponsorship: varchar("sponsorship", { length: 60 }).notNull().default("المطور"),
+    /** Insurance status (التأمين): INSURED (مومن) | UNINSURED (غير مومن, default).
+     *  Uninsured Saudis are fully exempt from GOSI in payroll math. */
+    insuranceStatus: varchar("insurance_status", { length: 10 }).notNull().default("UNINSURED"),
+    /** Affiliated branch (الفرع التابع له) — site the employee works under. */
+    branchSiteId: uuid("branch_site_id").references(() => sites.id, { onDelete: "set null" }),
     /** SAUDI | NON_SAUDI */
     nationality: varchar("nationality", { length: 12 }).notNull().default("NON_SAUDI"),
     /**
@@ -3500,6 +3769,9 @@ export const payrollEmployees = pgTable(
     index("idx_pay_emp_tenant").on(t.tenantId),
     index("idx_pay_emp_code").on(t.employeeCode),
     index("idx_pay_emp_user").on(t.userId),
+    // The badge code is printed large on the employee's QR card, so two workers
+    // must never hold the same one. See migration 0022.
+    uniqueIndex("payroll_employees_tenant_code_unique").on(t.tenantId, t.employeeCode),
   ]
 );
 
@@ -3613,6 +3885,567 @@ export const hrRequests = pgTable(
 );
 
 /**
+ * hr_penalties — HR → employee disciplinary actions.
+ * Kinds: WARNING (verbal/written), DEDUCTION (salary cut in SAR),
+ * SUSPENSION (days), TERMINATION. A deduction here is a record; it reaches
+ * payroll only when the payroll officer adds it to a run.
+ */
+export const hrPenalties = pgTable(
+  "hr_penalties",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    employeeId: uuid("employee_id")
+      .notNull()
+      .references(() => payrollEmployees.id, { onDelete: "restrict" }),
+    /** WARNING | DEDUCTION | SUSPENSION | TERMINATION */
+    kind: varchar("kind", { length: 20 }).notNull(),
+    amountSar: decimal("amount_sar", { precision: 12, scale: 2 }),
+    suspensionDays: integer("suspension_days"),
+    reason: text("reason").notNull(),
+    issuedById: uuid("issued_by_id").references(() => users.id, { onDelete: "set null" }),
+    issuedAt: timestamp("issued_at").notNull().defaultNow(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("idx_hr_pen_tenant").on(t.tenantId),
+    index("idx_hr_pen_employee").on(t.employeeId),
+  ]
+);
+
+/**
+ * hr_rewards — HR → employee bonuses and recognition.
+ * Kinds: BONUS (SAR), OVERTIME_BONUS, RECOGNITION (moral, no amount).
+ * Like penalties, a BONUS reaches payroll only via a payroll run.
+ */
+export const hrRewards = pgTable(
+  "hr_rewards",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    employeeId: uuid("employee_id")
+      .notNull()
+      .references(() => payrollEmployees.id, { onDelete: "restrict" }),
+    /** BONUS | OVERTIME_BONUS | RECOGNITION */
+    kind: varchar("kind", { length: 20 }).notNull(),
+    amountSar: decimal("amount_sar", { precision: 12, scale: 2 }),
+    reason: text("reason").notNull(),
+    issuedById: uuid("issued_by_id").references(() => users.id, { onDelete: "set null" }),
+    issuedAt: timestamp("issued_at").notNull().defaultNow(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("idx_hr_rew_tenant").on(t.tenantId),
+    index("idx_hr_rew_employee").on(t.employeeId),
+  ]
+);
+
+/**
+ * hr_investigations — formal investigations with an open/close workflow.
+ * Status: OPEN | CLOSED. Closing records the outcome for the file.
+ */
+export const hrInvestigations = pgTable(
+  "hr_investigations",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    employeeId: uuid("employee_id")
+      .notNull()
+      .references(() => payrollEmployees.id, { onDelete: "restrict" }),
+    subject: varchar("subject", { length: 200 }).notNull(),
+    details: text("details"),
+    /** OPEN | CLOSED */
+    status: varchar("status", { length: 16 }).notNull().default("OPEN"),
+    outcome: text("outcome"),
+    openedById: uuid("opened_by_id").references(() => users.id, { onDelete: "set null" }),
+    closedById: uuid("closed_by_id").references(() => users.id, { onDelete: "set null" }),
+    closedAt: timestamp("closed_at"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("idx_hr_inv_tenant").on(t.tenantId),
+    index("idx_hr_inv_employee").on(t.employeeId),
+    index("idx_hr_inv_status").on(t.status),
+  ]
+);
+
+/**
+ * hr_documents — employee file registry (iqama, driving licence, …).
+ * Bytes live in object storage; only the reference is stored here.
+ * Kinds: IQAMA | DRIVING_LICENCE | INSURANCE | CONTRACT | OTHER.
+ */
+export const hrDocuments = pgTable(
+  "hr_documents",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    employeeId: uuid("employee_id")
+      .notNull()
+      .references(() => payrollEmployees.id, { onDelete: "cascade" }),
+    /** Optional link to a custody record — photos of the entrusted item */
+    custodyId: uuid("custody_id").references(() => hrCustody.id, { onDelete: "cascade" }),
+    /** Optional link to an investigation — the file lands in the employee file too */
+    investigationId: uuid("investigation_id").references(() => hrInvestigations.id, { onDelete: "cascade" }),
+    /** Free-text label (used when kind is OTHER, e.g. "خبرة سابقة") */
+    title: varchar("title", { length: 200 }),
+    /** IQAMA | DRIVING_LICENCE | INSURANCE | CONTRACT | OTHER */
+    kind: varchar("kind", { length: 20 }).notNull(),
+    fileName: varchar("file_name", { length: 255 }).notNull(),
+    mimeType: varchar("mime_type", { length: 100 }),
+    sizeBytes: integer("size_bytes"),
+    storageUrl: text("storage_url").notNull(),
+    uploadedById: uuid("uploaded_by_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("idx_hr_doc_tenant").on(t.tenantId),
+    index("idx_hr_doc_employee").on(t.employeeId),
+  ]
+);
+
+/**
+ * hr_custody — company property entrusted to an employee (tools, devices…).
+ * Status: HELD | RETURNED. Returning stamps returnedAt, history is kept.
+ */
+export const hrCustody = pgTable(
+  "hr_custody",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    employeeId: uuid("employee_id")
+      .notNull()
+      .references(() => payrollEmployees.id, { onDelete: "restrict" }),
+    item: varchar("item", { length: 200 }).notNull(),
+    serialNo: varchar("serial_no", { length: 100 }),
+    notes: text("notes"),
+    /** HELD | RETURNED */
+    status: varchar("status", { length: 16 }).notNull().default("HELD"),
+    handedAt: timestamp("handed_at").notNull().defaultNow(),
+    returnedAt: timestamp("returned_at"),
+    handedById: uuid("handed_by_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("idx_hr_cus_tenant").on(t.tenantId),
+    index("idx_hr_cus_employee").on(t.employeeId),
+    index("idx_hr_cus_status").on(t.status),
+  ]
+);
+
+/**
+ * hr_company_docs — company papers vault (commercial registration, tax
+ * certificates, employee files…). Each entry has an optional expiry so the
+ * renewals watch can flag it 60 days ahead, like iqamas.
+ * Kinds: COMMERCIAL_REG | TAX | EMPLOYEE_FILE | LICENSE | OTHER.
+ */
+export const hrCompanyDocs = pgTable(
+  "hr_company_docs",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    /** Free-text file name written by HR, e.g. "السجل التجاري 2026" */
+    title: varchar("title", { length: 200 }).notNull(),
+    /** COMMERCIAL_REG | TAX | EMPLOYEE_FILE | LICENSE | OTHER */
+    kind: varchar("kind", { length: 20 }).notNull(),
+    fileName: varchar("file_name", { length: 255 }).notNull(),
+    mimeType: varchar("mime_type", { length: 100 }),
+    sizeBytes: integer("size_bytes"),
+    storageUrl: text("storage_url").notNull(),
+    /** Expiry/renewal date — null means no renewal tracking */
+    expiryDate: timestamp("expiry_date"),
+    uploadedById: uuid("uploaded_by_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("idx_hr_cdoc_tenant").on(t.tenantId),
+    index("idx_hr_cdoc_kind").on(t.kind),
+  ]
+);
+
+/**
+ * hr_violations — traffic (and other) violations charged to drivers.
+ * An unpaid in-period violation lands on the monthly deductions statement;
+ * marking it paid removes it from future statements. History is kept.
+ * Kinds: TRAFFIC | OTHER.
+ */
+export const hrViolations = pgTable(
+  "hr_violations",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    employeeId: uuid("employee_id")
+      .notNull()
+      .references(() => payrollEmployees.id, { onDelete: "restrict" }),
+    vehicleId: uuid("vehicle_id").references(() => fleetVehicles.id, { onDelete: "set null" }),
+    /** TRAFFIC | OTHER */
+    kind: varchar("kind", { length: 20 }).notNull().default("TRAFFIC"),
+    amountSar: decimal("amount_sar", { precision: 12, scale: 2 }).notNull(),
+    violationDate: timestamp("violation_date").notNull().defaultNow(),
+    location: varchar("location", { length: 200 }),
+    paid: boolean("paid").notNull().default(false),
+    paidAt: timestamp("paid_at"),
+    notes: text("notes"),
+    recordedById: uuid("recorded_by_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("idx_hr_vio_tenant").on(t.tenantId),
+    index("idx_hr_vio_employee").on(t.employeeId),
+    index("idx_hr_vio_vehicle").on(t.vehicleId),
+  ]
+);
+
+/**
+ * hr_leave_balances — yearly leave entitlement per employee.
+ * Leave approvals decrement `used` (may go negative = overuse, visible).
+ * HR sets `allocated`; rows auto-create at 0 on first approval — no invented
+ * entitlements. Types: ANNUAL | SICK | UNPAID.
+ */
+export const hrLeaveBalances = pgTable(
+  "hr_leave_balances",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    employeeId: uuid("employee_id")
+      .notNull()
+      .references(() => payrollEmployees.id, { onDelete: "restrict" }),
+    year: integer("year").notNull(),
+    /** ANNUAL | SICK | UNPAID */
+    leaveType: varchar("leave_type", { length: 20 }).notNull().default("ANNUAL"),
+    allocated: decimal("allocated", { precision: 8, scale: 2 }).notNull().default("0"),
+    used: decimal("used", { precision: 8, scale: 2 }).notNull().default("0"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("idx_hr_lb_tenant").on(t.tenantId),
+    index("idx_hr_lb_employee").on(t.employeeId),
+  ]
+);
+
+/**
+ * hr_overtime — extra hours slips, approved into pay.
+ * Status: PENDING | APPROVED | REJECTED. Approved slips are the payroll
+ * officer's source of truth at run creation.
+ */
+export const hrOvertime = pgTable(
+  "hr_overtime",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    employeeId: uuid("employee_id")
+      .notNull()
+      .references(() => payrollEmployees.id, { onDelete: "restrict" }),
+    workDate: varchar("work_date", { length: 10 }).notNull(),
+    hours: decimal("hours", { precision: 6, scale: 2 }).notNull(),
+    rateSar: decimal("rate_sar", { precision: 10, scale: 2 }),
+    reason: text("reason"),
+    /** PENDING | APPROVED | REJECTED */
+    status: varchar("status", { length: 16 }).notNull().default("PENDING"),
+    reviewedById: uuid("reviewed_by_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("idx_hr_ot_tenant").on(t.tenantId),
+    index("idx_hr_ot_employee").on(t.employeeId),
+  ]
+);
+
+/**
+ * hr_vehicle_logs — odometer + refuelling logbook per vehicle.
+ * Consecutive fuel entries with odometer readings yield km/l in the UI.
+ */
+export const hrVehicleLogs = pgTable(
+  "hr_vehicle_logs",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    vehicleId: uuid("vehicle_id")
+      .notNull()
+      .references(() => fleetVehicles.id, { onDelete: "restrict" }),
+    logDate: varchar("log_date", { length: 10 }).notNull(),
+    odometerKm: decimal("odometer_km", { precision: 12, scale: 1 }),
+    fuelLitres: decimal("fuel_litres", { precision: 10, scale: 2 }),
+    notes: text("notes"),
+    recordedById: uuid("recorded_by_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("idx_hr_vl_tenant").on(t.tenantId),
+    index("idx_hr_vl_vehicle").on(t.vehicleId),
+  ]
+);
+
+/**
+ * hr_expense_claims — out-of-pocket claims (fuel, tolls…).
+ * Status: PENDING | APPROVED | REJECTED | PAID.
+ */
+export const hrExpenseClaims = pgTable(
+  "hr_expense_claims",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    employeeId: uuid("employee_id")
+      .notNull()
+      .references(() => payrollEmployees.id, { onDelete: "restrict" }),
+    /** FUEL | TOLL | PARTS | OTHER */
+    kind: varchar("kind", { length: 20 }).notNull().default("OTHER"),
+    amountSar: decimal("amount_sar", { precision: 12, scale: 2 }).notNull(),
+    expenseDate: varchar("expense_date", { length: 10 }).notNull(),
+    notes: text("notes"),
+    /** PENDING | APPROVED | REJECTED | PAID */
+    status: varchar("status", { length: 16 }).notNull().default("PENDING"),
+    reviewedById: uuid("reviewed_by_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("idx_hr_ec_tenant").on(t.tenantId),
+    index("idx_hr_ec_employee").on(t.employeeId),
+  ]
+);
+
+/**
+ * hr_petty_funds — department financial custody (imprest).
+ * A department receives an amount, spends against it, then settles.
+ * Status: OPEN | SETTLED.
+ */
+export const hrPettyFunds = pgTable(
+  "hr_petty_funds",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    department: varchar("department", { length: 80 }).notNull().default("الموارد البشرية"),
+    amountReceived: decimal("amount_received", { precision: 12, scale: 2 }).notNull(),
+    receivedDate: varchar("received_date", { length: 10 }).notNull(),
+    purpose: text("purpose"),
+    /** OPEN | SETTLED */
+    status: varchar("status", { length: 16 }).notNull().default("OPEN"),
+    settledAt: timestamp("settled_at"),
+    settleNote: text("settle_note"),
+    receivedById: uuid("received_by_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("idx_hr_pf_tenant").on(t.tenantId),
+    index("idx_hr_pf_status").on(t.status),
+  ]
+);
+
+/**
+ * hr_petty_expenses — spending lines against a custody fund.
+ */
+export const hrPettyExpenses = pgTable(
+  "hr_petty_expenses",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    fundId: uuid("fund_id")
+      .notNull()
+      .references(() => hrPettyFunds.id, { onDelete: "cascade" }),
+    amountSar: decimal("amount_sar", { precision: 12, scale: 2 }).notNull(),
+    expenseDate: varchar("expense_date", { length: 10 }).notNull(),
+    description: varchar("description", { length: 300 }).notNull(),
+    recordedById: uuid("recorded_by_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("idx_hr_pe_tenant").on(t.tenantId),
+    index("idx_hr_pe_fund").on(t.fundId),
+  ]
+);
+
+/**
+ * hr_separations — employee exit & clearance.
+ * Opening records the exit; clearing requires HR to confirm. The clearance
+ * checklist (open custody, unpaid violations, open investigations) is
+ * computed live from sibling tables — nothing is duplicated here.
+ * Types: RESIGNATION | TERMINATION | END_CONTRACT. Status: OPEN | CLEARED.
+ */
+export const hrSeparations = pgTable(
+  "hr_separations",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    employeeId: uuid("employee_id")
+      .notNull()
+      .references(() => payrollEmployees.id, { onDelete: "restrict" }),
+    /** RESIGNATION | TERMINATION | END_CONTRACT */
+    type: varchar("type", { length: 20 }).notNull(),
+    lastWorkingDate: varchar("last_working_date", { length: 10 }).notNull(),
+    reason: text("reason"),
+    /** OPEN | CLEARED */
+    status: varchar("status", { length: 16 }).notNull().default("OPEN"),
+    clearanceNote: text("clearance_note"),
+    openedById: uuid("opened_by_id").references(() => users.id, { onDelete: "set null" }),
+    clearedById: uuid("cleared_by_id").references(() => users.id, { onDelete: "set null" }),
+    clearedAt: timestamp("cleared_at"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("idx_hr_sep_tenant").on(t.tenantId),
+    index("idx_hr_sep_employee").on(t.employeeId),
+    index("idx_hr_sep_status").on(t.status),
+  ]
+);
+
+/**
+ * procure_requests — workshop purchase requisitions.
+ * Flow: DRAFT → SUBMITTED (needs ≥3 quotes) → UNDER_REVIEW →
+ * APPROVED (final + disbursed) → RECEIVED (warehouse + QR) →
+ * ISSUED (to workshop) → CLOSED. REJECTED at review or final.
+ */
+export const procureRequests = pgTable(
+  "procure_requests",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    itemName: varchar("item_name", { length: 200 }).notNull(),
+    /** Coded link to warehouse_items.item_code (registry search in the form). */
+    itemCode: varchar("item_code", { length: 30 }),
+    /** Vehicle the part/material is for (code + plate shown everywhere). */
+    vehicleId: uuid("vehicle_id").references(() => fleetVehicles.id, {
+      onDelete: "set null",
+    }),
+    /** Qty actually received at the warehouse (set on receive). */
+    receivedQty: decimal("received_qty", { precision: 12, scale: 2 }),
+    quantity: decimal("quantity", { precision: 12, scale: 2 }).notNull(),
+    unit: varchar("unit", { length: 20 }).notNull().default("قطعة"),
+    /** RAW_MATERIALS (مواد خام أولية) | SPARE_PARTS (قطع غيار ورشة) | OPERATING (مصاريف تشغيل) */
+    category: varchar("category", { length: 24 }).notNull().default("SPARE_PARTS"),
+    reason: text("reason"),
+    workshopRef: varchar("workshop_ref", { length: 120 }),
+    /** DRAFT|SUBMITTED|UNDER_REVIEW|APPROVED|REJECTED|RECEIVED|ISSUED|CLOSED */
+    status: varchar("status", { length: 16 }).notNull().default("DRAFT"),
+    chosenQuoteId: uuid("chosen_quote_id"),
+    disbursedSar: decimal("disbursed_sar", { precision: 12, scale: 2 }),
+    requestedById: uuid("requested_by_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("idx_proc_req_tenant").on(t.tenantId),
+    index("idx_proc_req_status").on(t.status),
+    index("idx_proc_req_category").on(t.category),
+  ]
+);
+
+/**
+ * procure_quotes — supplier quotes attached to a request (PDF invoices).
+ * Policy: at least 3 quotes before a request can be submitted.
+ */
+export const procureQuotes = pgTable(
+  "procure_quotes",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    requestId: uuid("request_id")
+      .notNull()
+      .references(() => procureRequests.id, { onDelete: "cascade" }),
+    supplierName: varchar("supplier_name", { length: 200 }).notNull(),
+    amountSar: decimal("amount_sar", { precision: 12, scale: 2 }).notNull(),
+    /** Fixed slot 1|2|3 — the three-quote policy, not just any three rows */
+    slotNo: integer("slot_no"),
+    fileName: varchar("file_name", { length: 255 }),
+    mimeType: varchar("mime_type", { length: 100 }),
+    sizeBytes: integer("size_bytes"),
+    storageUrl: text("storage_url"),
+    createdById: uuid("created_by_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("idx_proc_q_tenant").on(t.tenantId),
+    index("idx_proc_q_request").on(t.requestId),
+  ]
+);
+
+/**
+ * procure_approvals — the two-stage trail: REVIEW then FINAL.
+ */
+export const procureApprovals = pgTable(
+  "procure_approvals",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    requestId: uuid("request_id")
+      .notNull()
+      .references(() => procureRequests.id, { onDelete: "cascade" }),
+    /** REVIEW | FINAL */
+    stage: varchar("stage", { length: 16 }).notNull(),
+    /** APPROVED | REJECTED */
+    decision: varchar("decision", { length: 16 }).notNull(),
+    note: text("note"),
+    decidedById: uuid("decided_by_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("idx_proc_a_tenant").on(t.tenantId),
+    index("idx_proc_a_request").on(t.requestId),
+  ]
+);
+
+/**
+ * procure_attachments — files pinned to the request itself (workshop
+ * request paper, approvals scans…). Quote invoices live on quotes.
+ */
+export const procureAttachments = pgTable(
+  "procure_attachments",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    requestId: uuid("request_id")
+      .notNull()
+      .references(() => procureRequests.id, { onDelete: "cascade" }),
+    fileName: varchar("file_name", { length: 255 }).notNull(),
+    mimeType: varchar("mime_type", { length: 100 }),
+    sizeBytes: integer("size_bytes"),
+    storageUrl: text("storage_url").notNull(),
+    uploadedById: uuid("uploaded_by_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("idx_proc_att_tenant").on(t.tenantId),
+    index("idx_proc_att_request").on(t.requestId),
+  ]
+);
+
+/**
  * hr_broadcasts — HR → employees announcements (role-targeted or all).
  */
 export const hrBroadcasts = pgTable(
@@ -3722,11 +4555,265 @@ export const hrAttendance = pgTable(
   ]
 );
 
+/**
+ * hr_absences — manual absence registration by HR, one row per employee per day.
+ * Tied to payroll_employees (the HR roster, including workers without logins),
+ * NOT to users — hr_attendance covers login accounts via geofence instead.
+ * The broadcast manpower tile reads: present = active roster − absent today.
+ */
+export const hrAbsences = pgTable(
+  "hr_absences",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    employeeId: uuid("employee_id")
+      .notNull()
+      .references(() => payrollEmployees.id, { onDelete: "cascade" }),
+    workDate: varchar("work_date", { length: 10 }).notNull(), // YYYY-MM-DD
+    reason: varchar("reason", { length: 200 }),
+    recordedById: uuid("recorded_by_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("idx_hr_abs_tenant").on(t.tenantId),
+    uniqueIndex("idx_hr_abs_emp_day").on(t.employeeId, t.workDate),
+  ]
+);
+
 export const hrBroadcastsRelations = relations(hrBroadcasts, ({ many }) => ({
   reads: many(hrBroadcastReads),
 }));
 
 // ─── GEOFENCE ATTENDANCE (Epic 12b — حضور وانصراف باللوكيشن) ─────────────────
+/**
+ * gate_passes — Gate & scale tickets (البوابة والميزان), one row per crossing.
+ *
+ * IN  = raw materials & supplies arriving (cement/sand/gravel/water/spare/supply):
+ *       truck weighed full on entry, weighed empty on exit, net = delivered qty.
+ * IN  passes credit inventory (silo/indirect) when closed.
+ * OUT = concrete (m³) and blocks (units) leaving to customers: mixer weighed
+ *       against its tare (or loaded qty declared), ticket proves the load left.
+ *
+ * Two-step flow matches the physical gate: POST opens with the first weighing,
+ * PUT …/close stamps the second and computes net. Single-step (known tare) is
+ * allowed by sending both weights at open.
+ */
+export const gateDirectionEnum = pgEnum("gate_direction", ["IN", "OUT"]);
+export const gateCategoryEnum = pgEnum("gate_category", [
+  "RAW_CEMENT",
+  "RAW_SAND",
+  "RAW_GRAVEL_10",
+  "RAW_GRAVEL_20",
+  "RAW_GRAVEL_40",
+  "RAW_WATER",
+  "RAW_ADMIXTURE",
+  "SPARE_PART",
+  "SUPPLY_OTHER",
+  "CONCRETE",
+  "BLOCK",
+]);
+export const gateStatusEnum = pgEnum("gate_status", ["OPEN", "CLOSED", "VOID"]);
+
+export const gatePasses = pgTable(
+  "gate_passes",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    /** Human ticket, e.g. G-000123. Sequential per tenant. */
+    ticketNo: varchar("ticket_no", { length: 20 }).notNull(),
+    direction: gateDirectionEnum("direction").notNull(),
+    category: gateCategoryEnum("category").notNull(),
+    /** Fleet truck when known; external haulers go in externalPlate. */
+    vehicleId: uuid("vehicle_id").references(() => fleetVehicles.id, {
+      onDelete: "set null",
+    }),
+    externalPlate: varchar("external_plate", { length: 30 }),
+    /** Supplier (IN) or customer/site (OUT). */
+    partyName: varchar("party_name", { length: 160 }),
+    driverName: varchar("driver_name", { length: 120 }),
+    entryWeightKg: decimal("entry_weight_kg", { precision: 10, scale: 3 }),
+    exitWeightKg: decimal("exit_weight_kg", { precision: 10, scale: 3 }),
+    /** |entry − exit|, set on close. Never hand-typed. */
+    netWeightKg: decimal("net_weight_kg", { precision: 10, scale: 3 }),
+    /** Declared qty for OUT loads: m³ of concrete or block units. */
+    quantity: decimal("quantity", { precision: 12, scale: 3 }),
+    quantityUnit: varchar("quantity_unit", { length: 10 }),
+    mixDesignId: uuid("mix_design_id").references(() => mixDesigns.id, {
+      onDelete: "set null",
+    }),
+    orderRef: varchar("order_ref", { length: 60 }),
+    notes: varchar("notes", { length: 500 }),
+    status: gateStatusEnum("status").notNull().default("OPEN"),
+    operatorId: uuid("operator_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    /** Gate officer on shift (defaults to the operator's name). */
+    officerName: varchar("officer_name", { length: 120 }),
+    /** Receiving-document file name (supplier note / weight card photo). */
+    docName: varchar("doc_name", { length: 255 }),
+    /** Receiving document bytes as data URI (8 MB cap, like company docs). */
+    docUrl: text("doc_url"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    closedAt: timestamp("closed_at"),
+  },
+  (t) => [
+    uniqueIndex("gate_passes_tenant_ticket_unique").on(t.tenantId, t.ticketNo),
+    index("gate_passes_tenant_idx").on(t.tenantId),
+    index("gate_passes_tenant_day_idx").on(t.tenantId, t.createdAt),
+  ]
+);
+
+/**
+ * production_runs — manual batch/block runs (runs the plant when no PLC link).
+ * Each run explodes its mix design × volume into CONSUMPTION transactions so
+ * silo stock stays truthful. Blocks can run without a mix (units only).
+ */
+export const productionRuns = pgTable(
+  "production_runs",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    mixDesignId: uuid("mix_design_id").references(() => mixDesigns.id, {
+      onDelete: "set null",
+    }),
+    volumeM3: decimal("volume_m3", { precision: 8, scale: 2 }).notNull().default("0"),
+    blockUnits: integer("block_units").notNull().default(0),
+    producedAt: timestamp("produced_at").notNull().defaultNow(),
+    notes: varchar("notes", { length: 500 }),
+    createdById: uuid("created_by_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [index("production_runs_tenant_idx").on(t.tenantId)]
+);
+
+/**
+ * fleet_readiness — daily readiness roll-call per vehicle (تقرير التشغيل).
+ * The dispatcher marks every vehicle each morning: WORKING (شغال), IDLE
+ * (عاطل), or IN_WORKSHOP (ورشة). The broadcast reads the summary so the
+ * manager sees pumps/mixers working vs power and workshop occupancy by type.
+ */
+export const fleetReadinessEnum = pgEnum("fleet_readiness_status", [
+  "WORKING",
+  "IDLE",
+  "IN_WORKSHOP",
+  "STORED",
+]);
+
+export const fleetReadiness = pgTable(
+  "fleet_readiness",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    vehicleId: uuid("vehicle_id")
+      .notNull()
+      .references(() => fleetVehicles.id, { onDelete: "cascade" }),
+    workDate: varchar("work_date", { length: 10 }).notNull(), // YYYY-MM-DD (Riyadh)
+    status: fleetReadinessEnum("status").notNull(),
+    /** Branch the vehicle is assigned to that day (dispatch distribution). */
+    siteId: uuid("site_id").references(() => sites.id, {
+      onDelete: "set null",
+    }),
+    note: varchar("note", { length: 200 }),
+    reportedById: uuid("reported_by_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("fleet_readiness_vehicle_day_unique").on(t.vehicleId, t.workDate),
+    index("fleet_readiness_tenant_day_idx").on(t.tenantId, t.workDate),
+  ]
+);
+
+/**
+ * broadcast_snapshots — intraday time series of what the TV showed.
+ * One row per capture (every few minutes while anyone watches the broadcast),
+ * so the owner can open any day AND hour/minute and see the plant then.
+ * History is immutable; only the live screen changes with inputs.
+ */
+export const broadcastSnapshots = pgTable(
+  "broadcast_snapshots",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    snapDate: varchar("snap_date", { length: 10 }).notNull(), // YYYY-MM-DD (Riyadh)
+    payload: jsonb("payload").notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("broadcast_snapshots_tenant_day_idx").on(t.tenantId, t.snapDate, t.createdAt),
+    index("broadcast_snapshots_tenant_idx").on(t.tenantId),
+  ]
+);
+
+/**
+ * form_records — filled paper forms (مكتبة النماذج): daily reports, meeting
+ * minutes, warnings, inventory counts... One generic table: form_code picks
+ * the layout from the frontend catalog, data holds the filled fields/rows,
+ * docs holds attached file data-URIs. Editable + deletable like any record.
+ */
+export const formRecords = pgTable(
+  "form_records",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    formCode: varchar("form_code", { length: 20 }).notNull(),
+    title: varchar("title", { length: 200 }).notNull(),
+    formDate: varchar("form_date", { length: 10 }),
+    data: jsonb("data").notNull().default({}),
+    docs: jsonb("docs").notNull().default([]),
+    status: varchar("status", { length: 16 }).notNull().default("DRAFT"),
+    createdById: uuid("created_by_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("form_records_tenant_idx").on(t.tenantId),
+    index("form_records_tenant_code_idx").on(t.tenantId, t.formCode),
+  ]
+);
+
+/**
+ * gate_camera — one row per tenant: network/IP camera snapshot config.
+ * The browser cannot reach a LAN camera directly (CORS + basic-auth), so the
+ * API proxies the snapshot. Credentials are AES-encrypted; the settings panel
+ * itself opens only with the owner-set admin password (bcrypt hash here —
+ * the plaintext is never stored or committed anywhere).
+ */
+export const gateCamera = pgTable(
+  "gate_camera",
+  {
+    tenantId: uuid("tenant_id")
+      .primaryKey()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    snapshotUrl: varchar("snapshot_url", { length: 1000 }).notNull(),
+    camUsername: varchar("cam_username", { length: 120 }),
+    secretEnc: text("secret_enc"),
+    adminHash: text("admin_hash").notNull(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  }
+);
+
 //
 //  Location-based attendance like dedicated attendance apps:
 //   • hr_zones — work geofences (factory + sites): lat/lng + radius
@@ -3879,6 +4966,303 @@ export const integrationConnectionsRelations = relations(
   })
 );
 
+// ─── ASSET QR IDENTITY + WAREHOUSE ITEMS (Epic 14 — الهالك وقطع الغيار) ─────────
+//
+//  Every physical thing in the plant gets a permanent QR identity:
+//   • equipment      — the plant's own machinery (معدات)
+//   • warehouse_items— item cards for مخزن قطع الغيار and مخزن الهالك
+//   • asset_qr_labels— the sticker itself, hash-only secret, never deleted
+//   • asset_qr_bindings — where each label has ever been fitted (the anti-fraud
+//     ledger: a part removed from a truck still remembers the truck)
+//   • stock_movements   — every quantity change in either warehouse
+//
+//  Labels are polymorphic on purpose: one scanner, one permission model, and a
+//  QR on a delivery challan (شجرة) or a concrete cube sample (عيونة) uses the
+//  exact same machinery as one on an oil pump.
+
+export const assetQrSubjectTypeEnum = pgEnum("asset_qr_subject_type", [
+  "ITEM_CARD", // كارت الصنف — the shelf/stores card, scans to stock level
+  "ITEM_UNIT", // a serialized spare part / scrap item
+  "EMPLOYEE", // payroll employee card
+  "EQUIPMENT", // plant machine
+  "VEHICLE", // fleet vehicle
+  "CHALLAN", // delivery ticket — labelled as it is issued
+  "CONCRETE_SAMPLE", // عينات الخرسانة — cube specimens
+]);
+
+export const assetQrLabelStateEnum = pgEnum("asset_qr_label_state", [
+  "ACTIVE", // printed and in service
+  "DETACHED", // peeled off a removed part; identity and history kept
+  "RETIRED", // written off / scrapped — terminal, never reused
+]);
+
+export const warehouseKindEnum = pgEnum("warehouse_kind", [
+  "SPARES", // مخزن قطع الغيار
+  "SCRAP", // مخزن الهالك
+]);
+
+export const warehouseItemCategoryEnum = pgEnum("warehouse_item_category", [
+  "SPARE_PART",
+  "LUBRICANT",
+  "CONSUMABLE",
+  "SCRAP",
+]);
+
+export const warehouseUnitStateEnum = pgEnum("warehouse_unit_state", [
+  "IN_STORE", // on the shelf
+  "ISSUED", // handed to a mechanic, not yet fitted
+  "INSTALLED", // fitted to a vehicle
+  "IN_SCRAP", // in the scrap warehouse (الهالك)
+  "SCRAPPED", // disposed of
+]);
+
+export const stockMovementTypeEnum = pgEnum("stock_movement_type", [
+  "RECEIVE", // goods in
+  "ISSUE", // issued to a mechanic, not yet fitted
+  "RETURN", // came back unused
+  "INSTALL", // fitted onto a vehicle
+  "REMOVE", // taken off a vehicle
+  "TO_SCRAP", // moved into the scrap warehouse
+  "FROM_SCRAP", // pulled back out because it was salvageable
+  "DISPOSE", // sold or thrown away for good
+  "ADJUST", // stocktake correction
+]);
+
+export const equipment = pgTable(
+  "equipment",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    /** Printed on the QR label, so unique per tenant. */
+    equipmentCode: varchar("equipment_code", { length: 30 }).notNull(),
+    name: varchar("name", { length: 120 }).notNull(),
+    nameAr: varchar("name_ar", { length: 120 }),
+    /** MIXER | PUMP | GENERATOR | COMPRESSOR | CRUSHER | CONVEYOR | OTHER */
+    category: varchar("category", { length: 40 }).notNull().default("OTHER"),
+    make: varchar("make", { length: 80 }),
+    model: varchar("model", { length: 80 }),
+    serialNumber: varchar("serial_number", { length: 80 }),
+    location: varchar("location", { length: 120 }),
+    commissionedAt: date("commissioned_at"),
+    costSar: decimal("cost_sar", { precision: 12, scale: 2 }),
+    isActive: boolean("is_active").notNull().default(true),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("equipment_tenant_code_unique").on(t.tenantId, t.equipmentCode),
+    uniqueIndex("equipment_tenant_serial_unique")
+      .on(t.tenantId, t.serialNumber)
+      .where(sql`${t.serialNumber} IS NOT NULL`),
+    index("equipment_tenant_idx").on(t.tenantId),
+  ]
+);
+
+export const warehouseItems = pgTable(
+  "warehouse_items",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    itemCode: varchar("item_code", { length: 40 }).notNull(),
+    name: varchar("name", { length: 160 }).notNull(),
+    nameAr: varchar("name_ar", { length: 160 }),
+    category: warehouseItemCategoryEnum("category").notNull().default("SPARE_PART"),
+    defaultWarehouse: warehouseKindEnum("default_warehouse").notNull().default("SPARES"),
+    unit: varchar("unit", { length: 20 }).notNull().default("PCS"),
+    /**
+     * Cached total. A trigger recomputes it from stock_movements on every
+     * movement, so the number on screen can never drift from the ledger that
+     * justifies it.
+     */
+    qtyOnHand: decimal("qty_on_hand", { precision: 12, scale: 3 }).notNull().default("0"),
+    minQty: decimal("min_qty", { precision: 12, scale: 3 }).notNull().default("0"),
+    unitCostSar: decimal("unit_cost_sar", { precision: 12, scale: 2 }).notNull().default("0"),
+    oemPartNumber: varchar("oem_part_number", { length: 80 }),
+    /** Fitment, so the workshop can ask "which parts fit MIX-03?" */
+    appliesToMake: varchar("applies_to_make", { length: 80 }),
+    appliesToModel: varchar("applies_to_model", { length: 80 }),
+    /** Serialized = each physical unit carries its own QR label. */
+    isSerialized: boolean("is_serialized").notNull().default(true),
+    isActive: boolean("is_active").notNull().default(true),
+    notes: text("notes"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("warehouse_items_tenant_code_unique").on(t.tenantId, t.itemCode),
+    index("warehouse_items_tenant_idx").on(t.tenantId),
+    index("warehouse_items_warehouse_idx").on(t.tenantId, t.defaultWarehouse),
+    index("warehouse_items_low_stock_idx")
+      .on(t.tenantId, t.minQty)
+      .where(sql`${t.isActive} = true`),
+  ]
+);
+
+/**
+ * ONE ROW PER PHYSICAL PIECE OF STOCK.
+ *
+ * "The pump that came off MIX-03", not "pumps, 4 of them". This is what an
+ * ITEM_UNIT QR label points at, and it is what makes "we installed it"
+ * checkable — the unit keeps its own history no matter how many identical
+ * siblings the shelf also holds.
+ */
+export const warehouseItemUnits = pgTable(
+  "warehouse_item_units",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    itemId: uuid("item_id")
+      .notNull()
+      .references(() => warehouseItems.id, { onDelete: "restrict" }),
+    /** Distinguishes two identical pumps from each other. Unique per tenant. */
+    unitSerial: varchar("unit_serial", { length: 60 }).notNull(),
+    state: warehouseUnitStateEnum("state").notNull().default("IN_STORE"),
+    notes: text("notes"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("warehouse_item_units_tenant_serial_unique").on(t.tenantId, t.unitSerial),
+    index("warehouse_item_units_item_idx").on(t.itemId),
+    index("warehouse_item_units_tenant_state_idx").on(t.tenantId, t.state),
+  ]
+);
+
+/**
+ * THE PERMANENT STICKER.
+ *
+ * The scan secret is stored as a SHA-256 hash only, so a database dump cannot be
+ * replayed to forge labels. The row is never deleted — a scrapped part's label
+ * keeps answering, because that is what refutes "we installed it".
+ */
+export const assetQrLabels = pgTable(
+  "asset_qr_labels",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    /** Human-readable and printed large on the sticker: SP-000123, EQ-000007. */
+    labelCode: varchar("label_code", { length: 40 }).notNull(),
+    subjectType: assetQrSubjectTypeEnum("subject_type").notNull(),
+    /** Polymorphic pointer — no FK: a label must outlive its subject. */
+    subjectId: uuid("subject_id").notNull(),
+    /** Frozen copy of the subject's own code at issue time. */
+    subjectRef: varchar("subject_ref", { length: 80 }).notNull(),
+    subjectLabel: varchar("subject_label", { length: 200 }),
+    tokenHash: varchar("token_hash", { length: 64 }).notNull(),
+    /** First chars of the secret, printed under the QR for manual keying-in. */
+    tokenHint: varchar("token_hint", { length: 12 }).notNull(),
+    state: assetQrLabelStateEnum("state").notNull().default("ACTIVE"),
+    issuedAt: timestamp("issued_at").notNull().defaultNow(),
+    issuedById: uuid("issued_by_id").references(() => users.id, { onDelete: "set null" }),
+    printedAt: timestamp("printed_at"),
+    printCount: integer("print_count").notNull().default(0),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("asset_qr_labels_tenant_code_unique").on(t.tenantId, t.labelCode),
+    // A secret must identify exactly one label, or a scan is ambiguous.
+    uniqueIndex("asset_qr_labels_token_hash_unique").on(t.tokenHash),
+    // One live label per subject. Reprinting reuses the row (print_count), so
+    // a subject can only be re-labelled after retiring the old label — itself
+    // an audited event.
+    uniqueIndex("asset_qr_labels_subject_unique")
+      .on(t.tenantId, t.subjectType, t.subjectId)
+      .where(sql`${t.state} <> 'RETIRED'`),
+    index("asset_qr_labels_tenant_idx").on(t.tenantId),
+    index("asset_qr_labels_subject_idx").on(t.subjectType, t.subjectId),
+  ]
+);
+
+/**
+ * WHERE THE LABEL IS PHYSICALLY STUCK — append-only ledger.
+ *
+ * `unbound_at IS NULL` marks the single row describing where the unit is right
+ * now. Earlier rows are history and are never rewritten, which is the whole
+ * point: a part that came off MIX-03 last month still shows MIX-03 on a scan.
+ */
+export const assetQrBindings = pgTable(
+  "asset_qr_bindings",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    labelId: uuid("label_id")
+      .notNull()
+      .references(() => assetQrLabels.id, { onDelete: "restrict" }),
+    /** Null while the unit sits in the warehouse. Set the moment it is fitted. */
+    vehicleId: uuid("vehicle_id").references(() => fleetVehicles.id, {
+      onDelete: "restrict",
+    }),
+    /** The work order a return claim is checked against. */
+    workOrderId: uuid("work_order_id").references(() => maintenanceOrders.id, {
+      onDelete: "set null",
+    }),
+    locationNote: varchar("location_note", { length: 160 }),
+    boundAt: timestamp("bound_at").notNull().defaultNow(),
+    boundById: uuid("bound_by_id").references(() => users.id, { onDelete: "set null" }),
+    unboundAt: timestamp("unbound_at"),
+    unboundById: uuid("unbound_by_id").references(() => users.id, { onDelete: "set null" }),
+    unbindReason: text("unbind_reason"),
+  },
+  (t) => [
+    // The core invariant: a label is on at most one vehicle at a time. Without
+    // this, one part could be claimed installed on three trucks at once.
+    uniqueIndex("asset_qr_bindings_active_unique")
+      .on(t.labelId)
+      .where(sql`${t.unboundAt} IS NULL`),
+    index("asset_qr_bindings_vehicle_idx").on(t.tenantId, t.vehicleId),
+    index("asset_qr_bindings_label_idx").on(t.labelId, t.boundAt),
+    index("asset_qr_bindings_tenant_idx").on(t.tenantId),
+  ]
+);
+
+/**
+ * Every quantity change in either warehouse is one row here. `qty_on_hand` is
+ * a cached SUM maintained by a database trigger, so the UI cannot corrupt it.
+ */
+export const stockMovements = pgTable(
+  "stock_movements",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    itemId: uuid("item_id")
+      .notNull()
+      .references(() => warehouseItems.id, { onDelete: "restrict" }),
+    movementType: stockMovementTypeEnum("movement_type").notNull(),
+    quantity: decimal("quantity", { precision: 12, scale: 3 }).notNull(),
+    fromWarehouse: warehouseKindEnum("from_warehouse"),
+    toWarehouse: warehouseKindEnum("to_warehouse"),
+    vehicleId: uuid("vehicle_id").references(() => fleetVehicles.id, { onDelete: "set null" }),
+    labelId: uuid("label_id").references(() => assetQrLabels.id, { onDelete: "restrict" }),
+    workOrderId: uuid("work_order_id").references(() => maintenanceOrders.id, {
+      onDelete: "set null",
+    }),
+    note: text("note"),
+    movedAt: timestamp("moved_at").notNull().defaultNow(),
+    movedById: uuid("moved_by_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("stock_movements_item_idx").on(t.itemId, t.movedAt),
+    index("stock_movements_tenant_idx").on(t.tenantId, t.movedAt),
+    index("stock_movements_vehicle_idx")
+      .on(t.tenantId, t.vehicleId)
+      .where(sql`${t.vehicleId} IS NOT NULL`),
+  ]
+);
+
 // ─── ZATCA PHASE-2 E-INVOICING (Epic 7 — الفوترة الإلكترونية) ─────────────────
 //
 //  Full Fatoora clearance/reporting (iCeipts / ERPGulf parity):
@@ -3936,6 +5320,11 @@ export const clientsRelations = relations(clients, ({ many }) => ({
 export const deliverySitesRelations = relations(deliverySites, ({ one, many }) => ({
   client: one(clients, { fields: [deliverySites.clientId], references: [clients.id] }),
   orders: many(orders),
+}));
+
+export const sitesRelations = relations(sites, ({ one }) => ({
+  tenant: one(tenants, { fields: [sites.tenantId], references: [tenants.id] }),
+  createdBy: one(users, { fields: [sites.createdById], references: [users.id] }),
 }));
 
 export const fleetVehiclesRelations = relations(fleetVehicles, ({ one, many }) => ({
@@ -4289,5 +5678,70 @@ export type RndBudgetCategory = (typeof rndBudgetCategoryEnum.enumValues)[number
 export type RndBudgetItemStatus = (typeof rndBudgetItemStatusEnum.enumValues)[number];
 export type RndIssueSeverity = (typeof rndIssueSeverityEnum.enumValues)[number];
 export type RndIssueCategory = (typeof rndIssueCategoryEnum.enumValues)[number];
+export type AssetQrSubjectType = (typeof assetQrSubjectTypeEnum.enumValues)[number];
+export type AssetQrLabelState = (typeof assetQrLabelStateEnum.enumValues)[number];
+export type SiteType = (typeof siteTypeEnum.enumValues)[number];
+export type WarehouseKind = (typeof warehouseKindEnum.enumValues)[number];
+export type WarehouseItemCategory = (typeof warehouseItemCategoryEnum.enumValues)[number];
+export type StockMovementType = (typeof stockMovementTypeEnum.enumValues)[number];
 export type RndIssueStatus = (typeof rndIssueStatusEnum.enumValues)[number];
 export type ProductType = (typeof productTypeEnum.enumValues)[number];
+
+// ─── Asset QR / Warehouse relations ───────────────────────────────────────────
+
+export const equipmentRelations = relations(equipment, ({ many }) => ({
+  stockMovements: many(stockMovements),
+}));
+
+export const warehouseItemsRelations = relations(warehouseItems, ({ many }) => ({
+  movements: many(stockMovements),
+}));
+
+export const assetQrLabelsRelations = relations(assetQrLabels, ({ one, many }) => ({
+  issuedBy: one(users, { fields: [assetQrLabels.issuedById], references: [users.id] }),
+  bindings: many(assetQrBindings),
+}));
+
+export const assetQrBindingsRelations = relations(assetQrBindings, ({ one }) => ({
+  label: one(assetQrLabels, {
+    fields: [assetQrBindings.labelId],
+    references: [assetQrLabels.id],
+  }),
+  vehicle: one(fleetVehicles, {
+    fields: [assetQrBindings.vehicleId],
+    references: [fleetVehicles.id],
+  }),
+  workOrder: one(maintenanceOrders, {
+    fields: [assetQrBindings.workOrderId],
+    references: [maintenanceOrders.id],
+  }),
+  boundBy: one(users, { fields: [assetQrBindings.boundById], references: [users.id] }),
+  unboundBy: one(users, { fields: [assetQrBindings.unboundById], references: [users.id] }),
+}));
+
+export const stockMovementsRelations = relations(stockMovements, ({ one }) => ({
+  item: one(warehouseItems, { fields: [stockMovements.itemId], references: [warehouseItems.id] }),
+  vehicle: one(fleetVehicles, {
+    fields: [stockMovements.vehicleId],
+    references: [fleetVehicles.id],
+  }),
+  label: one(assetQrLabels, { fields: [stockMovements.labelId], references: [assetQrLabels.id] }),
+  workOrder: one(maintenanceOrders, {
+    fields: [stockMovements.workOrderId],
+    references: [maintenanceOrders.id],
+  }),
+  movedBy: one(users, { fields: [stockMovements.movedById], references: [users.id] }),
+}));
+
+export type WarehouseUnitState = (typeof warehouseUnitStateEnum.enumValues)[number];
+
+export const warehouseItemUnitsRelations = relations(
+  warehouseItemUnits,
+  ({ one, many }) => ({
+    item: one(warehouseItems, {
+      fields: [warehouseItemUnits.itemId],
+      references: [warehouseItems.id],
+    }),
+    movements: many(stockMovements),
+  })
+);

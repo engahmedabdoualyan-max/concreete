@@ -156,7 +156,7 @@ const SECTIONS: Section[] = [
     ['Field management screens', 'Operations manager, workshop manager and reps manager (route tracking & task assignment).'],
     ['Owner monitoring', 'Compact plant KPIs from anywhere.'],
     ['Offline mode', 'Operations queue locally and sync automatically when connectivity returns.'],
-    ['Download & install', 'concrete.fimtosoft.com/downloads/fimto-android.apk — install and allow unknown sources.'],
+    ['Download & install', 'concrete.fimtosoft.comhttps://fimto-downloads.vercel.app/downloads/fimto-android.apk — install and allow unknown sources.'],
   ]),
   S('16', '🔌', 'Peripheral Devices (Optional)', [
     ['🏭 Batch controller', 'When connected (Command Alkon/Liebherr/Sicom/Simmons via OPC-UA/Modbus/REST/MQTT): live batch feed with material weights, recipe/production/calibration import and code mapping.'],

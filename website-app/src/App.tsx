@@ -25,6 +25,7 @@ import CustomSection from './pages/CustomSection';
 import CustomerPortal from './pages/CustomerPortal';
 import LandingPage from './pages/LandingPage';
 import PresenceTracker from './components/PresenceTracker';
+import PageGuard from './components/PageGuard';
 import TrackOrder from './pages/TrackOrder';
 import AccountingIntegrations from './pages/AccountingIntegrations';
 import ZatcaCompliance from './pages/ZatcaCompliance';
@@ -33,6 +34,28 @@ import Payroll from './pages/Payroll';
 import BatchControl from './pages/BatchControl';
 import Sustainability from './pages/Sustainability';
 import SsoProviders from './pages/SsoProviders';
+import FieldHome from './field/FieldHome';
+import MyWork from './field/MyWork';
+import Tracking from './field/Tracking';
+import NotificationsCenter from './field/NotificationsCenter';
+import FieldRnd from './field/FieldRnd';
+import FieldTeam from './field/FieldTeam';
+import FleetCoding from './pages/FleetCoding';
+import Sites from './pages/Sites';
+import CommandCenter from './pages/CommandCenter';
+import HR from './pages/HR';
+import Forms from './pages/Forms';
+import GateScale from './pages/GateScale';
+import Procurement from './pages/Procurement';
+import FieldBackButton from './field/FieldBackButton';
+import { useLocation } from 'react-router-dom';
+
+/** Field screens are app-like (no footer) — website pages keep theirs. */
+function ConditionalFooter() {
+  const loc = useLocation();
+  if (loc.pathname.startsWith('/field')) return null;
+  return <FimtoFooter />;
+}
 
 export default function App() {
   return (
@@ -42,6 +65,7 @@ export default function App() {
       <PresenceTracker />
     <AdminProvider>
       <HashRouter>
+        <PageGuard>
         <Routes>
           <Route path="/login" element={<LoginRegister />} />
           <Route path="/landing" element={<LandingPage />} />
@@ -59,11 +83,24 @@ export default function App() {
           <Route path="/portal" element={<CustomerPortal />} />
           <Route path="/customer" element={<CustomerPortal />} />
           <Route path="/s/:id" element={<CustomSection />} />
+          <Route path="/field" element={<FieldHome />} />
+          <Route path="/field/work" element={<MyWork />} />
+          <Route path="/field/tracking" element={<Tracking />} />
+          <Route path="/field/notifications" element={<NotificationsCenter />} />
+          <Route path="/field/rnd" element={<FieldRnd />} />
+          <Route path="/field/team" element={<FieldTeam />} />
           <Route path="/" element={<Dashboard />} />
           <Route path="/operation" element={<Operations />} />
           <Route path="/operations" element={<Operations />} />
           <Route path="/evaluation" element={<Evaluation />} />
           <Route path="/workshop" element={<Workshop />} />
+          <Route path="/fleet/coding" element={<FleetCoding />} />
+          <Route path="/sites" element={<Sites />} />
+          <Route path="/command" element={<CommandCenter />} />
+          <Route path="/hr" element={<HR />} />
+          <Route path="/forms" element={<Forms />} />
+          <Route path="/gate" element={<GateScale />} />
+          <Route path="/procurement" element={<Procurement />} />
           <Route path="/mixing" element={<MixingQuality />} />
           <Route path="/quality" element={<MixingQuality />} />
           <Route path="/production" element={<Production />} />
@@ -75,8 +112,10 @@ export default function App() {
           <Route path="/materials" element={<ErpMaterials />} />
           <Route path="/multiplant" element={<MultiPlant />} />
         </Routes>
+        </PageGuard>
         <FloatingActions />
-        <FimtoFooter />
+        <FieldBackButton />
+        <ConditionalFooter />
       </HashRouter>
     </AdminProvider>
     </AuthProvider>

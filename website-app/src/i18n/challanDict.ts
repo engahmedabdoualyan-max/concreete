@@ -51,6 +51,8 @@ const DICT: PageDict = {
   docInquiry: { en: 'To verify the document', ar: 'للاستعلام عن المستند', ru: 'Для проверки документа', de: 'Zur Prüfung des Dokuments', it: 'Per verificare il documento', hi: 'दस्तावेज़ की पुष्टि हेतु', ur: 'دستاویز کی تصدیق کے لیے', ja: '文書確認用', zh: '用于验证单据' },
   sigPadTitle: { en: '✍️ Recipient signature', ar: '✍️ توقيع المستلم', ru: '✍️ Подпись получателя', de: '✍️ Unterschrift des Empfängers', it: '✍️ Firma del destinatario', hi: '✍️ प्राप्तकर्ता के हस्ताक्षर', ur: '✍️ وصول کنندہ کے دستخط', ja: '✍️ 受取人の署名', zh: '✍️ 接收人签名' },
   print: { en: '🖨️ Print', ar: '🖨️ طباعة', ru: '🖨️ Печать', de: '🖨️ Drucken', it: '🖨️ Stampa', hi: '🖨️ प्रिंट', ur: '🖨️ پرنٹ', ja: '🖨️ 印刷', zh: '🖨️ 打印' },
+  thermal: { en: '🧾 Thermal (3 copies)', ar: '🧾 حراري 3 نسخ', ru: '🧾 Термо (3 копии)', de: '🧾 Thermo (3 Kopien)', it: '🧾 Termica (3 copie)', hi: '🧾 थर्मल (3 प्रतियां)', ur: '🧾 تھرمل (3 کاپیاں)', ja: '🧾 感熱式（3部）', zh: '🧾 热敏打印（3联）' },
+  pricePerUnit: { en: 'Unit price (SAR)', ar: 'سعر الوحدة (ر.س)', ru: 'Цена (SAR)', de: 'Stückpreis (SAR)', it: 'Prezzo (SAR)', hi: 'इकाई मूल्य (SAR)', ur: 'فی یونٹ قیمت (SAR)', ja: '単価 (SAR)', zh: '单价 (SAR)' },
   close: { en: 'Close', ar: 'إغلاق', ru: 'Закрыть', de: 'Schließen', it: 'Chiudi', hi: 'बंद करें', ur: 'بند کریں', ja: '閉じる', zh: '关闭' },
   readySolid: { en: 'Ready-mix & blocks', ar: 'جاهزة ومصمتة', ru: 'Товарный бетон и блоки', de: 'Transportbeton & Blöcke', it: 'Preconfezionato e blocchi', hi: 'रेडी-मिक्स और ब्लॉक', ur: 'ریڈی مکس اور بلاکس', ja: '生コンとブロック', zh: '预拌混凝土与砌块' },
 };

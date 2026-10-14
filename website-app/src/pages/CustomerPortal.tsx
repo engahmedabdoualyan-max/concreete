@@ -4,7 +4,6 @@ import { loadAllOrdersForCustomer, loadAllInvoicesForCustomer, loadPlantProfile 
 import BrandLogo from '../components/BrandLogo';
 import LiveTracking from '../components/LiveTracking';
 import { useCustomerPortalDict } from '../i18n/customerPortalDict';
-import emailjs from '@emailjs/browser';
 
 /* ─── Types ─── */
 interface Order {
@@ -45,14 +44,16 @@ const INV_STATUS: Record<string, { ar: string; color: string }> = {
 
 const inputCls = "w-full bg-white/[0.04] border border-white/10 rounded-xl p-3.5 text-slate-100 text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_16px_rgba(56,189,248,0.2)] transition placeholder:text-slate-500";
 
-function generateOTP(): string { return String(Math.floor(100000 + Math.random() * 900000)); }
-
-/* ─── Server OTP helper ─── */
-async function apiPost<T = any>(url: string, body: any, errMsg: string): Promise<T> {
-  const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-  const json = await res.json().catch(() => ({}));
-  if (!res.ok || json?.success === false) throw new Error(json?.message || errMsg);
-  return json?.data ?? json;
+/* ─── Tracking-link helper: accept a full magic URL or a bare token ─── */
+function extractTrackToken(raw: string): string {
+  const s = raw.trim();
+  if (!s) return '';
+  const m = s.match(/\/track\/([^/?#\s]+)/);
+  try {
+    return decodeURIComponent(m ? m[1] : s).trim();
+  } catch {
+    return (m ? m[1] : s).trim();
+  }
 }
 
 /* ─── Main Component ─── */
@@ -61,13 +62,12 @@ export default function CustomerPortal() {
   const t = useCustomerPortalDict();
 
   /* ── Auth state ── */
-  const [phase, setPhase] = useState<'login' | 'otp' | 'dashboard'>('login');
+  // NOTE: /api/otp/* does not exist on the backend — the OTP login was
+  // replaced by a tracking-link box (magic URL/token → #/track/:token).
+  // The legacy Firestore dashboard below is kept as-is.
+  const [phase, setPhase] = useState<'login' | 'dashboard'>('login');
   const [identifier, setIdentifier] = useState('');
-  const [otp, setOtp] = useState('');
-  const [otpSentTo, setOtpSentTo] = useState('');
-  // true = OTP verified on the server (secure path) · false = legacy client-side fallback
-  const [serverOtp, setServerOtp] = useState(true);
-  const [generatedOtp, setGeneratedOtp] = useState('');
+  const [trackLink, setTrackLink] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -99,71 +99,19 @@ export default function CustomerPortal() {
     }
   };
 
-  /* ─── Login Handler: server OTP first, legacy browser EmailJS as fallback ─── */
-  const handleLogin = async (e: FormEvent) => {
+  /* ─── Tracking-link Handler: open the magic TrackOrder link ─── */
+  const handleOpenTracking = (e: FormEvent) => {
     e.preventDefault();
     setError('');
-    if (!identifier.trim()) { setError(t('errEnterIdentifier')); return; }
+    const token = extractTrackToken(trackLink);
+    if (!token) { setError('الصق رابط التتبع أو رمز التتبع أولاً — Paste your tracking link or token'); return; }
     setBusy(true);
-    try {
-      await apiPost('/api/otp/request', { identifier: identifier.trim() }, t('errGeneric'));
-      setServerOtp(true);
-      setOtpSentTo(identifier.trim());
-      setOtp('');
-      setPhase('otp');
-      setBusy(false);
-      return;
-    } catch {
-      if (!import.meta.env.DEV) {
-        setError(t('errGeneric'));
-        setBusy(false);
-        return;
-      }
-      // Development-only fallback; never accept a browser-generated OTP in production.
-    }
-    const code = generateOTP();
-    setGeneratedOtp(code);
-    setServerOtp(false);
-    setOtpSentTo(identifier.trim());
-    setPhase('otp');
-    try {
-      await emailjs.send(
-        import.meta.env.VITE_EMAILJS_SERVICE_ID || 'service_mdtxmv8',
-        import.meta.env.VITE_EMAILJS_TEMPLATE_ID || 'template_ablqhm3',
-        {
-          to_email: identifier,
-          to_name: t('customerName'),
-          subject: `${t('otpSubject')}: ${code}`,
-          message: `${t('otpGreeting')}\n\n${t('otpCodeLabel')} ${code}\n\n${t('otpValidity')}\n\n${t('otpIgnore')}\n\n${t('otpRegards')}\n${t('otpTeam')}`,
-        },
-        { publicKey: import.meta.env.VITE_EMAILJS_PUBLIC_KEY || 'UPIUNYeckrEK-z_xz' }
-      );
-    } catch {
-      alert(`${t('emailSendFail')} ${code}`);
-    }
-    setBusy(false);
+    navigate(`/track/${encodeURIComponent(token)}`);
   };
 
-  /* ─── OTP Handler ─── */
-  const handleVerifyOtp = async (e: FormEvent) => {
-    e.preventDefault();
-    setError('');
-    if (!/^\d{6}$/.test(otp)) { setError(t('errOtp6')); return; }
-    setBusy(true);
-    try {
-      if (serverOtp) {
-        await apiPost('/api/otp/verify', { identifier: otpSentTo || identifier.trim(), code: otp }, t('errGeneric'));
-      } else if (otp !== generatedOtp) {
-        setError(t('errOtpWrong'));
-        setBusy(false);
-        return;
-      }
-      await loadCustomerData(identifier.trim());
-    } catch (err: any) {
-      setError(err?.message || t('errVerify'));
-    }
-    setBusy(false);
-  };
+  // Legacy Firestore dashboard loader — kept (unreachable until a real
+  // customer auth lands). Referenced so noUnusedLocals stays green.
+  void loadCustomerData;
 
   /* ─── Filtered Data ─── */
   const filteredOrders = useMemo(() => {
@@ -205,21 +153,22 @@ export default function CustomerPortal() {
             <p className="text-sm text-slate-400">{t('portalSub')}</p>
           </div>
 
-          <form onSubmit={handleLogin} className="bg-[#0B111E]/80 border border-white/10 rounded-2xl p-6 space-y-4">
+          <form onSubmit={handleOpenTracking} className="bg-[#0B111E]/80 border border-white/10 rounded-2xl p-6 space-y-4">
             <div>
-              <label className="text-xs text-slate-400 font-semibold mb-2 block">{t('identifierLabel')}</label>
+              <label className="text-xs text-slate-400 font-semibold mb-2 block">🔗 رابط التتبع / Tracking link</label>
               <input
-                value={identifier}
-                onChange={e => setIdentifier(e.target.value)}
-                placeholder={t('identifierPlaceholder')}
+                value={trackLink}
+                onChange={e => setTrackLink(e.target.value)}
+                placeholder="#/track/… — الصق الرابط المرسل من المورد"
                 className={inputCls}
                 dir="ltr"
               />
+              <p className="text-[11px] text-slate-500 mt-2">الصق رابط التتبع الكامل أو رمز التتبع فقط — Paste the full link or just the token.</p>
             </div>
             {error && <p className="text-red-400 text-sm text-center">{error}</p>}
             <button type="submit" disabled={busy}
               className="w-full bg-gradient-to-r from-sky-500 to-cyan-500 hover:from-sky-400 hover:to-cyan-400 disabled:opacity-50 text-white font-bold py-3.5 rounded-xl transition shadow-[0_0_20px_rgba(56,189,248,0.3)]">
-              {busy ? t('sending') : t('sendOtp')}
+              📦 فتح التتبع — Open tracking
             </button>
             <button type="button" onClick={() => navigate('/')}
               className="w-full bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 text-slate-300 font-bold py-3 rounded-xl transition text-sm">
@@ -231,37 +180,7 @@ export default function CustomerPortal() {
     );
   }
 
-  /* ─── Render: OTP ─── */
-  if (phase === 'otp') {
-    return (
-      <div className="min-h-screen flex items-center justify-center px-4" style={{ background: "radial-gradient(ellipse 80% 50% at 50% -20%, rgba(56,189,248,0.12), transparent), #080C14" }}>
-        <div className="w-full max-w-md">
-          <div className="text-center mb-8">
-            <div className="flex justify-center mb-4"><BrandLogo width={160} rounded="rounded-2xl" /></div>
-            <h1 className="text-2xl font-black text-white mb-2">{t('verifyIdentity')}</h1>
-            <p className="text-sm text-slate-400">{t('otpSentTo')} <strong className="text-sky-300">{otpSentTo}</strong></p>
-          </div>
-
-          <form onSubmit={handleVerifyOtp} className="bg-[#0B111E]/80 border border-white/10 rounded-2xl p-6 space-y-4">
-            <div>
-              <label className="text-xs text-slate-400 font-semibold mb-2 block">{t('otpLabel')}</label>
-              <input value={otp} onChange={e => setOtp(e.target.value)} placeholder="000000"
-                className={`${inputCls} text-center text-2xl tracking-[0.5em] font-mono`} maxLength={6} dir="ltr" />
-            </div>
-            {error && <p className="text-red-400 text-sm text-center">{error}</p>}
-            <button type="submit" disabled={busy}
-              className="w-full bg-gradient-to-r from-sky-500 to-cyan-500 hover:from-sky-400 hover:to-cyan-400 disabled:opacity-50 text-white font-bold py-3.5 rounded-xl transition shadow-[0_0_20px_rgba(56,189,248,0.3)]">
-              {busy ? t('verifying') : t('verifyAndLogin')}
-            </button>
-            <button type="button" onClick={() => { setPhase('login'); setError(''); setOtp(''); }}
-              className="w-full text-slate-400 text-sm underline mt-2">{t('editNumber')}</button>
-          </form>
-        </div>
-      </div>
-    );
-  }
-
-  /* ─── Render: Dashboard ─── */
+  /* ─── Render: Dashboard (legacy Firestore path — kept as-is) ─── */
   return (
     <div className="min-h-screen" style={{ background: "radial-gradient(ellipse 80% 40% at 50% -10%, rgba(56,189,248,0.1), transparent), #080C14" }}>
       {/* Header */}
@@ -279,7 +198,7 @@ export default function CustomerPortal() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <button onClick={() => { setPhase('login'); setOrders([]); setInvoices([]); setIdentifier(''); setOtp(''); }}
+            <button onClick={() => { setPhase('login'); setOrders([]); setInvoices([]); setIdentifier(''); setTrackLink(''); }}
               className="bg-white/[0.05] text-slate-300 text-xs px-3 py-1.5 rounded-lg font-bold border border-white/10 hover:border-red-400/60 hover:text-red-300 transition-colors">
               {t('logoutExit')}
             </button>

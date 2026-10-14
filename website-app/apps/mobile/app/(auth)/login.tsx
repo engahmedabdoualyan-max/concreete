@@ -11,13 +11,32 @@ import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { useAuthStore } from "@/store/auth-store";
 import { useT, SUPPORTED_LOCALES, LOCALE_LABELS, type Locale } from "@/lib/i18n";
+import { getServerUrl, setServerUrl } from "@/lib/server-url";
+import {
+  checkServerStatus,
+  describeServerStatus,
+  type ServerStatus,
+} from "@/lib/server-status";
 
 export default function LoginScreen() {
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [showLanguages, setShowLanguages] = useState(false);
+  const [showServer, setShowServer] = useState(false);
+  const [serverDraft, setServerDraft] = useState(getServerUrl() || "");
+  const [status, setStatus] = useState<ServerStatus | null>(null);
+  const [statusBusy, setStatusBusy] = useState(false);
   const { login, isLoading, error, clearError } = useAuthStore();
   const { t, locale, setLocale, isRtl } = useT();
+
+  const runStatusCheck = async () => {
+    setStatusBusy(true);
+    try {
+      setStatus(await checkServerStatus());
+    } finally {
+      setStatusBusy(false);
+    }
+  };
 
   const handleLogin = async () => {
     if (!phone || !password) return;
@@ -132,6 +151,89 @@ export default function LoginScreen() {
             disabled={!phone || !password}
             size="large"
           />
+
+          {/* Server (plant) URL — advanced: point the app at another ERP server
+              without reinstalling. Empty = use the built-in default. */}
+          <View className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-3">
+            <TouchableOpacity
+              onPress={() => setShowServer((v) => !v)}
+              className="flex-row items-center justify-between"
+            >
+              <Text className="text-slate-500 text-xs font-bold">🌐 السيرفر (إعدادات متقدمة)</Text>
+              <Text className="text-slate-400 text-xs">{showServer ? "إخفاء ▲" : "إظهار ▼"}</Text>
+            </TouchableOpacity>
+            {showServer ? (
+              <View className="mt-2">
+                <Input
+                  value={serverDraft}
+                  onChangeText={setServerDraft}
+                  placeholder="https://api.example.com"
+                  placeholderTextColor="#94A3B8"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+                <View className="flex-row gap-2 mt-2">
+                  <Button
+                    title="حفظ"
+                    onPress={() => {
+                      setServerUrl(serverDraft);
+                      setServerDraft(getServerUrl() || "");
+                    }}
+                    size="small"
+                    className="flex-1"
+                  />
+                  <Button
+                    title="افتراضي"
+                    onPress={() => {
+                      setServerUrl("");
+                      setServerDraft("");
+                    }}
+                    size="small"
+                    className="flex-1"
+                  />
+                </View>
+                <Text className="text-slate-400 text-xs mt-2">
+                  الحالي: {getServerUrl() || "built-in default"}
+                </Text>
+
+                {/* One-tap diagnosis: is the server reachable, and is the
+                    database behind it alive? Saves every "is it me or them?"
+                    support round-trip. */}
+                <View className="mt-3 pt-3 border-t border-slate-200">
+                  <View className="flex-row gap-2">
+                    <Button
+                      title="🔎 فحص الاتصال"
+                      onPress={runStatusCheck}
+                      disabled={statusBusy}
+                      size="small"
+                      className="flex-1"
+                    />
+                    {status ? (
+                      <Button
+                        title="إخفاء"
+                        onPress={() => setStatus(null)}
+                        size="small"
+                        className="flex-1"
+                      />
+                    ) : null}
+                  </View>
+                  {status ? (
+                    <View className="mt-2">
+                      <Text className="text-slate-700 text-xs">
+                        {describeServerStatus(status)}
+                      </Text>
+                      <Text
+                        className="text-slate-400 text-xs mt-1"
+                        numberOfLines={2}
+                      >
+                        {status.url}
+                      </Text>
+                    </View>
+                  ) : null}
+                </View>
+              </View>
+            ) : null}
+          </View>
 
           {/* Help Text */}
           <View className="mt-8 items-center">

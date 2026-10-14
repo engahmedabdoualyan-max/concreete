@@ -5,6 +5,32 @@ export function useProductionDict() {
 }
 
 const DICT: PageDict = {
+  pdBackLogin: { en: 'Back to Login', ar: 'عودة للدخول', ru: 'Back to Login', de: 'Back to Login', it: 'Back to Login', hi: 'Back to Login', ur: 'Back to Login', ja: 'Back to Login', zh: 'Back to Login' },
+  pdBalance: { en: 'Balance', ar: 'الرصيد', ru: 'Balance', de: 'Balance', it: 'Balance', hi: 'Balance', ur: 'Balance', ja: 'Balance', zh: 'Balance' },
+  pdBlocks: { en: 'Blocks', ar: 'بلك', ru: 'Blocks', de: 'Blocks', it: 'Blocks', hi: 'Blocks', ur: 'Blocks', ja: 'Blocks', zh: 'Blocks' },
+  pdBlockType: { en: 'Block Type', ar: 'نوع البلك', ru: 'Block Type', de: 'Block Type', it: 'Block Type', hi: 'Block Type', ur: 'Block Type', ja: 'Block Type', zh: 'Block Type' },
+  pdDesigner: { en: 'Design by Dr. Ahmad Abdo Alyan', ar: 'تصميم د. أحمد عبده عليان', ru: 'Design by Dr. Ahmad Abdo Alyan', de: 'Design by Dr. Ahmad Abdo Alyan', it: 'Design by Dr. Ahmad Abdo Alyan', hi: 'Design by Dr. Ahmad Abdo Alyan', ur: 'Design by Dr. Ahmad Abdo Alyan', ja: 'Design by Dr. Ahmad Abdo Alyan', zh: 'Design by Dr. Ahmad Abdo Alyan' },
+  pdDispatched: { en: 'Dispatched', ar: 'تم الصرف', ru: 'Dispatched', de: 'Dispatched', it: 'Dispatched', hi: 'Dispatched', ur: 'Dispatched', ja: 'Dispatched', zh: 'Dispatched' },
+  pdExcel: { en: 'Excel', ar: 'إكسل', ru: 'Excel', de: 'Excel', it: 'Excel', hi: 'Excel', ur: 'Excel', ja: 'Excel', zh: 'Excel' },
+  pdInvoice: { en: 'Invoice', ar: 'فاتورة', ru: 'Invoice', de: 'Invoice', it: 'Invoice', hi: 'Invoice', ur: 'Invoice', ja: 'Invoice', zh: 'Invoice' },
+  pdLowStock: { en: 'Low Stock', ar: 'مخزون منخفض', ru: 'Low Stock', de: 'Low Stock', it: 'Low Stock', hi: 'Low Stock', ur: 'Low Stock', ja: 'Low Stock', zh: 'Low Stock' },
+  pdNotes: { en: 'Notes', ar: 'ملاحظات', ru: 'Notes', de: 'Notes', it: 'Notes', hi: 'Notes', ur: 'Notes', ja: 'Notes', zh: 'Notes' },
+
+  prodStatus: { en: 'Status', ar: 'الحالة', ru: 'Status', de: 'Status', it: 'Status', hi: 'Status', ur: 'Status', ja: 'Status', zh: 'Status' },
+  prodRecipe: { en: 'Recipe', ar: 'الوصفة', ru: 'Recipe', de: 'Recipe', it: 'Recipe', hi: 'Recipe', ur: 'Recipe', ja: 'Recipe', zh: 'Recipe' },
+  prodQty: { en: 'Qty', ar: 'الكمية', ru: 'Qty', de: 'Qty', it: 'Qty', hi: 'Qty', ur: 'Qty', ja: 'Qty', zh: 'Qty' },
+  prodDate: { en: 'Date', ar: 'التاريخ', ru: 'Date', de: 'Date', it: 'Date', hi: 'Date', ur: 'Date', ja: 'Date', zh: 'Date' },
+  prodVol: { en: 'Vol', ar: 'الحجم', ru: 'Vol', de: 'Vol', it: 'Vol', hi: 'Vol', ur: 'Vol', ja: 'Vol', zh: 'Vol' },
+  prodVerified: { en: 'Verified', ar: 'تم التحقق', ru: 'Verified', de: 'Verified', it: 'Verified', hi: 'Verified', ur: 'Verified', ja: 'Verified', zh: 'Verified' },
+  prodPoured: { en: 'Total Poured', ar: 'إجمالي المصبوب', ru: 'Total Poured', de: 'Total Poured', it: 'Total Poured', hi: 'Total Poured', ur: 'Total Poured', ja: 'Total Poured', zh: 'Total Poured' },
+  prodTime: { en: 'Time', ar: 'الوقت', ru: 'Time', de: 'Time', it: 'Time', hi: 'Time', ur: 'Time', ja: 'Time', zh: 'Time' },
+  prodSilos: { en: 'Silos', ar: 'الصوامع', ru: 'Silos', de: 'Silos', it: 'Silos', hi: 'Silos', ur: 'Silos', ja: 'Silos', zh: 'Silos' },
+  prodSilo: { en: 'Silo', ar: 'الصومعة', ru: 'Silo', de: 'Silo', it: 'Silo', hi: 'Silo', ur: 'Silo', ja: 'Silo', zh: 'Silo' },
+  prodRuns: { en: 'Runs', ar: 'التشغيلات', ru: 'Runs', de: 'Runs', it: 'Runs', hi: 'Runs', ur: 'Runs', ja: 'Runs', zh: 'Runs' },
+  prodQtyBlocks: { en: 'Quantity (Blocks)', ar: 'الكمية (بلك)', ru: 'Quantity (Blocks)', de: 'Quantity (Blocks)', it: 'Quantity (Blocks)', hi: 'Quantity (Blocks)', ur: 'Quantity (Blocks)', ja: 'Quantity (Blocks)', zh: 'Quantity (Blocks)' },
+  prodProduced: { en: 'Produced', ar: 'المنتج', ru: 'Produced', de: 'Produced', it: 'Produced', hi: 'Produced', ur: 'Produced', ja: 'Produced', zh: 'Produced' },
+  prodPrint: { en: 'Print', ar: 'طباعة', ru: 'Print', de: 'Print', it: 'Print', hi: 'Print', ur: 'Print', ja: 'Print', zh: 'Print' },
+
   logout: { en: '🚪 Logout', ar: '🚪 خروج', ru: '🚪 Выйти', de: '🚪 Abmelden', it: '🚪 Esci', hi: '🚪 लॉगआउट', ur: '🚪 لاگ آؤٹ', ja: '🚪 ログアウト', zh: '🚪 退出' },
   batchCtrl: { en: '🏭 Link plant controller', ar: '🏭 ربط متحكم المحطة', ru: '🏭 Подключить контроллер станции', de: '🏭 Werkssteuerung verbinden', it: '🏭 Collega controller impianto', hi: '🏭 प्लांट कंट्रोलर लिंक करें', ur: '🏭 پلانٹ کنٹرولر لنک کریں', ja: '🏭 プラント制御装置を接続', zh: '🏭 连接搅拌站控制器' },
   linkOrder: { en: 'Link production to order (orderId)', ar: 'ربط الإنتاج بالطلب (orderId)', ru: 'Привязать производство к заказу (orderId)', de: 'Produktion mit Auftrag verknüpfen (orderId)', it: 'Collega produzione all\'ordine (orderId)', hi: 'उत्पादन को ऑर्डर से जोड़ें (orderId)', ur: 'پیداوار کو آرڈر سے منسلک کریں (orderId)', ja: '生産を注文にリンク (orderId)', zh: '将生产关联到订单 (orderId)' },

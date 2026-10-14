@@ -80,7 +80,7 @@ export default function EInvoice(props: InvoiceProps) {
         <div className="bg-white text-black rounded-xl max-w-md p-6 text-center" onClick={(e) => e.stopPropagation()}>
           <h2 className="text-lg font-black">ZATCA clearance required</h2>
           <p className="text-sm mt-2">This local preview is disabled in production. Share only a CLEARED or REPORTED ZATCA document.</p>
-          <button onClick={props.onClose} className="mt-4 bg-gray-300 rounded-lg px-4 py-2 font-bold">Close</button>
+          <button onClick={props.onClose} className="mt-4 bg-gray-300 rounded-lg px-4 py-2 font-bold">{t('close')}</button>
         </div>
       </div>
     );

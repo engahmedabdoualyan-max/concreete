@@ -10,6 +10,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "expo-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { TripCard } from "@/components/driver/TripCard";
+import PlantProximityCard from "@/components/driver/PlantProximityCard";
 import ReportBreakdownModal from "@/components/driver/ReportBreakdownModal";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
@@ -321,6 +322,10 @@ export default function DriverHomeScreen() {
         onCheckpointAction={handleCheckpointAction}
         loading={updateCheckpointMutation.isPending}
       />
+
+      {/* 📍 Which yard, and how far the plant is. Sits under the trip because
+          the question only matters once there is a trip to drive. */}
+      <PlantProximityCard visible={!!trip && !trip.isCompleted} />
 
       {trip.deliveryTicketNumber && (
         <Card variant="default" className="mt-4">

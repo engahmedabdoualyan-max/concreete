@@ -27,6 +27,7 @@ function badId() {
 const UpdateEmployeeSchema = z.object({
   fullName: z.string().min(1).max(120).optional(),
   nationalId: z.string().max(20).optional(),
+  passportNo: z.string().trim().max(30).optional(),
   nationality: z.enum(["SAUDI", "NON_SAUDI"]).optional(),
   gosiSystem: z.enum(["LEGACY", "NEW"]).optional(),
   jobTitle: z.string().max(120).optional(),
@@ -38,6 +39,24 @@ const UpdateEmployeeSchema = z.object({
   bankIban: z.string().max(40).optional(),
   bankName: z.string().max(80).optional(),
   isActive: z.boolean().optional(),
+  photoUrl: z.string().min(1).max(1_500_000).optional(),
+  dateOfBirth: z.string().min(1).optional(),
+  bloodGroup: z.string().max(5).optional(),
+  hireDate: z.string().min(1).optional(),
+  countryCode: z.string().max(4).optional(),
+  contactPhone: z.string().max(20).optional(),
+  emergencyContactName: z.string().max(120).optional(),
+  emergencyContactPhone: z.string().max(20).optional(),
+  lastVacationDate: z.string().min(1).optional(),
+  lastResumptionDate: z.string().min(1).optional(),
+  medicalInsuranceNo: z.string().max(60).optional(),
+  medicalInsuranceExpiry: z.string().min(1).optional(),
+  iqamaExpiry: z.string().min(1).optional(),
+  vehiclePlate: z.string().max(20).optional(),
+  vehicleOwnership: z.enum(["PRIVATE", "COMPANY"]).optional(),
+  sponsorship: z.string().trim().min(1).max(60).optional(),
+  insuranceStatus: z.enum(["INSURED", "UNINSURED"]).optional(),
+  branchSiteId: z.string().uuid().nullable().optional(),
 });
 
 export async function PUT(

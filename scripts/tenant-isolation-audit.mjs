@@ -29,10 +29,33 @@ const files = [
   'src/app/api/dispatch/verify-ticket-qr/route.ts',
   'src/app/api/fleet/route.ts',
   'src/app/api/fleet/pump-sessions/route.ts',
+  'src/app/api/fleet/devices/route.ts',
+  'src/app/api/fleet/devices/[deviceId]/route.ts',
+  'src/app/api/fleet/vehicles/[vehicleId]/record/route.ts',
+  // Fleet positions (vehicles × GPS × sites). Tenant is applied inside the SQL,
+  // so the route must still pass it through rather than filtering in JS.
+  'src/app/api/fleet/positions/route.ts',
+  // Sites measured from a caller-supplied point. The point is the caller's, but
+  // the SITES returned are the tenant's — scoping must still come from the token.
+  'src/app/api/sites/near/route.ts',
+  // Asset QR / warehouse (Epic 14) — every route here reads tenant-scoped
+  // stock, labels and employee records, so all of them must name the tenant.
+  'src/app/api/qr/scan/route.ts',
+  'src/app/api/qr/labels/route.ts',
+  'src/app/api/warehouse/items/route.ts',
+  'src/app/api/warehouse/items/[itemCode]/route.ts',
+  'src/app/api/warehouse/items/[itemCode]/units/route.ts',
+  'src/app/api/warehouse/movements/route.ts',
+  'src/app/api/equipment/route.ts',
+  'src/app/api/employees/route.ts',
   'src/app/api/inventory/route.ts',
   'src/app/api/batching/start/route.ts',
   'src/app/api/quality/route.ts',
   'src/app/api/workshop/route.ts',
+  // Plant + branch locations (0023). Both routes read and write tenant-scoped
+  // site coordinates, so both must take the tenant from the session.
+  'src/app/api/sites/route.ts',
+  'src/app/api/sites/[siteId]/route.ts',
 ];
 const failures = [];
 for (const file of files) {
