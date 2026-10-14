@@ -15,8 +15,9 @@ import DashcamIntegration from '../components/DashcamIntegration';
 import DeviceHub from '../components/DeviceHub';
 import { DeviceStatusBadge } from '../components/DeviceHub';
 import ErpAdminOverview from '../components/ErpAdminOverview';
+import RecoveryPanel from '../components/RecoveryPanel';
 
-type Tab = 'overview' | 'plant' | 'plants' | 'users' | 'sections' | 'gps' | 'erp' | 'devices' | 'online';
+type Tab = 'overview' | 'plant' | 'plants' | 'users' | 'sections' | 'gps' | 'erp' | 'devices' | 'online' | 'recovery';
 type FactorySub = 'profile' | 'fleet' | 'stock' | 'config' | 'trackers';
 
 const ROLE_EMOJIS: Record<UserRole, string> = {
@@ -201,7 +202,7 @@ function OnlinePanel({ users, trees, loading, onRefresh }: {
 export default function AdminPanel() {
   const { currentUser, logout } = useAuth();
   const { plant, savePlant, users, addUser, updateUser, deleteUser, canManageAdmin } = useAdmin();
-  const { t } = useLang();
+  const { t, lang } = useLang();
   const d = useAdminDict();
   const navigate = useNavigate();
 
@@ -388,6 +389,7 @@ export default function AdminPanel() {
     { key: 'gps', label: d('tabGps'), emoji: '🗺️' },
     { key: 'online', label: d('tabOnline'), emoji: '🟢' },
     { key: 'devices', label: d('tabDevices'), emoji: '🔌' },
+    { key: 'recovery', label: lang === 'ar' ? 'النسخ الاحتياطي' : lang === 'ur' ? 'بیک اپ' : 'Recovery', emoji: '💾' },
   ];
 
   return (
@@ -833,6 +835,10 @@ export default function AdminPanel() {
 
         {tab === 'devices' && (
           <DeviceHub onToast={showToast} />
+        )}
+
+        {tab === 'recovery' && (
+          <RecoveryPanel onToast={showToast} />
         )}
 
         {tab === 'plants' && (

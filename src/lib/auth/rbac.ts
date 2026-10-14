@@ -135,6 +135,8 @@ export const PERMISSIONS = {
   AUDIT_LOG_READ: "audit:read",
   SYSTEM_SETTINGS: "system:settings",
   MIX_DESIGN_MANAGE: "mix:manage",
+  RECOVERY_BACKUP: "recovery:backup",     // Take / list tenant recovery snapshots
+  RECOVERY_RESTORE: "recovery:restore",   // Restore a tenant snapshot (destructive)
 } as const;
 
 export type Permission = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];

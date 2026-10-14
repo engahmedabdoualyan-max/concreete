@@ -43,6 +43,7 @@ website-app/public/downloads/*.sha256
 npm-debug.log*
 .vercel
 .env*
+!.env.example
 
 # local build output (root copy)
 dist/
