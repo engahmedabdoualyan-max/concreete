@@ -33,6 +33,7 @@ const USER_ROLES = [
   "DRIVER",
   "RND_MANAGER",
   "HR_OFFICER",
+  "HR_MANAGER",
   "FINANCE",
   "DISPATCHER",
   "WORKSHOP_MGR",
