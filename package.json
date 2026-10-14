@@ -38,6 +38,7 @@
     "e2e:coding": "node scripts/e2e-device-coding.mjs",
     "test:zatca": "tsx scripts/zatca-validation-smoke.ts",
     "test:security": "tsx scripts/security-unit-smoke.ts",
+    "test:roles": "node scripts/user-roles-smoke.mjs",
     "security:audit:deps": "npm audit --omit=dev --audit-level=high",
     "lint": "eslint ."
   },

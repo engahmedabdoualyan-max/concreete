@@ -18,6 +18,7 @@
 
 import { NextRequest } from "next/server";
 import { db } from "@/db";
+import { auditLogs } from "@/db/schema";
 import { sql } from "drizzle-orm";
 import { requireAuth } from "@/lib/auth/middleware";
 import { errorResponse, successResponse } from "@/lib/auth/middleware";
@@ -156,6 +157,19 @@ export async function PUT(req: NextRequest, ctx: Ctx) {
     DO UPDATE SET data = EXCLUDED.data, source = EXCLUDED.source, updated_at = now(), updated_by = EXCLUDED.updated_by
   `);
 
+  // Best-effort audit (metadata only — never stores the full blob, never blocks the save).
+  try {
+    await db.insert(auditLogs).values({
+      tenantId: auth.user.tenantId,
+      userId: auth.user.sub,
+      action: "WORKSPACE_COLLECTION_SAVED",
+      entityType: "website_workspace",
+      newState: { collection, bytes: size, source: "website" },
+    });
+  } catch {
+    // Audit must never break the write path.
+  }
+
   return successResponse({ collection, saved: true }, "Workspace collection saved.");
 }
 
@@ -177,5 +191,17 @@ export async function DELETE(req: NextRequest, ctx: Ctx) {
   await db.execute(sql`
     DELETE FROM website_workspace WHERE tenant_id = ${auth.user.tenantId} AND collection = ${collection}
   `);
+  // Best-effort audit so an accidental delete is always traceable (who/when/which collection).
+  try {
+    await db.insert(auditLogs).values({
+      tenantId: auth.user.tenantId,
+      userId: auth.user.sub,
+      action: "WORKSPACE_COLLECTION_DELETED",
+      entityType: "website_workspace",
+      newState: { collection, source: "website" },
+    });
+  } catch {
+    // Audit must never break the delete path.
+  }
   return successResponse({ collection, deleted: true }, "Workspace collection deleted.");
 }
