@@ -1,5 +1,5 @@
 
-backups/
+/backups/
 # Dependencies
 deploy/downloads-site/downloads/
 dist/
