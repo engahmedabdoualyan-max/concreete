@@ -17,7 +17,7 @@ import { usePageDict, type PageDict } from '../i18n/pageDict';
 import { api } from '../api/client';
 import { loadCustomers, loadPlantProfile, loadInventory, saveInventory, loadDeliveryNotes, saveDeliveryNotes } from '../firebase/firestore';
 import { mergeByKey, pullCloud, pullObject, pushCloud } from '../lib/reportSync';
-import labHeader from '../assets/lab-header.jpg';
+import labEmblem from '../assets/lab-emblem.jpg';
 import labFooter from '../assets/lab-footer.jpg';
 
 export interface DNTrip {
@@ -171,7 +171,27 @@ function DNSheet({ p, paper }: { p: DNPayload; paper: 'company' | 'plain' }) {
   return (
     <div className="bg-white text-slate-900 max-w-[800px] mx-auto border-2 border-slate-900 p-4" dir="ltr">
       {paper === 'company' ? (
-        <img src={labHeader} alt="ALMOTWR letterhead" className="w-full" />
+        <div className="flex justify-between items-start text-center gap-2">
+          <div className="text-[8.5px] leading-[1.55] w-[33%]" dir="ltr">
+            <p className="font-black text-[11.5px] tracking-wide">ALMOTWR FACTORY</p>
+            <p className="text-slate-600 font-bold">For Cement Products</p>
+            <p className="mt-[3px]">CR : 251108261 - LIC : 371339</p>
+            <p>TEL : 0509270011 - 0509270022</p>
+            <p>AL-SAIR STREET - INDUSTRIAL STATE</p>
+            <p>HAFAR AL BATIN - EASTERN REGION</p>
+          </div>
+          <div className="w-[26%] flex justify-center pt-[2px]">
+            <img src={labEmblem} alt="AlMotwr" style={{ height: 82, width: 'auto', objectFit: 'contain' }} />
+          </div>
+          <div className="text-[8.5px] leading-[1.7] w-[33%]" dir="rtl">
+            <p className="font-black text-[13px]">المصنع المطور</p>
+            <p className="text-slate-600 font-bold">للمنتجات الأسمنتية</p>
+            <p className="mt-[3px]">س.ت : 251108261 - ترخيص : 371339</p>
+            <p>جوال : 0509270011 - 0509270022</p>
+            <p>شارع السير - المنطقة الصناعية</p>
+            <p>حفرالباطن - المنطقة الشرقية</p>
+          </div>
+        </div>
       ) : (
         <p className="font-black text-lg" dir="rtl">{p.company}</p>
       )}
