@@ -17,7 +17,7 @@
 
 import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import labHeader from '../assets/lab-header.jpg';
+import labEmblem from '../assets/lab-emblem.jpg';
 import labFooter from '../assets/lab-footer.jpg';
 import * as XLSX from 'xlsx';
 import { useLang } from '../context/LangContext';
@@ -115,6 +115,7 @@ const STR: Record<string, { en: string; ar: string; ur: string }> = {
   save: { en: '💾 Save report', ar: '💾 حفظ التقرير', ur: '💾 رپورٹ محفوظ کریں' },
   saved: { en: 'Report saved', ar: 'تم حفظ التقرير', ur: 'رپورٹ محفوظ ہو گئی' },
   needLoads: { en: 'Enter at least one crushing load first.', ar: 'أدخل حمل تكسيير واحداً على الأقل أولاً.', ur: 'پہلے کم از کم ایک کرشنگ لوڈ درج کریں۔' },
+  autoW: { en: 'Empty weights auto-fill from A1 (editable).', ar: 'الأوزان الفارغة تُملأ تلقائياً من A1 (قابلة للتعديل).', ur: 'خالی وزن A1 سے خودکار (قابل ترمیم)۔' },
   preview: { en: 'Report preview', ar: 'معاينة التقرير', ur: 'رپورٹ کا پیش نظارہ' },
   print: { en: '🖨️ Print / PDF', ar: '🖨️ طباعة / PDF', ur: '🖨️ پرنٹ / PDF' },
   excel: { en: '📊 Excel', ar: '📊 إكسل', ur: '📊 ایکسل' },
@@ -245,8 +246,28 @@ function StrengthChart({ points, avg, target, minAllowed }: {
 function ReportSheet({ p }: { p: ReportPayload }) {
   return (
     <div className="bg-white text-slate-900 max-w-[800px] mx-auto border-2 border-slate-900 p-4" dir="ltr">
-      {/* ===== Company letterhead (original artwork from the lab archive) ===== */}
-      <img src={labHeader} alt="ALMOTWR letterhead" className="w-full" />
+      {/* ===== Company letterhead (text + original emblem) ===== */}
+      <div className="flex justify-between items-start text-center gap-2">
+        <div className="text-[8.5px] leading-[1.55] w-[33%]" dir="ltr">
+          <p className="font-black text-[11.5px] tracking-wide">ALMOTWR FACTORY</p>
+          <p className="text-slate-600 font-bold">For Cement Products</p>
+          <p className="mt-[3px]">CR : 251108261 - LIC : 371339</p>
+          <p>TEL : 0509270011 - 0509270022</p>
+          <p>AL-SAIR STREET - INDUSTRIAL STATE</p>
+          <p>HAFAR AL BATIN - EASTERN REGION</p>
+        </div>
+        <div className="w-[26%] flex justify-center pt-[2px]">
+          <img src={labEmblem} alt="AlMotwr" style={{ height: 82, width: 'auto', objectFit: 'contain' }} />
+        </div>
+        <div className="text-[8.5px] leading-[1.7] w-[33%]" dir="rtl">
+          <p className="font-black text-[13px]">المصنع المطور</p>
+          <p className="text-slate-600 font-bold">للمنتجات الأسمنتية</p>
+          <p className="mt-[3px]">س.ت : 251108261 - ترخيص : 371339</p>
+          <p>جوال : 0509270011 - 0509270022</p>
+          <p>شارع السير - المنطقة الصناعية</p>
+          <p>حفرالباطن - المنطقة الشرقية</p>
+        </div>
+      </div>
 
       <div className="border border-slate-900 text-center font-black text-[13px] mt-2 py-1 tracking-wide">
         COMPRESSIVE STRENGTH OF CONCRETE CYLINDERS
@@ -541,6 +562,20 @@ export default function LabReport({ recipes, username, plantName, onToast }: {
   const setS = (i: number, k: keyof SampleIn, v: string) =>
     setSamples(prev => prev.map((s, j) => (j === i ? { ...s, [k]: v } : s)));
 
+  // Honest auto-fill: an empty weight inherits the measured A1 weight the
+  // moment it is typed (visible in the form, editable any time).
+  const setW = (i: number, v: string) => {
+    setSamples(prev => {
+      const next = prev.map((s, j) => (j === i ? { ...s, weight: v } : s));
+      if (i === 0 && v.trim() !== '') {
+        for (let j = 1; j < next.length; j++) {
+          if (next[j].weight.trim() === '') next[j] = { ...next[j], weight: v };
+        }
+      }
+      return next;
+    });
+  };
+
   const inputCls = 'w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none focus:border-sky-400/70';
   const labelCls = 'block text-xs text-slate-400 font-semibold mb-1';
 
@@ -634,13 +669,15 @@ export default function LabReport({ recipes, username, plantName, onToast }: {
               <label className={labelCls}>{t('sLoad')}</label>
               <input type="number" step="0.1" value={s.load} onChange={e => setS(i, 'load', e.target.value)} placeholder="412.7" className={inputCls} style={s.load.trim() ? undefined : RED_IF_EMPTY} />
               <div className="mt-2"><label className={labelCls}>{t('sWeight')}</label>
-              <input type="number" value={s.weight} onChange={e => setS(i, 'weight', e.target.value)} placeholder="12393" className={inputCls} /></div>
+              <input type="number" value={s.weight} onChange={e => setW(i, e.target.value)} placeholder="12393" className={inputCls} /></div>
               <p className="text-[11px] text-slate-400 mt-2" dir="ltr">
                 {rows[i].load > 0 ? `${f2(rows[i].mpa)} MPa · ${f2(rows[i].kg)} kg/cm²` : '—'}
               </p>
             </div>
           ))}
         </div>
+
+        <p className="text-[11px] text-slate-500 mt-2">⚡ {t('autoW')}</p>
 
         {valid.length > 0 && (
           <div className={`mt-4 rounded-lg border px-4 py-3 text-sm font-black ${verdict === 'pass' ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-300' : 'bg-red-500/10 border-red-500/40 text-red-300'}`}>
