@@ -17,6 +17,8 @@
 
 import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
+import labHeader from '../assets/lab-header.jpg';
+import labFooter from '../assets/lab-footer.jpg';
 import * as XLSX from 'xlsx';
 import { useLang } from '../context/LangContext';
 import { loadCustomers, loadPlantProfile } from '../firebase/firestore';
@@ -183,37 +185,68 @@ function SpecCell({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 
+function StrengthChart({ points, avg, target, minAllowed }: {
+  points: Array<{ s: string; mpa: number }>;
+  avg: number;
+  target: number;
+  minAllowed: number;
+}) {
+  const W = 560, H = 185, PL = 46, PR = 10, PT = 12, PB = 26;
+  const vals = [...points.map(p => p.mpa), avg, target, minAllowed];
+  const lo = Math.min(...vals), hi = Math.max(...vals);
+  const pad = Math.max(0.8, (hi - lo) * 0.25);
+  const y0 = Math.max(0, lo - pad), y1 = hi + pad;
+  const n = Math.max(points.length, 1);
+  const X = (i: number) => (n === 1 ? W / 2 : PL + (i * (W - PL - PR)) / (n - 1));
+  const Y = (v: number) => PT + (1 - (v - y0) / (y1 - y0)) * (H - PT - PB);
+  const ticks = [0, 1, 2].map(k => y0 + ((y1 - y0) * k) / 2);
+  const pts = points.map((p, i) => `${X(i).toFixed(1)},${Y(p.mpa).toFixed(1)}`).join(' ');
+  return (
+    <div className="mt-3" dir="ltr">
+      <p className="text-[11px] font-black mb-1 text-center" dir="rtl">منحنى المقاومة والانحراف عن المتوسط (شروط القبول: المتوسط ≥ المطلوب وكل عينة ≥ المطلوب − 3.5)</p>
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img" aria-label="strength curve">
+        {ticks.map((tk, i) => (
+          <g key={i}>
+            <line x1={PL} y1={Y(tk)} x2={W - PR} y2={Y(tk)} stroke="#cbd5e1" strokeWidth="1" />
+            <text x={PL - 4} y={Y(tk) + 3} textAnchor="end" fontSize="9" fill="#475569">{tk.toFixed(1)}</text>
+          </g>
+        ))}
+        <line x1={PL} y1={Y(target)} x2={W - PR} y2={Y(target)} stroke="#d97706" strokeWidth="1.5" strokeDasharray="6 3" />
+        <text x={W - PR} y={Y(target) - 4} textAnchor="end" fontSize="9" fill="#d97706">المطلوب {target}</text>
+        <line x1={PL} y1={Y(minAllowed)} x2={W - PR} y2={Y(minAllowed)} stroke="#dc2626" strokeWidth="1" strokeDasharray="2 3" />
+        <text x={W - PR} y={Y(minAllowed) + 11} textAnchor="end" fontSize="9" fill="#dc2626">الأدنى {(minAllowed).toFixed(1)}</text>
+        <line x1={PL} y1={Y(avg)} x2={W - PR} y2={Y(avg)} stroke="#059669" strokeWidth="1.5" />
+        <text x={W - PR} y={Y(avg) - 5} textAnchor="end" fontSize="9" fill="#059669">المتوسط {avg.toFixed(2)}</text>
+        {points.map((p, i) => {
+          const dev = p.mpa - avg;
+          if (Math.abs(dev) < 0.2) return null;
+          return (
+            <g key={p.s}>
+              <line x1={X(i)} y1={Y(p.mpa)} x2={X(i)} y2={Y(avg)} stroke="#94a3b8" strokeWidth="1" strokeDasharray="3 2" />
+              <text x={X(i) + 7} y={(Y(p.mpa) + Y(avg)) / 2 + 3} textAnchor="start" fontSize="8.5" fill="#64748b">
+                {dev >= 0 ? '+' : ''}{dev.toFixed(2)}
+              </text>
+            </g>
+          );
+        })}
+        <polyline points={pts} fill="none" stroke="#0284c7" strokeWidth="2" />
+        {points.map((p, i) => (
+          <g key={p.s + i}>
+            <circle cx={X(i)} cy={Y(p.mpa)} r="4" fill="#0284c7" stroke="#fff" strokeWidth="1.5" />
+            <text x={X(i)} y={Y(p.mpa) - 8} textAnchor="middle" fontSize="9.5" fontWeight="bold" fill="#0f172a">{p.mpa.toFixed(2)}</text>
+            <text x={X(i)} y={H - 8} textAnchor="middle" fontSize="10" fill="#334155">{p.s}</text>
+          </g>
+        ))}
+      </svg>
+    </div>
+  );
+}
+
 function ReportSheet({ p }: { p: ReportPayload }) {
   return (
     <div className="bg-white text-slate-900 max-w-[800px] mx-auto border-2 border-slate-900 p-4" dir="ltr">
-      {/* ===== Company letterhead (ALMOTWR FACTORY paper) ===== */}
-      <div className="flex justify-between items-start text-center gap-2">
-        <div className="text-[8.5px] leading-[1.5] w-[31%]">
-          <p className="font-black text-[11px]">ALMOTWR FACTORY</p>
-          <p>For Cement Products</p>
-          <p>CR : 251108261 - LIC : 371339</p>
-          <p>TEL : 0509270011 - 0509270022</p>
-          <p>AL-SAIR STREET - INDUSTRIAL STATE</p>
-          <p>HAFAR AL BATIN - EASTERN REGION</p>
-        </div>
-        <div className="w-[30%] flex flex-col items-center">
-          {p.logo
-            ? <img src={p.logo} alt="logo" style={{ height: 72, maxWidth: 170, objectFit: 'contain' }} />
-            : (
-              <div className="w-[76px] h-[76px] rounded-full border-[3px] border-double border-yellow-600 flex items-center justify-center bg-neutral-900">
-                <span className="text-yellow-500 font-black text-[11px] leading-tight" dir="rtl">المصنع<br />المطور</span>
-              </div>
-            )}
-        </div>
-        <div className="text-[8.5px] leading-[1.6] w-[31%]" dir="rtl">
-          <p className="font-black text-[13px]">المصنع المطور</p>
-          <p>للمنتجات الأسمنتية</p>
-          <p>س.ت : 251108261 - ترخيص : 371339</p>
-          <p>جوال : 0509270011 - 0509270022</p>
-          <p>شارع السير - المنطقة الصناعية</p>
-          <p>حفرالباطن - المنطقة الشرقية</p>
-        </div>
-      </div>
+      {/* ===== Company letterhead (original artwork from the lab archive) ===== */}
+      <img src={labHeader} alt="ALMOTWR letterhead" className="w-full" />
 
       <div className="border border-slate-900 text-center font-black text-[13px] mt-2 py-1 tracking-wide">
         COMPRESSIVE STRENGTH OF CONCRETE CYLINDERS
@@ -287,6 +320,13 @@ function ReportSheet({ p }: { p: ReportPayload }) {
         النتيجة: <span dir="ltr">{p.avgMpa.toFixed(2)} MPa</span> = {p.pct.toFixed(1)}% من المطلوب ({p.target} MPa) — {p.verdict}
       </p>
 
+      <StrengthChart
+        points={p.rows.filter(r => r.load > 0).map(r => ({ s: r.s, mpa: r.mpa }))}
+        avg={p.avgMpa}
+        target={p.target}
+        minAllowed={p.target - 3.5}
+      />
+
       <div className="border border-slate-900 mt-2 text-[10.5px]" dir="ltr">
         <p className="font-bold border-b border-slate-900 px-1.5 py-[2px]">Remarks</p>
         <p className="px-1.5 py-1 min-h-[28px]" dir="rtl">{p.remarks || ''}</p>
@@ -301,18 +341,7 @@ function ReportSheet({ p }: { p: ReportPayload }) {
         <p><b>Date:</b> {p.tested}</p>
       </div>
 
-      <div className="mt-2 flex items-stretch text-white text-[8.5px]" dir="ltr">
-        <div className="flex-[3] px-2 py-1.5" style={{ background: 'linear-gradient(120deg,#141414 55%,#8a6d1c 55%,#c9a227 100%)' }}>
-          <p>🌐 www.almotwr.com</p>
-          <p>✉ almotwr@gmail.com</p>
-          <p className="font-bold">KINGDOM OF SAUDI ARABIA, HAFAR AL BATIN, EASTERN REGION</p>
-        </div>
-        <div className="flex-[2] px-2 py-1.5 bg-neutral-900 text-center">
-          <p className="font-bold">FOLLOW US ON</p>
-          <p>📷 𝕏 📘 🎵</p>
-          <p className="font-bold">@ALMOTWR</p>
-        </div>
-      </div>
+      <img src={labFooter} alt="ALMOTWR footer" className="w-full mt-2" />
     </div>
   );
 }
@@ -421,7 +450,10 @@ export default function LabReport({ recipes, username, plantName, onToast }: {
   const avgKg = valid.length ? valid.reduce((a, r) => a + r.kg, 0) / valid.length : 0;
   const target = age <= 7 ? effExp7 : effExp28;
   const pct = target > 0 && valid.length ? (avgMpa / target) * 100 : 0;
-  const verdict = !valid.length ? '' : avgMpa >= target ? 'pass' : 'fail';
+  // Acceptance (ACI 318 style): average ≥ required AND every sample ≥ required − 3.5 MPa.
+  const minMpa = valid.length ? Math.min(...valid.map(r => r.mpa)) : 0;
+  const minAllowed = target - 3.5;
+  const verdict = !valid.length ? '' : avgMpa >= target && minMpa >= minAllowed ? 'pass' : 'fail';
 
   const buildPayload = (): ReportPayload | null => {
     if (!valid.length || !mixCode) return null;
@@ -478,7 +510,7 @@ export default function LabReport({ recipes, username, plantName, onToast }: {
       ]),
       ['AVERAGE', '', '', '', '', Number(p.avgKg.toFixed(2)), Number(p.avgMpa.toFixed(2))],
       [],
-      [`Result: ${p.avgMpa.toFixed(2)} MPa = ${p.pct.toFixed(1)}% of required ${p.target} MPa — ${p.verdict}`],
+      [`Result: ${p.avgMpa.toFixed(2)} MPa = ${p.pct.toFixed(1)}% of required ${p.target} MPa — ${p.verdict} (min sample ${(Math.min(...p.rows.filter(r => r.load > 0).map(r => r.mpa))).toFixed(2)} vs limit ${(p.target - 3.5).toFixed(1)})`],
       [],
       ...(p.remarks ? ([['Remarks', p.remarks], []] as unknown[][]) : []),
       ['Notes:'],
