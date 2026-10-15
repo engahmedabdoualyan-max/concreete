@@ -21,7 +21,8 @@ import labEmblem from '../assets/lab-emblem.jpg';
 import labFooter from '../assets/lab-footer.jpg';
 import * as XLSX from 'xlsx';
 import { usePageDict, type PageDict } from '../i18n/pageDict';
-import { loadCustomers, loadPlantProfile } from '../firebase/firestore';
+import { loadCustomers, loadPlantProfile, loadLabReports, saveLabReports } from '../firebase/firestore';
+import { mergeByKey, pullCloud, pushCloud } from '../lib/reportSync';
 
 export interface LabRecipe {
   code: string;
@@ -474,10 +475,33 @@ export default function LabReport({ recipes, username, plantName, onToast }: {
       setCompany(String(o.name ?? '') || plantName);
       setLogo(String(o.logo ?? ''));
     }).catch(() => setCompany(plantName));
-    try {
-      const raw = localStorage.getItem('labReports');
-      if (raw) setSaved(JSON.parse(raw));
-    } catch {}
+    // 3-level load: instant local → Firebase (same account, any device) → tenant cloud.
+    const boot = async () => {
+      let list: SavedReport[] = [];
+      try {
+        const raw = localStorage.getItem('labReports');
+        if (raw) list = JSON.parse(raw);
+      } catch {}
+      if (list.length) setSaved(list);
+      try {
+        const fb = await loadLabReports(username);
+        if (Array.isArray(fb) && fb.length) {
+          list = mergeByKey(list, fb as SavedReport[], r => r.no);
+          setSaved(list);
+          try { localStorage.setItem('labReports', JSON.stringify(list)); } catch {}
+        }
+      } catch {}
+      try {
+        const merged = await pullCloud('labReports', list, r => (r as SavedReport).no);
+        if (merged.length !== list.length) {
+          setSaved(merged as SavedReport[]);
+          try { localStorage.setItem('labReports', JSON.stringify(merged)); } catch {}
+          saveLabReports(username, merged).catch(() => {});
+          void pushCloud('labReports', merged);
+        }
+      } catch {}
+    };
+    void boot();
   }, [username, plantName]);
 
   // Sales linkage: real customers first; archive filenames as demo fallback.
@@ -541,6 +565,8 @@ export default function LabReport({ recipes, username, plantName, onToast }: {
   const persist = (list: SavedReport[]) => {
     setSaved(list);
     try { localStorage.setItem('labReports', JSON.stringify(list)); } catch {}
+    saveLabReports(username, list).catch(() => {});
+    void pushCloud('labReports', list);
   };
 
   const needCastingFirst = (): boolean => {

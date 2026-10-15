@@ -15,7 +15,8 @@ import { createPortal } from 'react-dom';
 import * as XLSX from 'xlsx';
 import { usePageDict, type PageDict } from '../i18n/pageDict';
 import { api } from '../api/client';
-import { loadCustomers, loadPlantProfile } from '../firebase/firestore';
+import { loadCustomers, loadPlantProfile, loadInventory, saveInventory, loadDeliveryNotes, saveDeliveryNotes } from '../firebase/firestore';
+import { mergeByKey, pullCloud, pushCloud } from '../lib/reportSync';
 import labHeader from '../assets/lab-header.jpg';
 import labFooter from '../assets/lab-footer.jpg';
 
@@ -141,6 +142,13 @@ const DEMO_CLIENTS = [
 
 // Fallback mix codes when no recipes are stored yet for this user.
 const DEFAULT_MIXES = ['C25', 'C30', 'C35', 'C40'];
+// Fallback batch weights (kg per m³) matching the defaults above.
+const DEFAULT_WEIGHTS: Record<string, { cement: number; sand: number; gravel: number; admixture: number }> = {
+  C25: { cement: 320, sand: 780, gravel: 1080, admixture: 4.8 },
+  C30: { cement: 350, sand: 750, gravel: 1100, admixture: 5.5 },
+  C35: { cement: 380, sand: 720, gravel: 1120, admixture: 6.2 },
+  C40: { cement: 420, sand: 680, gravel: 1140, admixture: 7.5 },
+};
 
 const RED_IF_EMPTY: CSSProperties = { borderColor: 'rgba(239,68,68,.75)', background: 'rgba(239,68,68,.07)' };
 const nowTime = () => {
@@ -234,6 +242,7 @@ export default function DeliveryNote({ trips, orders, username, plantName, onToa
   const [site, setSite] = useState('');
   const [mix, setMix] = useState('');
   const [mixes, setMixes] = useState<string[]>([]);
+  const [recipeWeights, setRecipeWeights] = useState<Record<string, { cement: number; sand: number; gravel: number; admixture: number }>>({});
   const [qty, setQty] = useState('');
   const [price, setPrice] = useState('');
   const [vatRate, setVatRate] = useState('15');
@@ -256,10 +265,33 @@ export default function DeliveryNote({ trips, orders, username, plantName, onToa
       const o = (p ?? {}) as Record<string, unknown>;
       setCompany(String(o.name ?? '') || plantName);
     }).catch(() => setCompany(plantName));
-    try {
-      const raw = localStorage.getItem('deliveryNotes');
-      if (raw) setSaved(JSON.parse(raw));
-    } catch {}
+    // 3-level load: instant local → Firebase (same account, any device) → tenant cloud.
+    const boot = async () => {
+      let list: SavedDN[] = [];
+      try {
+        const raw = localStorage.getItem('deliveryNotes');
+        if (raw) list = JSON.parse(raw);
+      } catch {}
+      if (list.length) setSaved(list);
+      try {
+        const fb = await loadDeliveryNotes(username);
+        if (Array.isArray(fb) && fb.length) {
+          list = mergeByKey(list, fb as SavedDN[], r => r.ticket);
+          setSaved(list);
+          try { localStorage.setItem('deliveryNotes', JSON.stringify(list)); } catch {}
+        }
+      } catch {}
+      try {
+        const merged = await pullCloud('deliveryNotes', list, r => (r as SavedDN).ticket);
+        if (merged.length !== list.length) {
+          setSaved(merged as SavedDN[]);
+          try { localStorage.setItem('deliveryNotes', JSON.stringify(merged)); } catch {}
+          saveDeliveryNotes(username, merged).catch(() => {});
+          void pushCloud('deliveryNotes', merged);
+        }
+      } catch {}
+    };
+    void boot();
   }, [username, plantName]);
 
   useEffect(() => {
@@ -272,14 +304,26 @@ export default function DeliveryNote({ trips, orders, username, plantName, onToa
       loadCustomers(username).catch(() => [] as unknown[]),
     ]).then(([[recs, assets], custs]) => {
       if (!alive) return;
-      const codes = (Array.isArray(recs) ? recs : [])
-        .map((r: unknown) => String((r as Record<string, unknown>).code ?? '').trim())
-        .filter(Boolean);
+      const recList = (Array.isArray(recs) ? recs : []) as Array<Record<string, unknown>>;
+      const codes = recList.map(r => String(r.code ?? '').trim()).filter(Boolean);
+      const weights: Record<string, { cement: number; sand: number; gravel: number; admixture: number }> = {};
+      for (const r of recList) {
+        const code = String(r.code ?? '').trim();
+        if (!code) continue;
+        weights[code] = {
+          cement: Number(r.cement) || 0,
+          sand: Number(r.sand) || 0,
+          gravel: Number(r.gravel) || 0,
+          admixture: Number(r.admixture) || 0,
+        };
+      }
+      setRecipeWeights(weights);
       if (codes.length) {
         setMixes(codes);
         setMix(prev => (prev ? prev : codes.includes('C30') ? 'C30' : codes[0]));
       } else {
         setMixes(DEFAULT_MIXES);
+        setRecipeWeights(DEFAULT_WEIGHTS);
         setMix(prev => (prev ? prev : 'C30'));
       }
       const fleet = (Array.isArray(assets) ? assets : [])
@@ -518,6 +562,11 @@ export default function DeliveryNote({ trips, orders, username, plantName, onToa
   const sub = Number.isFinite(q) && Number.isFinite(pr) ? q * pr : 0;
   const vat = (sub * vr) / 100;
   const grand = sub + vat;
+  const deductPreview = (() => {
+    const w = recipeWeights[mix];
+    if (!w || !(q > 0)) return '';
+    return `خصم المخزون تلقائياً: أسمنت ${((w.cement * q) / 1000).toFixed(2)}t · رمل ${((w.sand * q) / 1000).toFixed(2)}t · بحص ${((w.gravel * q) / 1000).toFixed(2)}t · إضافات ${(w.admixture * q).toFixed(1)}kg`;
+  })();
 
   const buildPayload = (): DNPayload | null => {
     if (!client.trim() || !(q > 0) || !(pr > 0)) return null;
@@ -540,6 +589,44 @@ export default function DeliveryNote({ trips, orders, username, plantName, onToa
   const persist = (list: SavedDN[]) => {
     setSaved(list);
     try { localStorage.setItem('deliveryNotes', JSON.stringify(list)); } catch {}
+    saveDeliveryNotes(username, list).catch(() => {});
+    void pushCloud('deliveryNotes', list);
+  };
+
+  // Automatic raw-material deduction: recipe batch weights (kg/m³) × poured
+  // qty. Stock units: cement/sand/gravel in tons (÷1000), admixture in kg.
+  // Only keys already present in stock are touched; water is not tracked.
+  const deductInventory = async (p: DNPayload): Promise<string | null> => {
+    try {
+      const w = recipeWeights[p.mix];
+      if (!w) return null;
+      const inv = (await loadInventory(username).catch(() => null)) as Record<string, unknown> | null;
+      if (!inv || typeof inv !== 'object') return null;
+      const used: Array<[string, number, string]> = [
+        ['cement', (w.cement * p.qty) / 1000, 't'],
+        ['sand', (w.sand * p.qty) / 1000, 't'],
+        ['gravel', (w.gravel * p.qty) / 1000, 't'],
+        ['admixture', w.admixture * p.qty, 'kg'],
+      ];
+      const next: Record<string, unknown> = { ...inv };
+      const parts: string[] = [];
+      let touched = false;
+      for (const [k, v, u] of used) {
+        if (typeof next[k] !== 'number' || !(v > 0)) continue;
+        next[k] = Math.max(0, (next[k] as number) - v);
+        parts.push(`${k} ${v.toFixed(2)}${u}`);
+        touched = true;
+      }
+      if (!touched) return null;
+      await saveInventory(username, next).catch(() => {});
+      const lows: string[] = [];
+      if (typeof next.cement === 'number' && next.cement < 20) lows.push('cement');
+      if (typeof next.sand === 'number' && next.sand < 40) lows.push('sand');
+      if (typeof next.gravel === 'number' && next.gravel < 60) lows.push('gravel');
+      return `خصم المخزون: ${parts.join('، ')}` + (lows.length ? ` — ⚠️ منخفض: ${lows.join('، ')}` : '');
+    } catch {
+      return null;
+    }
   };
 
   const doSave = async () => {
@@ -572,6 +659,7 @@ export default function DeliveryNote({ trips, orders, username, plantName, onToa
     persist([{ ...p, createdAt: new Date().toISOString() }, ...saved]);
     setViewIdx(0);
     onToast(t('saved'));
+    void deductInventory(p).then(msg => { if (msg) onToast(msg); });
   };
 
   const doExcel = (p: DNPayload) => {
@@ -709,6 +797,7 @@ export default function DeliveryNote({ trips, orders, username, plantName, onToa
 
         <div className="mt-4 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-4 py-3 text-sm font-black text-emerald-300">
           <span dir="ltr">{f2(sub)}</span> + {t('vatAmt')} <span dir="ltr">{f2(vat)}</span> = {t('grand')}: <span dir="ltr">{f2(grand)}</span>
+          {deductPreview && <p className="text-[11px] font-bold text-slate-400 mt-1">{deductPreview}</p>}
         </div>
 
         <div className="flex flex-wrap gap-2 mt-4">

@@ -652,6 +652,22 @@ export async function loadQCRecords(userId: string) {
   return await loadUserData(userId, 'qcRecords');
 }
 
+// ====================== Lab Reports (compressive strength) ======================
+export async function saveLabReports(userId: string, records: any[]) {
+  await saveUserData(userId, 'labReports', records);
+}
+export async function loadLabReports(userId: string) {
+  return await loadUserData(userId, 'labReports');
+}
+
+// ====================== Delivery Notes (operations invoicing) ======================
+export async function saveDeliveryNotes(userId: string, records: any[]) {
+  await saveUserData(userId, 'deliveryNotes', records);
+}
+export async function loadDeliveryNotes(userId: string) {
+  return await loadUserData(userId, 'deliveryNotes');
+}
+
 // ====================== Assets (Workshop) ======================
 export async function saveAssets(userId: string, assets: any[]) {
   await saveUserData(userId, 'assets', assets);
