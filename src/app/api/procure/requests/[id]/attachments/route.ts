@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { db } from "@/db";
-import { procureAttachments } from "@/db/schema";
+import { procureAttachments, procureRequests } from "@/db/schema";
 import { and, desc, eq } from "drizzle-orm";
 import { z } from "zod";
 import {
@@ -60,6 +60,12 @@ export async function POST(
   if ("status" in auth) return auth;
   const { id } = await params;
   if (!UUID_RE.test(id)) return errorResponse("INVALID_ID", "Invalid id", 400);
+  const parent = await db
+    .select({ id: procureRequests.id })
+    .from(procureRequests)
+    .where(and(eq(procureRequests.id, id), eq(procureRequests.tenantId, auth.user.tenantId)))
+    .limit(1);
+  if (parent.length === 0) return errorResponse("REQUEST_NOT_FOUND", "Request not found", 404);
 
   let body: unknown;
   try {

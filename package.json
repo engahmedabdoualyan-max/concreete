@@ -39,6 +39,7 @@
     "test:zatca": "tsx scripts/zatca-validation-smoke.ts",
     "test:security": "tsx scripts/security-unit-smoke.ts",
     "test:roles": "node scripts/user-roles-smoke.mjs",
+    "i18n:check": "node scripts/i18n-key-check.mjs",
     "security:audit:deps": "npm audit --omit=dev --audit-level=high",
     "lint": "eslint ."
   },
