@@ -16,7 +16,7 @@ import * as XLSX from 'xlsx';
 import { usePageDict, type PageDict } from '../i18n/pageDict';
 import { api } from '../api/client';
 import { loadCustomers, loadPlantProfile, loadInventory, saveInventory, loadDeliveryNotes, saveDeliveryNotes } from '../firebase/firestore';
-import { mergeByKey, pullCloud, pushCloud } from '../lib/reportSync';
+import { mergeByKey, pullCloud, pullObject, pushCloud } from '../lib/reportSync';
 import labHeader from '../assets/lab-header.jpg';
 import labFooter from '../assets/lab-footer.jpg';
 
@@ -302,29 +302,50 @@ export default function DeliveryNote({ trips, orders, username, plantName, onToa
         m.loadAssets(username).catch(() => [] as unknown[]),
       ])),
       loadCustomers(username).catch(() => [] as unknown[]),
-    ]).then(([[recs, assets], custs]) => {
+    ]).then(async ([[recs, assets], custs]) => {
       if (!alive) return;
+      const applyRecs = (recList: Array<Record<string, unknown>>) => {
+        const codes = recList.map(r => String(r.code ?? '').trim()).filter(Boolean);
+        const weights: Record<string, { cement: number; sand: number; gravel: number; admixture: number }> = {};
+        for (const r of recList) {
+          const code = String(r.code ?? '').trim();
+          if (!code) continue;
+          weights[code] = {
+            cement: Number(r.cement) || 0,
+            sand: Number(r.sand) || 0,
+            gravel: Number(r.gravel) || 0,
+            admixture: Number(r.admixture) || 0,
+          };
+        }
+        setRecipeWeights(weights);
+        if (codes.length) {
+          setMixes(codes);
+          setMix(prev => (prev ? prev : codes.includes('C30') ? 'C30' : codes[0]));
+          return true;
+        }
+        return false;
+      };
       const recList = (Array.isArray(recs) ? recs : []) as Array<Record<string, unknown>>;
-      const codes = recList.map(r => String(r.code ?? '').trim()).filter(Boolean);
-      const weights: Record<string, { cement: number; sand: number; gravel: number; admixture: number }> = {};
-      for (const r of recList) {
-        const code = String(r.code ?? '').trim();
-        if (!code) continue;
-        weights[code] = {
-          cement: Number(r.cement) || 0,
-          sand: Number(r.sand) || 0,
-          gravel: Number(r.gravel) || 0,
-          admixture: Number(r.admixture) || 0,
-        };
-      }
-      setRecipeWeights(weights);
-      if (codes.length) {
-        setMixes(codes);
-        setMix(prev => (prev ? prev : codes.includes('C30') ? 'C30' : codes[0]));
-      } else {
-        setMixes(DEFAULT_MIXES);
-        setRecipeWeights(DEFAULT_WEIGHTS);
-        setMix(prev => (prev ? prev : 'C30'));
+      if (!applyRecs(recList)) {
+        // Own account has no recipes — use the plant-shared ACTUAL weights.
+        try {
+          const shared = await pullCloud('recipes', [], (x: Record<string, unknown>) => String(x.code ?? ''));
+          if (!alive) return;
+          if (shared.length && !applyRecs(shared as Array<Record<string, unknown>>)) {
+            setMixes(DEFAULT_MIXES);
+            setRecipeWeights(DEFAULT_WEIGHTS);
+            setMix(prev => (prev ? prev : 'C30'));
+          } else if (!shared.length) {
+            setMixes(DEFAULT_MIXES);
+            setRecipeWeights(DEFAULT_WEIGHTS);
+            setMix(prev => (prev ? prev : 'C30'));
+          }
+        } catch {
+          if (!alive) return;
+          setMixes(DEFAULT_MIXES);
+          setRecipeWeights(DEFAULT_WEIGHTS);
+          setMix(prev => (prev ? prev : 'C30'));
+        }
       }
       const fleet = (Array.isArray(assets) ? assets : [])
         .map((a: unknown) => {
@@ -595,12 +616,18 @@ export default function DeliveryNote({ trips, orders, username, plantName, onToa
 
   // Automatic raw-material deduction: recipe batch weights (kg/m³) × poured
   // qty. Stock units: cement/sand/gravel in tons (÷1000), admixture in kg.
-  // Only keys already present in stock are touched; water is not tracked.
+  // Reads own stock first, plant-shared stock second; writes back to both so
+  // every role sees the same numbers. Only keys already present are touched.
   const deductInventory = async (p: DNPayload): Promise<string | null> => {
     try {
       const w = recipeWeights[p.mix];
       if (!w) return null;
-      const inv = (await loadInventory(username).catch(() => null)) as Record<string, unknown> | null;
+      let inv = (await loadInventory(username).catch(() => null)) as Record<string, unknown> | null;
+      const hasNums = inv && typeof inv === 'object' && ['cement', 'sand', 'gravel'].some(k => typeof inv![k] === 'number');
+      if (!hasNums) {
+        const shared = await pullObject('inventory').catch(() => null);
+        if (shared && typeof shared === 'object') inv = shared as Record<string, unknown>;
+      }
       if (!inv || typeof inv !== 'object') return null;
       const used: Array<[string, number, string]> = [
         ['cement', (w.cement * p.qty) / 1000, 't'],
@@ -619,6 +646,7 @@ export default function DeliveryNote({ trips, orders, username, plantName, onToa
       }
       if (!touched) return null;
       await saveInventory(username, next).catch(() => {});
+      void pushCloud('inventory', next);
       const lows: string[] = [];
       if (typeof next.cement === 'number' && next.cement < 20) lows.push('cement');
       if (typeof next.sand === 'number' && next.sand < 40) lows.push('sand');

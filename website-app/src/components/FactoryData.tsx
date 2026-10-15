@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { loadAssets, saveAssets, loadInventory, saveInventory, loadWorkshopConfig, saveWorkshopConfig } from '../firebase/firestore';
+import { pullObject, pushCloud } from '../lib/reportSync';
 import { saveGpsLocationToSupabase } from '../supabase/supabase';
 import { useAdminDict } from '../i18n/adminDict';
 
@@ -46,6 +47,16 @@ export default function FactoryData({ onToast, section }: { onToast: (msg: strin
         if (Array.isArray(a) && a.length > 0) setAssets(a);
         else setAssets(DEF_ASSETS);
         if (i && typeof i === 'object') setStock({ ...DEF_STOCK, ...i });
+        else {
+          // No own stock yet — adopt the plant-shared stock so every role
+          // sees (and deducts from) the same numbers.
+          pullObject('inventory').then(shared => {
+            if (shared && typeof shared === 'object') {
+              const vals = Object.values(shared as Record<string, unknown>);
+              if (vals.some(v => typeof v === 'number')) setStock({ ...DEF_STOCK, ...(shared as Record<string, number>) });
+            }
+          }).catch(() => {});
+        }
         if (c) setConfig({ ...config, ...c });
         setLoaded(true);
       })
@@ -53,7 +64,13 @@ export default function FactoryData({ onToast, section }: { onToast: (msg: strin
   }, [currentUser?.username]);
 
   useEffect(() => { if (!loaded || !currentUser) return; saveAssets(currentUser.username, assets).catch(() => {}); }, [assets, loaded]);
-  useEffect(() => { if (!loaded || !currentUser) return; saveInventory(currentUser.username, stock).catch(() => {}); }, [stock, loaded]);
+  useEffect(() => {
+    if (!loaded || !currentUser) return;
+    saveInventory(currentUser.username, stock).catch(() => {});
+    // Share plant stock tenant-wide, but never publish untouched defaults.
+    const isDefault = ['cement', 'sand', 'gravel', 'admixture'].every(k => (stock as Record<string, number>)[k] === DEF_STOCK[k]);
+    if (!isDefault) void pushCloud('inventory', stock);
+  }, [stock, loaded]);
   useEffect(() => { if (!loaded || !currentUser) return; saveWorkshopConfig(currentUser.username, config).catch(() => {}); }, [config, loaded]);
 
   const setAssetField = (k: string, v: string) => setAssetForm((p: any) => ({ ...p, [k]: v }));

@@ -9,6 +9,7 @@ import BrandLogo from '../components/BrandLogo';
 import NotificationsBell from '../components/NotificationsBell';
 import LabReport from '../components/LabReport';
 import { useMixingQualityDict } from '../i18n/mixingQualityDict';
+import { pullCloud, pushCloud } from '../lib/reportSync';
 
 // ============ Interfaces ============
 interface Recipe { code: string; cement: number; sand: number; gravel: number; water: number; admixture: number; }
@@ -80,11 +81,28 @@ export default function MixingQuality() {
       if (q?.length) setQcRecords(q); else { const s = localStorage.getItem('qcRecords'); if (s) setQcRecords(JSON.parse(s)); }
       if (Array.isArray(o)) setOrders(o);
       setLoaded(true);
+      // Plant-shared recipes: the ACTUAL batch weights live here so deduction
+      // works for every user. Adopt shared when this account has none yet,
+      // otherwise backfill shared from this account.
+      void (async () => {
+        try {
+          const shared = await pullCloud('recipes', [], (x: Record<string, unknown>) => String(x.code ?? ''));
+          if (!shared.length) {
+            if (r?.length) await pushCloud('recipes', r);
+            return;
+          }
+          let hasOwn = (r?.length ?? 0) > 0;
+          if (!hasOwn) {
+            try { hasOwn = !!localStorage.getItem('plantRecipes'); } catch {}
+          }
+          if (!hasOwn) setRecipes(shared as unknown as Recipe[]);
+        } catch {}
+      })();
     }).catch(() => { setLoaded(true); });
   }, [currentUser?.username]);
 
   // Save data
-  useEffect(() => { if (!loaded) return; localStorage.setItem('plantRecipes', JSON.stringify(recipes)); if (currentUser) saveRecipes(currentUser.username, recipes).catch(() => {}); }, [recipes, loaded]);
+  useEffect(() => { if (!loaded) return; localStorage.setItem('plantRecipes', JSON.stringify(recipes)); if (currentUser) saveRecipes(currentUser.username, recipes).catch(() => {}); void pushCloud('recipes', recipes); }, [recipes, loaded]);
   useEffect(() => { if (!loaded) return; localStorage.setItem('calibrationLogs', JSON.stringify(calibLogs)); if (currentUser) saveCalibrationLogs(currentUser.username, calibLogs).catch(() => {}); }, [calibLogs, loaded]);
   useEffect(() => { if (!loaded) return; localStorage.setItem('qcRecords', JSON.stringify(qcRecords)); if (currentUser) saveQCRecords(currentUser.username, qcRecords).catch(() => {}); }, [qcRecords, loaded]);
 
