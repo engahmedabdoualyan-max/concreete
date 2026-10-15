@@ -11,6 +11,7 @@ import DatePicker from '../components/DatePicker';
 import DriverLiveBroadcast from '../components/DriverLiveBroadcast';
 import NotificationsBell from '../components/NotificationsBell';
 import Challan from '../components/Challan';
+import DeliveryNote from '../components/DeliveryNote';
 import { useOperationsDict } from '../i18n/operationsDict';
 
 interface Trip {
@@ -823,6 +824,17 @@ export default function Operations() {
               ))}
             </div>
           )}
+        </div>
+        {/* ── Priced delivery notes (دليفري نوت — replaces the Access printout) ── */}
+        <div className="mb-8 rounded-2xl border border-sky-500/25 bg-sky-500/[0.04] p-4">
+          <h2 className="text-base font-bold text-white mb-3">🧾 مذكرة تسليم مسعّرة <span className="text-[10px] font-normal text-sky-300 border border-sky-500/40 rounded px-1.5 py-0.5">PRINT READY</span></h2>
+          <DeliveryNote
+            trips={trips}
+            orders={orders}
+            username={currentUser.username}
+            plantName={currentUser.plantName}
+            onToast={(m) => alert(m)}
+          />
         </div>
         {/* ── Daily readiness roll-call (تقرير الجاهزية) ── */}
         <div className="mb-8 rounded-2xl border border-amber-500/25 bg-amber-500/[0.04] p-4">
