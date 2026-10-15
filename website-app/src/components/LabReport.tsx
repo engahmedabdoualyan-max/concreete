@@ -581,7 +581,7 @@ export default function LabReport({ recipes, username, plantName, onToast }: {
 
   return (
     <div className="space-y-6">
-      <style>{`@page { size: A4 portrait; margin: 9mm; } @media print { body * { visibility: hidden; } #lab-print-root, #lab-print-root * { visibility: visible; } #lab-print-root { position: absolute; top: 0; left: 0; right: 0; zoom: 0.78; } #lab-report-print { display: none !important; } }`}</style>
+      <style>{`@page { size: A4 portrait; margin: 9mm; } @media print { #root { display: none !important; } #lab-print-root { zoom: 0.78; } }`}</style>
 
       <div className="bg-white/[0.04] border border-white/10 rounded-xl p-6">
         <h3 className="text-lg font-black tracking-tight text-white mb-1">{t('title')}</h3>
