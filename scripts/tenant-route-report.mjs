@@ -19,7 +19,9 @@ function files(dir) {
 }
 
 function handlerFor(file, source) {
-  const match = source.match(/from\s+["']([^"']*handlers)["']/);
+  // Thin wrappers delegate to a sibling handlers/actions module that owns the
+  // tenant checks (e.g. procure [id]/* routes → requests/actions.ts).
+  const match = source.match(/from\s+["']([^"']*(?:handlers|actions))["']/);
   if (!match) return null;
   return path.resolve(path.dirname(file), match[1]);
 }

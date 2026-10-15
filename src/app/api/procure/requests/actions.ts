@@ -49,7 +49,7 @@ async function setStatus(
   const [updated] = await db
     .update(procureRequests)
     .set({ status: to, updatedAt: new Date(), ...extra })
-    .where(eq(procureRequests.id, id))
+    .where(and(eq(procureRequests.id, id), eq(procureRequests.tenantId, tenantId)))
     .returning();
   return { row: updated };
 }
@@ -194,7 +194,7 @@ async function decide(
       const q = await db
         .select()
         .from(procureQuotes)
-        .where(and(eq(procureQuotes.id, d.quoteId), eq(procureQuotes.requestId, id)));
+        .where(and(eq(procureQuotes.id, d.quoteId), eq(procureQuotes.requestId, id), eq(procureQuotes.tenantId, auth.user.tenantId)));
       if (q.length === 0) return errorResponse("QUOTE_NOT_FOUND", "Chosen quote not on this request", 404);
     }
     const r = await setStatus(auth.user.tenantId, id, from, toApprove, {
@@ -269,7 +269,7 @@ export async function receive(
         ...(qty !== null ? { receivedQty: String(qty) } : {}),
         ...(itemCode !== null ? { itemCode } : {}),
       })
-      .where(eq(procureRequests.id, id));
+      .where(and(eq(procureRequests.id, id), eq(procureRequests.tenantId, auth.user.tenantId)));
   }
   return successResponse(r.row, "تم الاستلام بالمخزن — أنشئ صنف المخزن والحركة ثم اطبع QR");
 }

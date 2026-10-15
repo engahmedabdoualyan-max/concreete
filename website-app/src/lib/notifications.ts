@@ -66,7 +66,7 @@ export async function sendOrderStatusEmail(order: {
 
   // If no email configured, just log
   if (!order.customerEmail) {
-    console.log(`[Email Notification] Order ${order.orderNo} → ${st.ar} for ${order.customerName}`);
+    console.debug(`[Email Notification] Order ${order.orderNo} → ${st.ar} for ${order.customerName}`);
     return false;
   }
 
@@ -89,7 +89,7 @@ export async function sendOrderStatusEmail(order: {
 مع خالص التحيات,
 فريق Fimto Soft`,
     });
-    console.log(`[Email Notification] Sent to ${order.customerEmail}`);
+    console.debug(`[Email Notification] Sent to ${order.customerEmail}`);
     return true;
   } catch (err) {
     console.warn('[Email Notification] Failed:', err);
