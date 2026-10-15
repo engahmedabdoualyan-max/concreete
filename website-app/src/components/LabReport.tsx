@@ -669,7 +669,7 @@ export default function LabReport({ recipes, username, plantName, onToast }: {
               <label className={labelCls}>{t('sLoad')}</label>
               <input type="number" step="0.1" value={s.load} onChange={e => setS(i, 'load', e.target.value)} placeholder="412.7" className={inputCls} style={s.load.trim() ? undefined : RED_IF_EMPTY} />
               <div className="mt-2"><label className={labelCls}>{t('sWeight')}</label>
-              <input type="number" value={s.weight} onChange={e => setW(i, e.target.value)} placeholder="12393" className={inputCls} /></div>
+              <input type="number" value={s.weight} onChange={e => setW(i, e.target.value)} placeholder="12393" className={inputCls} style={s.weight.trim() ? undefined : RED_IF_EMPTY} /></div>
               <p className="text-[11px] text-slate-400 mt-2" dir="ltr">
                 {rows[i].load > 0 ? `${f2(rows[i].mpa)} MPa · ${f2(rows[i].kg)} kg/cm²` : '—'}
               </p>
