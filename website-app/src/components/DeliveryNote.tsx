@@ -17,6 +17,7 @@ import { usePageDict, type PageDict } from '../i18n/pageDict';
 import { api } from '../api/client';
 import { loadCustomers, loadPlantProfile, loadInventory, saveInventory, loadDeliveryNotes, saveDeliveryNotes } from '../firebase/firestore';
 import { mergeByKey, pullCloud, pullObject, pushCloud } from '../lib/reportSync';
+import { normalizeWaNumber, sharePdf, sheetPdfBlob } from '../lib/sharePdf';
 import labEmblem from '../assets/lab-emblem.jpg';
 import labFooter from '../assets/lab-footer.jpg';
 
@@ -103,6 +104,10 @@ const DICT: PageDict = {
   none: { en: 'No saved notes yet.', ar: 'لا توجد مذكرات بعد.', ur: 'ابھی کچھ نہیں۔', ru: 'Пока пусто.', de: 'Noch keine.', it: 'Ancora nessuno.', hi: 'अभी कुछ नहीं।', ja: 'まだありません。', zh: '暂无。' },
   reprint: { en: 'View', ar: 'عرض', ur: 'دیکھیں', ru: 'Открыть', de: 'Ansehen', it: 'Vedi', hi: 'देखें', ja: '表示', zh: '查看' },
   sar: { en: 'SAR', ar: 'ر.س', ur: 'ریال', ru: 'SAR', de: 'SAR', it: 'SAR', hi: 'SAR', ja: 'SAR', zh: 'SAR' },
+  whatsapp: { en: '🟢 WhatsApp PDF', ar: '🟢 واتساب PDF', ur: '🟢 واٹس ایپ PDF', ru: '🟢 WhatsApp PDF', de: '🟢 WhatsApp PDF', it: '🟢 WhatsApp PDF', hi: '🟢 व्हाट्सऐप PDF', ja: '🟢 WhatsApp PDF', zh: '🟢 WhatsApp PDF' },
+  sharing: { en: '⏳ Preparing PDF…', ar: '⏳ جاري تجهيز PDF…', ur: '⏳ PDF تیار ہو رہا ہے…', ru: '⏳ Готовим PDF…', de: '⏳ PDF wird erstellt…', it: '⏳ Preparo PDF…', hi: '⏳ PDF तैयार हो रहा है…', ja: '⏳ PDF作成中…', zh: '⏳ 正在生成PDF…' },
+  sharedOk: { en: 'Shared successfully', ar: 'تمت المشاركة بنجاح', ur: 'کامیابی سے شیئر ہوا', ru: 'Отправлено', de: 'Geteilt', it: 'Condiviso', hi: 'साझा किया गया', ja: '共有しました', zh: '已分享' },
+  downloadedNote: { en: 'PDF downloaded — attach it in WhatsApp.', ar: 'نُزّل الملف — أرفقه في واتساب.', ur: 'PDF ڈاؤن لوڈ ہو گئی — واٹس ایپ میں منسلک کریں۔', ru: 'PDF загружен — прикрепите его в WhatsApp.', de: 'PDF geladen — in WhatsApp anhängen.', it: 'PDF scaricato — allegalo su WhatsApp.', hi: 'PDF डाउनलोड हो गई — WhatsApp में संलग्न करें।', ja: 'PDFを保存しました — WhatsAppに添付してください。', zh: 'PDF已下载 — 请在WhatsApp中添加附件。' },
   paperCompany: { en: 'Company paper', ar: 'ورق الشركة', ur: 'کمپنی پیپر', ru: 'Фирменный бланк', de: 'Firmenpapier', it: 'Carta intestata', hi: 'कंपनी पेपर', ja: '会社用紙', zh: '公司抬头纸' },
   paperPlain: { en: 'Plain paper', ar: 'ورق عادي', ur: 'سادہ کاغذ', ru: 'Обычная бумага', de: 'Normales Papier', it: 'Carta semplice', hi: 'सादा कागज', ja: '普通紙', zh: '普通纸' },
   order: { en: 'Sales order', ar: 'طلب المبيعات', ur: 'سیلز آرڈر', ru: 'Заказ', de: 'Auftrag', it: 'Ordine', hi: 'सेल्स ऑर्डर', ja: '受注', zh: '销售订单' },
@@ -275,6 +280,30 @@ export default function DeliveryNote({ trips, orders, username, plantName, onToa
   const [autoPost, setAutoPost] = useState(true);
   const [company, setCompany] = useState('');
   const [saved, setSaved] = useState<SavedDN[]>([]);
+  const [sharing, setSharing] = useState(false);
+
+  const doWhatsApp = async () => {
+    const p = buildPayload();
+    if (!p) { onToast(t('needClient')); return; }
+    const el = document.getElementById('dn-report-preview');
+    if (!el) { onToast(t('needClient')); return; }
+    setSharing(true);
+    try {
+      const blob = await sheetPdfBlob(el);
+      const text = `مذكرة ${p.ticket} — ${p.client} — ${p.mix} ${p.qty}m³ — ${p.grand.toFixed(2)} ر.س`;
+      const outcome = await sharePdf({
+        blob,
+        fileName: `${p.ticket}.pdf`,
+        text,
+        waNumber: normalizeWaNumber(phone),
+      });
+      onToast(outcome === 'shared' ? t('sharedOk') : t('downloadedNote'));
+    } catch {
+      onToast(t('needClient'));
+    } finally {
+      setSharing(false);
+    }
+  };
   const [viewIdx, setViewIdx] = useState<number | null>(null);
   const [paper, setPaper] = useState<'company' | 'plain'>('company');
   const [fleet, setFleet] = useState<Array<{ id: string; plate: string; driver: string }>>([]);
@@ -852,6 +881,7 @@ export default function DeliveryNote({ trips, orders, username, plantName, onToa
           <button onClick={doSave} className="bg-sky-500 hover:bg-sky-400 text-white font-bold px-5 py-2.5 rounded-lg text-sm">{t('save')}</button>
           <button onClick={() => { const p = buildPayload(); if (p) doExcel(p); else onToast(t('needClient')); }} className="bg-yellow-500/15 text-yellow-300 border border-yellow-500/40 hover:bg-yellow-500/25 px-5 py-2.5 rounded-lg font-bold text-sm">{t('excel')}</button>
           <button onClick={() => { const p = buildPayload(); if (p) setTimeout(() => window.print(), 60); else onToast(t('needClient')); }} className="bg-white/[0.05] text-slate-300 border border-white/10 hover:text-white px-5 py-2.5 rounded-lg font-bold text-sm">{t('print')}</button>
+          <button onClick={() => void doWhatsApp()} disabled={sharing} className="bg-emerald-500/15 text-emerald-300 border border-emerald-500/40 hover:bg-emerald-500/25 px-5 py-2.5 rounded-lg font-bold text-sm disabled:opacity-50">{sharing ? t('sharing') : t('whatsapp')}</button>
           <div className="flex rounded-lg overflow-hidden border border-white/10 text-xs font-bold">
             <button onClick={() => setPaper('company')} className={`px-3 py-2.5 ${paper === 'company' ? 'bg-sky-500/20 text-sky-300' : 'text-slate-400'}`}>{t('paperCompany')}</button>
             <button onClick={() => setPaper('plain')} className={`px-3 py-2.5 ${paper === 'plain' ? 'bg-sky-500/20 text-sky-300' : 'text-slate-400'}`}>{t('paperPlain')}</button>
