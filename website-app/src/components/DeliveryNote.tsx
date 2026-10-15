@@ -14,6 +14,7 @@ import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import * as XLSX from 'xlsx';
 import { usePageDict, type PageDict } from '../i18n/pageDict';
+import { api } from '../api/client';
 import { loadCustomers, loadPlantProfile } from '../firebase/firestore';
 import labHeader from '../assets/lab-header.jpg';
 import labFooter from '../assets/lab-footer.jpg';
@@ -37,6 +38,7 @@ export interface DNOrder {
   projectLocation: string;
   quantity: number;
   concreteType: string;
+  status?: string;
 }
 
 interface DNPayload {
@@ -58,6 +60,10 @@ interface DNPayload {
   driver: string;
   notes: string;
   company: string;
+  orderId: string;
+  departTime: string;
+  arriveTime: string;
+  posted: boolean;
 }
 interface SavedDN extends DNPayload {
   createdAt: string;
@@ -96,7 +102,40 @@ const DICT: PageDict = {
   none: { en: 'No saved notes yet.', ar: 'لا توجد مذكرات بعد.', ur: 'ابھی کچھ نہیں۔', ru: 'Пока пусто.', de: 'Noch keine.', it: 'Ancora nessuno.', hi: 'अभी कुछ नहीं।', ja: 'まだありません。', zh: '暂无。' },
   reprint: { en: 'View', ar: 'عرض', ur: 'دیکھیں', ru: 'Открыть', de: 'Ansehen', it: 'Vedi', hi: 'देखें', ja: '表示', zh: '查看' },
   sar: { en: 'SAR', ar: 'ر.س', ur: 'ریال', ru: 'SAR', de: 'SAR', it: 'SAR', hi: 'SAR', ja: 'SAR', zh: 'SAR' },
+  order: { en: 'Sales order', ar: 'طلب المبيعات', ur: 'سیلز آرڈر', ru: 'Заказ', de: 'Auftrag', it: 'Ordine', hi: 'सेल्स ऑर्डर', ja: '受注', zh: '销售订单' },
+  noOrder: { en: '— no link —', ar: '— بدون ربط —', ur: '— کوئی ربط نہیں —', ru: '— без связи —', de: '— keine —', it: '— nessuno —', hi: '— कोई नहीं —', ja: '— なし —', zh: '— 不关联 —' },
+  remaining: { en: 'Remaining', ar: 'المتبقي', ur: 'باقی', ru: 'Остаток', de: 'Rest', it: 'Rimanente', hi: 'शेष', ja: '残量', zh: '剩余' },
+  balanceTitle: { en: 'Client balances (orders − delivered)', ar: 'أرصدة العملاء (الطلبات − المسلم)', ur: 'کلائنٹ بیلنس', ru: 'Балансы клиентов', de: 'Kundensalden', it: 'Saldi clienti', hi: 'ग्राहक शेष', ja: '顧客残量', zh: '客户余额' },
+  driversTitle: { en: 'Driver & truck trips (for payroll)', ar: 'تربات السائقين والسيارات (للرواتب)', ur: 'ڈرائیور ٹرپس (تنخواہ کے لیے)', ru: 'Рейсы водителей', de: 'Fahrer-Touren', it: 'Viaggi autisti', hi: 'ड्राइवर ट्रिप', ja: '運転手配送回数', zh: '司机车次' },
+  exportDrivers: { en: '📊 Drivers sheet', ar: '📊 كشف التربات', ur: '📊 ڈرائیور شیٹ', ru: '📊 Ведомость', de: '📊 Übersicht', it: '📊 Prospetto', hi: '📊 शीट', ja: '📊 集計表', zh: '📊 明细表' },
+  tripsCol: { en: 'trips', ar: 'تربة', ur: 'ٹرپ', ru: 'рейсы', de: 'Touren', it: 'viaggi', hi: 'ट्रिप', ja: '回', zh: '车次' },
+  autoPost: { en: 'Post to accounts automatically', ar: 'ترحيل تلقائي للحسابات', ur: 'خودکار اکاؤنٹس اندراج', ru: 'Проводить в учёт', de: 'Auto in Buchhaltung', it: 'Registra in contabilità', hi: 'खातों में स्वतः दर्ज करें', ja: '会計へ自動転記', zh: '自动过账' },
+  postedOk: { en: 'posted', ar: 'مُرحّلة', ur: 'درج شدہ', ru: 'проведено', de: 'gebucht', it: 'registrato', hi: 'दर्ज', ja: '転記済', zh: '已过账' },
+  postedWait: { en: 'not posted', ar: 'غير مُرحّلة', ur: 'درج نہیں', ru: 'не проведено', de: 'offen', it: 'da registrare', hi: 'लंबित', ja: '未転記', zh: '未过账' },
+  departTime: { en: 'Loading time', ar: 'وقت التحميل', ur: 'لوڈنگ وقت', ru: 'Погрузка', de: 'Beladung', it: 'Carico', hi: 'लोडिंग समय', ja: '積込時刻', zh: '装车时间' },
+  arriveTime: { en: 'Arrival time', ar: 'وقت الوصول', ur: 'پہنچنے کا وقت', ru: 'Прибытие', de: 'Ankunft', it: 'Arrivo', hi: 'पहुंच समय', ja: '到着時刻', zh: '到达时间' },
+  durMin: { en: 'road', ar: 'الطريق', ur: 'راستہ', ru: 'в пути', de: 'Fahrt', it: 'viaggio', hi: 'रास्ता', ja: '走行', zh: '路途' },
 };
+
+// Demo clients collected from the operations/lab archives (booking sheets +
+// lab report filenames) — offered only until the real customer file arrives,
+// and only when no sales customers exist yet.
+const DEMO_CLIENTS = [
+  'ابو راكان فيصل الشمري', 'احمد مفرح غريب الحربي', 'البيوت الفاخرة جاسر زيد جاسر المطيري',
+  'البيوت الفاخرة', 'العماره', 'النيرة', 'بتيل ق102 حي الروضة جدوع عاصي عواد الجميلي',
+  'تقرير شباب', 'جدوع عاصي الجميلي', 'حمد عواد', 'خيرات العماره',
+  'سعود بن صالح بن زلفان المطيري', 'محمد حسن عبدالله دغريري', 'محمد خلوي بن خالد الشمري',
+  'ا / مدني ابراهيم', 'بدر مشعف المطرقة 3', 'برحة حنيفا', 'تركي خلف / فداع صياح طرجم',
+  'جمال غالي المطيري', 'حمد عواد الحريجي / عيد ربيع', 'حمدان سالم الشمري',
+  'خلف سعود خلف الزقعاني السهلي', 'راضي ابو عبدالله', 'رجب محمد عبدالقادر',
+  'سلطان ساير العنزي', 'شركة بناء التعليمية', 'طلال الداني / ساير عواد الحريجي',
+  'طلال الداني / كواكب', 'عبدالله محمد المنيعي النادر / الشروق', 'علي حسن الشمري',
+  'عوض عطا لله غضيبان الرخيمي المطيري', 'فهد فرحان العتيبي', 'فيصل محمد البزالي',
+  'مؤسسة سعود حمدان / ابو علي', 'مؤسسه شروق', 'محمد / ابو زياد', 'محمد الثواب',
+  'محمد عبدالله المنيع / الشروق', 'محمد علي هلال / المستودع', 'محمد مشعان',
+  'مسجد ابو تركي الخالدية', 'مشعل مضحي الحربي', 'مشعل نغيمش الشمري',
+  'مصنع مجال // الفاء', 'نايف محمد الثواب', 'نايل مسير نايل', 'نيو تاون اسبورت',
+];
 
 const RED_IF_EMPTY: CSSProperties = { borderColor: 'rgba(239,68,68,.75)', background: 'rgba(239,68,68,.07)' };
 const nowTime = () => {
@@ -131,6 +170,8 @@ function DNSheet({ p }: { p: DNPayload }) {
         <SheetRow label="SITE">{p.site || '—'}</SheetRow>
         <SheetRow label="TRUCK">{p.truck || '—'}</SheetRow>
         <SheetRow label="DRIVER">{p.driver || '—'}</SheetRow>
+        <SheetRow label="ORDER">{p.orderId || '—'}</SheetRow>
+        <SheetRow label="LOAD / ARRIVE">{p.departTime || '—'} → {p.arriveTime || '—'}</SheetRow>
       </div>
       <table className="w-full text-[10.5px] mt-2 border-collapse" dir="ltr">
         <thead>
@@ -190,6 +231,10 @@ export default function DeliveryNote({ trips, orders, username, plantName, onToa
   const [truck, setTruck] = useState('');
   const [driver, setDriver] = useState('');
   const [notes, setNotes] = useState('');
+  const [orderId, setOrderId] = useState('');
+  const [departTime, setDepartTime] = useState('');
+  const [arriveTime, setArriveTime] = useState('');
+  const [autoPost, setAutoPost] = useState(true);
   const [company, setCompany] = useState('');
   const [saved, setSaved] = useState<SavedDN[]>([]);
   const [viewIdx, setViewIdx] = useState<number | null>(null);
@@ -224,6 +269,103 @@ export default function DeliveryNote({ trips, orders, username, plantName, onToa
     return () => { alive = false; };
   }, [username]);
 
+  // ---- Schedule linkage: delivered vs remaining per order & client ----
+  const norm = (s: unknown) => String(s ?? '').trim();
+  const deliveredByOrder: Record<string, number> = {};
+  const deliveredByClient: Record<string, number> = {};
+  for (const n of saved) {
+    if (n.orderId) deliveredByOrder[n.orderId] = (deliveredByOrder[n.orderId] ?? 0) + (Number(n.qty) || 0);
+    const cn = norm(n.client);
+    if (cn) deliveredByClient[cn] = (deliveredByClient[cn] ?? 0) + (Number(n.qty) || 0);
+  }
+  const liveOrders = orders.filter(o => String(o.status ?? '') !== 'cancelled');
+  const orderRemaining = (o: DNOrder): number => {
+    const key = String(o.id);
+    const ordered = Number(o.quantity) || 0;
+    return Math.max(0, ordered - (deliveredByOrder[key] ?? 0));
+  };
+  const clientBalances = (() => {
+    const ordered = new Map<string, number>();
+    for (const o of liveOrders) {
+      const cn = norm(o.customerName);
+      if (!cn) continue;
+      ordered.set(cn, (ordered.get(cn) ?? 0) + (Number(o.quantity) || 0));
+    }
+    return [...ordered.entries()]
+      .map(([client, ord]) => ({ client, ordered: ord, delivered: deliveredByClient[client] ?? 0, remaining: Math.max(0, ord - (deliveredByClient[client] ?? 0)) }))
+      .sort((a, b) => b.remaining - a.remaining);
+  })();
+
+  const pickOrder = (id: string) => {
+    setOrderId(id);
+    if (!id) return;
+    const o = orders.find(x => String(x.id) === id);
+    if (!o) return;
+    setClient(norm(o.customerName));
+    setPhone(norm(o.customerPhone));
+    if (o.projectName) setProject(String(o.projectName));
+    if (o.projectLocation) setSite(String(o.projectLocation));
+    const rem = orderRemaining(o);
+    if (rem > 0) setQty(String(rem));
+    else if (Number(o.quantity) > 0) setQty(String(o.quantity));
+    const mc = /C\s*(\d+)/i.exec(String(o.concreteType ?? ''));
+    if (mc) setMix(prev => (prev ? prev : `C${mc[1]}`));
+  };
+
+  const pickClient = (name: string) => {
+    setClient(name);
+    const o = orders.find(x => norm(x.customerName) === norm(name));
+    if (o) {
+      if (o.customerPhone) setPhone(String(o.customerPhone));
+      if (o.projectLocation) setSite(prev => (prev.trim() ? prev : String(o.projectLocation)));
+    }
+  };
+
+  // ---- Driver & truck trips (HR payroll statement) ----
+  const toMins = (hhmm: string): number | null => {
+    const m = /^(\d{1,2}):(\d{2})/.exec(hhmm || '');
+    if (!m) return null;
+    return Number(m[1]) * 60 + Number(m[2]);
+  };
+  const durBetween = (a: string, b: string): number | null => {
+    const x = toMins(a), y = toMins(b);
+    if (x === null || y === null) return null;
+    let d = y - x;
+    if (d < 0) d += 24 * 60;
+    return d;
+  };
+  const noteKey = (n: SavedDN) => `${n.date} ${n.departTime || n.time || '00:00'}`;
+  const driverStats = (() => {
+    const map = new Map<string, { trips: number; m3: number; trucks: Set<string> }>();
+    for (const n of saved) {
+      const d = norm(n.driver) || '—';
+      const e = map.get(d) ?? { trips: 0, m3: 0, trucks: new Set<string>() };
+      e.trips += 1;
+      e.m3 += Number(n.qty) || 0;
+      if (norm(n.truck)) e.trucks.add(norm(n.truck));
+      map.set(d, e);
+    }
+    return [...map.entries()].map(([driver, v]) => ({ driver, ...v, trucks: [...v.trucks].join('، ') }));
+  })();
+  const truckStats = (() => {
+    const map = new Map<string, SavedDN[]>();
+    for (const n of saved) {
+      const k = norm(n.truck) || '—';
+      if (!map.has(k)) map.set(k, []);
+      map.get(k)!.push(n);
+    }
+    return [...map.entries()].map(([truck, list]) => {
+      const sorted = [...list].sort((a, b) => (noteKey(a) < noteKey(b) ? -1 : 1));
+      const gaps: number[] = [];
+      for (let i = 1; i < sorted.length; i++) {
+        const g = durBetween(sorted[i - 1].departTime || sorted[i - 1].time, sorted[i].departTime || sorted[i].time);
+        if (g !== null && sorted[i - 1].date === sorted[i].date) gaps.push(g);
+      }
+      const m3 = list.reduce((a, n) => a + (Number(n.qty) || 0), 0);
+      return { truck, trips: list.length, m3, avgGap: gaps.length ? Math.round(gaps.reduce((a, g) => a + g, 0) / gaps.length) : null };
+    });
+  })();
+
   const pickTrip = (id: string) => {
     setTripId(id);
     if (id === 'manual') return;
@@ -236,6 +378,7 @@ export default function DeliveryNote({ trips, orders, username, plantName, onToa
     if (tr.projectName) setProject(String(tr.projectName));
     const ord = orders.find(o => String(o.id) === String(tr.orderId ?? '') || (tr.orderId && String(o.orderNo) === String(tr.orderId)));
     if (ord) {
+      setOrderId(String(ord.id));
       setClient(String(ord.customerName ?? ''));
       setPhone(String(ord.customerPhone ?? ''));
       if (!site) setSite(String(ord.projectLocation ?? ''));
@@ -259,6 +402,48 @@ export default function DeliveryNote({ trips, orders, username, plantName, onToa
     }
   };
 
+  // Client options: sales orders first, archive filenames as demo fallback.
+  const dnClientNames = (() => {
+    const fromOrders = liveOrders.map(o => norm(o.customerName)).filter(Boolean);
+    return [...new Set(fromOrders)].length ? [...new Set(fromOrders)] : DEMO_CLIENTS;
+  })();
+
+  const durOf = (n: SavedDN): number | null => durBetween(n.departTime, n.arriveTime);
+  const gapByTicket = (() => {
+    const byTruck = new Map<string, SavedDN[]>();
+    for (const n of saved) {
+      const k = norm(n.truck);
+      if (!k) continue;
+      if (!byTruck.has(k)) byTruck.set(k, []);
+      byTruck.get(k)!.push(n);
+    }
+    const out = new Map<string, number>();
+    for (const list of byTruck.values()) {
+      const sorted = [...list].sort((a, b) => (noteKey(a) < noteKey(b) ? -1 : 1));
+      for (let i = 1; i < sorted.length; i++) {
+        if (sorted[i].date !== sorted[i - 1].date) continue;
+        const g = durBetween(sorted[i - 1].departTime || sorted[i - 1].time, sorted[i].departTime || sorted[i].time);
+        if (g !== null) out.set(sorted[i].ticket, g);
+      }
+    }
+    return out;
+  })();
+
+  const doDriversExcel = () => {
+    const aoa: unknown[][] = [
+      ['Driver & truck trips (HR payroll statement)', '', '', ''],
+      ['Driver', 'Trips', 'm³', 'Trucks'],
+      ...driverStats.map(d => [d.driver, d.trips, d.m3, d.trucks]),
+      [],
+      ['Truck', 'Trips', 'm³', 'Avg gap min'],
+      ...truckStats.map(s => [s.truck, s.trips, s.m3, s.avgGap ?? '—']),
+    ];
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    ws['!cols'] = [{ wch: 24 }, { wch: 10 }, { wch: 12 }, { wch: 26 }];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Trips');
+    XLSX.writeFile(wb, `driver-trips-${todayISO()}.xlsx`);
+  };
   const q = Number(qty), pr = Number(price), vr = Number(vatRate) || 0;
   const sub = Number.isFinite(q) && Number.isFinite(pr) ? q * pr : 0;
   const vat = (sub * vr) / 100;
@@ -277,6 +462,8 @@ export default function DeliveryNote({ trips, orders, username, plantName, onToa
       qty: q, price: pr, vatRate: vr, sub, vat, grand,
       truck: truck.trim(), driver: driver.trim(), notes: notes.trim(),
       company: company || plantName,
+      orderId, departTime: departTime.trim(), arriveTime: arriveTime.trim(),
+      posted: false,
     };
   };
 
@@ -285,11 +472,28 @@ export default function DeliveryNote({ trips, orders, username, plantName, onToa
     try { localStorage.setItem('deliveryNotes', JSON.stringify(list)); } catch {}
   };
 
-  const doSave = () => {
+  const doSave = async () => {
     if (!client.trim()) { onToast(t('needClient')); return; }
     if (!(pr > 0)) { onToast(t('needPrice')); return; }
     const p = buildPayload();
     if (!p) { onToast(t('needClient')); return; }
+    // Auto-post to accounts (single entry — never double-posts: one ticket = one entry).
+    if (autoPost) {
+      try {
+        await api.post('/api/finance/ledger/entries', {
+          date: new Date().toISOString(),
+          description: `Delivery ${p.ticket} — ${p.client} (${p.mix} ${p.qty}m³)`,
+          amountSar: Math.round(p.grand * 100),
+          transactionType: 'sale',
+          referenceNumber: p.ticket,
+          counterpartyType: 'client',
+          counterpartyName: p.client,
+        });
+        p.posted = true;
+      } catch {
+        p.posted = false;
+      }
+    }
     try {
       localStorage.setItem('dnSeq', String(Number(localStorage.getItem('dnSeq') ?? '0') + 1));
       const mem = priceMemory();
@@ -306,9 +510,11 @@ export default function DeliveryNote({ trips, orders, username, plantName, onToa
       [p.company],
       ['DELIVERY NOTE'],
       ['Ticket No', p.ticket, '', 'Date', `${p.date} ${p.time}`],
+      ['Order', p.orderId || '—', '', 'Posted', p.posted ? 'yes' : 'no'],
       ['Client', p.client, '', 'Phone', p.phone],
       ['Project', p.project, '', 'Site', p.site],
       ['Truck', p.truck, '', 'Driver', p.driver],
+      ['Loading', p.departTime || '—', 'Arrival', p.arriveTime || '—'],
       [],
       ['MIX', 'QTY m³', 'PRICE SAR', 'TOTAL SAR'],
       [p.mix, p.qty, p.price, Number(p.sub.toFixed(2))],
@@ -352,7 +558,19 @@ export default function DeliveryNote({ trips, orders, username, plantName, onToa
           </div>
           <div>
             <label className={labelCls}>{t('client')}</label>
-            <input value={client} onChange={e => setClient(e.target.value)} className={inputCls} style={client.trim() ? undefined : RED_IF_EMPTY} />
+            <input value={client} onChange={e => pickClient(e.target.value)} list="dn-clients" className={inputCls} style={client.trim() ? undefined : RED_IF_EMPTY} />
+            <datalist id="dn-clients">{dnClientNames.map(c => <option key={c} value={c} />)}</datalist>
+          </div>
+          <div>
+            <label className={labelCls}>{t('order')}</label>
+            <select value={orderId} onChange={e => pickOrder(e.target.value)} className={inputCls}>
+              <option value="" className="bg-slate-900">{t('noOrder')}</option>
+              {liveOrders.map(o => (
+                <option key={String(o.id)} value={String(o.id)} className="bg-slate-900">
+                  {String(o.orderNo ?? o.id)} · {String(o.customerName ?? '')} · {t('remaining')} {orderRemaining(o)}m³
+                </option>
+              ))}
+            </select>
           </div>
           <div>
             <label className={labelCls}>{t('phone')}</label>
@@ -397,6 +615,20 @@ export default function DeliveryNote({ trips, orders, username, plantName, onToa
             <label className={labelCls}>{t('driver')}</label>
             <input value={driver} onChange={e => setDriver(e.target.value)} className={inputCls} />
           </div>
+          <div>
+            <label className={labelCls}>{t('departTime')}</label>
+            <input type="time" value={departTime} onChange={e => setDepartTime(e.target.value)} className={inputCls} />
+          </div>
+          <div>
+            <label className={labelCls}>{t('arriveTime')}</label>
+            <input type="time" value={arriveTime} onChange={e => setArriveTime(e.target.value)} className={inputCls} />
+          </div>
+          <div className="flex items-end pb-1">
+            <label className="flex items-center gap-2 text-xs text-slate-300 font-bold cursor-pointer">
+              <input type="checkbox" checked={autoPost} onChange={e => setAutoPost(e.target.checked)} className="w-4 h-4 accent-sky-500" />
+              {t('autoPost')}
+            </label>
+          </div>
           <div className="md:col-span-3">
             <label className={labelCls}>{t('notes')}</label>
             <input value={notes} onChange={e => setNotes(e.target.value)} className={inputCls} />
@@ -413,6 +645,22 @@ export default function DeliveryNote({ trips, orders, username, plantName, onToa
           <button onClick={() => { const p = buildPayload(); if (p) setTimeout(() => window.print(), 60); else onToast(t('needClient')); }} className="bg-white/[0.05] text-slate-300 border border-white/10 hover:text-white px-5 py-2.5 rounded-lg font-bold text-sm">{t('print')}</button>
         </div>
       </div>
+
+      {clientBalances.length > 0 && (
+        <div className="bg-white/[0.04] border border-white/10 rounded-xl p-6">
+          <h3 className="text-sm font-black tracking-tight text-white mb-3">{t('balanceTitle')}</h3>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2">
+            {clientBalances.slice(0, 9).map(b => (
+              <div key={b.client} className="flex items-center justify-between gap-2 bg-white/[0.02] rounded-lg px-3 py-2 border border-white/10 text-xs">
+                <span className="text-slate-300 truncate">{b.client}</span>
+                <span className={`font-black shrink-0 ${b.remaining > 0 ? 'text-amber-300' : 'text-emerald-400'}`} dir="ltr">
+                  {b.remaining}m³ / {b.ordered}m³
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {viewing && (
         <div className="bg-white/[0.04] border border-white/10 rounded-xl p-6">
@@ -435,6 +683,13 @@ export default function DeliveryNote({ trips, orders, username, plantName, onToa
                 <div className="min-w-0">
                   <p className="font-bold text-white text-sm" dir="ltr">🧾 {r.ticket}</p>
                   <p className="text-[11px] text-slate-500">{r.client} · {r.mix} · <span dir="ltr">{r.qty}m³ · {f2(r.grand)} {t('sar')}</span></p>
+                  <p className="text-[11px] text-slate-500">
+                    <span className={r.posted ? 'text-emerald-400' : 'text-amber-300'}>● {r.posted ? t('postedOk') : t('postedWait')}</span>
+                    {(r.departTime || r.arriveTime) && (
+                      <> · <span dir="ltr">{r.departTime || '—'}→{r.arriveTime || '—'}</span> ({durOf(r) ?? '—'} {t('durMin')})</>
+                    )}
+                    {gapByTicket.get(r.ticket) != null && <> · ⏱️ +{gapByTicket.get(r.ticket)}m</>}
+                  </p>
                 </div>
                 <div className="flex gap-2 shrink-0">
                   <button onClick={() => setViewIdx(i)} className="bg-white/[0.05] text-slate-300 text-xs px-3 py-1.5 rounded-lg font-bold border border-white/10 hover:text-sky-300">{t('reprint')}</button>
@@ -445,6 +700,33 @@ export default function DeliveryNote({ trips, orders, username, plantName, onToa
           </div>
         )}
       </div>
+
+      {(driverStats.length > 0 || truckStats.length > 0) && (
+        <div className="bg-white/[0.04] border border-white/10 rounded-xl p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-black tracking-tight text-white">{t('driversTitle')}</h3>
+            <button onClick={doDriversExcel} className="bg-yellow-500/15 text-yellow-300 border border-yellow-500/40 hover:bg-yellow-500/25 px-4 py-2 rounded-lg font-bold text-xs">{t('exportDrivers')}</button>
+          </div>
+          <div className="grid md:grid-cols-2 gap-4">
+            <div>
+              {driverStats.map(d => (
+                <div key={d.driver} className="flex items-center justify-between gap-2 bg-white/[0.02] rounded-lg px-3 py-2 border border-white/10 text-xs mb-1.5">
+                  <span className="text-slate-200 font-bold truncate">{d.driver}</span>
+                  <span className="text-slate-400 shrink-0" dir="ltr">{d.trips} {t('tripsCol')} · {d.m3}m³</span>
+                </div>
+              ))}
+            </div>
+            <div>
+              {truckStats.map(s => (
+                <div key={s.truck} className="flex items-center justify-between gap-2 bg-white/[0.02] rounded-lg px-3 py-2 border border-white/10 text-xs mb-1.5">
+                  <span className="text-slate-200 font-bold truncate" dir="ltr">{s.truck}</span>
+                  <span className="text-slate-400 shrink-0" dir="ltr">{s.trips} {t('tripsCol')} · {s.m3}m³{s.avgGap !== null ? ` · ⏱️${s.avgGap}m` : ''}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
