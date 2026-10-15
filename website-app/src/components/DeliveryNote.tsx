@@ -745,7 +745,7 @@ export default function DeliveryNote({ trips, orders, username, plantName, onToa
 
   return (
     <div className="space-y-6">
-      <style>{`@page { size: A4 portrait; margin: 9mm; } @media print { #root { display: none !important; } #dn-print-root { display: block !important; zoom: 0.85; } }`}</style>
+      <style>{`@page { size: A4 portrait; margin: 9mm; } @media print { #root { display: none !important; } #dn-print-root { display: block !important; visibility: visible !important; zoom: 0.85; } #dn-print-root * { visibility: visible !important; } }`}</style>
 
       <div className="bg-white/[0.04] border border-white/10 rounded-xl p-6">
         <h3 className="text-lg font-black tracking-tight text-white mb-1">{t('title')}</h3>
