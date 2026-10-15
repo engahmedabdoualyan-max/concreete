@@ -367,7 +367,7 @@ export default function MixingQuality() {
           <BrandLogo width={56} />
           <Link to="/" className="text-slate-400 text-xs border border-white/10 px-2 py-1 rounded hover:text-white">← Dashboard</Link>
           <QuickJump /> <LangSelector />
-          <h1 className="text-sm font-black tracking-tight text-white">🧪 المختبر · Lab</h1>
+          <h1 className="text-sm font-black tracking-tight text-white">{L('mqPageTitle')}</h1>
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <NotificationsBell />
@@ -379,12 +379,12 @@ export default function MixingQuality() {
       {/* Tabs */}
       <div className="grid grid-cols-3 gap-2 p-4 max-w-6xl mx-auto">
         {[
-          { id: 'recipes', label: '📋 Recipes', icon: '📋' },
-          { id: 'calibration', label: '⚖️ Calibration', icon: '⚖️' },
-          { id: 'mixDesigner', label: '🧮 Mix Designer', icon: '🧮' },
-          { id: 'quality', label: '🔬 Quality Control', icon: '🔬' },
-          { id: 'aiPredictor', label: '🤖 AI Predictor', icon: '🤖' },
-          { id: 'labReports', label: '🧪 تقارير المختبر', icon: '🧪' },
+          { id: 'recipes', label: L('mqTabRecipes'), icon: '📋' },
+          { id: 'calibration', label: L('mqTabCalibration'), icon: '⚖️' },
+          { id: 'mixDesigner', label: L('mqTabDesigner'), icon: '🧮' },
+          { id: 'quality', label: L('mqTabQuality'), icon: '🔬' },
+          { id: 'aiPredictor', label: L('mqTabAi'), icon: '🤖' },
+          { id: 'labReports', label: L('mqTabReports'), icon: '🧪' },
         ].map(t => (
           <button key={t.id} onClick={() => setTab(t.id as Tab)} className={`py-2 px-4 rounded-lg font-bold text-sm transition ${tab === t.id ? 'bg-sky-500/15 text-sky-300 border border-sky-500/40' : 'bg-white/[0.03] text-slate-400 border border-white/10 hover:text-sky-300 hover:bg-white/[0.06]'}`}>
             {t.label}

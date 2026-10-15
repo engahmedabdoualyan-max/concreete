@@ -20,7 +20,7 @@ import { createPortal } from 'react-dom';
 import labEmblem from '../assets/lab-emblem.jpg';
 import labFooter from '../assets/lab-footer.jpg';
 import * as XLSX from 'xlsx';
-import { useLang } from '../context/LangContext';
+import { usePageDict, type PageDict } from '../i18n/pageDict';
 import { loadCustomers, loadPlantProfile } from '../firebase/firestore';
 
 export interface LabRecipe {
@@ -85,51 +85,61 @@ const AREA_DIV = 17.6625; // kN → MPa for Ø150 cylinder (paper: Area 176.625 
 const VOL = 5301.44; // cm³
 const KG = 10.19716; // MPa → kg/cm²
 
-const STR: Record<string, { en: string; ar: string; ur: string }> = {
-  title: { en: '🧪 Lab test report', ar: '🧪 التقرير الفني للمختبر', ur: '🧪 لیب ٹیسٹ رپورٹ' },
+export function useLabDict() {
+  return usePageDict(DICT);
+}
+
+const DICT: PageDict = {
+  title: { en: '🧪 Lab test report', ar: '🧪 التقرير الفني للمختبر', ur: '🧪 لیب ٹیسٹ رپورٹ', ru: '🧪 Протокол испытаний', de: '🧪 Laborprüfbericht', it: '🧪 Rapporto di prova', hi: '🧪 लैब टेस्ट रिपोर्ट', ja: '🧪 試験報告書', zh: '🧪 试验报告' },
   subtitle: {
     en: 'Pick the mix and the client, enter 3 crushing loads — the rest is automatic.',
     ar: 'اختر الخلطة والعميل وأدخل نتائج التكسيير الثلاث — والباقي تلقائي.',
     ur: 'مکس اور کلائنٹ منتخب کریں، 3 کرشنگ لوڈ درج کریں — باقی خودکار ہے۔',
+    ru: 'Выберите смесь и клиента, введите 3 нагрузки — остальное автоматически.',
+    de: 'Mischung und Kunden wählen, 3 Bruchlasten eingeben — der Rest ist automatisch.',
+    it: 'Scegli miscela e cliente, inserisci 3 carichi — il resto è automatico.',
+    hi: 'मिक्स और ग्राहक चुनें, 3 क्रशिंग लोड दर्ज करें — बाकी स्वचालित है।',
+    ja: '配合と顧客を選び、3つの圧縮荷重を入力 — 残りは自動です。',
+    zh: '选择配合比和客户，输入3个抗压荷载 — 其余自动完成。',
   },
-  mix: { en: 'Concrete mix', ar: 'الخلطة الخرسانية', ur: 'کنکریٹ مکس' },
-  client: { en: 'Client (pick or type)', ar: 'العميل (اختر أو اكتب)', ur: 'کلائنٹ (منتخب یا لکھیں)' },
-  project: { en: 'Project', ar: 'المشروع', ur: 'پروجیکٹ' },
-  location: { en: 'Location', ar: 'الموقع', ur: 'مقام' },
-  element: { en: 'Element type', ar: 'نوع العنصر', ur: 'عنصر کی قسم' },
-  supplier: { en: 'Concrete supplier', ar: 'مورد الخرسانة', ur: 'کنکریٹ فراہم کنندہ' },
-  mixType: { en: 'Cement type', ar: 'نوع الأسمنت', ur: 'سیمنٹ کی قسم' },
-  casting: { en: 'Casting date', ar: 'تاريخ الصب', ur: 'کاسٹنگ کی تاریخ' },
-  tested: { en: 'Test date', ar: 'تاريخ الاختبار', ur: 'ٹیسٹ کی تاریخ' },
-  exp7: { en: 'Required 7-day (MPa)', ar: 'المطلوب بعد 7 أيام (MPa)', ur: 'مطلوبہ 7 دن (MPa)' },
-  exp28: { en: 'Required 28-day (MPa)', ar: 'المطلوب بعد 28 يوم (MPa)', ur: 'مطلوبہ 28 دن (MPa)' },
-  sLoad: { en: 'Load (kN)', ar: 'الحمل (kN)', ur: 'لوڈ (kN)' },
-  sWeight: { en: 'Weight (g)', ar: 'الوزن (جم)', ur: 'وزن (g)' },
-  slump: { en: 'Slump (mm)', ar: 'الهبوط (مم)', ur: 'سلンプ (mm)' },
-  tempC: { en: 'Concrete temp (°C)', ar: 'حرارة الخرسانة (°م)', ur: 'کنکریٹ درجہ حرارت (°C)' },
-  airTemp: { en: 'Air temp (°C)', ar: 'حرارة الجو (°م)', ur: 'ہوا کا درجہ حرارت (°C)' },
-  jobNo: { en: 'Job No', ar: 'رقم الأمر', ur: 'جاب نمبر' },
-  cementContent: { en: 'Cement content', ar: 'محتوى الأسمنت', ur: 'سیمنٹ کی مقدار' },
-  remarks: { en: 'Remarks', ar: 'ملاحظات', ur: 'ریمارکس' },
-  testedBy: { en: 'Tested by', ar: 'أجرى الاختبار', ur: 'ٹیسٹ کنندہ' },
-  save: { en: '💾 Save report', ar: '💾 حفظ التقرير', ur: '💾 رپورٹ محفوظ کریں' },
-  saved: { en: 'Report saved', ar: 'تم حفظ التقرير', ur: 'رپورٹ محفوظ ہو گئی' },
-  needLoads: { en: 'Enter at least one crushing load first.', ar: 'أدخل حمل تكسيير واحداً على الأقل أولاً.', ur: 'پہلے کم از کم ایک کرشنگ لوڈ درج کریں۔' },
-  needCasting: { en: 'Enter the casting date first.', ar: 'أدخل تاريخ الصب أولاً.', ur: 'پہلے کاسٹنگ کی تاریخ درج کریں۔' },
-  tempCapped: { en: 'Concrete temp capped at 30°C (code limit 32, ice in use).', ar: 'تم تثبيت حرارة الخلطة عند 30° (حد الكود 32 — نستخدم ثلج).', ur: 'کنکریٹ درجہ حرارت 30°C پر محدود (کوڈ حد 32، برف استعمال ہوتی ہے)۔' },
-  autoW: { en: 'Empty weights auto-fill from A1 (editable).', ar: 'الأوزان الفارغة تُملأ تلقائياً من A1 (قابلة للتعديل).', ur: 'خالی وزن A1 سے خودکار (قابل ترمیم)۔' },
-  preview: { en: 'Report preview', ar: 'معاينة التقرير', ur: 'رپورٹ کا پیش نظارہ' },
-  print: { en: '🖨️ Print / PDF', ar: '🖨️ طباعة / PDF', ur: '🖨️ پرنٹ / PDF' },
-  excel: { en: '📊 Excel', ar: '📊 إكسل', ur: '📊 ایکسل' },
-  history: { en: 'Saved reports', ar: 'التقارير المحفوظة', ur: 'محفوظ رپورٹس' },
-  none: { en: 'No saved reports yet.', ar: 'لا توجد تقارير محفوظة بعد.', ur: 'ابھی کوئی محفوظ رپورٹ نہیں۔' },
-  reprint: { en: 'View', ar: 'عرض', ur: 'دیکھیں' },
-  pass: { en: '✅ PASS', ar: '✅ ناجح', ur: '✅ کامیاب' },
-  fail: { en: '❌ FAIL — review', ar: '❌ راسب — يحتاج مراجعة', ur: '❌ ناکام — جائزہ لیں' },
-  age: { en: 'Age', ar: 'العمر', ur: 'عمر' },
-  days: { en: 'days', ar: 'يوم', ur: 'دن' },
-  avg: { en: 'Average', ar: 'المتوسط', ur: 'اوسط' },
-  ofRequired: { en: 'of required', ar: 'من المطلوب', ur: 'مطلوبہ کا' },
+  mix: { en: 'Concrete mix', ar: 'الخلطة الخرسانية', ur: 'کنکریٹ مکس', ru: 'Бетонная смесь', de: 'Betonmischung', it: 'Miscela', hi: 'कंक्रीट मिक्स', ja: 'コンクリート配合', zh: '混凝土配合比' },
+  client: { en: 'Client (pick or type)', ar: 'العميل (اختر أو اكتب)', ur: 'کلائنٹ (منتخب یا لکھیں)', ru: 'Клиент (выберите или введите)', de: 'Kunde (wählen oder tippen)', it: 'Cliente (scegli o digita)', hi: 'ग्राहक (चुनें या लिखें)', ja: '顧客（選択または入力）', zh: '客户（选择或输入）' },
+  project: { en: 'Project', ar: 'المشروع', ur: 'پروجیکٹ', ru: 'Проект', de: 'Projekt', it: 'Progetto', hi: 'परियोजना', ja: 'プロジェクト', zh: '项目' },
+  location: { en: 'Location', ar: 'الموقع', ur: 'مقام', ru: 'Объект', de: 'Standort', it: 'Luogo', hi: 'स्थान', ja: '場所', zh: '地点' },
+  element: { en: 'Element type', ar: 'نوع العنصر', ur: 'عنصر کی قسم', ru: 'Тип элемента', de: 'Bauteiltyp', it: 'Tipo elemento', hi: 'अवयव प्रकार', ja: '部材種別', zh: '构件类型' },
+  supplier: { en: 'Concrete supplier', ar: 'مورد الخرسانة', ur: 'کنکریٹ فراہم کنندہ', ru: 'Поставщик бетона', de: 'Betonlieferant', it: 'Fornitore calcestruzzo', hi: 'कंक्रीट आपूर्तिकर्ता', ja: 'コンクリート供給者', zh: '混凝土供应商' },
+  mixType: { en: 'Cement type', ar: 'نوع الأسمنت', ur: 'سیمنٹ کی قسم', ru: 'Тип цемента', de: 'Zementtyp', it: 'Tipo cemento', hi: 'सीमेंट प्रकार', ja: 'セメント種類', zh: '水泥类型' },
+  casting: { en: 'Casting date', ar: 'تاريخ الصب', ur: 'کاسٹنگ کی تاریخ', ru: 'Дата заливки', de: 'Betonierdatum', it: 'Data getto', hi: 'कास्टिंग तिथि', ja: '打設日', zh: '浇筑日期' },
+  tested: { en: 'Test date', ar: 'تاريخ الاختبار', ur: 'ٹیسٹ کی تاریخ', ru: 'Дата испытания', de: 'Prüfdatum', it: 'Data prova', hi: 'परीक्षण तिथि', ja: '試験日', zh: '试验日期' },
+  exp7: { en: 'Required 7-day (MPa)', ar: 'المطلوب بعد 7 أيام (MPa)', ur: 'مطلوبہ 7 دن (MPa)', ru: 'Норма 7 сут (МПа)', de: 'Soll 7 Tage (MPa)', it: 'Richiesto 7 gg (MPa)', hi: 'आवश्यक 7-दिन (MPa)', ja: '7日要求値 (MPa)', zh: '7天要求值 (MPa)' },
+  exp28: { en: 'Required 28-day (MPa)', ar: 'المطلوب بعد 28 يوم (MPa)', ur: 'مطلوبہ 28 دن (MPa)', ru: 'Норма 28 сут (МПа)', de: 'Soll 28 Tage (MPa)', it: 'Richiesto 28 gg (MPa)', hi: 'आवश्यक 28-दिन (MPa)', ja: '28日要求値 (MPa)', zh: '28天要求值 (MPa)' },
+  sLoad: { en: 'Load (kN)', ar: 'الحمل (kN)', ur: 'لوڈ (kN)', ru: 'Нагрузка (кН)', de: 'Last (kN)', it: 'Carico (kN)', hi: 'लोड (kN)', ja: '荷重 (kN)', zh: '荷载 (kN)' },
+  sWeight: { en: 'Weight (g)', ar: 'الوزن (جم)', ur: 'وزن (g)', ru: 'Масса (г)', de: 'Gewicht (g)', it: 'Peso (g)', hi: 'वजन (g)', ja: '質量 (g)', zh: '重量 (g)' },
+  slump: { en: 'Slump (mm)', ar: 'الهبوط (مم)', ur: 'سلンプ (mm)', ru: 'Осадка (мм)', de: 'Setzmaß (mm)', it: 'Slump (mm)', hi: 'स्लंप (mm)', ja: 'スランプ (mm)', zh: '坍落度 (mm)' },
+  tempC: { en: 'Concrete temp (°C)', ar: 'حرارة الخرسانة (°م)', ur: 'کنکریٹ درجہ حرارت (°C)', ru: 'Температура бетона (°C)', de: 'Betontemperatur (°C)', it: 'Temp. calcestruzzo (°C)', hi: 'कंक्रीट तापमान (°C)', ja: 'コンクリート温度 (°C)', zh: '混凝土温度 (°C)' },
+  airTemp: { en: 'Air temp (°C)', ar: 'حرارة الجو (°م)', ur: 'ہوا کا درجہ حرارت (°C)', ru: 'Температура воздуха (°C)', de: 'Lufttemperatur (°C)', it: 'Temp. aria (°C)', hi: 'हवा तापमान (°C)', ja: '気温 (°C)', zh: '气温 (°C)' },
+  jobNo: { en: 'Job No', ar: 'رقم الأمر', ur: 'جاب نمبر', ru: 'Заказ №', de: 'Auftrag Nr.', it: 'Ordine n.', hi: 'जॉब नं.', ja: '作業No', zh: '任务单号' },
+  cementContent: { en: 'Cement content', ar: 'محتوى الأسمنت', ur: 'سیمنٹ کی مقدار', ru: 'Расход цемента', de: 'Zementgehalt', it: 'Dosaggio cemento', hi: 'सीमेंट मात्रा', ja: 'セメント量', zh: '水泥用量' },
+  remarks: { en: 'Remarks', ar: 'ملاحظات', ur: 'ریمارکس', ru: 'Примечания', de: 'Bemerkungen', it: 'Note', hi: 'टिप्पणियां', ja: '備考', zh: '备注' },
+  testedBy: { en: 'Tested by', ar: 'أجرى الاختبار', ur: 'ٹیسٹ کنندہ', ru: 'Испытал', de: 'Geprüft von', it: 'Provato da', hi: 'परीक्षक', ja: '試験者', zh: '试验员' },
+  save: { en: '💾 Save report', ar: '💾 حفظ التقرير', ur: '💾 رپورٹ محفوظ کریں', ru: '💾 Сохранить', de: '💾 Speichern', it: '💾 Salva', hi: '💾 सहेजें', ja: '💾 保存', zh: '💾 保存' },
+  saved: { en: 'Report saved', ar: 'تم حفظ التقرير', ur: 'رپورٹ محفوظ ہو گئی', ru: 'Отчёт сохранён', de: 'Bericht gespeichert', it: 'Report salvato', hi: 'रिपोर्ट सहेजी गई', ja: '保存しました', zh: '已保存' },
+  needLoads: { en: 'Enter at least one crushing load first.', ar: 'أدخل حمل تكسيير واحداً على الأقل أولاً.', ur: 'پہلے کم از کم ایک کرشنگ لوڈ درج کریں۔', ru: 'Сначала введите хотя бы одну нагрузку.', de: 'Zuerst mindestens eine Last eingeben.', it: 'Inserire prima almeno un carico.', hi: 'पहले कम से कम एक लोड दर्ज करें।', ja: 'まず荷重を1つ入力してください。', zh: '请先输入至少一个荷载。' },
+  needCasting: { en: 'Enter the casting date first.', ar: 'أدخل تاريخ الصب أولاً.', ur: 'پہلے کاسٹنگ کی تاریخ درج کریں۔', ru: 'Сначала введите дату заливки.', de: 'Zuerst Betonierdatum eingeben.', it: 'Inserire prima la data del getto.', hi: 'पहले कास्टिंग तिथि दर्ज करें।', ja: 'まず打設日を入力してください。', zh: '请先输入浇筑日期。' },
+  tempCapped: { en: 'Concrete temp capped at 30°C (code limit 32, ice in use).', ar: 'تم تثبيت حرارة الخلطة عند 30° (حد الكود 32 — نستخدم ثلج).', ur: 'کنکریٹ درجہ حرارت 30°C پر محدود (کوڈ حد 32، برف استعمال ہوتی ہے)۔', ru: 'Температура ограничена 30°C (норма 32, используется лёд).', de: 'Betontemperatur auf 30°C begrenzt (Norm 32, Eis im Einsatz).', it: 'Temperatura limitata a 30°C (norma 32, ghiaccio in uso).', hi: 'कंक्रीट तापमान 30°C पर सीमित (मानक 32, बर्फ उपयोग में)।', ja: '温度は30°Cに制限（基準32、氷使用）。', zh: '温度限制为30°C（规范32，用冰）。' },
+  autoW: { en: 'Empty weights auto-fill from A1 (editable).', ar: 'الأوزان الفارغة تُملأ تلقائياً من A1 (قابلة للتعديل).', ur: 'خالی وزن A1 سے خودکار (قابل ترمیم)۔', ru: 'Пустые массы берутся из A1 (можно менять).', de: 'Leere Gewichte werden aus A1 übernommen (änderbar).', it: 'Pesi vuoti copiati da A1 (modificabili).', hi: 'खाली वजन A1 से स्वतः भरें (बदल सकते हैं)।', ja: '空の質量はA1から自動入力（編集可）。', zh: '空重量自动取自A1（可改）。' },
+  preview: { en: 'Report preview', ar: 'معاينة التقرير', ur: 'رپورٹ کا پیش نظارہ', ru: 'Предпросмотр', de: 'Vorschau', it: 'Anteprima', hi: 'पूर्वावलोकन', ja: 'プレビュー', zh: '预览' },
+  print: { en: '🖨️ Print / PDF', ar: '🖨️ طباعة / PDF', ur: '🖨️ پرنٹ / PDF', ru: '🖨️ Печать / PDF', de: '🖨️ Drucken / PDF', it: '🖨️ Stampa / PDF', hi: '🖨️ प्रिंट / PDF', ja: '🖨️ 印刷 / PDF', zh: '🖨️ 打印 / PDF' },
+  excel: { en: '📊 Excel', ar: '📊 إكسل', ur: '📊 ایکسل', ru: '📊 Excel', de: '📊 Excel', it: '📊 Excel', hi: '📊 एक्सेल', ja: '📊 Excel', zh: '📊 表格' },
+  history: { en: 'Saved reports', ar: 'التقارير المحفوظة', ur: 'محفوظ رپورٹس', ru: 'Сохранённые отчёты', de: 'Gespeicherte Berichte', it: 'Report salvati', hi: 'सहेजी रिपोर्टें', ja: '保存済み報告', zh: '已保存报告' },
+  none: { en: 'No saved reports yet.', ar: 'لا توجد تقارير محفوظة بعد.', ur: 'ابھی کوئی محفوظ رپورٹ نہیں۔', ru: 'Пока нет сохранённых отчётов.', de: 'Noch keine Berichte.', it: 'Nessun report salvato.', hi: 'अभी कोई रिपोर्ट नहीं।', ja: '保存済み報告はありません。', zh: '暂无已保存报告。' },
+  reprint: { en: 'View', ar: 'عرض', ur: 'دیکھیں', ru: 'Открыть', de: 'Ansehen', it: 'Vedi', hi: 'देखें', ja: '表示', zh: '查看' },
+  pass: { en: '✅ PASS', ar: '✅ ناجح', ur: '✅ کامیاب', ru: '✅ Годен', de: '✅ Bestanden', it: '✅ Idoneo', hi: '✅ पास', ja: '✅ 合格', zh: '✅ 合格' },
+  fail: { en: '❌ FAIL — review', ar: '❌ راسب — يحتاج مراجعة', ur: '❌ ناکام — جائزہ لیں', ru: '❌ Брак — проверить', de: '❌ Durchgefallen — prüfen', it: '❌ Bocciato — verificare', hi: '❌ फेल — जांचें', ja: '❌ 不合格 — 確認', zh: '❌ 不合格 — 复核' },
+  age: { en: 'Age', ar: 'العمر', ur: 'عمر', ru: 'Возраст', de: 'Alter', it: 'Età', hi: 'आयु', ja: '材齢', zh: '龄期' },
+  days: { en: 'days', ar: 'يوم', ur: 'دن', ru: 'сут', de: 'Tage', it: 'giorni', hi: 'दिन', ja: '日', zh: '天' },
+  avg: { en: 'Average', ar: 'المتوسط', ur: 'اوسط', ru: 'Среднее', de: 'Mittel', it: 'Media', hi: 'औसत', ja: '平均', zh: '平均' },
+  ofRequired: { en: 'of required', ar: 'من المطلوب', ur: 'مطلوبہ کا', ru: 'от нормы', de: 'vom Soll', it: 'del richiesto', hi: 'आवश्यक का', ja: '要求値比', zh: '占要求值' },
 };
 
 const ELEMENTS = ['قواعد', 'أعمدة', 'أسقف', 'جسور', 'خزانات', 'مسبح', 'صبة خرسانة مسلحة'];
@@ -374,8 +384,7 @@ export default function LabReport({ recipes, username, plantName, onToast }: {
   plantName: string;
   onToast: (m: string) => void;
 }) {
-  const { lang } = useLang();
-  const t = (k: keyof typeof STR): string => STR[k][lang as 'en' | 'ar' | 'ur'] ?? STR[k].en;
+  const t = useLabDict();
 
   const [mixCode, setMixCode] = useState('');
   const [client, setClient] = useState('');

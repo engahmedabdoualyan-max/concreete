@@ -77,4 +77,11 @@ const DICT: PageDict = {
   orderLabel: { en: 'Order:', ar: 'طلب:', ru: 'Заказ:', de: 'Auftrag:', it: 'Ordine:', hi: 'ऑर्डर:', ur: 'آرڈر:', ja: '注文：', zh: '订单：' },
   linkSampleToOrder: { en: 'Link sample to order (optional)', ar: 'ربط العينة بالطلب (اختياري)', ru: 'Привязать образец к заказу (необязательно)', de: 'Probe mit Auftrag verknüpfen (optional)', it: 'Collega il campione all\'ordine (opzionale)', hi: 'नमूने को ऑर्डर से लिंक करें (वैकल्पिक)', ur: 'نمونہ کو آرڈر سے منسلک کریں (اختیاری)', ja: 'サンプルを注文にリンク（任意）', zh: '将样品关联到订单（可选）' },
   noLinking: { en: '— No linking —', ar: '— بدون ربط —', ru: '— Без привязки —', de: '— Keine Verknüpfung —', it: '— Nessun collegamento —', hi: '— कोई लिंकिंग नहीं —', ur: '— کوئی منسلک نہیں —', ja: '— リンクなし —', zh: '— 不关联 —' },
+  mqPageTitle: { en: '🧪 Lab', ar: '🧪 المختبر', ru: '🧪 Лаборатория', de: '🧪 Labor', it: '🧪 Laboratorio', hi: '🧪 प्रयोगशाला', ur: '🧪 لیب', ja: '🧪 ラボ', zh: '🧪 实验室' },
+  mqTabRecipes: { en: '📋 Recipes', ar: '📋 الخلطات', ru: '📋 Рецепты', de: '📋 Rezepte', it: '📋 Ricette', hi: '📋 मिक्स', ur: '📋 مکس', ja: '📋 配合', zh: '📋 配合比' },
+  mqTabCalibration: { en: '⚖️ Calibration', ar: '⚖️ المعايرة', ru: '⚖️ Калибровка', de: '⚖️ Kalibrierung', it: '⚖️ Taratura', hi: '⚖️ अंशांकन', ur: '⚖️ کیلیبریشن', ja: '⚖️ 校正', zh: '⚖️ 校准' },
+  mqTabDesigner: { en: '🧮 Mix Designer', ar: '🧮 مصمم الخلطات', ru: '🧮 Конструктор смесей', de: '🧮 Mischungsdesigner', it: '🧮 Progettazione miscele', hi: '🧮 मिक्स डिज़ाइनर', ur: '🧮 مکس ڈیزائنر', ja: '🧮 配合設計', zh: '🧮 配合设计' },
+  mqTabQuality: { en: '🔬 Quality Control', ar: '🔬 ضبط الجودة', ru: '🔬 Контроль качества', de: '🔬 Qualitätskontrolle', it: '🔬 Controllo qualità', hi: '🔬 गुणवत्ता नियंत्रण', ur: '🔬 کوالٹی کنٹرول', ja: '🔬 品質管理', zh: '🔬 质量控制' },
+  mqTabAi: { en: '🤖 AI Predictor', ar: '🤖 التنبؤ الذكي', ru: '🤖 ИИ-прогноз', de: '🤖 KI-Prognose', it: '🤖 Previsione IA', hi: '🤖 एआई भविष्यवाणी', ur: '🤖 اے آئی پیشگوئی', ja: '🤖 AI予測', zh: '🤖 AI预测' },
+  mqTabReports: { en: '🧪 Lab Reports', ar: '🧪 تقارير المختبر', ru: '🧪 Отчёты лаборатории', de: '🧪 Laborberichte', it: '🧪 Rapportini laboratorio', hi: '🧪 लैब रिपोर्ट', ur: '🧪 لیب رپورٹس', ja: '🧪 試験報告書', zh: '🧪 试验报告' },
 };
