@@ -15,7 +15,7 @@
  * ============================================================
  */
 
-import { useEffect, useMemo, useState, type CSSProperties } from 'react';
+import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import * as XLSX from 'xlsx';
 import { useLang } from '../context/LangContext';
@@ -165,81 +165,153 @@ const parseFc = (code: string): number => {
   return m ? parseInt(m[1], 10) : 0;
 };
 
+function InfoLine({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="flex items-end gap-1 text-[10.5px] leading-5">
+      <span className="font-bold whitespace-nowrap" dir="ltr">{label}</span>
+      <span className="flex-1 border-b border-dotted border-slate-500 text-center px-1">{children}</span>
+    </div>
+  );
+}
+
+function SpecCell({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="flex justify-between gap-1 px-1.5 py-[3px] border-b border-slate-300 last:border-b-0" dir="ltr">
+      <span className="font-bold">{label}</span>
+      <span>{children}</span>
+    </div>
+  );
+}
+
 function ReportSheet({ p }: { p: ReportPayload }) {
   return (
-    <div className="bg-white text-slate-900 rounded-lg p-8 max-w-[800px] mx-auto" dir="rtl">
-      <div className="flex items-start justify-between gap-4 border-b-2 border-slate-900 pb-3">
-        <div>
-          <p className="font-black text-lg">ALMOTWR COMPANY | READY-MIX CONCRETE</p>
-          <p className="text-xs text-slate-600">{p.company}</p>
-          <p className="font-black mt-2">COMPRESSIVE STRENGTH OF CONCRETE CYLINDERS</p>
+    <div className="bg-white text-slate-900 max-w-[800px] mx-auto border-2 border-slate-900 p-4" dir="ltr">
+      {/* ===== Company letterhead (ALMOTWR FACTORY paper) ===== */}
+      <div className="flex justify-between items-start text-center gap-2">
+        <div className="text-[8.5px] leading-[1.5] w-[31%]">
+          <p className="font-black text-[11px]">ALMOTWR FACTORY</p>
+          <p>For Cement Products</p>
+          <p>CR : 251108261 - LIC : 371339</p>
+          <p>TEL : 0509270011 - 0509270022</p>
+          <p>AL-SAIR STREET - INDUSTRIAL STATE</p>
+          <p>HAFAR AL BATIN - EASTERN REGION</p>
         </div>
-        {p.logo && <img src={p.logo} alt="logo" style={{ height: 64, maxWidth: 140, objectFit: 'contain' }} />}
+        <div className="w-[30%] flex flex-col items-center">
+          {p.logo
+            ? <img src={p.logo} alt="logo" style={{ height: 72, maxWidth: 170, objectFit: 'contain' }} />
+            : (
+              <div className="w-[76px] h-[76px] rounded-full border-[3px] border-double border-yellow-600 flex items-center justify-center bg-neutral-900">
+                <span className="text-yellow-500 font-black text-[11px] leading-tight" dir="rtl">المصنع<br />المطور</span>
+              </div>
+            )}
+        </div>
+        <div className="text-[8.5px] leading-[1.6] w-[31%]" dir="rtl">
+          <p className="font-black text-[13px]">المصنع المطور</p>
+          <p>للمنتجات الأسمنتية</p>
+          <p>س.ت : 251108261 - ترخيص : 371339</p>
+          <p>جوال : 0509270011 - 0509270022</p>
+          <p>شارع السير - المنطقة الصناعية</p>
+          <p>حفرالباطن - المنطقة الشرقية</p>
+        </div>
       </div>
-      <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-xs mt-3">
-        <p><b>رقم التقرير:</b> <span dir="ltr">{p.no}</span></p>
-        <p><b>رقم الأمر:</b> <span dir="ltr">{p.jobNo || '—'}</span></p>
-        <p><b>التاريخ:</b> <span dir="ltr">{p.tested}</span></p>
-        <p><b>العميل:</b> {p.client || '—'}</p>
-        <p><b>المشروع:</b> {p.project || '—'}</p>
-        <p><b>الموقع:</b> {p.location || '—'}</p>
-        <p><b>العنصر:</b> {p.element}</p>
-        <p><b>المورد:</b> {p.supplier}</p>
-        <p><b>الخلطة:</b> <span dir="ltr">{p.mix} ({p.fc} MPa {p.mixType})</span></p>
-        <p><b>محتوى الأسمنت:</b> <span dir="ltr">{p.cement || '—'}</span></p>
-        <p><b>تاريخ الصب:</b> <span dir="ltr">{p.casting}</span></p>
-        <p><b>تاريخ الاختبار:</b> <span dir="ltr">{p.tested} ({p.age} يوم)</span></p>
-        <p><b>الهبوط:</b> <span dir="ltr">{p.slump} mm</span></p>
-        <p><b>الحرارة:</b> <span dir="ltr">{p.tempC}°C / {p.airTemp}°C</span></p>
+
+      <div className="border border-slate-900 text-center font-black text-[13px] mt-2 py-1 tracking-wide">
+        COMPRESSIVE STRENGTH OF CONCRETE CYLINDERS
       </div>
-      {p.recipe && (
-        <p className="text-[11px] text-slate-600 mt-2">
-          مكونات الخلطة (كجم/م³): أسمنت {p.recipe.cement} · رمل {p.recipe.sand} · بحص {p.recipe.gravel} · ماء {p.recipe.water} · إضافات {p.recipe.admixture}
-        </p>
-      )}
-      <table className="w-full text-xs mt-3 border-collapse">
+
+      <div className="grid grid-cols-[1fr_215px] gap-3 mt-2">
+        <div className="space-y-[3px]">
+          <div className="grid grid-cols-2 gap-x-4">
+            <InfoLine label="JOB NO">{p.jobNo || '—'}</InfoLine>
+            <InfoLine label="Date:">{p.tested}</InfoLine>
+          </div>
+          <InfoLine label="CLIENT">{p.client || '—'}</InfoLine>
+          <InfoLine label="PROJECT">{p.project || '—'}</InfoLine>
+          <InfoLine label="LOCATION OF POUR">{p.location || '—'}</InfoLine>
+          <InfoLine label="CONCRETE SUPPLIER">{p.supplier}</InfoLine>
+          <InfoLine label="DATE OF CASTING">{p.casting}</InfoLine>
+          <InfoLine label="DATE OF RECEIVING">{p.casting}</InfoLine>
+          <InfoLine label="DATE OF TEST">{p.tested}</InfoLine>
+          <InfoLine label="TYPE OF CONCRETE">{p.element}</InfoLine>
+          <InfoLine label="CONCRETE GRADE">{p.mix}mpa</InfoLine>
+          <InfoLine label="STRENGTH AFTER 28 DAYS">{p.exp28} Mpa</InfoLine>
+          <InfoLine label="STRENGTH AFTER 7 DAYS">{p.exp7} Mpa</InfoLine>
+        </div>
+        <div className="border border-slate-900 text-[10px] h-fit" dir="ltr">
+          <SpecCell label="Area">176.625 cm²</SpecCell>
+          <SpecCell label="Daimeter">15 cm</SpecCell>
+          <SpecCell label="Volume">5301 cm³</SpecCell>
+          <SpecCell label="Slump">{p.slump}mm</SpecCell>
+          <SpecCell label="Air Temperature">{p.airTemp}</SpecCell>
+          <SpecCell label="Concrete Temperature">{p.tempC}</SpecCell>
+        </div>
+      </div>
+
+      <table className="w-full text-[10.5px] mt-2 border-collapse" dir="ltr">
         <thead>
-          <tr className="bg-slate-100">
-            <th className="border border-slate-300 p-1">م</th>
-            <th className="border border-slate-300 p-1">العينة</th>
-            <th className="border border-slate-300 p-1">الوزن (جم)</th>
-            <th className="border border-slate-300 p-1">الكثافة</th>
-            <th className="border border-slate-300 p-1">الحمل (kN)</th>
-            <th className="border border-slate-300 p-1">kg/cm²</th>
-            <th className="border border-slate-300 p-1">MPa</th>
+          <tr className="font-bold">
+            <th className="border border-slate-900 p-1">TEST<br />NO</th>
+            <th className="border border-slate-900 p-1">SAMPLE<br />NO</th>
+            <th className="border border-slate-900 p-1">WEIGHT<br />GM</th>
+            <th className="border border-slate-900 p-1">DENSITY<br />GM/CM³</th>
+            <th className="border border-slate-900 p-1">LOAD<br />KN</th>
+            <th className="border border-slate-900 p-1 text-center" colSpan={2}>COMPRESSIVE STRENGTH</th>
+          </tr>
+          <tr className="font-bold">
+            <th className="border border-slate-900" colSpan={5}></th>
+            <th className="border border-slate-900 p-1">KG/CM²</th>
+            <th className="border border-slate-900 p-1">MPA</th>
           </tr>
         </thead>
         <tbody>
           {p.rows.filter(r => r.load > 0).map(r => (
-            <tr key={r.n}>
-              <td className="border border-slate-300 p-1 text-center">{r.n}</td>
-              <td className="border border-slate-300 p-1 text-center" dir="ltr">{r.s}</td>
-              <td className="border border-slate-300 p-1 text-center" dir="ltr">{r.w ?? '—'}</td>
-              <td className="border border-slate-300 p-1 text-center" dir="ltr">{r.d !== null ? r.d.toFixed(3) : '—'}</td>
-              <td className="border border-slate-300 p-1 text-center" dir="ltr">{r.load}</td>
-              <td className="border border-slate-300 p-1 text-center" dir="ltr">{r.kg.toFixed(2)}</td>
-              <td className="border border-slate-300 p-1 text-center" dir="ltr">{r.mpa.toFixed(2)}</td>
+            <tr key={r.n} className="text-center">
+              <td className="border border-slate-900 p-1">{r.n}</td>
+              <td className="border border-slate-900 p-1">{r.s}</td>
+              <td className="border border-slate-900 p-1">{r.w ?? '—'}</td>
+              <td className="border border-slate-900 p-1">{r.d !== null ? r.d.toFixed(2) : '—'}</td>
+              <td className="border border-slate-900 p-1">{r.load}</td>
+              <td className="border border-slate-900 p-1">{r.kg.toFixed(2)}</td>
+              <td className="border border-slate-900 p-1">{r.mpa.toFixed(2)}</td>
             </tr>
           ))}
-          <tr className="bg-slate-100 font-bold">
-            <td className="border border-slate-300 p-1 text-center" colSpan={5}>المتوسط</td>
-            <td className="border border-slate-300 p-1 text-center" dir="ltr">{p.avgKg.toFixed(2)}</td>
-            <td className="border border-slate-300 p-1 text-center" dir="ltr">{p.avgMpa.toFixed(2)}</td>
+          <tr className="text-center font-bold">
+            <td className="border border-slate-900 p-1" colSpan={5}>Average</td>
+            <td className="border border-slate-900 p-1">{p.avgKg.toFixed(2)}</td>
+            <td className="border border-slate-900 p-1">{p.avgMpa.toFixed(2)}</td>
           </tr>
         </tbody>
       </table>
-      <p className="text-sm font-black mt-3">
+
+      <p className="text-[11px] font-black mt-2" dir="rtl">
         النتيجة: <span dir="ltr">{p.avgMpa.toFixed(2)} MPa</span> = {p.pct.toFixed(1)}% من المطلوب ({p.target} MPa) — {p.verdict}
       </p>
-      {p.remarks && <p className="text-xs mt-2"><b>ملاحظات:</b> {p.remarks}</p>}
-      <div className="text-[11px] text-slate-600 mt-3 space-y-0.5">
-        <p>Batch weight adjustments vary on the daily moisture content of aggregates at the time of batching.</p>
-        <p>Concrete will be supplied according to ASTM C94.</p>
-        <p>Concrete mixes are designed according to project specification.</p>
+
+      <div className="border border-slate-900 mt-2 text-[10.5px]" dir="ltr">
+        <p className="font-bold border-b border-slate-900 px-1.5 py-[2px]">Remarks</p>
+        <p className="px-1.5 py-1 min-h-[28px]" dir="rtl">{p.remarks || ''}</p>
+        <p className="px-1.5 py-[3px] border-t border-slate-200 text-slate-600">Batch weight adjustments vary on the daily moisture content of aggregates at the time of batching.</p>
+        <p className="px-1.5 py-[3px] text-slate-600">Concrete will be supplied according to ASTM C94. Concrete mixes are designed according to project specification.</p>
       </div>
-      <div className="flex justify-between text-xs mt-6">
-        <p>أجرى الاختبار: {p.tester || '....................'}</p>
-        <p>التوقيع: ....................</p>
+
+      <div className="mt-2 text-[10.5px] space-y-1" dir="ltr">
+        <p className="text-center font-bold underline underline-offset-2">TEST PERFOMED BY</p>
+        <p><b>Name:</b> {p.tester || 'LAB/ Engineer'}</p>
+        <p><b>Signature:</b> ........................................</p>
+        <p><b>Date:</b> {p.tested}</p>
+      </div>
+
+      <div className="mt-2 flex items-stretch text-white text-[8.5px]" dir="ltr">
+        <div className="flex-[3] px-2 py-1.5" style={{ background: 'linear-gradient(120deg,#141414 55%,#8a6d1c 55%,#c9a227 100%)' }}>
+          <p>🌐 www.almotwr.com</p>
+          <p>✉ almotwr@gmail.com</p>
+          <p className="font-bold">KINGDOM OF SAUDI ARABIA, HAFAR AL BATIN, EASTERN REGION</p>
+        </div>
+        <div className="flex-[2] px-2 py-1.5 bg-neutral-900 text-center">
+          <p className="font-bold">FOLLOW US ON</p>
+          <p>📷 𝕏 📘 🎵</p>
+          <p className="font-bold">@ALMOTWR</p>
+        </div>
       </div>
     </div>
   );
