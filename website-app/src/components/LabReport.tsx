@@ -15,7 +15,7 @@
  * ============================================================
  */
 
-import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import labEmblem from '../assets/lab-emblem.jpg';
 import labFooter from '../assets/lab-footer.jpg';
@@ -115,6 +115,8 @@ const STR: Record<string, { en: string; ar: string; ur: string }> = {
   save: { en: '💾 Save report', ar: '💾 حفظ التقرير', ur: '💾 رپورٹ محفوظ کریں' },
   saved: { en: 'Report saved', ar: 'تم حفظ التقرير', ur: 'رپورٹ محفوظ ہو گئی' },
   needLoads: { en: 'Enter at least one crushing load first.', ar: 'أدخل حمل تكسيير واحداً على الأقل أولاً.', ur: 'پہلے کم از کم ایک کرشنگ لوڈ درج کریں۔' },
+  needCasting: { en: 'Enter the casting date first.', ar: 'أدخل تاريخ الصب أولاً.', ur: 'پہلے کاسٹنگ کی تاریخ درج کریں۔' },
+  tempCapped: { en: 'Concrete temp capped at 30°C (code limit 32, ice in use).', ar: 'تم تثبيت حرارة الخلطة عند 30° (حد الكود 32 — نستخدم ثلج).', ur: 'کنکریٹ درجہ حرارت 30°C پر محدود (کوڈ حد 32، برف استعمال ہوتی ہے)۔' },
   autoW: { en: 'Empty weights auto-fill from A1 (editable).', ar: 'الأوزان الفارغة تُملأ تلقائياً من A1 (قابلة للتعديل).', ur: 'خالی وزن A1 سے خودکار (قابل ترمیم)۔' },
   preview: { en: 'Report preview', ar: 'معاينة التقرير', ur: 'رپورٹ کا پیش نظارہ' },
   print: { en: '🖨️ Print / PDF', ar: '🖨️ طباعة / PDF', ur: '🖨️ پرنٹ / PDF' },
@@ -154,7 +156,6 @@ const DEMO_CLIENTS = [
 
 const RED_IF_EMPTY: CSSProperties = { borderColor: 'rgba(239,68,68,.75)', background: 'rgba(239,68,68,.07)' };
 
-const todayISO = () => new Date().toISOString().split('T')[0];
 const addDays = (iso: string, n: number) => {
   const d = new Date(iso + 'T12:00:00');
   d.setDate(d.getDate() + n);
@@ -389,15 +390,44 @@ export default function LabReport({ recipes, username, plantName, onToast }: {
   const [cementTouched, setCementTouched] = useState(false);
   const [remarks, setRemarks] = useState('');
   const [tester, setTester] = useState(username);
-  const [casting, setCasting] = useState(todayISO());
-  const [tested, setTested] = useState(addDays(todayISO(), 7));
+  // Casting date is the ONLY date the technician enters (required);
+  // the test/report date always follows it automatically (+7 days).
+  const [casting, setCasting] = useState('');
+  const [tested, setTested] = useState('');
+  const [testedTouched, setTestedTouched] = useState(false);
+  const pickCasting = (v: string) => {
+    setCasting(v);
+    if (!testedTouched) setTested(v ? addDays(v, 7) : '');
+  };
   const [exp7, setExp7] = useState('');
   const [exp28, setExp28] = useState('');
   const [expTouched, setExpTouched] = useState(false);
   const [samples, setSamples] = useState<SampleIn[]>([{ load: '', weight: '' }, { load: '', weight: '' }, { load: '', weight: '' }]);
   const [slump, setSlump] = useState('120');
-  const [tempC, setTempC] = useState('35');
-  const [airTemp, setAirTemp] = useState('32');
+  // Concrete temp: ice in use, code ceiling 32°C — always kept below it.
+  const [tempC, setTempC] = useState('28');
+  const pickTempC = (v: string) => {
+    if (v !== '' && Number(v) > 32) {
+      setTempC('30');
+      onToast(t('tempCapped'));
+      return;
+    }
+    setTempC(v);
+  };
+  // Air temp: Hafar Al Batin live weather, seasonal fallback. Editable.
+  const [airTemp, setAirTemp] = useState('');
+  const airTouched = useRef(false);
+  useEffect(() => {
+    const monthFallback = ['22', '24', '28', '34', '40', '44', '46', '46', '42', '36', '27', '23'][new Date().getMonth()];
+    fetch('https://api.open-meteo.com/v1/forecast?latitude=28.43&longitude=45.96&current=temperature_2&timezone=auto')
+      .then(r => (r.ok ? r.json() : null))
+      .then((j: unknown) => {
+        if (airTouched.current) return;
+        const cur = (j as { current?: { temperature_2?: unknown } } | null)?.current?.temperature_2;
+        setAirTemp(typeof cur === 'number' ? String(Math.round(cur)) : monthFallback);
+      })
+      .catch(() => { if (!airTouched.current) setAirTemp(monthFallback); });
+  }, []);
   const [company, setCompany] = useState('');
   const [logo, setLogo] = useState('');
   const [saved, setSaved] = useState<SavedReport[]>([]);
@@ -448,7 +478,7 @@ export default function LabReport({ recipes, username, plantName, onToast }: {
   const effExp7 = expTouched && exp7 !== '' ? Number(exp7) : Math.round(fc * 0.75);
   const effExp28 = expTouched && exp28 !== '' ? Number(exp28) : fc;
   const effCement = cementTouched && cementInfo !== '' ? cementInfo : recipe ? `${recipe.cement} kg/m³` : '';
-  const age = diffDays(casting, tested);
+  const age = casting && tested ? diffDays(casting, tested) : 0;
 
   const rows = useMemo(() => {
     const names = ['A1', 'A2', 'A3'];
@@ -497,7 +527,13 @@ export default function LabReport({ recipes, username, plantName, onToast }: {
     try { localStorage.setItem('labReports', JSON.stringify(list)); } catch {}
   };
 
+  const needCastingFirst = (): boolean => {
+    if (!casting) { onToast(t('needCasting')); return true; }
+    return false;
+  };
+
   const doSave = () => {
+    if (needCastingFirst()) return;
     const p = buildPayload();
     if (!p) { onToast(t('needLoads')); return; }
     try { localStorage.setItem('labReportSeq', String(Number(localStorage.getItem('labReportSeq') ?? '0') + 1)); } catch {}
@@ -625,11 +661,11 @@ export default function LabReport({ recipes, username, plantName, onToast }: {
           </div>
           <div>
             <label className={labelCls}>{t('casting')}</label>
-            <input type="date" value={casting} onChange={e => { setCasting(e.target.value); }} className={inputCls} />
+            <input type="date" value={casting} onChange={e => pickCasting(e.target.value)} className={inputCls} style={casting ? undefined : RED_IF_EMPTY} />
           </div>
           <div>
             <label className={labelCls}>{t('tested')}</label>
-            <input type="date" value={tested} onChange={e => setTested(e.target.value)} className={inputCls} />
+            <input type="date" value={tested} onChange={e => { setTested(e.target.value); setTestedTouched(true); }} className={inputCls} />
           </div>
           <div>
             <label className={labelCls}>{t('exp7')}</label>
@@ -657,8 +693,8 @@ export default function LabReport({ recipes, username, plantName, onToast }: {
           </div>
           <div className="grid grid-cols-3 gap-3">
             <div><label className={labelCls}>{t('slump')}</label><input value={slump} onChange={e => setSlump(e.target.value)} className={inputCls} /></div>
-            <div><label className={labelCls}>{t('tempC')}</label><input value={tempC} onChange={e => setTempC(e.target.value)} className={inputCls} /></div>
-            <div><label className={labelCls}>{t('airTemp')}</label><input value={airTemp} onChange={e => setAirTemp(e.target.value)} className={inputCls} /></div>
+            <div><label className={labelCls}>{t('tempC')}</label><input value={tempC} onChange={e => pickTempC(e.target.value)} className={inputCls} /></div>
+            <div><label className={labelCls}>{t('airTemp')}</label><input value={airTemp} onChange={e => { airTouched.current = true; setAirTemp(e.target.value); }} className={inputCls} /></div>
           </div>
         </div>
 
@@ -687,8 +723,8 @@ export default function LabReport({ recipes, username, plantName, onToast }: {
 
         <div className="flex flex-wrap gap-2 mt-4">
           <button onClick={doSave} className="bg-sky-500 hover:bg-sky-400 text-white font-bold px-5 py-2.5 rounded-lg text-sm">{t('save')}</button>
-          <button onClick={() => { const p = buildPayload(); if (p) doExcel(p); else onToast(t('needLoads')); }} className="bg-yellow-500/15 text-yellow-300 border border-yellow-500/40 hover:bg-yellow-500/25 px-5 py-2.5 rounded-lg font-bold text-sm">{t('excel')}</button>
-          <button onClick={() => { if (valid.length) doPrint(); else onToast(t('needLoads')); }} className="bg-white/[0.05] text-slate-300 border border-white/10 hover:text-white px-5 py-2.5 rounded-lg font-bold text-sm">{t('print')}</button>
+          <button onClick={() => { if (needCastingFirst()) return; const p = buildPayload(); if (p) doExcel(p); else onToast(t('needLoads')); }} className="bg-yellow-500/15 text-yellow-300 border border-yellow-500/40 hover:bg-yellow-500/25 px-5 py-2.5 rounded-lg font-bold text-sm">{t('excel')}</button>
+          <button onClick={() => { if (needCastingFirst()) return; if (valid.length) doPrint(); else onToast(t('needLoads')); }} className="bg-white/[0.05] text-slate-300 border border-white/10 hover:text-white px-5 py-2.5 rounded-lg font-bold text-sm">{t('print')}</button>
         </div>
       </div>
 
