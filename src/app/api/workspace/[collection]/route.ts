@@ -64,6 +64,8 @@ const ALLOWED_COLLECTIONS = new Set([
   "livePositions",
   "orders",
   "notifications",
+  "labReports",
+  "deliveryNotes",
   // Legacy site tables merged into the unified DB (migrated from the
   // third-party Supabase project mxdirmrmfuycrbqvjrsb):
   "gpsLocations",
