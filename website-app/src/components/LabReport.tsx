@@ -140,6 +140,8 @@ const DICT: PageDict = {
   days: { en: 'days', ar: 'يوم', ur: 'دن', ru: 'сут', de: 'Tage', it: 'giorni', hi: 'दिन', ja: '日', zh: '天' },
   avg: { en: 'Average', ar: 'المتوسط', ur: 'اوسط', ru: 'Среднее', de: 'Mittel', it: 'Media', hi: 'औसत', ja: '平均', zh: '平均' },
   ofRequired: { en: 'of required', ar: 'من المطلوب', ur: 'مطلوبہ کا', ru: 'от нормы', de: 'vom Soll', it: 'del richiesto', hi: 'आवश्यक का', ja: '要求値比', zh: '占要求值' },
+  paperCompany: { en: 'Company paper', ar: 'ورق الشركة', ur: 'کمپنی پیپر', ru: 'Фирменный бланк', de: 'Firmenpapier', it: 'Carta intestata', hi: 'कंपनी पेपर', ja: '会社用紙', zh: '公司抬头纸' },
+  paperPlain: { en: 'Plain paper', ar: 'ورق عادي', ur: 'سادہ کاغذ', ru: 'Обычная бумага', de: 'Normales Papier', it: 'Carta semplice', hi: 'सादा कागज', ja: '普通紙', zh: '普通纸' },
 };
 
 const ELEMENTS = ['قواعد', 'أعمدة', 'أسقف', 'جسور', 'خزانات', 'مسبح', 'صبة خرسانة مسلحة'];
@@ -254,10 +256,11 @@ function StrengthChart({ points, avg, target, minAllowed }: {
   );
 }
 
-function ReportSheet({ p }: { p: ReportPayload }) {
+function ReportSheet({ p, paper }: { p: ReportPayload; paper: 'company' | 'plain' }) {
   return (
     <div className="bg-white text-slate-900 max-w-[800px] mx-auto border-2 border-slate-900 p-4" dir="ltr">
       {/* ===== Company letterhead (text + original emblem) ===== */}
+      {paper === 'company' ? (
       <div className="flex justify-between items-start text-center gap-2">
         <div className="text-[8.5px] leading-[1.55] w-[33%]" dir="ltr">
           <p className="font-black text-[11.5px] tracking-wide">ALMOTWR FACTORY</p>
@@ -279,6 +282,9 @@ function ReportSheet({ p }: { p: ReportPayload }) {
           <p>حفرالباطن - المنطقة الشرقية</p>
         </div>
       </div>
+      ) : (
+        <p className="font-black text-lg" dir="rtl">{p.company}</p>
+      )}
 
       <div className="border border-slate-900 text-center font-black text-[13px] mt-2 py-1 tracking-wide">
         COMPRESSIVE STRENGTH OF CONCRETE CYLINDERS
@@ -373,7 +379,7 @@ function ReportSheet({ p }: { p: ReportPayload }) {
         <p><b>Date:</b> {p.tested}</p>
       </div>
 
-      <img src={labFooter} alt="ALMOTWR footer" className="w-full mt-2" />
+      <img src={labFooter} alt="ALMOTWR footer" className="w-full mt-2" style={paper === 'company' ? undefined : { display: 'none' }} />
     </div>
   );
 }
@@ -441,6 +447,7 @@ export default function LabReport({ recipes, username, plantName, onToast }: {
   const [logo, setLogo] = useState('');
   const [saved, setSaved] = useState<SavedReport[]>([]);
   const [viewIdx, setViewIdx] = useState<number | null>(null);
+  const [paper, setPaper] = useState<'company' | 'plain'>('company');
 
   useEffect(() => {
     if (recipes.length && !mixCode) setMixCode(recipes[0].code);
@@ -626,7 +633,7 @@ export default function LabReport({ recipes, username, plantName, onToast }: {
 
   return (
     <div className="space-y-6">
-      <style>{`@page { size: A4 portrait; margin: 9mm; } @media print { #root { display: none !important; } #lab-print-root { zoom: 0.78; } }`}</style>
+      <style>{`@page { size: A4 portrait; margin: 9mm; } @media print { #root { display: none !important; } #lab-print-root { display: block !important; zoom: 0.78; } }`}</style>
 
       <div className="bg-white/[0.04] border border-white/10 rounded-xl p-6">
         <h3 className="text-lg font-black tracking-tight text-white mb-1">{t('title')}</h3>
@@ -734,17 +741,21 @@ export default function LabReport({ recipes, username, plantName, onToast }: {
           <button onClick={doSave} className="bg-sky-500 hover:bg-sky-400 text-white font-bold px-5 py-2.5 rounded-lg text-sm">{t('save')}</button>
           <button onClick={() => { if (needCastingFirst()) return; const p = buildPayload(); if (p) doExcel(p); else onToast(t('needLoads')); }} className="bg-yellow-500/15 text-yellow-300 border border-yellow-500/40 hover:bg-yellow-500/25 px-5 py-2.5 rounded-lg font-bold text-sm">{t('excel')}</button>
           <button onClick={() => { if (needCastingFirst()) return; if (valid.length) doPrint(); else onToast(t('needLoads')); }} className="bg-white/[0.05] text-slate-300 border border-white/10 hover:text-white px-5 py-2.5 rounded-lg font-bold text-sm">{t('print')}</button>
+          <div className="flex rounded-lg overflow-hidden border border-white/10 text-xs font-bold">
+            <button onClick={() => setPaper('company')} className={`px-3 py-2.5 ${paper === 'company' ? 'bg-sky-500/20 text-sky-300' : 'text-slate-400'}`}>{t('paperCompany')}</button>
+            <button onClick={() => setPaper('plain')} className={`px-3 py-2.5 ${paper === 'plain' ? 'bg-sky-500/20 text-sky-300' : 'text-slate-400'}`}>{t('paperPlain')}</button>
+          </div>
         </div>
       </div>
 
       {viewing && valid.length > 0 && (
         <div className="bg-white/[0.04] border border-white/10 rounded-xl p-6">
           <h3 className="text-lg font-black tracking-tight text-white mb-4">{t('preview')}</h3>
-          <div id="lab-report-print"><ReportSheet p={viewing} /></div>
+          <div id="lab-report-print"><ReportSheet p={viewing} paper={paper} /></div>
         </div>
       )}
       {viewing && valid.length > 0 && createPortal(
-        <div id="lab-print-root" className="hidden print:block"><ReportSheet p={viewing} /></div>,
+        <div id="lab-print-root" style={{ display: 'none' }}><ReportSheet p={viewing} paper={paper} /></div>,
         document.body
       )}
 
