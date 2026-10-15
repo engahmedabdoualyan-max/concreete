@@ -102,6 +102,8 @@ const DICT: PageDict = {
   none: { en: 'No saved notes yet.', ar: 'لا توجد مذكرات بعد.', ur: 'ابھی کچھ نہیں۔', ru: 'Пока пусто.', de: 'Noch keine.', it: 'Ancora nessuno.', hi: 'अभी कुछ नहीं।', ja: 'まだありません。', zh: '暂无。' },
   reprint: { en: 'View', ar: 'عرض', ur: 'دیکھیں', ru: 'Открыть', de: 'Ansehen', it: 'Vedi', hi: 'देखें', ja: '表示', zh: '查看' },
   sar: { en: 'SAR', ar: 'ر.س', ur: 'ریال', ru: 'SAR', de: 'SAR', it: 'SAR', hi: 'SAR', ja: 'SAR', zh: 'SAR' },
+  paperCompany: { en: 'Company paper', ar: 'ورق الشركة', ur: 'کمپنی پیپر', ru: 'Фирменный бланк', de: 'Firmenpapier', it: 'Carta intestata', hi: 'कंपनी पेपर', ja: '会社用紙', zh: '公司抬头纸' },
+  paperPlain: { en: 'Plain paper', ar: 'ورق عادي', ur: 'سادہ کاغذ', ru: 'Обычная бумага', de: 'Normales Papier', it: 'Carta semplice', hi: 'सादा कागज', ja: '普通紙', zh: '普通纸' },
   order: { en: 'Sales order', ar: 'طلب المبيعات', ur: 'سیلز آرڈر', ru: 'Заказ', de: 'Auftrag', it: 'Ordine', hi: 'सेल्स ऑर्डर', ja: '受注', zh: '销售订单' },
   noOrder: { en: '— no link —', ar: '— بدون ربط —', ur: '— کوئی ربط نہیں —', ru: '— без связи —', de: '— keine —', it: '— nessuno —', hi: '— कोई नहीं —', ja: '— なし —', zh: '— 不关联 —' },
   remaining: { en: 'Remaining', ar: 'المتبقي', ur: 'باقی', ru: 'Остаток', de: 'Rest', it: 'Rimanente', hi: 'शेष', ja: '残量', zh: '剩余' },
@@ -137,6 +139,9 @@ const DEMO_CLIENTS = [
   'مصنع مجال // الفاء', 'نايف محمد الثواب', 'نايل مسير نايل', 'نيو تاون اسبورت',
 ];
 
+// Fallback mix codes when no recipes are stored yet for this user.
+const DEFAULT_MIXES = ['C25', 'C30', 'C35', 'C40'];
+
 const RED_IF_EMPTY: CSSProperties = { borderColor: 'rgba(239,68,68,.75)', background: 'rgba(239,68,68,.07)' };
 const nowTime = () => {
   const d = new Date();
@@ -154,10 +159,14 @@ function SheetRow({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 
-function DNSheet({ p }: { p: DNPayload }) {
+function DNSheet({ p, paper }: { p: DNPayload; paper: 'company' | 'plain' }) {
   return (
     <div className="bg-white text-slate-900 max-w-[800px] mx-auto border-2 border-slate-900 p-4" dir="ltr">
-      <img src={labHeader} alt="ALMOTWR letterhead" className="w-full" />
+      {paper === 'company' ? (
+        <img src={labHeader} alt="ALMOTWR letterhead" className="w-full" />
+      ) : (
+        <p className="font-black text-lg" dir="rtl">{p.company}</p>
+      )}
       <div className="border border-slate-900 text-center font-black text-[13px] mt-2 py-1 tracking-wide">
         DELIVERY NOTE — مذكرة تسليم خرسانة
       </div>
@@ -205,7 +214,7 @@ function DNSheet({ p }: { p: DNPayload }) {
         <p>العميل: ....................</p>
         <p>المحطة: ....................</p>
       </div>
-      <img src={labFooter} alt="ALMOTWR footer" className="w-full mt-2" />
+      <img src={labFooter} alt="ALMOTWR footer" className="w-full mt-2" style={paper === 'company' ? undefined : { display: 'none' }} />
     </div>
   );
 }
@@ -238,6 +247,9 @@ export default function DeliveryNote({ trips, orders, username, plantName, onToa
   const [company, setCompany] = useState('');
   const [saved, setSaved] = useState<SavedDN[]>([]);
   const [viewIdx, setViewIdx] = useState<number | null>(null);
+  const [paper, setPaper] = useState<'company' | 'plain'>('company');
+  const [fleet, setFleet] = useState<Array<{ id: string; plate: string; driver: string }>>([]);
+  const [customerRecs, setCustomerRecs] = useState<Array<{ name: string; address: string; phone: string }>>([]);
 
   useEffect(() => {
     loadPlantProfile(username).then((p: unknown) => {
@@ -253,9 +265,12 @@ export default function DeliveryNote({ trips, orders, username, plantName, onToa
   useEffect(() => {
     let alive = true;
     Promise.all([
-      import('../firebase/firestore').then(m => m.loadRecipes(username).catch(() => [] as unknown[])),
+      import('../firebase/firestore').then(m => Promise.all([
+        m.loadRecipes(username).catch(() => [] as unknown[]),
+        m.loadAssets(username).catch(() => [] as unknown[]),
+      ])),
       loadCustomers(username).catch(() => [] as unknown[]),
-    ]).then(([recs, custs]) => {
+    ]).then(([[recs, assets], custs]) => {
       if (!alive) return;
       const codes = (Array.isArray(recs) ? recs : [])
         .map((r: unknown) => String((r as Record<string, unknown>).code ?? '').trim())
@@ -263,9 +278,36 @@ export default function DeliveryNote({ trips, orders, username, plantName, onToa
       if (codes.length) {
         setMixes(codes);
         setMix(prev => (prev ? prev : codes.includes('C30') ? 'C30' : codes[0]));
+      } else {
+        setMixes(DEFAULT_MIXES);
+        setMix(prev => (prev ? prev : 'C30'));
       }
-      void custs;
-    }).catch(() => {});
+      const fleet = (Array.isArray(assets) ? assets : [])
+        .map((a: unknown) => {
+          const o = a as Record<string, unknown>;
+          return {
+            id: String(o.id ?? o.code ?? '').trim(),
+            plate: String(o.plate ?? '').trim(),
+            driver: String(o.driver ?? '').trim(),
+          };
+        })
+        .filter(a => a.id || a.plate);
+      setFleet(fleet);
+      if (Array.isArray(custs)) {
+        setCustomerRecs(custs
+          .map((u: unknown) => {
+            const o = u as Record<string, unknown>;
+            return {
+              name: String(o.name ?? o.customerName ?? o.clientName ?? o.username ?? '').trim(),
+              address: String(o.address ?? o.site ?? o.location ?? '').trim(),
+              phone: String(o.phone ?? o.phoneNumber ?? '').trim(),
+            };
+          })
+          .filter(r => r.name));
+      }
+    }).catch(() => {
+      setMixes(prev => (prev.length ? prev : DEFAULT_MIXES));
+    });
     return () => { alive = false; };
   }, [username]);
 
@@ -318,6 +360,12 @@ export default function DeliveryNote({ trips, orders, username, plantName, onToa
     if (o) {
       if (o.customerPhone) setPhone(String(o.customerPhone));
       if (o.projectLocation) setSite(prev => (prev.trim() ? prev : String(o.projectLocation)));
+      return;
+    }
+    const rec = customerRecs.find(r => r.name === name);
+    if (rec) {
+      if (rec.phone) setPhone(prev => (prev.trim() ? prev : rec.phone));
+      if (rec.address) setSite(prev => (prev.trim() ? prev : rec.address));
     }
   };
 
@@ -407,6 +455,28 @@ export default function DeliveryNote({ trips, orders, username, plantName, onToa
     const fromOrders = liveOrders.map(o => norm(o.customerName)).filter(Boolean);
     return [...new Set(fromOrders)].length ? [...new Set(fromOrders)] : DEMO_CLIENTS;
   })();
+
+  // Fleet + trip + history dropdowns: vehicles, drivers, mixes always offered.
+  const truckOpts = [...new Set([
+    ...fleet.map(f => f.id).filter(Boolean),
+    ...fleet.map(f => f.plate).filter(Boolean),
+    ...trips.map(x => String(x.code ?? '')).filter(Boolean),
+    ...saved.map(n => norm(n.truck)).filter(Boolean),
+  ])];
+  const driverOpts = [...new Set([
+    ...fleet.map(f => f.driver).filter(Boolean),
+    ...trips.map(x => String(x.driver ?? '')).filter(Boolean),
+    ...saved.map(n => norm(n.driver)).filter(Boolean),
+  ])];
+  const pickTruck = (v: string) => {
+    setTruck(v);
+    const f = fleet.find(x => x.id === v || x.plate === v);
+    if (f && f.driver) setDriver(prev => (prev.trim() ? prev : f.driver));
+    if (!f) {
+      const tr = trips.find(x => String(x.code ?? '') === v);
+      if (tr && tr.driver) setDriver(prev => (prev.trim() ? prev : String(tr.driver)));
+    }
+  };
 
   const durOf = (n: SavedDN): number | null => durBetween(n.departTime, n.arriveTime);
   const gapByTicket = (() => {
@@ -539,7 +609,7 @@ export default function DeliveryNote({ trips, orders, username, plantName, onToa
 
   return (
     <div className="space-y-6">
-      <style>{`@page { size: A4 portrait; margin: 9mm; } @media print { #root { display: none !important; } #dn-print-root { zoom: 0.85; } }`}</style>
+      <style>{`@page { size: A4 portrait; margin: 9mm; } @media print { #root { display: none !important; } #dn-print-root { display: block !important; zoom: 0.85; } }`}</style>
 
       <div className="bg-white/[0.04] border border-white/10 rounded-xl p-6">
         <h3 className="text-lg font-black tracking-tight text-white mb-1">{t('title')}</h3>
@@ -609,11 +679,13 @@ export default function DeliveryNote({ trips, orders, username, plantName, onToa
           </div>
           <div>
             <label className={labelCls}>{t('truck')}</label>
-            <input value={truck} onChange={e => setTruck(e.target.value)} className={inputCls} />
+            <input value={truck} onChange={e => pickTruck(e.target.value)} list="dn-trucks" className={inputCls} />
+            <datalist id="dn-trucks">{truckOpts.map(v => <option key={v} value={v} />)}</datalist>
           </div>
           <div>
             <label className={labelCls}>{t('driver')}</label>
-            <input value={driver} onChange={e => setDriver(e.target.value)} className={inputCls} />
+            <input value={driver} onChange={e => setDriver(e.target.value)} list="dn-drivers" className={inputCls} />
+            <datalist id="dn-drivers">{driverOpts.map(v => <option key={v} value={v} />)}</datalist>
           </div>
           <div>
             <label className={labelCls}>{t('departTime')}</label>
@@ -643,6 +715,10 @@ export default function DeliveryNote({ trips, orders, username, plantName, onToa
           <button onClick={doSave} className="bg-sky-500 hover:bg-sky-400 text-white font-bold px-5 py-2.5 rounded-lg text-sm">{t('save')}</button>
           <button onClick={() => { const p = buildPayload(); if (p) doExcel(p); else onToast(t('needClient')); }} className="bg-yellow-500/15 text-yellow-300 border border-yellow-500/40 hover:bg-yellow-500/25 px-5 py-2.5 rounded-lg font-bold text-sm">{t('excel')}</button>
           <button onClick={() => { const p = buildPayload(); if (p) setTimeout(() => window.print(), 60); else onToast(t('needClient')); }} className="bg-white/[0.05] text-slate-300 border border-white/10 hover:text-white px-5 py-2.5 rounded-lg font-bold text-sm">{t('print')}</button>
+          <div className="flex rounded-lg overflow-hidden border border-white/10 text-xs font-bold">
+            <button onClick={() => setPaper('company')} className={`px-3 py-2.5 ${paper === 'company' ? 'bg-sky-500/20 text-sky-300' : 'text-slate-400'}`}>{t('paperCompany')}</button>
+            <button onClick={() => setPaper('plain')} className={`px-3 py-2.5 ${paper === 'plain' ? 'bg-sky-500/20 text-sky-300' : 'text-slate-400'}`}>{t('paperPlain')}</button>
+          </div>
         </div>
       </div>
 
@@ -664,11 +740,11 @@ export default function DeliveryNote({ trips, orders, username, plantName, onToa
 
       {viewing && (
         <div className="bg-white/[0.04] border border-white/10 rounded-xl p-6">
-          <div id="dn-report-preview"><DNSheet p={viewing} /></div>
+          <div id="dn-report-preview"><DNSheet p={viewing} paper={paper} /></div>
         </div>
       )}
       {viewing && createPortal(
-        <div id="dn-print-root" className="hidden print:block"><DNSheet p={viewing} /></div>,
+        <div id="dn-print-root" style={{ display: 'none' }}><DNSheet p={viewing} paper={paper} /></div>,
         document.body
       )}
 
