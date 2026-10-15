@@ -31,7 +31,7 @@ export function mergeByKey<T>(base: T[], incoming: T[], key: (r: T) => string): 
 
 /** Pull the tenant blob and merge with local rows (local wins ties). */
 export async function pullCloud<T>(
-  collection: 'labReports' | 'deliveryNotes',
+  collection: 'labReports' | 'deliveryNotes' | 'recipes' | 'inventory',
   local: T[],
   key: (r: T) => string
 ): Promise<T[]> {
@@ -46,12 +46,23 @@ export async function pullCloud<T>(
 }
 
 /** Push the full merged list to the tenant blob. Never throws. */
-export async function pushCloud(collection: 'labReports' | 'deliveryNotes', list: unknown[]): Promise<boolean> {
+export async function pushCloud(collection: 'labReports' | 'deliveryNotes' | 'recipes' | 'inventory', list: unknown): Promise<boolean> {
   if (!getToken()) return true;
   try {
-    await api.put(`/api/workspace/${collection}`, list);
+    await api.put(`/api/workspace/${collection}`, list ?? {});
     return true;
   } catch {
     return false;
+  }
+}
+
+/** Pull a tenant blob stored as a single object (e.g. inventory). Never throws. */
+export async function pullObject(collection: 'inventory' | 'recipes'): Promise<unknown> {
+  if (!getToken()) return null;
+  try {
+    const res = await api.get<{ data: unknown }>(`/api/workspace/${collection}`);
+    return res?.data ?? null;
+  } catch {
+    return null;
   }
 }
