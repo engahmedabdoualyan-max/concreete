@@ -15,7 +15,8 @@
  * ============================================================
  */
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type CSSProperties } from 'react';
+import { createPortal } from 'react-dom';
 import * as XLSX from 'xlsx';
 import { useLang } from '../context/LangContext';
 import { loadCustomers, loadPlantProfile } from '../firebase/firestore';
@@ -47,10 +48,12 @@ interface SavedReport {
 
 interface ReportPayload {
   no: string;
+  jobNo: string;
   mix: string;
   fc: number;
   exp7: number;
   exp28: number;
+  cement: string;
   client: string;
   project: string;
   location: string;
@@ -63,6 +66,8 @@ interface ReportPayload {
   slump: string;
   tempC: string;
   airTemp: string;
+  remarks: string;
+  tester: string;
   recipe: LabRecipe | null;
   rows: Array<{ n: number; s: string; w: number | null; d: number | null; load: number; kg: number; mpa: number }>;
   avgKg: number;
@@ -74,7 +79,7 @@ interface ReportPayload {
   logo: string;
 }
 
-const AREA_DIV = 17.67146; // kN → MPa for Ø150×300 cylinder
+const AREA_DIV = 17.6625; // kN → MPa for Ø150 cylinder (paper: Area 176.625 cm²)
 const VOL = 5301.44; // cm³
 const KG = 10.19716; // MPa → kg/cm²
 
@@ -101,6 +106,10 @@ const STR: Record<string, { en: string; ar: string; ur: string }> = {
   slump: { en: 'Slump (mm)', ar: 'الهبوط (مم)', ur: 'سلンプ (mm)' },
   tempC: { en: 'Concrete temp (°C)', ar: 'حرارة الخرسانة (°م)', ur: 'کنکریٹ درجہ حرارت (°C)' },
   airTemp: { en: 'Air temp (°C)', ar: 'حرارة الجو (°م)', ur: 'ہوا کا درجہ حرارت (°C)' },
+  jobNo: { en: 'Job No', ar: 'رقم الأمر', ur: 'جاب نمبر' },
+  cementContent: { en: 'Cement content', ar: 'محتوى الأسمنت', ur: 'سیمنٹ کی مقدار' },
+  remarks: { en: 'Remarks', ar: 'ملاحظات', ur: 'ریمارکس' },
+  testedBy: { en: 'Tested by', ar: 'أجرى الاختبار', ur: 'ٹیسٹ کنندہ' },
   save: { en: '💾 Save report', ar: '💾 حفظ التقرير', ur: '💾 رپورٹ محفوظ کریں' },
   saved: { en: 'Report saved', ar: 'تم حفظ التقرير', ur: 'رپورٹ محفوظ ہو گئی' },
   needLoads: { en: 'Enter at least one crushing load first.', ar: 'أدخل حمل تكسيير واحداً على الأقل أولاً.', ur: 'پہلے کم از کم ایک کرشنگ لوڈ درج کریں۔' },
@@ -118,8 +127,29 @@ const STR: Record<string, { en: string; ar: string; ur: string }> = {
   ofRequired: { en: 'of required', ar: 'من المطلوب', ur: 'مطلوبہ کا' },
 };
 
-const ELEMENTS = ['قواعد', 'أعمدة', 'أسقف', 'جسور', 'خزانات', 'مسبح'];
+const ELEMENTS = ['قواعد', 'أعمدة', 'أسقف', 'جسور', 'خزانات', 'مسبح', 'صبة خرسانة مسلحة'];
 const MIX_TYPES = ['عادي', 'SRC', 'مقاوم للكبريتات'];
+
+// Temporary demo clients (real PDF filenames from the lab archive) until the
+// real customer file arrives — used only when no sales customers exist yet.
+const DEMO_CLIENTS = [
+  'ابو راكان فيصل الشمري',
+  'احمد مفرح غريب الحربي',
+  'البيوت الفاخرة جاسر زيد جاسر المطيري',
+  'البيوت الفاخرة',
+  'العماره',
+  'النيرة',
+  'بتيل ق102 حي الروضة جدوع عاصي عواد الجميلي',
+  'تقرير شباب',
+  'جدوع عاصي الجميلي',
+  'حمد عواد',
+  'خيرات العماره',
+  'سعود بن صالح بن زلفان المطيري',
+  'محمد حسن عبدالله دغريري',
+  'محمد خلوي بن خالد الشمري',
+];
+
+const RED_IF_EMPTY: CSSProperties = { borderColor: 'rgba(239,68,68,.75)', background: 'rgba(239,68,68,.07)' };
 
 const todayISO = () => new Date().toISOString().split('T')[0];
 const addDays = (iso: string, n: number) => {
@@ -135,6 +165,86 @@ const parseFc = (code: string): number => {
   return m ? parseInt(m[1], 10) : 0;
 };
 
+function ReportSheet({ p }: { p: ReportPayload }) {
+  return (
+    <div className="bg-white text-slate-900 rounded-lg p-8 max-w-[800px] mx-auto" dir="rtl">
+      <div className="flex items-start justify-between gap-4 border-b-2 border-slate-900 pb-3">
+        <div>
+          <p className="font-black text-lg">ALMOTWR COMPANY | READY-MIX CONCRETE</p>
+          <p className="text-xs text-slate-600">{p.company}</p>
+          <p className="font-black mt-2">COMPRESSIVE STRENGTH OF CONCRETE CYLINDERS</p>
+        </div>
+        {p.logo && <img src={p.logo} alt="logo" style={{ height: 64, maxWidth: 140, objectFit: 'contain' }} />}
+      </div>
+      <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-xs mt-3">
+        <p><b>رقم التقرير:</b> <span dir="ltr">{p.no}</span></p>
+        <p><b>رقم الأمر:</b> <span dir="ltr">{p.jobNo || '—'}</span></p>
+        <p><b>التاريخ:</b> <span dir="ltr">{p.tested}</span></p>
+        <p><b>العميل:</b> {p.client || '—'}</p>
+        <p><b>المشروع:</b> {p.project || '—'}</p>
+        <p><b>الموقع:</b> {p.location || '—'}</p>
+        <p><b>العنصر:</b> {p.element}</p>
+        <p><b>المورد:</b> {p.supplier}</p>
+        <p><b>الخلطة:</b> <span dir="ltr">{p.mix} ({p.fc} MPa {p.mixType})</span></p>
+        <p><b>محتوى الأسمنت:</b> <span dir="ltr">{p.cement || '—'}</span></p>
+        <p><b>تاريخ الصب:</b> <span dir="ltr">{p.casting}</span></p>
+        <p><b>تاريخ الاختبار:</b> <span dir="ltr">{p.tested} ({p.age} يوم)</span></p>
+        <p><b>الهبوط:</b> <span dir="ltr">{p.slump} mm</span></p>
+        <p><b>الحرارة:</b> <span dir="ltr">{p.tempC}°C / {p.airTemp}°C</span></p>
+      </div>
+      {p.recipe && (
+        <p className="text-[11px] text-slate-600 mt-2">
+          مكونات الخلطة (كجم/م³): أسمنت {p.recipe.cement} · رمل {p.recipe.sand} · بحص {p.recipe.gravel} · ماء {p.recipe.water} · إضافات {p.recipe.admixture}
+        </p>
+      )}
+      <table className="w-full text-xs mt-3 border-collapse">
+        <thead>
+          <tr className="bg-slate-100">
+            <th className="border border-slate-300 p-1">م</th>
+            <th className="border border-slate-300 p-1">العينة</th>
+            <th className="border border-slate-300 p-1">الوزن (جم)</th>
+            <th className="border border-slate-300 p-1">الكثافة</th>
+            <th className="border border-slate-300 p-1">الحمل (kN)</th>
+            <th className="border border-slate-300 p-1">kg/cm²</th>
+            <th className="border border-slate-300 p-1">MPa</th>
+          </tr>
+        </thead>
+        <tbody>
+          {p.rows.filter(r => r.load > 0).map(r => (
+            <tr key={r.n}>
+              <td className="border border-slate-300 p-1 text-center">{r.n}</td>
+              <td className="border border-slate-300 p-1 text-center" dir="ltr">{r.s}</td>
+              <td className="border border-slate-300 p-1 text-center" dir="ltr">{r.w ?? '—'}</td>
+              <td className="border border-slate-300 p-1 text-center" dir="ltr">{r.d !== null ? r.d.toFixed(3) : '—'}</td>
+              <td className="border border-slate-300 p-1 text-center" dir="ltr">{r.load}</td>
+              <td className="border border-slate-300 p-1 text-center" dir="ltr">{r.kg.toFixed(2)}</td>
+              <td className="border border-slate-300 p-1 text-center" dir="ltr">{r.mpa.toFixed(2)}</td>
+            </tr>
+          ))}
+          <tr className="bg-slate-100 font-bold">
+            <td className="border border-slate-300 p-1 text-center" colSpan={5}>المتوسط</td>
+            <td className="border border-slate-300 p-1 text-center" dir="ltr">{p.avgKg.toFixed(2)}</td>
+            <td className="border border-slate-300 p-1 text-center" dir="ltr">{p.avgMpa.toFixed(2)}</td>
+          </tr>
+        </tbody>
+      </table>
+      <p className="text-sm font-black mt-3">
+        النتيجة: <span dir="ltr">{p.avgMpa.toFixed(2)} MPa</span> = {p.pct.toFixed(1)}% من المطلوب ({p.target} MPa) — {p.verdict}
+      </p>
+      {p.remarks && <p className="text-xs mt-2"><b>ملاحظات:</b> {p.remarks}</p>}
+      <div className="text-[11px] text-slate-600 mt-3 space-y-0.5">
+        <p>Batch weight adjustments vary on the daily moisture content of aggregates at the time of batching.</p>
+        <p>Concrete will be supplied according to ASTM C94.</p>
+        <p>Concrete mixes are designed according to project specification.</p>
+      </div>
+      <div className="flex justify-between text-xs mt-6">
+        <p>أجرى الاختبار: {p.tester || '....................'}</p>
+        <p>التوقيع: ....................</p>
+      </div>
+    </div>
+  );
+}
+
 export default function LabReport({ recipes, username, plantName, onToast }: {
   recipes: LabRecipe[];
   username: string;
@@ -146,12 +256,17 @@ export default function LabReport({ recipes, username, plantName, onToast }: {
 
   const [mixCode, setMixCode] = useState('');
   const [client, setClient] = useState('');
-  const [clientOpts, setClientOpts] = useState<string[]>([]);
+  const [customerRecs, setCustomerRecs] = useState<Array<{ name: string; address: string; phone: string }>>([]);
   const [project, setProject] = useState('');
   const [location, setLocation] = useState('');
   const [element, setElement] = useState(ELEMENTS[0]);
   const [supplier, setSupplier] = useState('شركة المطور للخرسانة الجاهزة');
   const [mixType, setMixType] = useState(MIX_TYPES[1]);
+  const [jobNo, setJobNo] = useState('');
+  const [cementInfo, setCementInfo] = useState('');
+  const [cementTouched, setCementTouched] = useState(false);
+  const [remarks, setRemarks] = useState('');
+  const [tester, setTester] = useState(username);
   const [casting, setCasting] = useState(todayISO());
   const [tested, setTested] = useState(addDays(todayISO(), 7));
   const [exp7, setExp7] = useState('');
@@ -172,13 +287,18 @@ export default function LabReport({ recipes, username, plantName, onToast }: {
   useEffect(() => {
     loadCustomers(username).then((list: unknown) => {
       if (Array.isArray(list)) {
-        const names = list
+        const recs = list
           .map((u: unknown) => {
             const o = u as Record<string, unknown>;
-            return String(o.name ?? o.customerName ?? o.clientName ?? o.username ?? '').trim();
+            return {
+              name: String(o.name ?? o.customerName ?? o.clientName ?? o.username ?? '').trim(),
+              address: String(o.address ?? o.site ?? o.location ?? '').trim(),
+              phone: String(o.phone ?? o.phoneNumber ?? '').trim(),
+            };
           })
-          .filter(Boolean);
-        setClientOpts([...new Set(names)]);
+          .filter(r => r.name);
+        const seen = new Set<string>();
+        setCustomerRecs(recs.filter(r => (seen.has(r.name) ? false : (seen.add(r.name), true))));
       }
     }).catch(() => {});
     loadPlantProfile(username).then((p: unknown) => {
@@ -192,10 +312,20 @@ export default function LabReport({ recipes, username, plantName, onToast }: {
     } catch {}
   }, [username, plantName]);
 
+  // Sales linkage: real customers first; archive filenames as demo fallback.
+  // Picking a sales customer auto-fills the site location from its address.
+  const clientOpts = customerRecs.length ? customerRecs.map(r => r.name) : DEMO_CLIENTS;
+  const pickClient = (name: string) => {
+    setClient(name);
+    const rec = customerRecs.find(r => r.name === name);
+    if (rec && rec.address) setLocation(prev => (prev.trim() ? prev : rec.address));
+  };
+
   const recipe = useMemo(() => recipes.find(r => r.code === mixCode) ?? null, [recipes, mixCode]);
   const fc = parseFc(mixCode);
   const effExp7 = expTouched && exp7 !== '' ? Number(exp7) : Math.round(fc * 0.75);
   const effExp28 = expTouched && exp28 !== '' ? Number(exp28) : fc;
+  const effCement = cementTouched && cementInfo !== '' ? cementInfo : recipe ? `${recipe.cement} kg/m³` : '';
   const age = diffDays(casting, tested);
 
   const rows = useMemo(() => {
@@ -224,12 +354,13 @@ export default function LabReport({ recipes, username, plantName, onToast }: {
   const buildPayload = (): ReportPayload | null => {
     if (!valid.length || !mixCode) return null;
     const count = Number((localStorage.getItem('labReportSeq') ?? '0')) + 1;
-    const no = `LAB-${casting.split('-').join('')}-${String(count).padStart(3, '0')}`;
+    const no = jobNo.trim() || `LAB-${casting.split('-').join('')}-${String(count).padStart(3, '0')}`;
     return {
-      no, mix: mixCode, fc, exp7: effExp7, exp28: effExp28,
+      no, jobNo: jobNo.trim(), mix: mixCode, fc, exp7: effExp7, exp28: effExp28,
+      cement: effCement,
       client: client.trim(), project: project.trim(), location: location.trim(),
       element, supplier: supplier.trim(), mixType, casting, tested, age,
-      slump, tempC, airTemp, recipe,
+      slump, tempC, airTemp, remarks: remarks.trim(), tester: tester.trim(), recipe,
       rows, avgKg, avgMpa, target, pct,
       verdict: verdict === 'pass' ? t('pass') : t('fail'),
       company: company || plantName, logo,
@@ -259,6 +390,7 @@ export default function LabReport({ recipes, username, plantName, onToast }: {
       [p.company],
       ['COMPRESSIVE STRENGTH OF CONCRETE CYLINDERS'],
       ['Report No', p.no, '', 'Date', tested],
+      ['Job No', p.jobNo || '—', '', 'Cement content', p.cement || '—'],
       ['Client Name', p.client, '', 'Project', p.project],
       ['Location', p.location, '', 'Element', p.element],
       ['Concrete Supplier', p.supplier, '', 'Mix', `${p.mix} (${p.fc} MPa ${p.mixType})`],
@@ -276,12 +408,13 @@ export default function LabReport({ recipes, username, plantName, onToast }: {
       [],
       [`Result: ${p.avgMpa.toFixed(2)} MPa = ${p.pct.toFixed(1)}% of required ${p.target} MPa — ${p.verdict}`],
       [],
+      ...(p.remarks ? ([['Remarks', p.remarks], []] as unknown[][]) : []),
       ['Notes:'],
       ['Batch weight adjustments vary on the daily moisture content of aggregates at the time of batching.'],
       ['Concrete will be supplied according to ASTM C94.'],
       ['Concrete mixes are designed according to project specification.'],
       [],
-      ['Test Performed By', p.company],
+      ['Test Performed By', p.tester || p.company],
     ];
     if (p.recipe) {
       aoa.splice(12, 0, ['Mix ingredients (kg/m³)', `Cement ${p.recipe.cement}`, `Sand ${p.recipe.sand}`, `Gravel ${p.recipe.gravel}`, `Water ${p.recipe.water}`, `Admix ${p.recipe.admixture}`], []);
@@ -309,7 +442,7 @@ export default function LabReport({ recipes, username, plantName, onToast }: {
 
   return (
     <div className="space-y-6">
-      <style>{`@media print { body * { visibility: hidden; } #lab-report-print, #lab-report-print * { visibility: visible; } #lab-report-print { position: absolute; inset: 0; margin: 0; } }`}</style>
+      <style>{`@page { size: A4 portrait; margin: 9mm; } @media print { body * { visibility: hidden; } #lab-print-root, #lab-print-root * { visibility: visible; } #lab-print-root { position: absolute; top: 0; left: 0; right: 0; } #lab-report-print { display: none !important; } }`}</style>
 
       <div className="bg-white/[0.04] border border-white/10 rounded-xl p-6">
         <h3 className="text-lg font-black tracking-tight text-white mb-1">{t('title')}</h3>
@@ -318,13 +451,13 @@ export default function LabReport({ recipes, username, plantName, onToast }: {
         <div className="grid md:grid-cols-3 gap-3">
           <div>
             <label className={labelCls}>{t('mix')}</label>
-            <select value={mixCode} onChange={e => { setMixCode(e.target.value); setExpTouched(false); }} className={inputCls}>
+            <select value={mixCode} onChange={e => { setMixCode(e.target.value); setExpTouched(false); setCementTouched(false); }} className={inputCls}>
               {recipes.map(r => <option key={r.code} value={r.code} className="bg-slate-900">{r.code}{parseFc(r.code) ? ` (${parseFc(r.code)} MPa)` : ''}</option>)}
             </select>
           </div>
           <div>
             <label className={labelCls}>{t('client')}</label>
-            <input value={client} onChange={e => setClient(e.target.value)} list="lab-clients" placeholder="…" className={inputCls} />
+            <input value={client} onChange={e => pickClient(e.target.value)} list="lab-clients" placeholder="…" className={inputCls} style={client.trim() ? undefined : RED_IF_EMPTY} />
             <datalist id="lab-clients">{clientOpts.map(c => <option key={c} value={c} />)}</datalist>
           </div>
           <div>
@@ -367,6 +500,22 @@ export default function LabReport({ recipes, username, plantName, onToast }: {
             <label className={labelCls}>{t('exp28')}</label>
             <input type="number" value={expTouched ? exp28 : effExp28} onChange={e => { setExp28(e.target.value); setExpTouched(true); }} className={inputCls} />
           </div>
+          <div>
+            <label className={labelCls}>{t('jobNo')}</label>
+            <input value={jobNo} onChange={e => setJobNo(e.target.value)} placeholder="—" className={inputCls} />
+          </div>
+          <div>
+            <label className={labelCls}>{t('cementContent')}</label>
+            <input value={cementTouched ? cementInfo : effCement} onChange={e => { setCementInfo(e.target.value); setCementTouched(true); }} className={inputCls} />
+          </div>
+          <div>
+            <label className={labelCls}>{t('testedBy')}</label>
+            <input value={tester} onChange={e => setTester(e.target.value)} className={inputCls} />
+          </div>
+          <div className="md:col-span-3">
+            <label className={labelCls}>{t('remarks')}</label>
+            <input value={remarks} onChange={e => setRemarks(e.target.value)} className={inputCls} />
+          </div>
           <div className="grid grid-cols-3 gap-3">
             <div><label className={labelCls}>{t('slump')}</label><input value={slump} onChange={e => setSlump(e.target.value)} className={inputCls} /></div>
             <div><label className={labelCls}>{t('tempC')}</label><input value={tempC} onChange={e => setTempC(e.target.value)} className={inputCls} /></div>
@@ -379,7 +528,7 @@ export default function LabReport({ recipes, username, plantName, onToast }: {
             <div key={i} className="bg-white/[0.02] border border-white/10 rounded-lg p-3">
               <p className="text-xs font-black text-sky-300 mb-2">A{i + 1}</p>
               <label className={labelCls}>{t('sLoad')}</label>
-              <input type="number" step="0.1" value={s.load} onChange={e => setS(i, 'load', e.target.value)} placeholder="412.7" className={inputCls} />
+              <input type="number" step="0.1" value={s.load} onChange={e => setS(i, 'load', e.target.value)} placeholder="412.7" className={inputCls} style={s.load.trim() ? undefined : RED_IF_EMPTY} />
               <div className="mt-2"><label className={labelCls}>{t('sWeight')}</label>
               <input type="number" value={s.weight} onChange={e => setS(i, 'weight', e.target.value)} placeholder="12393" className={inputCls} /></div>
               <p className="text-[11px] text-slate-400 mt-2" dir="ltr">
@@ -405,79 +554,12 @@ export default function LabReport({ recipes, username, plantName, onToast }: {
       {viewing && valid.length > 0 && (
         <div className="bg-white/[0.04] border border-white/10 rounded-xl p-6">
           <h3 className="text-lg font-black tracking-tight text-white mb-4">{t('preview')}</h3>
-          <div id="lab-report-print" className="bg-white text-slate-900 rounded-lg p-8 max-w-[800px] mx-auto" dir="rtl">
-            <div className="flex items-start justify-between gap-4 border-b-2 border-slate-900 pb-3">
-              <div>
-                <p className="font-black text-lg">ALMOTWR COMPANY | READY-MIX CONCRETE</p>
-                <p className="text-xs text-slate-600">{viewing.company}</p>
-                <p className="font-black mt-2">COMPRESSIVE STRENGTH OF CONCRETE CYLINDERS</p>
-              </div>
-              {viewing.logo && <img src={viewing.logo} alt="logo" style={{ height: 64, maxWidth: 140, objectFit: 'contain' }} />}
-            </div>
-            <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-xs mt-3">
-              <p><b>رقم التقرير:</b> <span dir="ltr">{viewing.no}</span></p>
-              <p><b>التاريخ:</b> <span dir="ltr">{viewing.tested}</span></p>
-              <p><b>العميل:</b> {viewing.client || '—'}</p>
-              <p><b>المشروع:</b> {viewing.project || '—'}</p>
-              <p><b>الموقع:</b> {viewing.location || '—'}</p>
-              <p><b>العنصر:</b> {viewing.element}</p>
-              <p><b>المورد:</b> {viewing.supplier}</p>
-              <p><b>الخلطة:</b> <span dir="ltr">{viewing.mix} ({viewing.fc} MPa {viewing.mixType})</span></p>
-              <p><b>تاريخ الصب:</b> <span dir="ltr">{viewing.casting}</span></p>
-              <p><b>العمر:</b> {viewing.age} يوم</p>
-              <p><b>الهبوط:</b> <span dir="ltr">{viewing.slump} mm</span></p>
-              <p><b>الحرارة:</b> <span dir="ltr">{viewing.tempC}°C / {viewing.airTemp}°C</span></p>
-            </div>
-            {viewing.recipe && (
-              <p className="text-[11px] text-slate-600 mt-2">
-                مكونات الخلطة (كجم/م³): أسمنت {viewing.recipe.cement} · رمل {viewing.recipe.sand} · بحص {viewing.recipe.gravel} · ماء {viewing.recipe.water} · إضافات {viewing.recipe.admixture}
-              </p>
-            )}
-            <table className="w-full text-xs mt-3 border-collapse">
-              <thead>
-                <tr className="bg-slate-100">
-                  <th className="border border-slate-300 p-1">م</th>
-                  <th className="border border-slate-300 p-1">العينة</th>
-                  <th className="border border-slate-300 p-1">الوزن (جم)</th>
-                  <th className="border border-slate-300 p-1">الكثافة</th>
-                  <th className="border border-slate-300 p-1">الحمل (kN)</th>
-                  <th className="border border-slate-300 p-1">kg/cm²</th>
-                  <th className="border border-slate-300 p-1">MPa</th>
-                </tr>
-              </thead>
-              <tbody>
-                {viewing.rows.filter(r => r.load > 0).map(r => (
-                  <tr key={r.n}>
-                    <td className="border border-slate-300 p-1 text-center">{r.n}</td>
-                    <td className="border border-slate-300 p-1 text-center" dir="ltr">{r.s}</td>
-                    <td className="border border-slate-300 p-1 text-center" dir="ltr">{r.w ?? '—'}</td>
-                    <td className="border border-slate-300 p-1 text-center" dir="ltr">{r.d !== null ? r.d.toFixed(3) : '—'}</td>
-                    <td className="border border-slate-300 p-1 text-center" dir="ltr">{r.load}</td>
-                    <td className="border border-slate-300 p-1 text-center" dir="ltr">{r.kg.toFixed(2)}</td>
-                    <td className="border border-slate-300 p-1 text-center" dir="ltr">{r.mpa.toFixed(2)}</td>
-                  </tr>
-                ))}
-                <tr className="bg-slate-100 font-bold">
-                  <td className="border border-slate-300 p-1 text-center" colSpan={5}>المتوسط</td>
-                  <td className="border border-slate-300 p-1 text-center" dir="ltr">{viewing.avgKg.toFixed(2)}</td>
-                  <td className="border border-slate-300 p-1 text-center" dir="ltr">{viewing.avgMpa.toFixed(2)}</td>
-                </tr>
-              </tbody>
-            </table>
-            <p className="text-sm font-black mt-3">
-              النتيجة: <span dir="ltr">{viewing.avgMpa.toFixed(2)} MPa</span> = {viewing.pct.toFixed(1)}% من المطلوب ({viewing.target} MPa) — {viewing.verdict}
-            </p>
-            <div className="text-[11px] text-slate-600 mt-3 space-y-0.5">
-              <p>Batch weight adjustments vary on the daily moisture content of aggregates at the time of batching.</p>
-              <p>Concrete will be supplied according to ASTM C94.</p>
-              <p>Concrete mixes are designed according to project specification.</p>
-            </div>
-            <div className="flex justify-between text-xs mt-6">
-              <p>أجرى الاختبار: ....................</p>
-              <p>التوقيع: ....................</p>
-            </div>
-          </div>
+          <div id="lab-report-print"><ReportSheet p={viewing} /></div>
         </div>
+      )}
+      {viewing && valid.length > 0 && createPortal(
+        <div id="lab-print-root" className="hidden print:block"><ReportSheet p={viewing} /></div>,
+        document.body
       )}
 
       <div className="bg-white/[0.04] border border-white/10 rounded-xl p-6">
