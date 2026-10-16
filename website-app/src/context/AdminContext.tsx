@@ -76,7 +76,8 @@ export function rolePermissions(role: UserRole): Record<ModuleKey, boolean> {
     case 'operator':
       return { ...none(), operations: true, production: true, schedule: true, orders: true };
     case 'quality':
-      return { ...none(), mixing: true, evaluation: true };
+      // Lab account — lab section only, everything else locked.
+      return { ...none(), mixing: true };
     case 'maintenance':
       return { ...none(), workshop: true };
     case 'rnd_manager':
