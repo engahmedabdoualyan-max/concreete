@@ -91,12 +91,12 @@ export async function sharePdf(opts: {
     earlyChat = window.open(`https://wa.me/${opts.waNumber}?text=${encodeURIComponent(opts.text)}`, '_blank');
   }
   if (native && nav) {
+    // Prefer the native share sheet on every platform (mobile AND desktop):
+    // WhatsApp appears among the targets when installed. A cancel stays silent.
     try {
-      if (nav.canShare({ files: [file] })) {
-        await nav.share({ files: [file], title: opts.fileName, text: opts.text });
-        if (earlyChat && !earlyChat.closed) earlyChat.close();
-        return 'shared';
-      }
+      await nav.share({ files: [file], title: opts.fileName, text: opts.text });
+      if (earlyChat && !earlyChat.closed) earlyChat.close();
+      return 'shared';
     } catch (e) {
       if ((e as Error)?.name === 'AbortError') return 'cancelled';
     }
