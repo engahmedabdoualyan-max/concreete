@@ -1,18 +1,13 @@
 /**
  * ============================================================
- *  Share a report sheet as PDF over WhatsApp (best-effort)
+ *  Share a report as PDF over WhatsApp via public link
  * ============================================================
- *  Mobile (Android/iOS): the rendered sheet becomes a PDF blob and
- *  is handed to navigator.share({files}) — WhatsApp appears as a
- *  target and receives the actual PDF file.
- *
- *  Desktop (no file-share support): the PDF downloads automatically
- *  and, when a phone number is known, the WhatsApp chat opens with
- *  a prefilled summary so the file is one attach away.
- *
- *  Arabic renders perfectly because the PDF is built from a DOM
- *  screenshot (html-to-image, html2canvas fallback) — no font
- *  shaping issues by construction.
+ *  Flow: build a SELF-CONTAINED static HTML document (inline styles,
+ *  data-URI images only — no app CSS, no external resources, so nothing
+ *  can taint the canvas or fail to load) → render to canvas →
+ *  A4 PDF → upload to the tenant store → open WhatsApp with a PUBLIC
+ *  download link + summary. The recipient taps the link — no login,
+ *  no manual attach, no typed number. Identical on mobile + desktop.
  * ============================================================
  */
 
@@ -20,23 +15,10 @@ import { toCanvas } from 'html-to-image';
 import { jsPDF } from 'jspdf';
 import { api, API_BASE } from '../api/client';
 
-/** Render a report node to an A4 PDF blob (white background). */
-export async function sheetPdfBlob(el: HTMLElement, timeoutMs = 25000): Promise<Blob> {
-  const withTimeout = <T,>(p: Promise<T>): Promise<T> =>
-    Promise.race([p, new Promise<never>((_, rej) => setTimeout(() => rej(new Error('PDF_TIMEOUT')), timeoutMs))]);
-  let dataUrl: string;
-  try {
-    const canvas = await withTimeout(
-      toCanvas(el, { pixelRatio: 2, backgroundColor: '#ffffff', cacheBust: true, skipFonts: true })
-    );
-    dataUrl = canvas.toDataURL('image/png');
-  } catch {
-    const html2canvas = (await import('html2canvas')).default;
-    const canvas = await withTimeout(
-      html2canvas(el, { scale: 2, backgroundColor: '#ffffff', logging: false, useCORS: true })
-    );
-    dataUrl = canvas.toDataURL('image/png');
-  }
+const withTimeout = <T,>(p: Promise<T>, ms = 25000): Promise<T> =>
+  Promise.race([p, new Promise<never>((_, rej) => setTimeout(() => rej(new Error('PDF_TIMEOUT')), ms))]);
+
+async function canvasToPdfBlob(dataUrl: string): Promise<Blob> {
   const img = new Image();
   await new Promise<void>((resolve, reject) => {
     img.onload = () => resolve();
@@ -54,6 +36,71 @@ export async function sheetPdfBlob(el: HTMLElement, timeoutMs = 25000): Promise<
   }
   pdf.addImage(dataUrl, 'PNG', (210 - w) / 2, 9, w, h);
   return pdf.output('blob');
+}
+
+/**
+ * Render a standalone HTML document (off-screen iframe, same-origin srcdoc)
+ * to an A4 PDF blob. The document must be self-contained: inline styles +
+ * data-URI images only.
+ */
+export async function staticPdfBlob(docHtml: string, timeoutMs = 30000): Promise<Blob> {
+  const iframe = document.createElement('iframe');
+  iframe.setAttribute('aria-hidden', 'true');
+  iframe.style.cssText =
+    'position:fixed;left:-10000px;top:0;width:794px;height:1123px;border:0;opacity:0;pointer-events:none;';
+  document.body.appendChild(iframe);
+  try {
+    await withTimeout(
+      new Promise<void>((resolve, reject) => {
+        iframe.onload = () => resolve();
+        iframe.onerror = () => reject(new Error('IFRAME'));
+        iframe.srcdoc = docHtml;
+      }),
+      timeoutMs
+    );
+    await new Promise(r => setTimeout(r, 500));
+    const doc = iframe.contentDocument;
+    const body = doc?.body;
+    if (!body) throw new Error('IFRAME_BODY');
+    let dataUrl: string;
+    try {
+      const canvas = await withTimeout(
+        toCanvas(body, { pixelRatio: 2, backgroundColor: '#ffffff', skipFonts: true }),
+        timeoutMs
+      );
+      dataUrl = canvas.toDataURL('image/png');
+    } catch {
+      const html2canvas = (await import('html2canvas')).default;
+      const canvas = await withTimeout(
+        html2canvas(body, { scale: 2, backgroundColor: '#ffffff', logging: false, useCORS: true }),
+        timeoutMs
+      );
+      dataUrl = canvas.toDataURL('image/png');
+    }
+    return await canvasToPdfBlob(dataUrl);
+  } finally {
+    iframe.remove();
+  }
+}
+
+/** Render a live report node to an A4 PDF blob (legacy path). */
+export async function sheetPdfBlob(el: HTMLElement, timeoutMs = 25000): Promise<Blob> {
+  let dataUrl: string;
+  try {
+    const canvas = await withTimeout(
+      toCanvas(el, { pixelRatio: 2, backgroundColor: '#ffffff', cacheBust: true, skipFonts: true }),
+      timeoutMs
+    );
+    dataUrl = canvas.toDataURL('image/png');
+  } catch {
+    const html2canvas = (await import('html2canvas')).default;
+    const canvas = await withTimeout(
+      html2canvas(el, { scale: 2, backgroundColor: '#ffffff', logging: false, useCORS: true }),
+      timeoutMs
+    );
+    dataUrl = canvas.toDataURL('image/png');
+  }
+  return canvasToPdfBlob(dataUrl);
 }
 
 /** Normalize a Saudi number to wa.me format, or null when unusable. */
@@ -102,19 +149,18 @@ export async function sharePdf(opts: {
 }
 
 /**
- * Totally-online flow the owner asked for: render the PDF, upload it to the
+ * Full WhatsApp-link flow: render the standalone document, upload it to the
  * tenant store, and open WhatsApp with a PUBLIC download link + summary.
- * The recipient taps the link — no login, no manual attach, no typed number.
- * Throws with a short code on any failure (UPLOAD_FAILED / SHARE_FAILED).
+ * Throws on any failure (caller toasts).
  */
-export async function shareViaLink(opts: {
-  el: HTMLElement;
+export async function shareDocViaLink(opts: {
+  docHtml: string;
   kind: 'lab' | 'delivery';
   ref: string;
   fileName: string;
   text: string;
 }): Promise<string> {
-  const blob = await sheetPdfBlob(opts.el);
+  const blob = await staticPdfBlob(opts.docHtml);
   const buf = new Uint8Array(await blob.arrayBuffer());
   let binary = '';
   const CHUNK = 0x8000;

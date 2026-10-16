@@ -23,7 +23,85 @@ import * as XLSX from 'xlsx';
 import { usePageDict, type PageDict } from '../i18n/pageDict';
 import { loadCustomers, loadPlantProfile, loadLabReports, saveLabReports } from '../firebase/firestore';
 import { mergeByKey, pullCloud, pushCloud } from '../lib/reportSync';
-import { shareViaLink } from '../lib/sharePdf';
+import { shareDocViaLink } from '../lib/sharePdf';
+
+const esc = (s: unknown) =>
+  String(s ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+
+/** Standalone printable document (inline styles + data-URI images only). */
+function buildLabDoc(p: ReportPayload, emblem: string, footer: string, chartSvg: string): string {
+  const rowsHtml = p.rows
+    .filter(r => r.load > 0)
+    .map(
+      r => `<tr><td style="border:1px solid #111;padding:3px;text-align:center">${r.n}</td>` +
+        `<td style="border:1px solid #111;padding:3px;text-align:center">${esc(r.s)}</td>` +
+        `<td style="border:1px solid #111;padding:3px;text-align:center">${r.w ?? '—'}</td>` +
+        `<td style="border:1px solid #111;padding:3px;text-align:center">${r.d !== null ? r.d.toFixed(2) : '—'}</td>` +
+        `<td style="border:1px solid #111;padding:3px;text-align:center">${r.load}</td>` +
+        `<td style="border:1px solid #111;padding:3px;text-align:center">${r.kg.toFixed(2)}</td>` +
+        `<td style="border:1px solid #111;padding:3px;text-align:center">${r.mpa.toFixed(2)}</td></tr>`
+    )
+    .join('');
+  const chart = chartSvg.replace('<svg ', '<svg width="100%" ');
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"></head>` +
+    `<body style="margin:0;padding:14px;font-family:Arial,Tahoma,sans-serif;color:#111;background:#fff;">` +
+    `<div style="border:2px solid #111;padding:12px;max-width:770px;margin:0 auto;" dir="ltr">` +
+    `<table style="width:100%;border-collapse:collapse;"><tr>` +
+    `<td style="width:33%;font-size:9px;line-height:1.55;text-align:center;vertical-align:top">` +
+    `<b style="font-size:11px">ALMOTWR FACTORY</b><br>For Cement Products<br>` +
+    `CR : 251108261 - LIC : 371339<br>TEL : 0509270011 - 0509270022<br>` +
+    `AL-SAIR STREET - INDUSTRIAL STATE<br>HAFAR AL BATIN - EASTERN REGION</td>` +
+    `<td style="width:26%;text-align:center;vertical-align:top"><img src="${emblem}" style="height:78px;"></td>` +
+    `<td style="width:33%;font-size:9px;line-height:1.65;text-align:center;vertical-align:top" dir="rtl">` +
+    `<b style="font-size:13px">المصنع المطور</b><br>للمنتجات الأسمنتية<br>` +
+    `س.ت : 251108261 - ترخيص : 371339<br>جوال : 0509270011 - 0509270022<br>` +
+    `شارع السير - المنطقة الصناعية<br>حفرالباطن - المنطقة الشرقية</td>` +
+    `</tr></table>` +
+    `<div style="border:1px solid #111;text-align:center;font-weight:bold;font-size:13px;margin-top:8px;padding:4px;">COMPRESSIVE STRENGTH OF CONCRETE CYLINDERS</div>` +
+    `<table style="width:100%;border-collapse:collapse;font-size:10.5px;margin-top:8px;">` +
+    `<tr><td style="padding:2px"><b>JOB NO</b> ............ ${esc(p.jobNo) || '—'}</td>` +
+    `<td style="padding:2px"><b>Date:</b> ${esc(p.tested)}</td></tr>` +
+    `<tr><td style="padding:2px"><b>CLIENT</b> ............ ${esc(p.client) || '—'}</td>` +
+    `<td style="padding:2px"><b>PROJECT</b> ............ ${esc(p.project) || '—'}</td></tr>` +
+    `<tr><td style="padding:2px"><b>LOCATION OF POUR</b> ............ ${esc(p.location) || '—'}</td>` +
+    `<td style="padding:2px"><b>TYPE</b> ............ ${esc(p.element)}</td></tr>` +
+    `<tr><td style="padding:2px"><b>SUPPLIER</b> ............ ${esc(p.supplier)}</td>` +
+    `<td style="padding:2px"><b>MIX</b> ............ ${esc(p.mix)} (${p.fc} MPa ${esc(p.mixType)})</td></tr>` +
+    `<tr><td style="padding:2px"><b>CASTING</b> ............ ${esc(p.casting)} (${p.age} days)</td>` +
+    `<td style="padding:2px"><b>SLUMP</b> ............ ${esc(p.slump)} mm</td></tr>` +
+    `<tr><td style="padding:2px"><b>CEMENT</b> ............ ${esc(p.cement) || '—'}</td>` +
+    `<td style="padding:2px"><b>TEMP</b> ............ ${esc(p.tempC)}°C / ${esc(p.airTemp)}°C</td></tr>` +
+    `</table>` +
+    (p.recipe ? `<p style="font-size:10px;color:#333;">Mix (kg/m³): cement ${p.recipe.cement} · sand ${p.recipe.sand} · gravel ${p.recipe.gravel} · water ${p.recipe.water} · admix ${p.recipe.admixture}</p>` : '') +
+    `<table style="width:100%;border-collapse:collapse;font-size:10.5px;margin-top:6px;">` +
+    `<tr><th style="border:1px solid #111;padding:3px">TEST<br>NO</th>` +
+    `<th style="border:1px solid #111;padding:3px">SAMPLE<br>NO</th>` +
+    `<th style="border:1px solid #111;padding:3px">WEIGHT<br>GM</th>` +
+    `<th style="border:1px solid #111;padding:3px">DENSITY<br>GM/CM³</th>` +
+    `<th style="border:1px solid #111;padding:3px">LOAD<br>KN</th>` +
+    `<th style="border:1px solid #111;padding:3px" colspan="2">COMPRESSIVE STRENGTH</th></tr>` +
+    `<tr><th style="border:1px solid #111;padding:3px" colspan="5"></th>` +
+    `<th style="border:1px solid #111;padding:3px">KG/CM²</th>` +
+    `<th style="border:1px solid #111;padding:3px">MPA</th></tr>` +
+    rowsHtml +
+    `<tr><td style="border:1px solid #111;padding:3px;text-align:center;font-weight:bold" colspan="5">Average</td>` +
+    `<td style="border:1px solid #111;padding:3px;text-align:center;font-weight:bold">${p.avgKg.toFixed(2)}</td>` +
+    `<td style="border:1px solid #111;padding:3px;text-align:center;font-weight:bold">${p.avgMpa.toFixed(2)}</td></tr>` +
+    `</table>` +
+    `<p style="font-size:11px;font-weight:bold;" dir="rtl">النتيجة: ${p.avgMpa.toFixed(2)} MPa = ${p.pct.toFixed(1)}% من المطلوب (${p.target} MPa) — ${esc(p.verdict)}</p>` +
+    chart +
+    (p.remarks ? `<p style="font-size:10.5px;" dir="rtl"><b>ملاحظات:</b> ${esc(p.remarks)}</p>` : '') +
+    `<p style="font-size:10px;color:#333;">Batch weight adjustments vary on the daily moisture content of aggregates at the time of batching.<br>` +
+    `Concrete will be supplied according to ASTM C94. Concrete mixes are designed according to project specification.</p>` +
+    `<p style="font-size:10.5px;text-align:center;font-weight:bold;text-decoration:underline;margin-top:8px;">TEST PERFOMED BY</p>` +
+    `<p style="font-size:10.5px;"><b>Name:</b> ${esc(p.tester) || 'LAB/ Engineer'} &nbsp;&nbsp; <b>Signature:</b> ........................ &nbsp;&nbsp; <b>Date:</b> ${esc(p.tested)}</p>` +
+    `<img src="${footer}" style="width:100%;margin-top:8px;">` +
+    `</div></body></html>`;
+}
 
 export interface LabRecipe {
   code: string;
@@ -684,15 +762,23 @@ export default function LabReport({ recipes, username, plantName, onToast }: {
     const miss = needBasics(); if (miss) { onToast(miss); return; }
     const p = buildPayload();
     if (!p) { onToast(t('needLoads')); return; }
-    const el = document.getElementById('lab-report-print');
-    if (!el) { onToast(t('needLoads')); return; }
     setSharing(true);
     try {
+      const chartSvg =
+        document.querySelector('#lab-report-print svg')?.outerHTML ??
+        document.querySelector('#dn-report-preview svg')?.outerHTML ??
+        '';
       const text = `تقرير ${p.no} — ${p.client || ''} — ${p.mix}: ${p.avgMpa.toFixed(2)} MPa (${p.verdict})`;
-      await shareViaLink({ el, kind: 'lab', ref: p.no, fileName: `${p.no}.pdf`, text });
+      await shareDocViaLink({
+        docHtml: buildLabDoc(p, labEmblem, labFooter, chartSvg),
+        kind: 'lab',
+        ref: p.no,
+        fileName: `${p.no}.pdf`,
+        text,
+      });
       onToast(t('sharedOk'));
-    } catch {
-      onToast(t('pdfFail'));
+    } catch (e) {
+      onToast(`${t('pdfFail')}${e instanceof Error && e.message ? ` (${e.message})` : ''}`);
     } finally {
       setSharing(false);
     }
