@@ -132,6 +132,8 @@ const DICT: PageDict = {
   saved: { en: 'Report saved', ar: 'تم حفظ التقرير', ur: 'رپورٹ محفوظ ہو گئی', ru: 'Отчёт сохранён', de: 'Bericht gespeichert', it: 'Report salvato', hi: 'रिपोर्ट सहेजी गई', ja: '保存しました', zh: '已保存' },
   needLoads: { en: 'Enter at least one crushing load first.', ar: 'أدخل حمل تكسيير واحداً على الأقل أولاً.', ur: 'پہلے کم از کم ایک کرشنگ لوڈ درج کریں۔', ru: 'Сначала введите хотя бы одну нагрузку.', de: 'Zuerst mindestens eine Last eingeben.', it: 'Inserire prima almeno un carico.', hi: 'पहले कम से कम एक लोड दर्ज करें।', ja: 'まず荷重を1つ入力してください。', zh: '请先输入至少一个荷载。' },
   needCasting: { en: 'Enter the casting date first.', ar: 'أدخل تاريخ الصب أولاً.', ur: 'پہلے کاسٹنگ کی تاریخ درج کریں۔', ru: 'Сначала введите дату заливки.', de: 'Zuerst Betonierdatum eingeben.', it: 'Inserire prima la data del getto.', hi: 'पहले कास्टिंग तिथि दर्ज करें।', ja: 'まず打設日を入力してください。', zh: '请先输入浇筑日期。' },
+  needAge: { en: 'Pick the test age (3 / 7 / 28 days).', ar: 'اختر عمر الاختبار (3 / 7 / 28 يوم).', ur: 'ٹیسٹ عمر منتخب کریں (3 / 7 / 28 دن)۔', ru: 'Выберите возраст (3/7/28 сут).', de: 'Prüfalter wählen (3/7/28 Tage).', it: 'Scegli età di prova (3/7/28 gg).', hi: 'परीक्षण आयु चुनें (3/7/28 दिन)।', ja: '材齢を選択（3/7/28日）。', zh: '选择试验龄期（3/7/28天）。' },
+  needCement: { en: 'Pick the cement type.', ar: 'اختر نوع الأسمنت.', ur: 'سیمنٹ کی قسم منتخب کریں۔', ru: 'Выберите тип цемента.', de: 'Zementtyp wählen.', it: 'Scegli il tipo di cemento.', hi: 'सीमेंट प्रकार चुनें।', ja: 'セメント種類を選択。', zh: '选择水泥类型。' },
   tempCapped: { en: 'Concrete temp capped at 30°C (code limit 32, ice in use).', ar: 'تم تثبيت حرارة الخلطة عند 30° (حد الكود 32 — نستخدم ثلج).', ur: 'کنکریٹ درجہ حرارت 30°C پر محدود (کوڈ حد 32، برف استعمال ہوتی ہے)۔', ru: 'Температура ограничена 30°C (норма 32, используется лёд).', de: 'Betontemperatur auf 30°C begrenzt (Norm 32, Eis im Einsatz).', it: 'Temperatura limitata a 30°C (norma 32, ghiaccio in uso).', hi: 'कंक्रीट तापमान 30°C पर सीमित (मानक 32, बर्फ उपयोग में)।', ja: '温度は30°Cに制限（基準32、氷使用）。', zh: '温度限制为30°C（规范32，用冰）。' },
   autoW: { en: 'Empty weights auto-fill from A1 (editable).', ar: 'الأوزان الفارغة تُملأ تلقائياً من A1 (قابلة للتعديل).', ur: 'خالی وزن A1 سے خودکار (قابل ترمیم)۔', ru: 'Пустые массы берутся из A1 (можно менять).', de: 'Leere Gewichte werden aus A1 übernommen (änderbar).', it: 'Pesi vuoti copiati da A1 (modificabili).', hi: 'खाली वजन A1 से स्वतः भरें (बदल सकते हैं)।', ja: '空の質量はA1から自動入力（編集可）。', zh: '空重量自动取自A1（可改）。' },
   preview: { en: 'Report preview', ar: 'معاينة التقرير', ur: 'رپورٹ کا پیش نظارہ', ru: 'Предпросмотр', de: 'Vorschau', it: 'Anteprima', hi: 'पूर्वावलोकन', ja: 'プレビュー', zh: '预览' },
@@ -412,7 +414,8 @@ export default function LabReport({ recipes, username, plantName, onToast }: {
   const [location, setLocation] = useState('');
   const [element, setElement] = useState(ELEMENTS[0]);
   const [supplier, setSupplier] = useState('شركة المطور للخرسانة الجاهزة');
-  const [mixType, setMixType] = useState(MIX_TYPES[1]);
+  const [mixType, setMixType] = useState('');
+  // Cement type memory: picked once per mix, then automatic afterwards.
   const [jobNo, setJobNo] = useState('');
   const [cementInfo, setCementInfo] = useState('');
   const [cementTouched, setCementTouched] = useState(false);
@@ -422,20 +425,38 @@ export default function LabReport({ recipes, username, plantName, onToast }: {
   // the test/report date always follows it automatically (+7 days).
   const [casting, setCasting] = useState('');
   const [tested, setTested] = useState('');
-  const [testedTouched, setTestedTouched] = useState(false);
   const [exp7, setExp7] = useState('');
   const [exp28, setExp28] = useState('');
   const [exp3, setExp3] = useState('');
   const [expTouched, setExpTouched] = useState(false);
-  const [testAge, setTestAge] = useState<3 | 7 | 28>(7);
-  const pickAge = (v: 3 | 7 | 28) => {
+  const [testAge, setTestAge] = useState<3 | 7 | 28 | null>(null);
+  const pickAge = (v: 3 | 7 | 28 | null) => {
     setTestAge(v);
-    setTestedTouched(false);
-    if (casting) setTested(addDays(casting, v));
+    if (casting && v) setTested(addDays(casting, v));
+    else if (!casting) setTested('');
   };
   const pickCasting = (v: string) => {
     setCasting(v);
-    if (!testedTouched) setTested(v ? addDays(v, testAge) : '');
+    if (v && testAge) setTested(addDays(v, testAge));
+    else setTested('');
+  };
+  // Cement type memory: picked once per mix, then automatic afterwards.
+  const cemMem = (): Record<string, string> => {
+    try { return JSON.parse(localStorage.getItem('labCementType') ?? '{}'); } catch { return {}; }
+  };
+  const pickCement = (v: string) => {
+    setMixType(v);
+    if (v && mixCode) {
+      try {
+        const mem = cemMem();
+        mem[mixCode] = v;
+        localStorage.setItem('labCementType', JSON.stringify(mem));
+      } catch {}
+    }
+  };
+  const applyCementMemory = (code: string) => {
+    if (!code) { setMixType(''); return; }
+    setMixType(cemMem()[code] ?? '');
   };
   const [samples, setSamples] = useState<SampleIn[]>([{ load: '', weight: '' }, { load: '', weight: '' }, { load: '', weight: '' }]);
   const [slump, setSlump] = useState('120');
@@ -470,7 +491,10 @@ export default function LabReport({ recipes, username, plantName, onToast }: {
   const [paper, setPaper] = useState<'company' | 'plain'>('company');
 
   useEffect(() => {
-    if (recipes.length && !mixCode) setMixCode(recipes[0].code);
+    if (recipes.length && !mixCode) {
+      setMixCode(recipes[0].code);
+      applyCementMemory(recipes[0].code);
+    }
   }, [recipes, mixCode]);
   useEffect(() => {
     loadCustomers(username).then((list: unknown) => {
@@ -566,7 +590,7 @@ export default function LabReport({ recipes, username, plantName, onToast }: {
   const valid = rows.filter(r => r.load > 0);
   const avgMpa = valid.length ? valid.reduce((a, r) => a + r.mpa, 0) / valid.length : 0;
   const avgKg = valid.length ? valid.reduce((a, r) => a + r.kg, 0) / valid.length : 0;
-  const target = testAge === 3 ? effExp3 : testAge === 7 ? effExp7 : effExp28;
+  const target = testAge === 3 ? effExp3 : testAge === 28 ? effExp28 : effExp7;
   const pct = target > 0 && valid.length ? (avgMpa / target) * 100 : 0;
   // Acceptance (ACI 318 style): average ≥ required AND every sample ≥ required − 3.5 MPa.
   const minMpa = valid.length ? Math.min(...valid.map(r => r.mpa)) : 0;
@@ -574,7 +598,7 @@ export default function LabReport({ recipes, username, plantName, onToast }: {
   const verdict = !valid.length ? '' : avgMpa >= target && minMpa >= minAllowed ? 'pass' : 'fail';
 
   const buildPayload = (): ReportPayload | null => {
-    if (!valid.length || !mixCode) return null;
+    if (!valid.length || !mixCode || !testAge) return null;
     const count = Number((localStorage.getItem('labReportSeq') ?? '0')) + 1;
     const no = jobNo.trim() || `LAB-${casting.split('-').join('')}-${String(count).padStart(3, '0')}`;
     return {
@@ -596,13 +620,15 @@ export default function LabReport({ recipes, username, plantName, onToast }: {
     void pushCloud('labReports', list);
   };
 
-  const needCastingFirst = (): boolean => {
-    if (!casting) { onToast(t('needCasting')); return true; }
-    return false;
+  const needBasics = (): string | null => {
+    if (!casting) return t('needCasting');
+    if (!testAge) return t('needAge');
+    if (!mixType) return t('needCement');
+    return null;
   };
 
   const doSave = () => {
-    if (needCastingFirst()) return;
+    const miss = needBasics(); if (miss) { onToast(miss); return; }
     const p = buildPayload();
     if (!p) { onToast(t('needLoads')); return; }
     try { localStorage.setItem('labReportSeq', String(Number(localStorage.getItem('labReportSeq') ?? '0') + 1)); } catch {}
@@ -661,7 +687,7 @@ export default function LabReport({ recipes, username, plantName, onToast }: {
   };
 
   const doWhatsApp = async () => {
-    if (needCastingFirst()) return;
+    const miss = needBasics(); if (miss) { onToast(miss); return; }
     const p = buildPayload();
     if (!p) { onToast(t('needLoads')); return; }
     const el = document.getElementById('lab-report-print');
@@ -722,7 +748,7 @@ export default function LabReport({ recipes, username, plantName, onToast }: {
         <div className="grid md:grid-cols-3 gap-3">
           <div>
             <label className={labelCls}>{t('mix')}</label>
-            <select value={mixCode} onChange={e => { setMixCode(e.target.value); setExpTouched(false); setCementTouched(false); }} className={inputCls}>
+            <select value={mixCode} onChange={e => { setMixCode(e.target.value); setExpTouched(false); setCementTouched(false); applyCementMemory(e.target.value); }} className={inputCls}>
               {recipes.map(r => <option key={r.code} value={r.code} className="bg-slate-900">{r.code}{parseFc(r.code) ? ` (${parseFc(r.code)} MPa)` : ''}</option>)}
             </select>
           </div>
@@ -751,7 +777,8 @@ export default function LabReport({ recipes, username, plantName, onToast }: {
           </div>
           <div>
             <label className={labelCls}>{t('mixType')}</label>
-            <select value={mixType} onChange={e => setMixType(e.target.value)} className={inputCls}>
+            <select value={mixType} onChange={e => pickCement(e.target.value)} className={inputCls} style={mixType ? undefined : RED_IF_EMPTY}>
+              <option value="" className="bg-slate-900">—</option>
               {MIX_TYPES.map(x => <option key={x} value={x} className="bg-slate-900">{x}</option>)}
             </select>
           </div>
@@ -761,11 +788,12 @@ export default function LabReport({ recipes, username, plantName, onToast }: {
           </div>
           <div>
             <label className={labelCls}>{t('tested')}</label>
-            <input type="date" value={tested} onChange={e => { setTested(e.target.value); setTestedTouched(true); }} className={inputCls} />
+            <p className={`${inputCls} text-slate-200`} dir="ltr">{tested || '—'}</p>
           </div>
           <div>
             <label className={labelCls}>{t('testAge')}</label>
-            <select value={testAge} onChange={e => pickAge(Number(e.target.value) as 3 | 7 | 28)} className={inputCls}>
+            <select value={testAge ?? ''} onChange={e => pickAge(e.target.value === '' ? null : (Number(e.target.value) as 3 | 7 | 28))} className={inputCls} style={!testAge ? RED_IF_EMPTY : undefined}>
+              <option value="" className="bg-slate-900">—</option>
               {[3, 7, 28].map(n => <option key={n} value={n} className="bg-slate-900">{n} {t('days')}</option>)}
             </select>
           </div>
@@ -829,8 +857,8 @@ export default function LabReport({ recipes, username, plantName, onToast }: {
 
         <div className="flex flex-wrap gap-2 mt-4">
           <button onClick={doSave} className="bg-sky-500 hover:bg-sky-400 text-white font-bold px-5 py-2.5 rounded-lg text-sm">{t('save')}</button>
-          <button onClick={() => { if (needCastingFirst()) return; const p = buildPayload(); if (p) doExcel(p); else onToast(t('needLoads')); }} className="bg-yellow-500/15 text-yellow-300 border border-yellow-500/40 hover:bg-yellow-500/25 px-5 py-2.5 rounded-lg font-bold text-sm">{t('excel')}</button>
-          <button onClick={() => { if (needCastingFirst()) return; if (valid.length) doPrint(); else onToast(t('needLoads')); }} className="bg-white/[0.05] text-slate-300 border border-white/10 hover:text-white px-5 py-2.5 rounded-lg font-bold text-sm">{t('print')}</button>
+          <button onClick={() => { const miss = needBasics(); if (miss) { onToast(miss); return; } const p = buildPayload(); if (p) doExcel(p); else onToast(t('needLoads')); }} className="bg-yellow-500/15 text-yellow-300 border border-yellow-500/40 hover:bg-yellow-500/25 px-5 py-2.5 rounded-lg font-bold text-sm">{t('excel')}</button>
+          <button onClick={() => { const miss = needBasics(); if (miss) { onToast(miss); return; } if (valid.length) doPrint(); else onToast(t('needLoads')); }} className="bg-white/[0.05] text-slate-300 border border-white/10 hover:text-white px-5 py-2.5 rounded-lg font-bold text-sm">{t('print')}</button>
           <button onClick={() => void doWhatsApp()} disabled={sharing} className="bg-emerald-500/15 text-emerald-300 border border-emerald-500/40 hover:bg-emerald-500/25 px-5 py-2.5 rounded-lg font-bold text-sm disabled:opacity-50">{sharing ? t('sharing') : t('whatsapp')}</button>
           <input value={waInput} onChange={e => setWaInput(e.target.value)} placeholder="05xxxxxxxx" dir="ltr" title={t('waNumber')} className="w-32 bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2.5 text-white text-sm outline-none focus:border-emerald-400/70" />
           <div className="flex rounded-lg overflow-hidden border border-white/10 text-xs font-bold">
