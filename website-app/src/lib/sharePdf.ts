@@ -161,7 +161,24 @@ export async function shareDocViaLink(opts: {
   text: string;
 }): Promise<string> {
   const blob = await staticPdfBlob(opts.docHtml);
-  const buf = new Uint8Array(await blob.arrayBuffer());
+  return publishBlob({
+    blob,
+    kind: opts.kind,
+    ref: opts.ref,
+    fileName: opts.fileName,
+    text: opts.text,
+  });
+}
+
+/** Upload any blob and open WhatsApp with its public link. Shared by PDF/image flows. */
+export async function publishBlob(opts: {
+  blob: Blob;
+  kind: 'lab' | 'delivery';
+  ref: string;
+  fileName: string;
+  text: string;
+}): Promise<string> {
+  const buf = new Uint8Array(await opts.blob.arrayBuffer());
   let binary = '';
   const CHUNK = 0x8000;
   for (let i = 0; i < buf.length; i += CHUNK) {
@@ -178,4 +195,71 @@ export async function shareDocViaLink(opts: {
   const url = `${API_BASE}/api/public/reports/${res.token}`;
   window.open(`https://wa.me/?text=${encodeURIComponent(`${opts.text}\n${url}`)}`, '_blank');
   return url;
+}
+
+/**
+ * Render the standalone document to a JPEG image blob (light: ~10x smaller
+ * than PDF — uploads fast and previews inline inside WhatsApp).
+ */
+export async function docImageBlob(docHtml: string, timeoutMs = 30000): Promise<Blob> {
+  const iframe = document.createElement('iframe');
+  iframe.setAttribute('aria-hidden', 'true');
+  iframe.style.cssText =
+    'position:fixed;left:-10000px;top:0;width:794px;height:1123px;border:0;opacity:0;pointer-events:none;';
+  document.body.appendChild(iframe);
+  try {
+    await withTimeout(
+      new Promise<void>((resolve, reject) => {
+        iframe.onload = () => resolve();
+        iframe.onerror = () => reject(new Error('IFRAME'));
+        iframe.srcdoc = docHtml;
+      }),
+      timeoutMs
+    );
+    await new Promise(r => setTimeout(r, 500));
+    const doc = iframe.contentDocument;
+    const body = doc?.body;
+    if (!body) throw new Error('IFRAME_BODY');
+    let canvas: HTMLCanvasElement;
+    try {
+      canvas = await withTimeout(
+        toCanvas(body, { pixelRatio: 1.75, backgroundColor: '#ffffff', skipFonts: true }),
+        timeoutMs
+      );
+    } catch {
+      const html2canvas = (await import('html2canvas')).default;
+      canvas = await withTimeout(
+        html2canvas(body, { scale: 1.75, backgroundColor: '#ffffff', logging: false, useCORS: true }),
+        timeoutMs
+      );
+    }
+    const blob: Blob | null = await new Promise(resolve =>
+      canvas.toBlob(b => resolve(b), 'image/jpeg', 0.88)
+    );
+    if (!blob) throw new Error('ENCODE');
+    return blob;
+  } finally {
+    iframe.remove();
+  }
+}
+
+/**
+ * Image flow the owner asked for: the report preview becomes a JPEG that
+ * uploads in seconds and shows as an inline preview inside WhatsApp.
+ */
+export async function shareImageViaLink(opts: {
+  docHtml: string;
+  kind: 'lab' | 'delivery';
+  ref: string;
+  fileName: string;
+  text: string;
+}): Promise<string> {
+  const blob = await docImageBlob(opts.docHtml);
+  return publishBlob({
+    blob,
+    kind: opts.kind,
+    ref: opts.ref,
+    fileName: opts.fileName,
+    text: opts.text,
+  });
 }

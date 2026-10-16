@@ -17,7 +17,7 @@ import { usePageDict, type PageDict } from '../i18n/pageDict';
 import { api } from '../api/client';
 import { loadCustomers, loadPlantProfile, loadInventory, saveInventory, loadDeliveryNotes, saveDeliveryNotes } from '../firebase/firestore';
 import { mergeByKey, pullCloud, pullObject, pushCloud } from '../lib/reportSync';
-import { shareDocViaLink } from '../lib/sharePdf';
+import { shareImageViaLink } from '../lib/sharePdf';
 
 const esc = (s: unknown) =>
   String(s ?? '')
@@ -349,11 +349,11 @@ export default function DeliveryNote({ trips, orders, username, plantName, onToa
     setSharing(true);
     try {
       const text = `مذكرة ${p.ticket} — ${p.client} — ${p.mix} ${p.qty}m³ — ${p.grand.toFixed(2)} ر.س`;
-      await shareDocViaLink({
+      await shareImageViaLink({
         docHtml: buildDnDoc(p, labEmblem, labFooter),
         kind: 'delivery',
         ref: p.ticket,
-        fileName: `${p.ticket}.pdf`,
+        fileName: `${p.ticket}.jpg`,
         text,
       });
       onToast(t('sharedOk'));
