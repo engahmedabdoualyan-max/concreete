@@ -17,22 +17,23 @@
  */
 
 import { toCanvas } from 'html-to-image';
-import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 
 /** Render a report node to an A4 PDF blob (white background). */
-export async function sheetPdfBlob(el: HTMLElement): Promise<Blob> {
+export async function sheetPdfBlob(el: HTMLElement, timeoutMs = 25000): Promise<Blob> {
+  const withTimeout = <T,>(p: Promise<T>): Promise<T> =>
+    Promise.race([p, new Promise<never>((_, rej) => setTimeout(() => rej(new Error('PDF_TIMEOUT')), timeoutMs))]);
   let dataUrl: string;
   try {
-    const canvas = await toCanvas(el, { pixelRatio: 2, backgroundColor: '#ffffff', cacheBust: true });
+    const canvas = await withTimeout(
+      toCanvas(el, { pixelRatio: 2, backgroundColor: '#ffffff', cacheBust: true, skipFonts: true })
+    );
     dataUrl = canvas.toDataURL('image/png');
   } catch {
-    const canvas = await html2canvas(el, {
-      scale: 2,
-      backgroundColor: '#ffffff',
-      logging: false,
-      useCORS: true,
-    });
+    const html2canvas = (await import('html2canvas')).default;
+    const canvas = await withTimeout(
+      html2canvas(el, { scale: 2, backgroundColor: '#ffffff', logging: false, useCORS: true })
+    );
     dataUrl = canvas.toDataURL('image/png');
   }
   const img = new Image();
@@ -64,12 +65,15 @@ export function normalizeWaNumber(raw: string): string | null {
   return null;
 }
 
-export type ShareOutcome = 'shared' | 'downloaded+chat' | 'downloaded';
+export type ShareOutcome = 'shared' | 'downloaded+chat' | 'downloaded' | 'cancelled';
 
 /**
- * Share the PDF file directly when the platform allows it, otherwise
- * download it and (when a number is known) open the WhatsApp chat.
- * Resolves 'shared' only when the native share sheet completed.
+ * Share the PDF file directly when the platform allows it (mobile share
+ * sheet AND desktop OS share — WhatsApp appears among the choices when
+ * installed), otherwise download it and open the WhatsApp chat.
+ *
+ * The chat window opens synchronously inside the click when native share
+ * is unavailable, so popup blockers cannot eat it after PDF rendering.
  */
 export async function sharePdf(opts: {
   blob: Blob;
@@ -78,14 +82,23 @@ export async function sharePdf(opts: {
   waNumber: string | null;
 }): Promise<ShareOutcome> {
   const file = new File([opts.blob], opts.fileName, { type: 'application/pdf' });
-  if (typeof navigator !== 'undefined' && typeof navigator.canShare === 'function') {
+  const nav = (typeof navigator !== 'undefined' ? navigator : null) as
+    | (Navigator & { canShare(d?: { files?: File[] }): boolean; share(d?: { files?: File[]; title?: string; text?: string }): Promise<void> })
+    | null;
+  const native = !!nav && typeof nav.share === 'function';
+  let earlyChat: Window | null = null;
+  if (!native && opts.waNumber) {
+    earlyChat = window.open(`https://wa.me/${opts.waNumber}?text=${encodeURIComponent(opts.text)}`, '_blank');
+  }
+  if (native && nav) {
     try {
-      if (navigator.canShare({ files: [file] })) {
-        await navigator.share({ files: [file], title: opts.fileName, text: opts.text });
+      if (nav.canShare({ files: [file] })) {
+        await nav.share({ files: [file], title: opts.fileName, text: opts.text });
+        if (earlyChat && !earlyChat.closed) earlyChat.close();
         return 'shared';
       }
-    } catch {
-      // User cancelled or share failed — fall through to download.
+    } catch (e) {
+      if ((e as Error)?.name === 'AbortError') return 'cancelled';
     }
   }
   const a = document.createElement('a');
@@ -95,6 +108,10 @@ export async function sharePdf(opts: {
   a.click();
   a.remove();
   setTimeout(() => URL.revokeObjectURL(a.href), 8000);
+  if (earlyChat && !earlyChat.closed) {
+    earlyChat.focus();
+    return 'downloaded+chat';
+  }
   if (opts.waNumber) {
     window.open(`https://wa.me/${opts.waNumber}?text=${encodeURIComponent(opts.text)}`, '_blank');
     return 'downloaded+chat';
