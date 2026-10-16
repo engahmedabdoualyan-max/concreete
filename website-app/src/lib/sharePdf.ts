@@ -65,37 +65,26 @@ export function normalizeWaNumber(raw: string): string | null {
   return null;
 }
 
-export type ShareOutcome = 'shared' | 'downloaded+chat' | 'downloaded' | 'cancelled';
+export type ShareOutcome = 'shared' | 'downloaded' | 'cancelled';
 
 /**
- * Share the PDF file directly when the platform allows it (mobile share
- * sheet AND desktop OS share — WhatsApp appears among the choices when
- * installed), otherwise download it and open the WhatsApp chat.
- *
- * The chat window opens synchronously inside the click when native share
- * is unavailable, so popup blockers cannot eat it after PDF rendering.
+ * Hand the PDF to the platform share sheet (mobile AND desktop): WhatsApp
+ * appears among the targets when installed, the user picks a contact there,
+ * and the FILE goes with it — no downloads, no typed numbers.
+ * Falls back to a plain download only where share sheets don't exist.
  */
 export async function sharePdf(opts: {
   blob: Blob;
   fileName: string;
   text: string;
-  waNumber: string | null;
 }): Promise<ShareOutcome> {
   const file = new File([opts.blob], opts.fileName, { type: 'application/pdf' });
   const nav = (typeof navigator !== 'undefined' ? navigator : null) as
-    | (Navigator & { canShare(d?: { files?: File[] }): boolean; share(d?: { files?: File[]; title?: string; text?: string }): Promise<void> })
+    | (Navigator & { share(d?: { files?: File[]; title?: string; text?: string }): Promise<void> })
     | null;
-  const native = !!nav && typeof nav.share === 'function';
-  let earlyChat: Window | null = null;
-  if (!native && opts.waNumber) {
-    earlyChat = window.open(`https://wa.me/${opts.waNumber}?text=${encodeURIComponent(opts.text)}`, '_blank');
-  }
-  if (native && nav) {
-    // Prefer the native share sheet on every platform (mobile AND desktop):
-    // WhatsApp appears among the targets when installed. A cancel stays silent.
+  if (nav && typeof nav.share === 'function') {
     try {
       await nav.share({ files: [file], title: opts.fileName, text: opts.text });
-      if (earlyChat && !earlyChat.closed) earlyChat.close();
       return 'shared';
     } catch (e) {
       if ((e as Error)?.name === 'AbortError') return 'cancelled';
@@ -108,13 +97,5 @@ export async function sharePdf(opts: {
   a.click();
   a.remove();
   setTimeout(() => URL.revokeObjectURL(a.href), 8000);
-  if (earlyChat && !earlyChat.closed) {
-    earlyChat.focus();
-    return 'downloaded+chat';
-  }
-  if (opts.waNumber) {
-    window.open(`https://wa.me/${opts.waNumber}?text=${encodeURIComponent(opts.text)}`, '_blank');
-    return 'downloaded+chat';
-  }
   return 'downloaded';
 }
