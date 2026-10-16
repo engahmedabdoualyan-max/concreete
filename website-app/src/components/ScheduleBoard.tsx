@@ -46,6 +46,7 @@ export interface AssignPatch {
   plantNo?: string;
   operatorName?: string;
   salesRep?: string;
+  quantity?: number;
 }
 
 function AssignInput({ value, placeholder, onCommit }: { value: string; placeholder: string; onCommit: (v: string) => void }) {
@@ -66,6 +67,7 @@ export default function ScheduleBoard({ orders, trips, onAssign }: { orders: DNO
   const [day, setDay] = useState(todayISO());
   const [notes, setNotes] = useState<NoteLite[]>(() => readNotes());
   const [tick, setTick] = useState(0);
+  const [reviewFilter, setReviewFilter] = useState<'all' | 'approved' | 'pending'>('all');
 
   useEffect(() => {
     setNotes(readNotes());
@@ -100,6 +102,8 @@ export default function ScheduleBoard({ orders, trips, onAssign }: { orders: DNO
           ...used.map(n => norm(n.driver)).filter(Boolean),
           ...trips.filter(t => String(t.orderId ?? '') === key).map(t => String(t.driver ?? '')),
         ])].join('، ');
+        const blocked = String((o as DNOrder).debtStatus ?? '') === 'blocked';
+        const approved = !blocked && String((o as DNOrder).accountStatus ?? '') === 'approved';
         return {
           id: key,
           i: idx + 1,
@@ -117,9 +121,12 @@ export default function ScheduleBoard({ orders, trips, onAssign }: { orders: DNO
           drivers,
           plantNo: norm(o.plantNo),
           operatorName: norm(o.operatorName),
+          review: blocked ? '⛔ موقوف' : approved ? '✅ معتمد' : '⏳ بانتظار الحسابات',
+          reviewState: blocked ? 'blocked' : approved ? 'approved' : 'pending',
           postponed: String(o.status ?? '') === 'postponed',
         };
-      });
+      })
+      .filter(r => reviewFilter === 'all' || (reviewFilter === 'approved' ? r.reviewState === 'approved' : r.reviewState !== 'approved'));
   })();
 
   const active = rows.filter(r => !r.postponed);
@@ -129,14 +136,14 @@ export default function ScheduleBoard({ orders, trips, onAssign }: { orders: DNO
   const dayName = AR_DAYS[new Date(day + 'T12:00:00').getDay()] ?? '';
 
   const doExcel = () => {
-    const head = ['م', 'العميل', 'مندوب المبيعات', 'الجوال', 'المقاول', 'نوع الصبة', 'الأسمنت', 'نوعه', 'الكمية المطلوبة', 'المتبقي', 'الحي', 'النهائية', 'السائقون', 'البلانت', 'المشغل'];
-    const body = rows.map(r => [r.i, r.client, r.salesRep, r.phone, r.contractor, r.pour, r.grade, r.cement, r.ordered, r.remaining, r.district, r.delivered, r.drivers, r.plantNo, r.operatorName]);
+    const head = ['م', 'العميل', 'مندوب المبيعات', 'الجوال', 'المقاول', 'نوع الصبة', 'الأسمنت', 'نوعه', 'الكمية المطلوبة', 'المتبقي', 'الحي', 'النهائية', 'السائقون', 'البلانت', 'المشغل', 'الحسابات'];
+    const body = rows.map(r => [r.i, r.client, r.salesRep, r.phone, r.contractor, r.pour, r.grade, r.cement, r.ordered, r.remaining, r.district, r.delivered, r.drivers, r.plantNo, r.operatorName, r.review]);
     const ws = XLSX.utils.aoa_to_sheet([
       [`جدول حجوزات الخرسانة اليومي — ${dayName} ${day}`],
       head, ...body,
-      ['المجموع', '', '', '', '', '', '', '', totOrdered, '', '', totDelivered, '', '', ''],
+      ['المجموع', '', '', '', '', '', '', '', totOrdered, '', '', totDelivered, '', '', '', ''],
     ]);
-    ws['!cols'] = [{ wch: 4 }, { wch: 26 }, { wch: 14 }, { wch: 14 }, { wch: 12 }, { wch: 14 }, { wch: 10 }, { wch: 8 }, { wch: 12 }, { wch: 10 }, { wch: 14 }, { wch: 10 }, { wch: 22 }, { wch: 8 }, { wch: 14 }];
+    ws['!cols'] = [{ wch: 4 }, { wch: 26 }, { wch: 14 }, { wch: 14 }, { wch: 12 }, { wch: 14 }, { wch: 10 }, { wch: 8 }, { wch: 12 }, { wch: 10 }, { wch: 14 }, { wch: 10 }, { wch: 22 }, { wch: 8 }, { wch: 14 }, { wch: 16 }];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Schedule');
     XLSX.writeFile(wb, `schedule-${day}.xlsx`);
@@ -148,7 +155,7 @@ export default function ScheduleBoard({ orders, trips, onAssign }: { orders: DNO
     <table className="w-full border-collapse" dir="rtl" style={{ fontSize: 10 }}>
       <thead>
         <tr style={{ background: '#c4b5fd' }}>
-          {['م', 'العميل', 'مندوب المبيعات', 'الجوال', 'المقاول', 'نوع الصبة', 'الأسمنت', 'نوعه', 'المطلوبة', 'المتبقي', 'الحي', 'النهائية', 'السائقون', 'البلانت', 'المشغل'].map(h => (
+          {['م', 'العميل', 'مندوب المبيعات', 'الجوال', 'المقاول', 'نوع الصبة', 'الأسمنت', 'نوعه', 'المطلوبة', 'المتبقي', 'الحي', 'النهائية', 'السائقون', 'البلانت', 'المشغل', 'الحسابات'].map(h => (
             <th key={h} style={{ border: '1px solid #111', padding: 3 }}>{h}</th>
           ))}
         </tr>
@@ -164,13 +171,20 @@ export default function ScheduleBoard({ orders, trips, onAssign }: { orders: DNO
             <td style={{ border: '1px solid #111', padding: 3, textAlign: 'center' }}>{r.pour}</td>
             <td style={{ border: '1px solid #111', padding: 3, textAlign: 'center' }} dir="ltr">{r.grade}</td>
             <td style={{ border: '1px solid #111', padding: 3, textAlign: 'center' }}>{r.cement}</td>
-            <td style={{ border: '1px solid #111', padding: 3, textAlign: 'center' }}>{r.ordered}</td>
+            <td style={{ border: '1px solid #111', padding: 3, textAlign: 'center' }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 2 }}>
+                {onAssign && <button onClick={() => commit(r.id, { quantity: Math.max(0, r.ordered - 1) })} style={{ border: '1px solid #111', borderRadius: 3, width: 16, lineHeight: 1 }} title="إنقاص م³">−</button>}
+                <b>{r.ordered}</b>
+                {onAssign && <button onClick={() => commit(r.id, { quantity: r.ordered + 1 })} style={{ border: '1px solid #111', borderRadius: 3, width: 16, lineHeight: 1 }} title="زيادة م³">+</button>}
+              </span>
+            </td>
             <td style={{ border: '1px solid #111', padding: 3, textAlign: 'center', fontWeight: 'bold', color: r.remaining > 0 ? '#b45309' : '#047857' }}>{r.remaining}</td>
             <td style={{ border: '1px solid #111', padding: 3, textAlign: 'center' }}>{r.district}</td>
             <td style={{ border: '1px solid #111', padding: 3, textAlign: 'center' }}>{r.delivered}</td>
             <td style={{ border: '1px solid #111', padding: 3 }}>{r.drivers}</td>
             <td style={{ border: '1px solid #111', padding: 3, background: '#fef9c3' }}>{onAssign ? <AssignInput value={r.plantNo} placeholder="رقم البلانت" onCommit={v => commit(r.id, { plantNo: v })} /> : r.plantNo}</td>
             <td style={{ border: '1px solid #111', padding: 3, background: '#fef9c3' }}>{onAssign ? <AssignInput value={r.operatorName} placeholder="اسم المشغل" onCommit={v => commit(r.id, { operatorName: v })} /> : r.operatorName}</td>
+            <td style={{ border: '1px solid #111', padding: 3, textAlign: 'center', fontSize: 9 }}>{r.review}</td>
           </tr>
         ))}
       </tbody>
@@ -180,6 +194,7 @@ export default function ScheduleBoard({ orders, trips, onAssign }: { orders: DNO
   const sheet = (
     <div className="bg-white text-slate-900 max-w-[1100px] mx-auto border-2 border-slate-900 p-4" dir="rtl">
       <p className="text-center font-black text-[15px]">جدول حجوزات الخرسانة اليومي لمصنع المطور - فرع حفرالباطن</p>
+      <p className="text-center text-[10px] text-slate-600">المسار: مبيعات ← مراجعة الحسابات ← التشغيل ← مشغلو البلانتات · المتبقي يُخصم تلقائياً من الدليفري نوت</p>
       <div className="flex justify-between text-[11px] font-bold mt-1 mb-2">
         <span>اليوم {dayName}</span>
         <span dir="ltr">تاريخ {day} م</span>
@@ -210,7 +225,12 @@ export default function ScheduleBoard({ orders, trips, onAssign }: { orders: DNO
       <div className="bg-white/[0.04] border border-white/10 rounded-xl p-6">
         <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
           <h3 className="text-lg font-black tracking-tight text-white">📋 جدول الحجوزات اليومي <span className="text-[10px] font-normal text-slate-400 border border-white/10 rounded px-1.5 py-0.5">AUTO</span></h3>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2 items-center">
+            <div className="flex gap-1 text-[11px] font-bold">
+              {([['all', 'الكل'], ['approved', '✅ معتمد'], ['pending', '⏳ بانتظار الحسابات']] as const).map(([v, label]) => (
+                <button key={v} onClick={() => setReviewFilter(v)} className={`px-2.5 py-1.5 rounded-lg border ${reviewFilter === v ? 'bg-sky-500 text-white border-sky-500' : 'bg-white/[0.04] text-slate-300 border-white/10'}`}>{label}</button>
+              ))}
+            </div>
             <input type="date" value={day} onChange={e => setDay(e.target.value)} className="bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2 text-white text-sm outline-none" />
             <button onClick={() => setNotes(readNotes())} className="bg-white/[0.05] text-slate-300 text-xs px-3 py-2 rounded-lg font-bold border border-white/10 hover:text-sky-300">🔄 تحديث</button>
             <button onClick={doExcel} className="bg-yellow-500/15 text-yellow-300 border border-yellow-500/40 hover:bg-yellow-500/25 px-4 py-2 rounded-lg font-bold text-xs">📊 إكسل</button>

@@ -55,6 +55,8 @@ function buildDnDoc(p: DNPayload, emblem: string, footer: string): string {
     `<td style="padding:2px"><b>SITE</b> ............ ${esc(p.site) || '—'}</td></tr>` +
     `<tr><td style="padding:2px"><b>TRUCK</b> ............ ${esc(p.truck) || '—'}</td>` +
     `<td style="padding:2px"><b>DRIVER</b> ............ ${esc(p.driver) || '—'}</td></tr>` +
+    `<tr><td style="padding:2px"><b>PUMP</b> ............ ${esc(p.pump) || '—'}</td>` +
+    `<td style="padding:2px"><b>PLANT</b> ............ ${esc(p.plantNo) || '—'}</td></tr>` +
     `<tr><td style="padding:2px"><b>ORDER</b> ............ ${esc(p.orderId) || '—'}</td>` +
     `<td style="padding:2px"><b>LOAD / ARRIVE</b> ............ ${esc(p.departTime) || '—'} → ${esc(p.arriveTime) || '—'}</td></tr>` +
     `</table>` +
@@ -91,6 +93,7 @@ export interface DNTrip {
   projectName: string;
   date: string;
   orderId?: string;
+  pump?: string;
 }
 export interface DNOrder {
   id: string;
@@ -105,6 +108,8 @@ export interface DNOrder {
   salesRep?: string;
   plantNo?: string;
   operatorName?: string;
+  accountStatus?: string;
+  debtStatus?: string;
 }
 
 interface DNPayload {
@@ -123,6 +128,7 @@ interface DNPayload {
   vat: number;
   grand: number;
   truck: string;
+  pump: string;
   driver: string;
   rep: string;
   notes: string;
@@ -156,6 +162,7 @@ const DICT: PageDict = {
   price: { en: 'Price / m³ (SAR)', ar: 'سعر المتر (ر.س)', ur: 'فی میٹر قیمت (ریال)', ru: 'Цена / м³ (SAR)', de: 'Preis / m³ (SAR)', it: 'Prezzo / m³ (SAR)', hi: 'प्रति m³ मूल्य (SAR)', ja: '単価 /m³ (SAR)', zh: '单价 /m³ (SAR)' },
   vat: { en: 'VAT %', ar: 'الضريبة %', ur: 'ٹیکس %', ru: 'НДС %', de: 'MwSt %', it: 'IVA %', hi: 'वैट %', ja: '税 %', zh: '税 %' },
   truck: { en: 'Truck', ar: 'الشاحنة', ur: 'ٹرک', ru: 'Миксер', de: 'Fahrzeug', it: 'Betoniera', hi: 'ट्रक', ja: 'トラック', zh: '搅拌车' },
+  pump: { en: 'Pump', ar: 'المضخة (البمب)', ur: 'پمپ', ru: 'Насос', de: 'Pumpe', it: 'Pompa', hi: 'पंप', ja: 'ポンプ', zh: '泵车' },
   driver: { en: 'Driver', ar: 'السائق', ur: 'ڈرائیور', ru: 'Водитель', de: 'Fahrer', it: 'Autista', hi: 'ड्राइवर', ja: '運転手', zh: '司机' },
   rep: { en: 'Sales rep', ar: 'المندوب', ur: 'سیلز نمائندہ', ru: 'Менеджер', de: 'Vertreter', it: 'Venditore', hi: 'सेल्स प्रतिनिधि', ja: '営業担当', zh: '销售员' },
   notes: { en: 'Notes', ar: 'ملاحظات', ur: 'نوٹس', ru: 'Примечания', de: 'Bemerkungen', it: 'Note', hi: 'टिप्पणियां', ja: '備考', zh: '备注' },
@@ -185,7 +192,7 @@ const DICT: PageDict = {
   noOrder: { en: '— no link —', ar: '— بدون ربط —', ur: '— کوئی ربط نہیں —', ru: '— без связи —', de: '— keine —', it: '— nessuno —', hi: '— कोई नहीं —', ja: '— なし —', zh: '— 不关联 —' },
   remaining: { en: 'Remaining', ar: 'المتبقي', ur: 'باقی', ru: 'Остаток', de: 'Rest', it: 'Rimanente', hi: 'शेष', ja: '残量', zh: '剩余' },
   balanceTitle: { en: 'Client balances (orders − delivered)', ar: 'أرصدة العملاء (الطلبات − المسلم)', ur: 'کلائنٹ بیلنس', ru: 'Балансы клиентов', de: 'Kundensalden', it: 'Saldi clienti', hi: 'ग्राहक शेष', ja: '顧客残量', zh: '客户余额' },
-  driversTitle: { en: 'Driver & truck trips (for payroll)', ar: 'تربات السائقين والسيارات (للرواتب)', ur: 'ڈرائیور ٹرپس (تنخواہ کے لیے)', ru: 'Рейсы водителей', de: 'Fahrer-Touren', it: 'Viaggi autisti', hi: 'ड्राइवर ट्रिप', ja: '運転手配送回数', zh: '司机车次' },
+  driversTitle: { en: 'Driver, mixer & pump trips (for payroll)', ar: 'تربات السائقين والخلاطات والمضخات (للرواتب)', ur: 'ڈرائیور ٹرپس (تنخواہ کے لیے)', ru: 'Рейсы водителей', de: 'Fahrer-Touren', it: 'Viaggi autisti', hi: 'ड्राइवर ट्रिप', ja: '運転手配送回数', zh: '司机车次' },
   exportDrivers: { en: '📊 Drivers sheet', ar: '📊 كشف التربات', ur: '📊 ڈرائیور شیٹ', ru: '📊 Ведомость', de: '📊 Übersicht', it: '📊 Prospetto', hi: '📊 शीट', ja: '📊 集計表', zh: '📊 明细表' },
   tripsCol: { en: 'trips', ar: 'تربة', ur: 'ٹرپ', ru: 'рейсы', de: 'Touren', it: 'viaggi', hi: 'ट्रिप', ja: '回', zh: '车次' },
   autoPost: { en: 'Post to accounts automatically', ar: 'ترحيل تلقائي للحسابات', ur: 'خودکار اکاؤنٹس اندراج', ru: 'Проводить в учёт', de: 'Auto in Buchhaltung', it: 'Registra in contabilità', hi: 'खातों में स्वतः दर्ज करें', ja: '会計へ自動転記', zh: '自动过账' },
@@ -282,6 +289,7 @@ function DNSheet({ p, paper }: { p: DNPayload; paper: 'company' | 'plain' }) {
         <SheetRow label="PROJECT">{p.project || '—'}</SheetRow>
         <SheetRow label="SITE">{p.site || '—'}</SheetRow>
         <SheetRow label="TRUCK">{p.truck || '—'}</SheetRow>
+        <SheetRow label="PUMP">{p.pump || '—'}</SheetRow>
         <SheetRow label="DRIVER">{p.driver || '—'}</SheetRow>
         <SheetRow label="ORDER">{p.orderId || '—'}</SheetRow>
         <SheetRow label="LOAD / ARRIVE">{p.departTime || '—'} → {p.arriveTime || '—'}</SheetRow>
@@ -347,6 +355,7 @@ export default function DeliveryNote({ trips, orders, username, plantName, onToa
   const [price, setPrice] = useState('');
   const [vatRate, setVatRate] = useState('15');
   const [truck, setTruck] = useState('');
+  const [pump, setPump] = useState('');
   const [driver, setDriver] = useState('');
   const [rep, setRep] = useState('');
   const [notes, setNotes] = useState('');
@@ -603,6 +612,20 @@ export default function DeliveryNote({ trips, orders, username, plantName, onToa
     });
   })();
 
+  const pumpStats = (() => {
+    const map = new Map<string, { trips: number; m3: number; trucks: Set<string> }>();
+    for (const n of saved) {
+      const k = norm((n as SavedDN).pump);
+      if (!k) continue;
+      const e = map.get(k) ?? { trips: 0, m3: 0, trucks: new Set<string>() };
+      e.trips += 1;
+      e.m3 += Number(n.qty) || 0;
+      if (norm(n.truck)) e.trucks.add(norm(n.truck));
+      map.set(k, e);
+    }
+    return [...map.entries()].map(([pump, v]) => ({ pump, ...v, trucks: [...v.trucks].join('، ') }));
+  })();
+
   const pickTrip = (id: string) => {
     setTripId(id);
     if (id === 'manual') return;
@@ -610,6 +633,7 @@ export default function DeliveryNote({ trips, orders, username, plantName, onToa
     if (!tr) return;
     setTruck(String(tr.code ?? ''));
     setDriver(String(tr.driver ?? ''));
+    if (tr.pump) setPump(String(tr.pump));
     if (Number(tr.qty) > 0) setQty(String(tr.qty));
     if (tr.siteName) setSite(String(tr.siteName));
     if (tr.projectName) setProject(String(tr.projectName));
@@ -658,6 +682,10 @@ export default function DeliveryNote({ trips, orders, username, plantName, onToa
     ...trips.map(x => String(x.driver ?? '')).filter(Boolean),
     ...saved.map(n => norm(n.driver)).filter(Boolean),
   ])];
+  const pumpOpts = [...new Set([
+    ...trips.map(x => String(x.pump ?? '')).filter(Boolean),
+    ...saved.map(n => norm((n as SavedDN).pump)).filter(Boolean),
+  ])];
   const pickTruck = (v: string) => {
     setTruck(v);
     const f = fleet.find(x => x.id === v || x.plate === v);
@@ -697,6 +725,10 @@ export default function DeliveryNote({ trips, orders, username, plantName, onToa
       [],
       ['Truck', 'Trips', 'm³', 'Avg gap min'],
       ...truckStats.map(s => [s.truck, s.trips, s.m3, s.avgGap ?? '—']),
+      [],
+      ['Pump trips (mixer+pump payroll)', '', '', ''],
+      ['Pump', 'Trips', 'm³', 'Mixers'],
+      ...pumpStats.map(s => [s.pump, s.trips, s.m3, s.trucks]),
     ];
     const ws = XLSX.utils.aoa_to_sheet(aoa);
     ws['!cols'] = [{ wch: 24 }, { wch: 10 }, { wch: 12 }, { wch: 26 }];
@@ -727,6 +759,7 @@ export default function DeliveryNote({ trips, orders, username, plantName, onToa
       project: project.trim(), site: site.trim(), mix,
       qty: q, price: pr, vatRate: vr, sub, vat, grand,
       truck: truck.trim(), driver: driver.trim(), rep: rep.trim(), notes: notes.trim(),
+      pump: pump.trim(),
       company: company || plantName,
       orderId, departTime: departTime.trim(), arriveTime: arriveTime.trim(),
       plantNo: String(ord?.plantNo ?? ''),
@@ -829,6 +862,7 @@ export default function DeliveryNote({ trips, orders, username, plantName, onToa
       ['Phone', p.phone, '', 'Ticket', p.ticket],
       ['Project', p.project, '', 'Site', p.site],
       ['Truck', p.truck, '', 'Driver', p.driver],
+      ['Pump', p.pump || '—', '', 'Plant', p.plantNo || '—'],
       ['Loading', p.departTime || '—', 'Arrival', p.arriveTime || '—'],
       [],
       ['MIX', 'QTY m³', 'PRICE SAR', 'TOTAL SAR'],
@@ -933,6 +967,11 @@ export default function DeliveryNote({ trips, orders, username, plantName, onToa
             <datalist id="dn-drivers">{driverOpts.map(v => <option key={v} value={v} />)}</datalist>
           </div>
           <div>
+            <label className={labelCls}>{t('pump')}</label>
+            <input value={pump} onChange={e => setPump(e.target.value)} list="dn-pumps" className={inputCls} placeholder="P01" />
+            <datalist id="dn-pumps">{pumpOpts.map(v => <option key={v} value={v} />)}</datalist>
+          </div>
+          <div>
             <label className={labelCls}>{t('rep')}</label>
             <input value={rep} onChange={e => setRep(e.target.value)} className={inputCls} />
           </div>
@@ -1028,14 +1067,15 @@ export default function DeliveryNote({ trips, orders, username, plantName, onToa
         )}
       </div>
 
-      {(driverStats.length > 0 || truckStats.length > 0) && (
+      {(driverStats.length > 0 || truckStats.length > 0 || pumpStats.length > 0) && (
         <div className="bg-white/[0.04] border border-white/10 rounded-xl p-6">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-black tracking-tight text-white">{t('driversTitle')}</h3>
             <button onClick={doDriversExcel} className="bg-yellow-500/15 text-yellow-300 border border-yellow-500/40 hover:bg-yellow-500/25 px-4 py-2 rounded-lg font-bold text-xs">{t('exportDrivers')}</button>
           </div>
-          <div className="grid md:grid-cols-2 gap-4">
+          <div className="grid md:grid-cols-3 gap-4">
             <div>
+              <p className="text-[11px] font-black text-slate-400 mb-2">السائقون</p>
               {driverStats.map(d => (
                 <div key={d.driver} className="flex items-center justify-between gap-2 bg-white/[0.02] rounded-lg px-3 py-2 border border-white/10 text-xs mb-1.5">
                   <span className="text-slate-200 font-bold truncate">{d.driver}</span>
@@ -1044,10 +1084,21 @@ export default function DeliveryNote({ trips, orders, username, plantName, onToa
               ))}
             </div>
             <div>
+              <p className="text-[11px] font-black text-slate-400 mb-2">الخلاطات (ميكسر)</p>
               {truckStats.map(s => (
                 <div key={s.truck} className="flex items-center justify-between gap-2 bg-white/[0.02] rounded-lg px-3 py-2 border border-white/10 text-xs mb-1.5">
                   <span className="text-slate-200 font-bold truncate" dir="ltr">{s.truck}</span>
                   <span className="text-slate-400 shrink-0" dir="ltr">{s.trips} {t('tripsCol')} · {s.m3}m³{s.avgGap !== null ? ` · ⏱️${s.avgGap}m` : ''}</span>
+                </div>
+              ))}
+            </div>
+            <div>
+              <p className="text-[11px] font-black text-slate-400 mb-2">المضخات (بمب)</p>
+              {pumpStats.length === 0 && <p className="text-[11px] text-slate-500">—</p>}
+              {pumpStats.map(s => (
+                <div key={s.pump} className="flex items-center justify-between gap-2 bg-white/[0.02] rounded-lg px-3 py-2 border border-white/10 text-xs mb-1.5">
+                  <span className="text-slate-200 font-bold truncate" dir="ltr">{s.pump}</span>
+                  <span className="text-slate-400 shrink-0" dir="ltr">{s.trips} {t('tripsCol')} · {s.m3}m³</span>
                 </div>
               ))}
             </div>
