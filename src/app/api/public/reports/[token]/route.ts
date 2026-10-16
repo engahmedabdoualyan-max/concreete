@@ -45,10 +45,15 @@ export async function GET(req: NextRequest, ctx: Ctx) {
     return NextResponse.json({ success: false, errorCode: "NOT_FOUND" }, { status: 404 });
   }
   const safeName = row.file_name.replace(/[^\w.\-]+/g, "_").slice(0, 120) || "report.pdf";
+  const contentType = /\.png$/i.test(safeName)
+    ? "image/png"
+    : /\.jpe?g$/i.test(safeName)
+      ? "image/jpeg"
+      : "application/pdf";
   return new NextResponse(new Uint8Array(bytes), {
     status: 200,
     headers: {
-      "Content-Type": "application/pdf",
+      "Content-Type": contentType,
       "Content-Disposition": `inline; filename="${safeName}"`,
       "Cache-Control": "private, max-age=3600",
       "X-Content-Type-Options": "nosniff",

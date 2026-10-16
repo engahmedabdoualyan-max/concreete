@@ -23,7 +23,7 @@ import * as XLSX from 'xlsx';
 import { usePageDict, type PageDict } from '../i18n/pageDict';
 import { loadCustomers, loadPlantProfile, loadLabReports, saveLabReports } from '../firebase/firestore';
 import { mergeByKey, pullCloud, pushCloud } from '../lib/reportSync';
-import { shareDocViaLink } from '../lib/sharePdf';
+import { shareImageViaLink } from '../lib/sharePdf';
 
 const esc = (s: unknown) =>
   String(s ?? '')
@@ -769,11 +769,11 @@ export default function LabReport({ recipes, username, plantName, onToast }: {
         document.querySelector('#dn-report-preview svg')?.outerHTML ??
         '';
       const text = `تقرير ${p.no} — ${p.client || ''} — ${p.mix}: ${p.avgMpa.toFixed(2)} MPa (${p.verdict})`;
-      await shareDocViaLink({
+      await shareImageViaLink({
         docHtml: buildLabDoc(p, labEmblem, labFooter, chartSvg),
         kind: 'lab',
         ref: p.no,
-        fileName: `${p.no}.pdf`,
+        fileName: `${p.no}.jpg`,
         text,
       });
       onToast(t('sharedOk'));

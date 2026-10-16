@@ -25,7 +25,7 @@ export const dynamic = "force-dynamic";
 const ShareSchema = z.object({
   kind: z.enum(["lab", "delivery"]),
   ref: z.string().min(3).max(80),
-  fileName: z.string().min(3).max(160),
+  fileName: z.string().min(3).max(160).refine(s => /\.(pdf|jpe?g|png)$/i.test(s), "fileName must end .pdf/.jpg/.png"),
   /** data: URL or raw base64, max ~7MB encoded (≈5MB PDF) */
   pdfBase64: z.string().min(1000).max(9_500_000),
 });
