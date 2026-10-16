@@ -18,6 +18,8 @@ import { api } from '../api/client';
 import { loadCustomers, loadPlantProfile, loadInventory, saveInventory, loadDeliveryNotes, saveDeliveryNotes } from '../firebase/firestore';
 import { mergeByKey, pullCloud, pullObject, pushCloud } from '../lib/reportSync';
 import { shareImageViaLink } from '../lib/sharePdf';
+import labEmblem from '../assets/lab-emblem.jpg';
+import labFooter from '../assets/lab-footer.jpg';
 
 const esc = (s: unknown) =>
   String(s ?? '')
@@ -32,22 +34,23 @@ function buildDnDoc(p: DNPayload, emblem: string, footer: string): string {
     `<body style="margin:0;padding:14px;font-family:Arial,Tahoma,sans-serif;color:#111;background:#fff;">` +
     `<div style="border:2px solid #111;padding:12px;max-width:770px;margin:0 auto;" dir="ltr">` +
     `<table style="width:100%;border-collapse:collapse;"><tr>` +
-    `<td style="width:33%;font-size:9px;line-height:1.55;text-align:center;vertical-align:top">` +
-    `<b style="font-size:11px">ALMOTWR FACTORY</b><br>For Cement Products<br>` +
-    `CR : 251108261 - LIC : 371339<br>TEL : 0509270011 - 0509270022<br>` +
-    `AL-SAIR STREET - INDUSTRIAL STATE<br>HAFAR AL BATIN - EASTERN REGION</td>` +
+    `<td style="width:33%;font-size:9px;line-height:1.55;text-align:center;vertical-align:top;color:#064e3b">` +
+    `<b style="font-size:11px">ALMOTWR FACTORY</b><br>For Block &amp; Ready Mix<br>` +
+    `Mob.: 0509270022 - 0509270011 - 0509270033<br>Tax No.: 30112571300003<br>` +
+    `Hafar Al Batin - Industrial</td>` +
     `<td style="width:26%;text-align:center;vertical-align:top"><img src="${emblem}" style="height:78px;"></td>` +
-    `<td style="width:33%;font-size:9px;line-height:1.65;text-align:center;vertical-align:top" dir="rtl">` +
-    `<b style="font-size:13px">المصنع المطور</b><br>للمنتجات الأسمنتية<br>` +
-    `س.ت : 251108261 - ترخيص : 371339<br>جوال : 0509270011 - 0509270022<br>` +
-    `شارع السير - المنطقة الصناعية<br>حفرالباطن - المنطقة الشرقية</td>` +
+    `<td style="width:33%;font-size:9px;line-height:1.65;text-align:center;vertical-align:top;color:#064e3b" dir="rtl">` +
+    `<b style="font-size:13px">المصنع المطور</b><br>للبلك والخرسانة الجاهزة<br>` +
+    `<span dir="ltr">0509270022 - 0509270011 - 0509270033 :جوال</span><br>الرقم الضريبي : 30112571300003<br>` +
+    `حفرالباطن - المنطقة الصناعية</td>` +
     `</tr></table>` +
-    `<div style="border:1px solid #111;text-align:center;font-weight:bold;font-size:13px;margin-top:8px;padding:4px;">DELIVERY NOTE — مذكرة تسليم خرسانة</div>` +
+    `<div style="border:1px solid #111;text-align:center;font-weight:bold;font-size:13px;margin-top:8px;padding:4px;">مستند استلام خرسانة | Concrete receipt document &nbsp;&nbsp; № ${esc(p.ticket)}</div>` +
     `<table style="width:100%;border-collapse:collapse;font-size:10.5px;margin-top:8px;">` +
     `<tr><td style="padding:2px"><b>TICKET NO</b> ............ ${esc(p.ticket)}</td>` +
     `<td style="padding:2px"><b>DATE / TIME</b> ............ ${esc(p.date)} — ${esc(p.time)}</td></tr>` +
     `<tr><td style="padding:2px"><b>CLIENT</b> ............ ${esc(p.client)}</td>` +
-    `<td style="padding:2px"><b>PHONE</b> ............ ${esc(p.phone) || '—'}</td></tr>` +
+    `<td style="padding:2px"><b>REP</b> ............ ${esc(p.rep) || '—'}</td></tr>` +
+    `<tr><td style="padding:2px"><b>PHONE</b> ............ ${esc(p.phone) || '—'}</td></tr>` +
     `<tr><td style="padding:2px"><b>PROJECT</b> ............ ${esc(p.project) || '—'}</td>` +
     `<td style="padding:2px"><b>SITE</b> ............ ${esc(p.site) || '—'}</td></tr>` +
     `<tr><td style="padding:2px"><b>TRUCK</b> ............ ${esc(p.truck) || '—'}</td>` +
@@ -70,15 +73,15 @@ function buildDnDoc(p: DNPayload, emblem: string, footer: string): string {
     `<td style="border:1px solid #111;padding:4px;text-align:center;font-weight:bold;font-size:12px">${p.grand.toFixed(2)}</td></tr>` +
     `</table>` +
     (p.notes ? `<p style="font-size:10.5px;" dir="rtl"><b>ملاحظات:</b> ${esc(p.notes)}</p>` : '') +
-    `<table style="width:100%;font-size:10.5px;margin-top:22px;" dir="rtl"><tr>` +
-    `<td>السائق: ....................</td><td>العميل: ....................</td><td>المحطة: ....................</td>` +
+    `<div style="border:1px solid #7f1d1d;background:#fef2f2;padding:5px;margin-top:6px;font-size:9.5px;" dir="ltr">` +
+    `<b style="color:#7f1d1d">It is strictly forbidden to add water to the mixture on site due to its negative effect on quality.</b><br>` +
+    `<b style="color:#7f1d1d" dir="rtl">ممنوع منعاً باتاً إضافة الماء للخلطة في الموقع لتأثيره السلبي على الجودة.</b></div>` +
+    `<table style="width:100%;font-size:10.5px;margin-top:14px;" dir="rtl"><tr>` +
+    `<td>المشغل: ....................</td><td>المندوب: ....................</td><td>العميل: ....................</td>` +
     `</tr></table>` +
     `<img src="${footer}" style="width:100%;margin-top:8px;">` +
     `</div></body></html>`;
 }
-import labEmblem from '../assets/lab-emblem.jpg';
-import labFooter from '../assets/lab-footer.jpg';
-
 export interface DNTrip {
   id: number | string;
   code: string;
@@ -99,6 +102,7 @@ export interface DNOrder {
   quantity: number;
   concreteType: string;
   status?: string;
+  salesRep?: string;
 }
 
 interface DNPayload {
@@ -118,6 +122,7 @@ interface DNPayload {
   grand: number;
   truck: string;
   driver: string;
+  rep: string;
   notes: string;
   company: string;
   orderId: string;
@@ -148,6 +153,7 @@ const DICT: PageDict = {
   vat: { en: 'VAT %', ar: 'الضريبة %', ur: 'ٹیکس %', ru: 'НДС %', de: 'MwSt %', it: 'IVA %', hi: 'वैट %', ja: '税 %', zh: '税 %' },
   truck: { en: 'Truck', ar: 'الشاحنة', ur: 'ٹرک', ru: 'Миксер', de: 'Fahrzeug', it: 'Betoniera', hi: 'ट्रक', ja: 'トラック', zh: '搅拌车' },
   driver: { en: 'Driver', ar: 'السائق', ur: 'ڈرائیور', ru: 'Водитель', de: 'Fahrer', it: 'Autista', hi: 'ड्राइवर', ja: '運転手', zh: '司机' },
+  rep: { en: 'Sales rep', ar: 'المندوب', ur: 'سیلز نمائندہ', ru: 'Менеджер', de: 'Vertreter', it: 'Venditore', hi: 'सेल्स प्रतिनिधि', ja: '営業担当', zh: '销售员' },
   notes: { en: 'Notes', ar: 'ملاحظات', ur: 'نوٹس', ru: 'Примечания', de: 'Bemerkungen', it: 'Note', hi: 'टिप्पणियां', ja: '備考', zh: '备注' },
   subtotal: { en: 'Subtotal', ar: 'الإجمالي الفرعي', ur: 'ذیلی میزان', ru: 'Подытог', de: 'Zwischensumme', it: 'Subtotale', hi: 'उप-योग', ja: '小計', zh: '小计' },
   vatAmt: { en: 'VAT', ar: 'الضريبة', ur: 'ٹیکس', ru: 'НДС', de: 'MwSt', it: 'IVA', hi: 'वैट', ja: '税額', zh: '税额' },
@@ -237,37 +243,37 @@ function DNSheet({ p, paper }: { p: DNPayload; paper: 'company' | 'plain' }) {
   return (
     <div className="bg-white text-slate-900 max-w-[800px] mx-auto border-2 border-slate-900 p-4" dir="ltr">
       {paper === 'company' ? (
-        <div className="flex justify-between items-start text-center gap-2">
-          <div className="text-[8.5px] leading-[1.55] w-[33%]" dir="ltr">
+        <div className="flex justify-between items-start text-center gap-2 border-b-4 border-emerald-700 pb-2">
+          <div className="text-[8.5px] leading-[1.55] w-[33%] text-emerald-900" dir="ltr">
             <p className="font-black text-[11.5px] tracking-wide">ALMOTWR FACTORY</p>
-            <p className="text-slate-600 font-bold">For Cement Products</p>
-            <p className="mt-[3px]">CR : 251108261 - LIC : 371339</p>
-            <p>TEL : 0509270011 - 0509270022</p>
-            <p>AL-SAIR STREET - INDUSTRIAL STATE</p>
-            <p>HAFAR AL BATIN - EASTERN REGION</p>
+            <p className="font-bold">For Block &amp; Ready Mix</p>
+            <p className="mt-[3px]">Mob.: 0509270022 - 0509270011 - 0509270033</p>
+            <p>Tax No.: 30112571300003</p>
+            <p>Hafar Al Batin - Industrial</p>
           </div>
           <div className="w-[26%] flex justify-center pt-[2px]">
             <img src={labEmblem} alt="AlMotwr" style={{ height: 82, width: 'auto', objectFit: 'contain' }} />
           </div>
-          <div className="text-[8.5px] leading-[1.7] w-[33%]" dir="rtl">
-            <p className="font-black text-[13px]">المصنع المطور</p>
-            <p className="text-slate-600 font-bold">للمنتجات الأسمنتية</p>
-            <p className="mt-[3px]">س.ت : 251108261 - ترخيص : 371339</p>
-            <p>جوال : 0509270011 - 0509270022</p>
-            <p>شارع السير - المنطقة الصناعية</p>
-            <p>حفرالباطن - المنطقة الشرقية</p>
+          <div className="text-[8.5px] leading-[1.7] w-[33%] text-emerald-900" dir="rtl">
+            <p className="font-black text-[15px]">المصنع المطور</p>
+            <p className="font-bold">للبلك والخرسانة الجاهزة</p>
+            <p className="mt-[3px]" dir="ltr">0509270022 - 0509270011 - 0509270033 :جوال</p>
+            <p>الرقم الضريبي : 30112571300003</p>
+            <p>حفرالباطن - المنطقة الصناعية</p>
           </div>
         </div>
       ) : (
         <p className="font-black text-lg" dir="rtl">{p.company}</p>
       )}
-      <div className="border border-slate-900 text-center font-black text-[13px] mt-2 py-1 tracking-wide">
-        DELIVERY NOTE — مذكرة تسليم خرسانة
+      <div className="border border-slate-900 mt-2 py-1 px-2 flex items-center justify-between" dir="rtl">
+        <span className="font-black text-[13px]">مستند استلام خرسانة | Concrete receipt document</span>
+        <span className="font-black text-[13px]" dir="ltr">№ {p.ticket}</span>
       </div>
       <div className="grid grid-cols-2 gap-x-6 gap-y-[3px] mt-2 text-[10.5px]">
         <SheetRow label="TICKET NO">{p.ticket}</SheetRow>
         <SheetRow label="DATE / TIME">{p.date} — {p.time}</SheetRow>
         <SheetRow label="CLIENT">{p.client}</SheetRow>
+        <SheetRow label="REP">{p.rep || '—'}</SheetRow>
         <SheetRow label="PHONE">{p.phone || '—'}</SheetRow>
         <SheetRow label="PROJECT">{p.project || '—'}</SheetRow>
         <SheetRow label="SITE">{p.site || '—'}</SheetRow>
@@ -303,10 +309,14 @@ function DNSheet({ p, paper }: { p: DNPayload; paper: 'company' | 'plain' }) {
         </tbody>
       </table>
       {p.notes && <p className="text-[10.5px] mt-2" dir="rtl"><b>ملاحظات:</b> {p.notes}</p>}
-      <div className="flex justify-between text-[10.5px] mt-6" dir="rtl">
-        <p>السائق: ....................</p>
+      <div className="border border-red-800 bg-red-50 mt-2 px-2 py-1.5 text-[9.5px] leading-relaxed" dir="ltr">
+        <p className="font-bold text-red-900">It is strictly forbidden to add water to the mixture on site due to its negative effect on quality.</p>
+        <p className="font-bold text-red-900" dir="rtl">ممنوع منعاً باتاً إضافة الماء للخلطة في الموقع لتأثيره السلبي على الجودة.</p>
+      </div>
+      <div className="flex justify-between text-[10.5px] mt-4" dir="rtl">
+        <p>المشغل: ....................</p>
+        <p>المندوب: ....................</p>
         <p>العميل: ....................</p>
-        <p>المحطة: ....................</p>
       </div>
       <img src={labFooter} alt="ALMOTWR footer" className="w-full mt-2" style={paper === 'company' ? undefined : { display: 'none' }} />
     </div>
@@ -334,6 +344,7 @@ export default function DeliveryNote({ trips, orders, username, plantName, onToa
   const [vatRate, setVatRate] = useState('15');
   const [truck, setTruck] = useState('');
   const [driver, setDriver] = useState('');
+  const [rep, setRep] = useState('');
   const [notes, setNotes] = useState('');
   const [orderId, setOrderId] = useState('');
   const [departTime, setDepartTime] = useState('');
@@ -518,6 +529,7 @@ export default function DeliveryNote({ trips, orders, username, plantName, onToa
     if (!o) return;
     setClient(norm(o.customerName));
     setPhone(norm(o.customerPhone));
+    if ((o as DNOrder).salesRep) setRep(String((o as DNOrder).salesRep));
     if (o.projectName) setProject(String(o.projectName));
     if (o.projectLocation) setSite(String(o.projectLocation));
     const rem = orderRemaining(o);
@@ -602,6 +614,7 @@ export default function DeliveryNote({ trips, orders, username, plantName, onToa
       setOrderId(String(ord.id));
       setClient(String(ord.customerName ?? ''));
       setPhone(String(ord.customerPhone ?? ''));
+      if ((ord as DNOrder).salesRep) setRep(String((ord as DNOrder).salesRep));
       if (!site) setSite(String(ord.projectLocation ?? ''));
       if (!project) setProject(String(ord.projectName ?? ''));
       const mc = /C\s*(\d+)/i.exec(String(ord.concreteType ?? ''));
@@ -708,7 +721,7 @@ export default function DeliveryNote({ trips, orders, username, plantName, onToa
       client: client.trim(), phone: phone.trim(),
       project: project.trim(), site: site.trim(), mix,
       qty: q, price: pr, vatRate: vr, sub, vat, grand,
-      truck: truck.trim(), driver: driver.trim(), notes: notes.trim(),
+      truck: truck.trim(), driver: driver.trim(), rep: rep.trim(), notes: notes.trim(),
       company: company || plantName,
       orderId, departTime: departTime.trim(), arriveTime: arriveTime.trim(),
       posted: false,
@@ -805,7 +818,8 @@ export default function DeliveryNote({ trips, orders, username, plantName, onToa
       ['DELIVERY NOTE'],
       ['Ticket No', p.ticket, '', 'Date', `${p.date} ${p.time}`],
       ['Order', p.orderId || '—', '', 'Posted', p.posted ? 'yes' : 'no'],
-      ['Client', p.client, '', 'Phone', p.phone],
+      ['Client', p.client, '', 'Rep', p.rep],
+      ['Phone', p.phone, '', 'Ticket', p.ticket],
       ['Project', p.project, '', 'Site', p.site],
       ['Truck', p.truck, '', 'Driver', p.driver],
       ['Loading', p.departTime || '—', 'Arrival', p.arriveTime || '—'],
@@ -910,6 +924,10 @@ export default function DeliveryNote({ trips, orders, username, plantName, onToa
             <label className={labelCls}>{t('driver')}</label>
             <input value={driver} onChange={e => setDriver(e.target.value)} list="dn-drivers" className={inputCls} />
             <datalist id="dn-drivers">{driverOpts.map(v => <option key={v} value={v} />)}</datalist>
+          </div>
+          <div>
+            <label className={labelCls}>{t('rep')}</label>
+            <input value={rep} onChange={e => setRep(e.target.value)} className={inputCls} />
           </div>
           <div>
             <label className={labelCls}>{t('departTime')}</label>

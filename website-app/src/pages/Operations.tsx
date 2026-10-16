@@ -12,6 +12,7 @@ import DriverLiveBroadcast from '../components/DriverLiveBroadcast';
 import NotificationsBell from '../components/NotificationsBell';
 import Challan from '../components/Challan';
 import DeliveryNote from '../components/DeliveryNote';
+import ScheduleBoard from '../components/ScheduleBoard';
 import { useOperationsDict } from '../i18n/operationsDict';
 
 interface Trip {
@@ -763,6 +764,7 @@ export default function Operations() {
           <button onClick={() => setShowDispatch(true)} className="text-sm px-4 py-2.5 rounded-lg font-bold transition-all duration-300 bg-white/[0.06] hover:bg-white/[0.1] text-white border border-white/10">{L('smartDispatch')}</button>
           <button onClick={() => setShowLive(s => !s)} className={`text-sm px-4 py-2.5 rounded-lg font-bold transition-all duration-300 border ${showLive ? 'bg-emerald-600 text-white border-emerald-500/40' : 'bg-white/[0.06] hover:bg-white/[0.1] text-white border-white/10'}`}>{L('driverLive')}</button>
           <button onClick={openAdd} className="text-sm px-4 py-2.5 rounded-lg font-bold transition-all duration-300 bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 text-white shadow-[0_0_20px_rgba(56,189,248,0.3)]}">{L('newTrip')}</button>
+          <Link to="/board/plant" className="text-sm px-4 py-2.5 rounded-lg font-bold transition-all duration-300 bg-white/[0.06] hover:bg-white/[0.1] text-amber-300 border border-amber-500/40">🖥️ شاشة المحطة</Link>
         </div>
       </header>
 
@@ -824,6 +826,10 @@ export default function Operations() {
               ))}
             </div>
           )}
+        </div>
+        {/* ── Daily reservations schedule (جدول الحجوزات — auto remaining) ── */}
+        <div className="mb-8 rounded-2xl border border-violet-500/25 bg-violet-500/[0.04] p-4">
+          <ScheduleBoard orders={orders} trips={trips} />
         </div>
         {/* ── Priced delivery notes (دليفري نوت — replaces the Access printout) ── */}
         <div className="mb-8 rounded-2xl border border-sky-500/25 bg-sky-500/[0.04] p-4">
