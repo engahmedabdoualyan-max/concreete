@@ -57,6 +57,8 @@ interface ReportPayload {
   fc: number;
   exp7: number;
   exp28: number;
+  exp3: number;
+  testAge: number;
   cement: string;
   client: string;
   project: string;
@@ -115,6 +117,8 @@ const DICT: PageDict = {
   tested: { en: 'Test date', ar: 'تاريخ الاختبار', ur: 'ٹیسٹ کی تاریخ', ru: 'Дата испытания', de: 'Prüfdatum', it: 'Data prova', hi: 'परीक्षण तिथि', ja: '試験日', zh: '试验日期' },
   exp7: { en: 'Required 7-day (MPa)', ar: 'المطلوب بعد 7 أيام (MPa)', ur: 'مطلوبہ 7 دن (MPa)', ru: 'Норма 7 сут (МПа)', de: 'Soll 7 Tage (MPa)', it: 'Richiesto 7 gg (MPa)', hi: 'आवश्यक 7-दिन (MPa)', ja: '7日要求値 (MPa)', zh: '7天要求值 (MPa)' },
   exp28: { en: 'Required 28-day (MPa)', ar: 'المطلوب بعد 28 يوم (MPa)', ur: 'مطلوبہ 28 دن (MPa)', ru: 'Норма 28 сут (МПа)', de: 'Soll 28 Tage (MPa)', it: 'Richiesto 28 gg (MPa)', hi: 'आवश्यक 28-दिन (MPa)', ja: '28日要求値 (MPa)', zh: '28天要求值 (MPa)' },
+  exp3: { en: 'Required 3-day (MPa)', ar: 'المطلوب بعد 3 أيام (MPa)', ur: 'مطلوبہ 3 دن (MPa)', ru: 'Норма 3 сут (МПа)', de: 'Soll 3 Tage (MPa)', it: 'Richiesto 3 gg (MPa)', hi: 'आवश्यक 3-दिन (MPa)', ja: '3日要求値 (MPa)', zh: '3天要求值 (MPa)' },
+  testAge: { en: 'Test age', ar: 'عمر الاختبار', ur: 'ٹیسٹ عمر', ru: 'Возраст', de: 'Prüfalter', it: 'Età prova', hi: 'परीक्षण आयु', ja: '材齢', zh: '试验龄期' },
   sLoad: { en: 'Load (kN)', ar: 'الحمل (kN)', ur: 'لوڈ (kN)', ru: 'Нагрузка (кН)', de: 'Last (kN)', it: 'Carico (kN)', hi: 'लोड (kN)', ja: '荷重 (kN)', zh: '荷载 (kN)' },
   sWeight: { en: 'Weight (g)', ar: 'الوزن (جم)', ur: 'وزن (g)', ru: 'Масса (г)', de: 'Gewicht (g)', it: 'Peso (g)', hi: 'वजन (g)', ja: '質量 (g)', zh: '重量 (g)' },
   slump: { en: 'Slump (mm)', ar: 'الهبوط (مم)', ur: 'سلンプ (mm)', ru: 'Осадка (мм)', de: 'Setzmaß (mm)', it: 'Slump (mm)', hi: 'स्लंप (mm)', ja: 'スランプ (mm)', zh: '坍落度 (mm)' },
@@ -419,13 +423,20 @@ export default function LabReport({ recipes, username, plantName, onToast }: {
   const [casting, setCasting] = useState('');
   const [tested, setTested] = useState('');
   const [testedTouched, setTestedTouched] = useState(false);
-  const pickCasting = (v: string) => {
-    setCasting(v);
-    if (!testedTouched) setTested(v ? addDays(v, 7) : '');
-  };
   const [exp7, setExp7] = useState('');
   const [exp28, setExp28] = useState('');
+  const [exp3, setExp3] = useState('');
   const [expTouched, setExpTouched] = useState(false);
+  const [testAge, setTestAge] = useState<3 | 7 | 28>(7);
+  const pickAge = (v: 3 | 7 | 28) => {
+    setTestAge(v);
+    setTestedTouched(false);
+    if (casting) setTested(addDays(casting, v));
+  };
+  const pickCasting = (v: string) => {
+    setCasting(v);
+    if (!testedTouched) setTested(v ? addDays(v, testAge) : '');
+  };
   const [samples, setSamples] = useState<SampleIn[]>([{ load: '', weight: '' }, { load: '', weight: '' }, { load: '', weight: '' }]);
   const [slump, setSlump] = useState('120');
   // Concrete temp: ice in use, code ceiling 32°C — always kept below it.
@@ -532,6 +543,7 @@ export default function LabReport({ recipes, username, plantName, onToast }: {
   const fc = parseFc(mixCode);
   const effExp7 = expTouched && exp7 !== '' ? Number(exp7) : Math.round(fc * 0.75);
   const effExp28 = expTouched && exp28 !== '' ? Number(exp28) : fc;
+  const effExp3 = expTouched && exp3 !== '' ? Number(exp3) : Math.round(fc * 0.45);
   const effCement = cementTouched && cementInfo !== '' ? cementInfo : recipe ? `${recipe.cement} kg/m³` : '';
   const age = casting && tested ? diffDays(casting, tested) : 0;
 
@@ -554,7 +566,7 @@ export default function LabReport({ recipes, username, plantName, onToast }: {
   const valid = rows.filter(r => r.load > 0);
   const avgMpa = valid.length ? valid.reduce((a, r) => a + r.mpa, 0) / valid.length : 0;
   const avgKg = valid.length ? valid.reduce((a, r) => a + r.kg, 0) / valid.length : 0;
-  const target = age <= 7 ? effExp7 : effExp28;
+  const target = testAge === 3 ? effExp3 : testAge === 7 ? effExp7 : effExp28;
   const pct = target > 0 && valid.length ? (avgMpa / target) * 100 : 0;
   // Acceptance (ACI 318 style): average ≥ required AND every sample ≥ required − 3.5 MPa.
   const minMpa = valid.length ? Math.min(...valid.map(r => r.mpa)) : 0;
@@ -566,7 +578,7 @@ export default function LabReport({ recipes, username, plantName, onToast }: {
     const count = Number((localStorage.getItem('labReportSeq') ?? '0')) + 1;
     const no = jobNo.trim() || `LAB-${casting.split('-').join('')}-${String(count).padStart(3, '0')}`;
     return {
-      no, jobNo: jobNo.trim(), mix: mixCode, fc, exp7: effExp7, exp28: effExp28,
+      no, jobNo: jobNo.trim(), mix: mixCode, fc, exp7: effExp7, exp28: effExp28, exp3: effExp3, testAge,
       cement: effCement,
       client: client.trim(), project: project.trim(), location: location.trim(),
       element, supplier: supplier.trim(), mixType, casting, tested, age,
@@ -750,6 +762,16 @@ export default function LabReport({ recipes, username, plantName, onToast }: {
           <div>
             <label className={labelCls}>{t('tested')}</label>
             <input type="date" value={tested} onChange={e => { setTested(e.target.value); setTestedTouched(true); }} className={inputCls} />
+          </div>
+          <div>
+            <label className={labelCls}>{t('testAge')}</label>
+            <select value={testAge} onChange={e => pickAge(Number(e.target.value) as 3 | 7 | 28)} className={inputCls}>
+              {[3, 7, 28].map(n => <option key={n} value={n} className="bg-slate-900">{n} {t('days')}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className={labelCls}>{t('exp3')}</label>
+            <input type="number" value={expTouched ? exp3 : effExp3} onChange={e => { setExp3(e.target.value); setExpTouched(true); }} className={inputCls} />
           </div>
           <div>
             <label className={labelCls}>{t('exp7')}</label>
