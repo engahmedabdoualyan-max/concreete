@@ -42,7 +42,27 @@ function readNotes(): NoteLite[] {
   }
 }
 
-export default function ScheduleBoard({ orders, trips }: { orders: DNOrder[]; trips: TripLite[] }) {
+export interface AssignPatch {
+  plantNo?: string;
+  operatorName?: string;
+  salesRep?: string;
+}
+
+function AssignInput({ value, placeholder, onCommit }: { value: string; placeholder: string; onCommit: (v: string) => void }) {
+  return (
+    <input
+      defaultValue={value}
+      key={value}
+      placeholder={placeholder}
+      onBlur={e => { if (e.target.value.trim() !== value) onCommit(e.target.value.trim()); }}
+      onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+      className="w-full min-w-[70px] bg-transparent border border-dashed border-slate-400 rounded px-1 py-0.5 text-center outline-none focus:border-sky-600 focus:bg-sky-50"
+      style={{ fontSize: 10 }}
+    />
+  );
+}
+
+export default function ScheduleBoard({ orders, trips, onAssign }: { orders: DNOrder[]; trips: TripLite[]; onAssign?: (orderId: string, patch: AssignPatch) => void }) {
   const [day, setDay] = useState(todayISO());
   const [notes, setNotes] = useState<NoteLite[]>(() => readNotes());
   const [tick, setTick] = useState(0);
@@ -81,9 +101,11 @@ export default function ScheduleBoard({ orders, trips }: { orders: DNOrder[]; tr
           ...trips.filter(t => String(t.orderId ?? '') === key).map(t => String(t.driver ?? '')),
         ])].join('، ');
         return {
+          id: key,
           i: idx + 1,
           client: norm(o.customerName),
           phone: norm(o.customerPhone),
+          salesRep: norm(o.salesRep),
           contractor: norm((o as unknown as Record<string, unknown>).customerCode),
           pour: norm((o as unknown as Record<string, unknown>).elementType) || norm(o.concreteType),
           grade: norm(o.concreteType),
@@ -93,6 +115,8 @@ export default function ScheduleBoard({ orders, trips }: { orders: DNOrder[]; tr
           district: norm(o.projectLocation),
           delivered,
           drivers,
+          plantNo: norm(o.plantNo),
+          operatorName: norm(o.operatorName),
           postponed: String(o.status ?? '') === 'postponed',
         };
       });
@@ -105,24 +129,26 @@ export default function ScheduleBoard({ orders, trips }: { orders: DNOrder[]; tr
   const dayName = AR_DAYS[new Date(day + 'T12:00:00').getDay()] ?? '';
 
   const doExcel = () => {
-    const head = ['م', 'العميل', 'الجوال', 'المقاول', 'نوع الصبة', 'الأسمنت', 'نوعه', 'الكمية المطلوبة', 'المتبقي', 'الحي', 'النهائية', 'السائقون'];
-    const body = rows.map(r => [r.i, r.client, r.phone, r.contractor, r.pour, r.grade, r.cement, r.ordered, r.remaining, r.district, r.delivered, r.drivers]);
+    const head = ['م', 'العميل', 'مندوب المبيعات', 'الجوال', 'المقاول', 'نوع الصبة', 'الأسمنت', 'نوعه', 'الكمية المطلوبة', 'المتبقي', 'الحي', 'النهائية', 'السائقون', 'البلانت', 'المشغل'];
+    const body = rows.map(r => [r.i, r.client, r.salesRep, r.phone, r.contractor, r.pour, r.grade, r.cement, r.ordered, r.remaining, r.district, r.delivered, r.drivers, r.plantNo, r.operatorName]);
     const ws = XLSX.utils.aoa_to_sheet([
       [`جدول حجوزات الخرسانة اليومي — ${dayName} ${day}`],
       head, ...body,
-      ['المجموع', '', '', '', '', '', '', totOrdered, '', '', totDelivered, ''],
+      ['المجموع', '', '', '', '', '', '', '', totOrdered, '', '', totDelivered, '', '', ''],
     ]);
-    ws['!cols'] = [{ wch: 4 }, { wch: 26 }, { wch: 14 }, { wch: 12 }, { wch: 14 }, { wch: 10 }, { wch: 8 }, { wch: 12 }, { wch: 10 }, { wch: 14 }, { wch: 10 }, { wch: 22 }];
+    ws['!cols'] = [{ wch: 4 }, { wch: 26 }, { wch: 14 }, { wch: 14 }, { wch: 12 }, { wch: 14 }, { wch: 10 }, { wch: 8 }, { wch: 12 }, { wch: 10 }, { wch: 14 }, { wch: 10 }, { wch: 22 }, { wch: 8 }, { wch: 14 }];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Schedule');
     XLSX.writeFile(wb, `schedule-${day}.xlsx`);
   };
 
+  const commit = (id: string, patch: AssignPatch) => { if (onAssign) onAssign(id, patch); };
+
   const table = (list: typeof rows, start: number) => (
     <table className="w-full border-collapse" dir="rtl" style={{ fontSize: 10 }}>
       <thead>
         <tr style={{ background: '#c4b5fd' }}>
-          {['م', 'العميل', 'الجوال', 'المقاول', 'نوع الصبة', 'الأسمنت', 'نوعه', 'المطلوبة', 'المتبقي', 'الحي', 'النهائية', 'السائقون'].map(h => (
+          {['م', 'العميل', 'مندوب المبيعات', 'الجوال', 'المقاول', 'نوع الصبة', 'الأسمنت', 'نوعه', 'المطلوبة', 'المتبقي', 'الحي', 'النهائية', 'السائقون', 'البلانت', 'المشغل'].map(h => (
             <th key={h} style={{ border: '1px solid #111', padding: 3 }}>{h}</th>
           ))}
         </tr>
@@ -132,6 +158,7 @@ export default function ScheduleBoard({ orders, trips }: { orders: DNOrder[]; tr
           <tr key={j}>
             <td style={{ border: '1px solid #111', padding: 3, textAlign: 'center' }}>{start + j}</td>
             <td style={{ border: '1px solid #111', padding: 3 }}>{r.client}</td>
+            <td style={{ border: '1px solid #111', padding: 3 }}>{onAssign ? <AssignInput value={r.salesRep} placeholder="المندوب" onCommit={v => commit(r.id, { salesRep: v })} /> : r.salesRep}</td>
             <td style={{ border: '1px solid #111', padding: 3, textAlign: 'center' }} dir="ltr">{r.phone}</td>
             <td style={{ border: '1px solid #111', padding: 3, textAlign: 'center' }} dir="ltr">{r.contractor}</td>
             <td style={{ border: '1px solid #111', padding: 3, textAlign: 'center' }}>{r.pour}</td>
@@ -142,6 +169,8 @@ export default function ScheduleBoard({ orders, trips }: { orders: DNOrder[]; tr
             <td style={{ border: '1px solid #111', padding: 3, textAlign: 'center' }}>{r.district}</td>
             <td style={{ border: '1px solid #111', padding: 3, textAlign: 'center' }}>{r.delivered}</td>
             <td style={{ border: '1px solid #111', padding: 3 }}>{r.drivers}</td>
+            <td style={{ border: '1px solid #111', padding: 3, background: '#fef9c3' }}>{onAssign ? <AssignInput value={r.plantNo} placeholder="رقم البلانت" onCommit={v => commit(r.id, { plantNo: v })} /> : r.plantNo}</td>
+            <td style={{ border: '1px solid #111', padding: 3, background: '#fef9c3' }}>{onAssign ? <AssignInput value={r.operatorName} placeholder="اسم المشغل" onCommit={v => commit(r.id, { operatorName: v })} /> : r.operatorName}</td>
           </tr>
         ))}
       </tbody>

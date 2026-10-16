@@ -77,7 +77,7 @@ function buildDnDoc(p: DNPayload, emblem: string, footer: string): string {
     `<b style="color:#7f1d1d">It is strictly forbidden to add water to the mixture on site due to its negative effect on quality.</b><br>` +
     `<b style="color:#7f1d1d" dir="rtl">ممنوع منعاً باتاً إضافة الماء للخلطة في الموقع لتأثيره السلبي على الجودة.</b></div>` +
     `<table style="width:100%;font-size:10.5px;margin-top:14px;" dir="rtl"><tr>` +
-    `<td>المشغل: ....................</td><td>المندوب: ....................</td><td>العميل: ....................</td>` +
+    `<td>المشغل: ${esc(p.operatorName) || '....................'}</td><td>المندوب: ${esc(p.rep) || '....................'}</td><td>العميل: ${esc(p.client) || '....................'}</td>` +
     `</tr></table>` +
     `<img src="${footer}" style="width:100%;margin-top:8px;">` +
     `</div></body></html>`;
@@ -103,6 +103,8 @@ export interface DNOrder {
   concreteType: string;
   status?: string;
   salesRep?: string;
+  plantNo?: string;
+  operatorName?: string;
 }
 
 interface DNPayload {
@@ -126,6 +128,8 @@ interface DNPayload {
   notes: string;
   company: string;
   orderId: string;
+  plantNo: string;
+  operatorName: string;
   departTime: string;
   arriveTime: string;
   posted: boolean;
@@ -314,9 +318,9 @@ function DNSheet({ p, paper }: { p: DNPayload; paper: 'company' | 'plain' }) {
         <p className="font-bold text-red-900" dir="rtl">ممنوع منعاً باتاً إضافة الماء للخلطة في الموقع لتأثيره السلبي على الجودة.</p>
       </div>
       <div className="flex justify-between text-[10.5px] mt-4" dir="rtl">
-        <p>المشغل: ....................</p>
-        <p>المندوب: ....................</p>
-        <p>العميل: ....................</p>
+        <p>المشغل: {p.operatorName || '....................'}</p>
+        <p>المندوب: {p.rep || '....................'}</p>
+        <p>العميل: {p.client || '....................'}</p>
       </div>
       <img src={labFooter} alt="ALMOTWR footer" className="w-full mt-2" style={paper === 'company' ? undefined : { display: 'none' }} />
     </div>
@@ -714,6 +718,7 @@ export default function DeliveryNote({ trips, orders, username, plantName, onToa
     if (!client.trim() || !(q > 0) || !(pr > 0)) return null;
     const day = todayISO().split('-').join('');
     const seq = Number(localStorage.getItem('dnSeq') ?? '0') + 1;
+    const ord = orders.find(o => String(o.id) === String(orderId)) as DNOrder | undefined;
     return {
       ticket: `DLV-${day}-${String(seq).padStart(3, '0')}`,
       date: todayISO(),
@@ -724,6 +729,8 @@ export default function DeliveryNote({ trips, orders, username, plantName, onToa
       truck: truck.trim(), driver: driver.trim(), rep: rep.trim(), notes: notes.trim(),
       company: company || plantName,
       orderId, departTime: departTime.trim(), arriveTime: arriveTime.trim(),
+      plantNo: String(ord?.plantNo ?? ''),
+      operatorName: String(ord?.operatorName ?? ''),
       posted: false,
     };
   };

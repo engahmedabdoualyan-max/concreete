@@ -829,7 +829,11 @@ export default function Operations() {
         </div>
         {/* ── Daily reservations schedule (جدول الحجوزات — auto remaining) ── */}
         <div className="mb-8 rounded-2xl border border-violet-500/25 bg-violet-500/[0.04] p-4">
-          <ScheduleBoard orders={orders} trips={trips} />
+          <ScheduleBoard
+            orders={orders}
+            trips={trips}
+            onAssign={(id, patch) => setOrders(prev => prev.map(o => String(o.id) === String(id) ? { ...o, ...patch } : o))}
+          />
         </div>
         {/* ── Priced delivery notes (دليفري نوت — replaces the Access printout) ── */}
         <div className="mb-8 rounded-2xl border border-sky-500/25 bg-sky-500/[0.04] p-4">
