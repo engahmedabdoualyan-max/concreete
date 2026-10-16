@@ -18,6 +18,7 @@
 
 import { toCanvas } from 'html-to-image';
 import { jsPDF } from 'jspdf';
+import { api, API_BASE } from '../api/client';
 
 /** Render a report node to an A4 PDF blob (white background). */
 export async function sheetPdfBlob(el: HTMLElement, timeoutMs = 25000): Promise<Blob> {
@@ -98,4 +99,37 @@ export async function sharePdf(opts: {
   a.remove();
   setTimeout(() => URL.revokeObjectURL(a.href), 8000);
   return 'downloaded';
+}
+
+/**
+ * Totally-online flow the owner asked for: render the PDF, upload it to the
+ * tenant store, and open WhatsApp with a PUBLIC download link + summary.
+ * The recipient taps the link — no login, no manual attach, no typed number.
+ * Throws with a short code on any failure (UPLOAD_FAILED / SHARE_FAILED).
+ */
+export async function shareViaLink(opts: {
+  el: HTMLElement;
+  kind: 'lab' | 'delivery';
+  ref: string;
+  fileName: string;
+  text: string;
+}): Promise<string> {
+  const blob = await sheetPdfBlob(opts.el);
+  const buf = new Uint8Array(await blob.arrayBuffer());
+  let binary = '';
+  const CHUNK = 0x8000;
+  for (let i = 0; i < buf.length; i += CHUNK) {
+    binary += String.fromCharCode.apply(null, Array.from(buf.subarray(i, i + CHUNK)) as number[]);
+  }
+  const b64 = btoa(binary);
+  const res = await api.post<{ token: string }>('/api/reports/publish', {
+    kind: opts.kind,
+    ref: opts.ref,
+    fileName: opts.fileName,
+    pdfBase64: b64,
+  });
+  if (!res?.token) throw new Error('SHARE_FAILED');
+  const url = `${API_BASE}/api/public/reports/${res.token}`;
+  window.open(`https://wa.me/?text=${encodeURIComponent(`${opts.text}\n${url}`)}`, '_blank');
+  return url;
 }

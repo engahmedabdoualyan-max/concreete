@@ -23,7 +23,7 @@ import * as XLSX from 'xlsx';
 import { usePageDict, type PageDict } from '../i18n/pageDict';
 import { loadCustomers, loadPlantProfile, loadLabReports, saveLabReports } from '../firebase/firestore';
 import { mergeByKey, pullCloud, pushCloud } from '../lib/reportSync';
-import { sharePdf, sheetPdfBlob } from '../lib/sharePdf';
+import { shareViaLink } from '../lib/sharePdf';
 
 export interface LabRecipe {
   code: string;
@@ -688,16 +688,9 @@ export default function LabReport({ recipes, username, plantName, onToast }: {
     if (!el) { onToast(t('needLoads')); return; }
     setSharing(true);
     try {
-      const blob = await sheetPdfBlob(el);
       const text = `تقرير ${p.no} — ${p.client || ''} — ${p.mix}: ${p.avgMpa.toFixed(2)} MPa (${p.verdict})`;
-      const outcome = await sharePdf({
-        blob,
-        fileName: `${p.no}.pdf`,
-        text,
-      });
-      if (outcome === 'shared') onToast(t('sharedOk'));
-      else if (outcome === 'downloaded') onToast(t('downloadedNote'));
-      // 'cancelled' → silent
+      await shareViaLink({ el, kind: 'lab', ref: p.no, fileName: `${p.no}.pdf`, text });
+      onToast(t('sharedOk'));
     } catch {
       onToast(t('pdfFail'));
     } finally {
