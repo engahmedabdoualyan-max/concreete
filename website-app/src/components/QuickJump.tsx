@@ -24,6 +24,8 @@ const ALL_PAGES = [
   { path: '/governance', labelKey: 'governance' as const },
   { path: '/finance', labelKey: 'finance' as const },
   { path: '/multiplant', labelKey: 'multiplant' as const },
+  { path: '/board/workshop', labelKey: 'boardWorkshop' as const },
+  { path: '/board/plant', labelKey: 'boardPlant' as const },
 ];
 
 // Role → allowed page paths. Unknown roles see everything (fallback).
@@ -39,11 +41,13 @@ const ROLE_ACCESS: Record<string, string[]> = {
   // Device coding is a fleet action — the same people who code a probe onto a
   // truck are the ones who move it to another truck. DISPATCHER/WORKSHOP_MGR and
   // SUPER_ADMIN reach it via ALL_PAGES.
-  PRODUCTION_OP: ['/', '/workshop', '/fleet/coding', '/mixing', '/production', '/materials', '/gate', '/forms'],
+  PRODUCTION_OP: ['/', '/workshop', '/board/workshop', '/fleet/coding', '/mixing', '/production', '/board/plant', '/materials', '/gate', '/forms'],
+  WORKSHOP_MGR: ['/', '/workshop', '/board/workshop', '/fleet/coding', '/materials'],
+  DISPATCHER: ['/', '/operations', '/board/plant', '/schedule', '/workshop', '/board/workshop'],
   // Gate officer: home + gate only. Deliberately NOT the STOREKEEPER set —
   // the gate account must not see procurement, finance or HR cards.
   GATE_OPERATOR: ['/', '/gate'],
-  DRIVER: ['/', '/operations'],
+  DRIVER: ['/', '/operations', '/board/plant'],
 };
 
 export default function QuickJump() {
@@ -64,7 +68,7 @@ export default function QuickJump() {
         className="bg-white/[0.04] text-slate-300 text-xs border border-white/10 px-2 py-1.5 rounded hover:text-white cursor-pointer outline-none"
         defaultValue=""
       >
-        <option value="">🚀 Quick Jump...</option>
+        <option value="">{t('quickJump')}</option>
         {pages.map(p => (
           <option key={p.path} value={p.path}>{t(p.labelKey)}</option>
         ))}
