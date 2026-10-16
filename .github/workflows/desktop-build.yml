@@ -51,7 +51,7 @@ jobs:
         run: npm ci --no-audit --no-fund
 
       - name: Build installers (Tauri)
-        uses: tauri-apps/tauri-action@v0
+        uses: tauri-apps/tauri-action@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VITE_API_URL: ${{ vars.VITE_API_URL }}
@@ -65,7 +65,7 @@ jobs:
           args: "--bundles ${{ matrix.bundles }} ${{ matrix.extra-target }}"
 
       - name: Build app-flavor installers (Tauri, mobile UI)
-        uses: tauri-apps/tauri-action@v0
+        uses: tauri-apps/tauri-action@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VITE_API_URL: ${{ vars.VITE_API_URL }}
