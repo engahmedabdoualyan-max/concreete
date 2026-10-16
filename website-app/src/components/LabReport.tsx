@@ -23,7 +23,7 @@ import * as XLSX from 'xlsx';
 import { usePageDict, type PageDict } from '../i18n/pageDict';
 import { loadCustomers, loadPlantProfile, loadLabReports, saveLabReports } from '../firebase/firestore';
 import { mergeByKey, pullCloud, pushCloud } from '../lib/reportSync';
-import { normalizeWaNumber, sharePdf, sheetPdfBlob } from '../lib/sharePdf';
+import { sharePdf, sheetPdfBlob } from '../lib/sharePdf';
 
 export interface LabRecipe {
   code: string;
@@ -138,7 +138,7 @@ const DICT: PageDict = {
   autoW: { en: 'Empty weights auto-fill from A1 (editable).', ar: 'الأوزان الفارغة تُملأ تلقائياً من A1 (قابلة للتعديل).', ur: 'خالی وزن A1 سے خودکار (قابل ترمیم)۔', ru: 'Пустые массы берутся из A1 (можно менять).', de: 'Leere Gewichte werden aus A1 übernommen (änderbar).', it: 'Pesi vuoti copiati da A1 (modificabili).', hi: 'खाली वजन A1 से स्वतः भरें (बदल सकते हैं)।', ja: '空の質量はA1から自動入力（編集可）。', zh: '空重量自动取自A1（可改）。' },
   preview: { en: 'Report preview', ar: 'معاينة التقرير', ur: 'رپورٹ کا پیش نظارہ', ru: 'Предпросмотр', de: 'Vorschau', it: 'Anteprima', hi: 'पूर्वावलोकन', ja: 'プレビュー', zh: '预览' },
   print: { en: '🖨️ Print / PDF', ar: '🖨️ طباعة / PDF', ur: '🖨️ پرنٹ / PDF', ru: '🖨️ Печать / PDF', de: '🖨️ Drucken / PDF', it: '🖨️ Stampa / PDF', hi: '🖨️ प्रिंट / PDF', ja: '🖨️ 印刷 / PDF', zh: '🖨️ 打印 / PDF' },
-  whatsapp: { en: '🟢 WhatsApp PDF', ar: '🟢 واتساب PDF', ur: '🟢 واٹس ایپ PDF', ru: '🟢 WhatsApp PDF', de: '🟢 WhatsApp PDF', it: '🟢 WhatsApp PDF', hi: '🟢 व्हाट्सऐप PDF', ja: '🟢 WhatsApp PDF', zh: '🟢 WhatsApp PDF' },
+  whatsapp: { en: '📤 Share on WhatsApp', ar: '📤 مشاركة واتساب', ur: '📤 واٹس ایپ پر شیئر کریں', ru: '📤 Поделиться в WhatsApp', de: '📤 Per WhatsApp teilen', it: '📤 Condividi su WhatsApp', hi: '📤 WhatsApp पर साझा करें', ja: '📤 WhatsAppで共有', zh: '📤 分享到WhatsApp' },
   sharing: { en: '⏳ Preparing PDF…', ar: '⏳ جاري تجهيز PDF…', ur: '⏳ PDF تیار ہو رہا ہے…', ru: '⏳ Готовим PDF…', de: '⏳ PDF wird erstellt…', it: '⏳ Preparo PDF…', hi: '⏳ PDF तैयार हो रहा है…', ja: '⏳ PDF作成中…', zh: '⏳ 正在生成PDF…' },
   sharedOk: { en: 'Shared successfully', ar: 'تمت المشاركة بنجاح', ur: 'کامیابی سے شیئر ہوا', ru: 'Отправлено', de: 'Geteilt', it: 'Condiviso', hi: 'साझा किया गया', ja: '共有しました', zh: '已分享' },
   downloadedNote: { en: 'PDF downloaded — attach it in WhatsApp.', ar: 'نُزّل الملف — أرفقه في واتساب.', ur: 'PDF ڈاؤن لوڈ ہو گئی — واٹس ایپ میں منسلک کریں۔', ru: 'PDF загружен — прикрепите его в WhatsApp.', de: 'PDF geladen — in WhatsApp anhängen.', it: 'PDF scaricato — allegalo su WhatsApp.', hi: 'PDF डाउनलोड हो गई — WhatsApp में संलग्न करें।', ja: 'PDFを保存しました — WhatsAppに添付してください。', zh: 'PDF已下载 — 请在WhatsApp中添加附件。' },
@@ -554,13 +554,7 @@ export default function LabReport({ recipes, username, plantName, onToast }: {
     setClient(name);
     const rec = customerRecs.find(r => r.name === name);
     if (rec && rec.address) setLocation(prev => (prev.trim() ? prev : rec.address));
-    if (rec && rec.phone) {
-      setClientPhone(rec.phone);
-      setWaInput(prev => (prev.trim() ? prev : rec.phone));
-    }
   };
-  const [clientPhone, setClientPhone] = useState('');
-  const [waInput, setWaInput] = useState('');
   const [sharing, setSharing] = useState(false);
 
   const recipe = useMemo(() => recipes.find(r => r.code === mixCode) ?? null, [recipes, mixCode]);
@@ -700,11 +694,9 @@ export default function LabReport({ recipes, username, plantName, onToast }: {
         blob,
         fileName: `${p.no}.pdf`,
         text,
-        waNumber: normalizeWaNumber(waInput.trim() || clientPhone),
       });
       if (outcome === 'shared') onToast(t('sharedOk'));
-      else if (outcome === 'downloaded+chat') onToast(t('downloadedNote'));
-      else if (outcome === 'downloaded') onToast(t('needWaNumber'));
+      else if (outcome === 'downloaded') onToast(t('downloadedNote'));
       // 'cancelled' → silent
     } catch {
       onToast(t('pdfFail'));
@@ -860,7 +852,6 @@ export default function LabReport({ recipes, username, plantName, onToast }: {
           <button onClick={() => { const miss = needBasics(); if (miss) { onToast(miss); return; } const p = buildPayload(); if (p) doExcel(p); else onToast(t('needLoads')); }} className="bg-yellow-500/15 text-yellow-300 border border-yellow-500/40 hover:bg-yellow-500/25 px-5 py-2.5 rounded-lg font-bold text-sm">{t('excel')}</button>
           <button onClick={() => { const miss = needBasics(); if (miss) { onToast(miss); return; } if (valid.length) doPrint(); else onToast(t('needLoads')); }} className="bg-white/[0.05] text-slate-300 border border-white/10 hover:text-white px-5 py-2.5 rounded-lg font-bold text-sm">{t('print')}</button>
           <button onClick={() => void doWhatsApp()} disabled={sharing} className="bg-emerald-500/15 text-emerald-300 border border-emerald-500/40 hover:bg-emerald-500/25 px-5 py-2.5 rounded-lg font-bold text-sm disabled:opacity-50">{sharing ? t('sharing') : t('whatsapp')}</button>
-          <input value={waInput} onChange={e => setWaInput(e.target.value)} placeholder="05xxxxxxxx" dir="ltr" title={t('waNumber')} className="w-32 bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2.5 text-white text-sm outline-none focus:border-emerald-400/70" />
           <div className="flex rounded-lg overflow-hidden border border-white/10 text-xs font-bold">
             <button onClick={() => setPaper('company')} className={`px-3 py-2.5 ${paper === 'company' ? 'bg-sky-500/20 text-sky-300' : 'text-slate-400'}`}>{t('paperCompany')}</button>
             <button onClick={() => setPaper('plain')} className={`px-3 py-2.5 ${paper === 'plain' ? 'bg-sky-500/20 text-sky-300' : 'text-slate-400'}`}>{t('paperPlain')}</button>
