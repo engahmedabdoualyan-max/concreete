@@ -136,6 +136,9 @@ const DICT: PageDict = {
   sharing: { en: '⏳ Preparing PDF…', ar: '⏳ جاري تجهيز PDF…', ur: '⏳ PDF تیار ہو رہا ہے…', ru: '⏳ Готовим PDF…', de: '⏳ PDF wird erstellt…', it: '⏳ Preparo PDF…', hi: '⏳ PDF तैयार हो रहा है…', ja: '⏳ PDF作成中…', zh: '⏳ 正在生成PDF…' },
   sharedOk: { en: 'Shared successfully', ar: 'تمت المشاركة بنجاح', ur: 'کامیابی سے شیئر ہوا', ru: 'Отправлено', de: 'Geteilt', it: 'Condiviso', hi: 'साझा किया गया', ja: '共有しました', zh: '已分享' },
   downloadedNote: { en: 'PDF downloaded — attach it in WhatsApp.', ar: 'نُزّل الملف — أرفقه في واتساب.', ur: 'PDF ڈاؤن لوڈ ہو گئی — واٹس ایپ میں منسلک کریں۔', ru: 'PDF загружен — прикрепите его в WhatsApp.', de: 'PDF geladen — in WhatsApp anhängen.', it: 'PDF scaricato — allegalo su WhatsApp.', hi: 'PDF डाउनलोड हो गई — WhatsApp में संलग्न करें।', ja: 'PDFを保存しました — WhatsAppに添付してください。', zh: 'PDF已下载 — 请在WhatsApp中添加附件。' },
+  waNumber: { en: 'WhatsApp no.', ar: 'رقم الواتساب', ur: 'واٹس ایپ نمبر', ru: 'Номер WhatsApp', de: 'WhatsApp-Nr.', it: 'N. WhatsApp', hi: 'व्हाट्सऐप नंबर', ja: 'WhatsApp番号', zh: 'WhatsApp号码' },
+  needWaNumber: { en: 'PDF downloaded — enter a WhatsApp number to open the chat.', ar: 'نُزّل الملف — أدخل رقم الواتساب لفتح المحادثة.', ur: 'PDF ڈاؤن لوڈ ہو گئی — چیٹ کے لیے نمبر درج کریں۔', ru: 'PDF загружен — введите номер для чата.', de: 'PDF geladen — Nummer für Chat eingeben.', it: 'PDF scaricato — inserisci il numero per la chat.', hi: 'PDF डाउनलोड — चैट के लिए नंबर दर्ज करें।', ja: 'PDF保存済 — チャット用番号を入力。', zh: 'PDF已下载 — 输入号码以打开聊天。' },
+  pdfFail: { en: 'Could not prepare the PDF — try again.', ar: 'تعذر تجهيز PDF — حاول مجدداً.', ur: 'PDF تیار نہیں ہو سکی — دوبارہ کوشش کریں۔', ru: 'Не удалось создать PDF — повторите.', de: 'PDF konnte nicht erstellt werden.', it: 'Impossibile creare il PDF — riprova.', hi: 'PDF तैयार नहीं हो सका — पुनः प्रयास करें।', ja: 'PDFを作成できませんでした。', zh: '无法生成PDF，请重试。' },
   excel: { en: '📊 Excel', ar: '📊 إكسل', ur: '📊 ایکسل', ru: '📊 Excel', de: '📊 Excel', it: '📊 Excel', hi: '📊 एक्सेल', ja: '📊 Excel', zh: '📊 表格' },
   history: { en: 'Saved reports', ar: 'التقارير المحفوظة', ur: 'محفوظ رپورٹس', ru: 'Сохранённые отчёты', de: 'Gespeicherte Berichte', it: 'Report salvati', hi: 'सहेजी रिपोर्टें', ja: '保存済み報告', zh: '已保存报告' },
   none: { en: 'No saved reports yet.', ar: 'لا توجد تقارير محفوظة بعد.', ur: 'ابھی کوئی محفوظ رپورٹ نہیں۔', ru: 'Пока нет сохранённых отчётов.', de: 'Noch keine Berichte.', it: 'Nessun report salvato.', hi: 'अभी कोई रिपोर्ट नहीं।', ja: '保存済み報告はありません。', zh: '暂无已保存报告。' },
@@ -516,9 +519,13 @@ export default function LabReport({ recipes, username, plantName, onToast }: {
     setClient(name);
     const rec = customerRecs.find(r => r.name === name);
     if (rec && rec.address) setLocation(prev => (prev.trim() ? prev : rec.address));
-    if (rec && rec.phone) setClientPhone(rec.phone);
+    if (rec && rec.phone) {
+      setClientPhone(rec.phone);
+      setWaInput(prev => (prev.trim() ? prev : rec.phone));
+    }
   };
   const [clientPhone, setClientPhone] = useState('');
+  const [waInput, setWaInput] = useState('');
   const [sharing, setSharing] = useState(false);
 
   const recipe = useMemo(() => recipes.find(r => r.code === mixCode) ?? null, [recipes, mixCode]);
@@ -655,11 +662,14 @@ export default function LabReport({ recipes, username, plantName, onToast }: {
         blob,
         fileName: `${p.no}.pdf`,
         text,
-        waNumber: normalizeWaNumber(clientPhone),
+        waNumber: normalizeWaNumber(waInput.trim() || clientPhone),
       });
-      onToast(outcome === 'shared' ? t('sharedOk') : t('downloadedNote'));
+      if (outcome === 'shared') onToast(t('sharedOk'));
+      else if (outcome === 'downloaded+chat') onToast(t('downloadedNote'));
+      else if (outcome === 'downloaded') onToast(t('needWaNumber'));
+      // 'cancelled' → silent
     } catch {
-      onToast(t('needLoads'));
+      onToast(t('pdfFail'));
     } finally {
       setSharing(false);
     }
@@ -800,6 +810,7 @@ export default function LabReport({ recipes, username, plantName, onToast }: {
           <button onClick={() => { if (needCastingFirst()) return; const p = buildPayload(); if (p) doExcel(p); else onToast(t('needLoads')); }} className="bg-yellow-500/15 text-yellow-300 border border-yellow-500/40 hover:bg-yellow-500/25 px-5 py-2.5 rounded-lg font-bold text-sm">{t('excel')}</button>
           <button onClick={() => { if (needCastingFirst()) return; if (valid.length) doPrint(); else onToast(t('needLoads')); }} className="bg-white/[0.05] text-slate-300 border border-white/10 hover:text-white px-5 py-2.5 rounded-lg font-bold text-sm">{t('print')}</button>
           <button onClick={() => void doWhatsApp()} disabled={sharing} className="bg-emerald-500/15 text-emerald-300 border border-emerald-500/40 hover:bg-emerald-500/25 px-5 py-2.5 rounded-lg font-bold text-sm disabled:opacity-50">{sharing ? t('sharing') : t('whatsapp')}</button>
+          <input value={waInput} onChange={e => setWaInput(e.target.value)} placeholder="05xxxxxxxx" dir="ltr" title={t('waNumber')} className="w-32 bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2.5 text-white text-sm outline-none focus:border-emerald-400/70" />
           <div className="flex rounded-lg overflow-hidden border border-white/10 text-xs font-bold">
             <button onClick={() => setPaper('company')} className={`px-3 py-2.5 ${paper === 'company' ? 'bg-sky-500/20 text-sky-300' : 'text-slate-400'}`}>{t('paperCompany')}</button>
             <button onClick={() => setPaper('plain')} className={`px-3 py-2.5 ${paper === 'plain' ? 'bg-sky-500/20 text-sky-300' : 'text-slate-400'}`}>{t('paperPlain')}</button>
