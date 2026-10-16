@@ -150,7 +150,7 @@ const DICT: PageDict = {
   paperPlain: { en: 'Plain paper', ar: 'ورق عادي', ur: 'سادہ کاغذ', ru: 'Обычная бумага', de: 'Normales Papier', it: 'Carta semplice', hi: 'सादा कागज', ja: '普通紙', zh: '普通纸' },
 };
 
-const ELEMENTS = ['قواعد', 'أعمدة', 'أسقف', 'جسور', 'خزانات', 'مسبح', 'صبة خرسانة مسلحة'];
+const ELEMENTS = ['قواعد', 'ميدة', 'أعمدة', 'أسقف', 'جسور', 'خزانات', 'مسبح', 'صبة خرسانة مسلحة'];
 const MIX_TYPES = ['عادي', 'SRC', 'مقاوم للكبريتات'];
 
 // Temporary demo clients (real PDF filenames from the lab archive) until the

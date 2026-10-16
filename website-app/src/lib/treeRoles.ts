@@ -49,9 +49,10 @@ const API_ROLE_MODS: Record<string, string[]> = {
   SUPER_ADMIN: API_ALL,
   PLANT_MGR: API_ALL,
   ACCOUNTANT: ['orders', 'evaluation', 'finance', 'procurement'],
-  LAB_TECH: ['mixing', 'evaluation', 'rnd', 'materials'],
-  LAB_TECHNICIAN: ['mixing', 'evaluation', 'rnd', 'materials'],
-  LAB_MGR: ['mixing', 'evaluation', 'rnd', 'materials'],
+  // Lab accounts see the lab section only — everything else is locked.
+  LAB_TECH: ['mixing'],
+  LAB_TECHNICIAN: ['mixing'],
+  LAB_MGR: ['mixing'],
   BATCH_OPERATOR: ['production', 'mixing', 'multiplant'],
   BATCH_OP: ['production', 'mixing', 'multiplant'],
   SALES_REP: ['orders', 'operations'],

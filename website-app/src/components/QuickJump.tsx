@@ -32,7 +32,10 @@ const ROLE_ACCESS: Record<string, string[]> = {
   PLANT_MGR: ALL_PAGES.map(p => p.path),
   ACCOUNTANT: ['/', '/orders', '/schedule', '/finance'],
   QUALITY_MGR: ['/', '/mixing', '/evaluation', '/governance', '/rnd'],
-  LAB_TECH: ['/', '/mixing', '/evaluation', '/governance', '/rnd'],
+  // Lab accounts see the lab section only — everything else is locked.
+  LAB_TECH: ['/', '/mixing'],
+  LAB_TECHNICIAN: ['/', '/mixing'],
+  LAB_MGR: ['/', '/mixing'],
   // Device coding is a fleet action — the same people who code a probe onto a
   // truck are the ones who move it to another truck. DISPATCHER/WORKSHOP_MGR and
   // SUPER_ADMIN reach it via ALL_PAGES.
