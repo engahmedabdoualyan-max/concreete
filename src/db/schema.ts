@@ -3351,6 +3351,38 @@ export const shareTokens = pgTable(
 );
 
 /**
+ * report_files — Public PDF bytes for WhatsApp sharing.
+ * One row per shared report (lab test / delivery note): the client renders
+ * the PDF, uploads base64 here, and gets back an unguessable token URL that
+ * needs no login (same trust model as the portal magic links, 90-day expiry).
+ */
+export const reportFiles = pgTable(
+  "report_files",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    /** 'lab' | 'delivery' */
+    kind: varchar("kind", { length: 10 }).notNull(),
+    /** Report/ticket number, e.g. LAB-20261015-001 or DLV-... */
+    ref: varchar("ref", { length: 80 }).notNull(),
+    fileName: varchar("file_name", { length: 160 }).notNull(),
+    pdfBase64: text("pdf_base64").notNull(),
+    /** Unguessable public token (nanoid-style) — never sequential */
+    token: varchar("token", { length: 64 }).notNull().unique(),
+    expiresAt: timestamp("expires_at").notNull(),
+    viewCount: integer("view_count").notNull().default(0),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("idx_report_file_token").on(t.token),
+    index("idx_report_file_tenant").on(t.tenantId),
+    unique("uniq_report_file_ref").on(t.tenantId, t.kind, t.ref),
+  ]
+);
+
+/**
  * telematics_devices — Sensor registry per vehicle.
  * One row per physical probe: drum-RPM, temperature, water-add meter, tracker.
  *

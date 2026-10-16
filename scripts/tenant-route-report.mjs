@@ -31,6 +31,9 @@ const publicRoutes = [
   "/api/auth/sso/callback",
   "/api/health",
   "/api/public/portal/",
+  // Public PDF bytes for WhatsApp-shared reports (unguessable token +
+  // expiry, same trust model as the portal magic links above).
+  "/api/public/reports/",
   // Client crash intake. Unauthenticated on purpose — a client that is crashing
   // cannot sign anything — and it writes to the server log rather than to a
   // table, so there is no tenant-scoped row for it to reach across. Classifying it

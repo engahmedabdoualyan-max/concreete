@@ -17,7 +17,7 @@ import { usePageDict, type PageDict } from '../i18n/pageDict';
 import { api } from '../api/client';
 import { loadCustomers, loadPlantProfile, loadInventory, saveInventory, loadDeliveryNotes, saveDeliveryNotes } from '../firebase/firestore';
 import { mergeByKey, pullCloud, pullObject, pushCloud } from '../lib/reportSync';
-import { sharePdf, sheetPdfBlob } from '../lib/sharePdf';
+import { shareViaLink } from '../lib/sharePdf';
 import labEmblem from '../assets/lab-emblem.jpg';
 import labFooter from '../assets/lab-footer.jpg';
 
@@ -292,16 +292,9 @@ export default function DeliveryNote({ trips, orders, username, plantName, onToa
     if (!el) { onToast(t('needClient')); return; }
     setSharing(true);
     try {
-      const blob = await sheetPdfBlob(el);
       const text = `مذكرة ${p.ticket} — ${p.client} — ${p.mix} ${p.qty}m³ — ${p.grand.toFixed(2)} ر.س`;
-      const outcome = await sharePdf({
-        blob,
-        fileName: `${p.ticket}.pdf`,
-        text,
-      });
-      if (outcome === 'shared') onToast(t('sharedOk'));
-      else if (outcome === 'downloaded') onToast(t('downloadedNote'));
-      // 'cancelled' → silent
+      await shareViaLink({ el, kind: 'delivery', ref: p.ticket, fileName: `${p.ticket}.pdf`, text });
+      onToast(t('sharedOk'));
     } catch {
       onToast(t('pdfFail'));
     } finally {
