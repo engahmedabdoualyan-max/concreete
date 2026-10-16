@@ -17,7 +17,65 @@ import { usePageDict, type PageDict } from '../i18n/pageDict';
 import { api } from '../api/client';
 import { loadCustomers, loadPlantProfile, loadInventory, saveInventory, loadDeliveryNotes, saveDeliveryNotes } from '../firebase/firestore';
 import { mergeByKey, pullCloud, pullObject, pushCloud } from '../lib/reportSync';
-import { shareViaLink } from '../lib/sharePdf';
+import { shareDocViaLink } from '../lib/sharePdf';
+
+const esc = (s: unknown) =>
+  String(s ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+
+/** Standalone printable delivery-note document (inline styles + data URIs only). */
+function buildDnDoc(p: DNPayload, emblem: string, footer: string): string {
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"></head>` +
+    `<body style="margin:0;padding:14px;font-family:Arial,Tahoma,sans-serif;color:#111;background:#fff;">` +
+    `<div style="border:2px solid #111;padding:12px;max-width:770px;margin:0 auto;" dir="ltr">` +
+    `<table style="width:100%;border-collapse:collapse;"><tr>` +
+    `<td style="width:33%;font-size:9px;line-height:1.55;text-align:center;vertical-align:top">` +
+    `<b style="font-size:11px">ALMOTWR FACTORY</b><br>For Cement Products<br>` +
+    `CR : 251108261 - LIC : 371339<br>TEL : 0509270011 - 0509270022<br>` +
+    `AL-SAIR STREET - INDUSTRIAL STATE<br>HAFAR AL BATIN - EASTERN REGION</td>` +
+    `<td style="width:26%;text-align:center;vertical-align:top"><img src="${emblem}" style="height:78px;"></td>` +
+    `<td style="width:33%;font-size:9px;line-height:1.65;text-align:center;vertical-align:top" dir="rtl">` +
+    `<b style="font-size:13px">المصنع المطور</b><br>للمنتجات الأسمنتية<br>` +
+    `س.ت : 251108261 - ترخيص : 371339<br>جوال : 0509270011 - 0509270022<br>` +
+    `شارع السير - المنطقة الصناعية<br>حفرالباطن - المنطقة الشرقية</td>` +
+    `</tr></table>` +
+    `<div style="border:1px solid #111;text-align:center;font-weight:bold;font-size:13px;margin-top:8px;padding:4px;">DELIVERY NOTE — مذكرة تسليم خرسانة</div>` +
+    `<table style="width:100%;border-collapse:collapse;font-size:10.5px;margin-top:8px;">` +
+    `<tr><td style="padding:2px"><b>TICKET NO</b> ............ ${esc(p.ticket)}</td>` +
+    `<td style="padding:2px"><b>DATE / TIME</b> ............ ${esc(p.date)} — ${esc(p.time)}</td></tr>` +
+    `<tr><td style="padding:2px"><b>CLIENT</b> ............ ${esc(p.client)}</td>` +
+    `<td style="padding:2px"><b>PHONE</b> ............ ${esc(p.phone) || '—'}</td></tr>` +
+    `<tr><td style="padding:2px"><b>PROJECT</b> ............ ${esc(p.project) || '—'}</td>` +
+    `<td style="padding:2px"><b>SITE</b> ............ ${esc(p.site) || '—'}</td></tr>` +
+    `<tr><td style="padding:2px"><b>TRUCK</b> ............ ${esc(p.truck) || '—'}</td>` +
+    `<td style="padding:2px"><b>DRIVER</b> ............ ${esc(p.driver) || '—'}</td></tr>` +
+    `<tr><td style="padding:2px"><b>ORDER</b> ............ ${esc(p.orderId) || '—'}</td>` +
+    `<td style="padding:2px"><b>LOAD / ARRIVE</b> ............ ${esc(p.departTime) || '—'} → ${esc(p.arriveTime) || '—'}</td></tr>` +
+    `</table>` +
+    `<table style="width:100%;border-collapse:collapse;font-size:10.5px;margin-top:6px;">` +
+    `<tr><th style="border:1px solid #111;padding:4px">MIX</th>` +
+    `<th style="border:1px solid #111;padding:4px">QTY m³</th>` +
+    `<th style="border:1px solid #111;padding:4px">PRICE</th>` +
+    `<th style="border:1px solid #111;padding:4px">TOTAL SAR</th></tr>` +
+    `<tr><td style="border:1px solid #111;padding:4px;text-align:center;font-weight:bold">${esc(p.mix)}</td>` +
+    `<td style="border:1px solid #111;padding:4px;text-align:center">${p.qty}</td>` +
+    `<td style="border:1px solid #111;padding:4px;text-align:center">${p.price.toFixed(2)}</td>` +
+    `<td style="border:1px solid #111;padding:4px;text-align:center">${p.sub.toFixed(2)}</td></tr>` +
+    `<tr><td style="border:1px solid #111;padding:4px;text-align:center;font-weight:bold" colspan="3">VAT ${p.vatRate}%</td>` +
+    `<td style="border:1px solid #111;padding:4px;text-align:center">${p.vat.toFixed(2)}</td></tr>` +
+    `<tr><td style="border:1px solid #111;padding:4px;text-align:center;font-weight:bold;font-size:12px" colspan="3">GRAND TOTAL SAR</td>` +
+    `<td style="border:1px solid #111;padding:4px;text-align:center;font-weight:bold;font-size:12px">${p.grand.toFixed(2)}</td></tr>` +
+    `</table>` +
+    (p.notes ? `<p style="font-size:10.5px;" dir="rtl"><b>ملاحظات:</b> ${esc(p.notes)}</p>` : '') +
+    `<table style="width:100%;font-size:10.5px;margin-top:22px;" dir="rtl"><tr>` +
+    `<td>السائق: ....................</td><td>العميل: ....................</td><td>المحطة: ....................</td>` +
+    `</tr></table>` +
+    `<img src="${footer}" style="width:100%;margin-top:8px;">` +
+    `</div></body></html>`;
+}
 import labEmblem from '../assets/lab-emblem.jpg';
 import labFooter from '../assets/lab-footer.jpg';
 
@@ -288,15 +346,19 @@ export default function DeliveryNote({ trips, orders, username, plantName, onToa
   const doWhatsApp = async () => {
     const p = buildPayload();
     if (!p) { onToast(t('needClient')); return; }
-    const el = document.getElementById('dn-report-preview');
-    if (!el) { onToast(t('needClient')); return; }
     setSharing(true);
     try {
       const text = `مذكرة ${p.ticket} — ${p.client} — ${p.mix} ${p.qty}m³ — ${p.grand.toFixed(2)} ر.س`;
-      await shareViaLink({ el, kind: 'delivery', ref: p.ticket, fileName: `${p.ticket}.pdf`, text });
+      await shareDocViaLink({
+        docHtml: buildDnDoc(p, labEmblem, labFooter),
+        kind: 'delivery',
+        ref: p.ticket,
+        fileName: `${p.ticket}.pdf`,
+        text,
+      });
       onToast(t('sharedOk'));
-    } catch {
-      onToast(t('pdfFail'));
+    } catch (e) {
+      onToast(`${t('pdfFail')}${e instanceof Error && e.message ? ` (${e.message})` : ''}`);
     } finally {
       setSharing(false);
     }
