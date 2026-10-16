@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { useLang } from '../context/LangContext';
 import { useWorkshopDict } from '../i18n/workshopDict';
 import { api } from '../api/client';
+import { loadBreakdowns, saveBreakdowns } from '../firebase/firestore';
 import QuickJump from '../components/QuickJump';
 import LangSelector from '../components/LangSelector';
 import BrandLogo from '../components/BrandLogo';
@@ -15,7 +16,7 @@ export interface Asset { id: string; plate: string; chassis: string; type: strin
 interface FuelLog { id: number; date: string; assetId: string; odoReading: number; liters: number; costPerLiter: number; totalCost: number; fuelType: string; station: string; invoice: string; notes: string; }
 interface OilLog { id: number; date: string; assetId: string; oilType: string; brand: string; quantity: number; unit: string; cost: number; odoReading: number; nextChangeOdo: number; notes: string; }
 interface SparePartLog { id: number; date: string; assetId: string; partName: string; partNumber: string; quantity: number; unitCost: number; totalCost: number; supplier: string; invoice: string; warranty: string; notes: string; }
-interface BreakdownReport { id: number; date: string; assetId: string; reportedBy: string; symptom: string; severity: 'Critical'|'Major'|'Minor'; status: 'Open'|'In Repair'|'Resolved'; mechanicAssigned: string; repairStart: string; repairEnd: string; repairDesc: string; partsUsed: string; repairCost: number; notes: string; }
+interface BreakdownReport { id: number; date: string; assetId: string; reportedBy: string; symptom: string; severity: 'Critical'|'Major'|'Minor'; status: 'Open'|'In Repair'|'Resolved'; mechanicAssigned: string; repairStart: string; repairEnd: string; repairDesc: string; partsUsed: string; repairCost: number; notes: string; partsReady?: boolean; emergency?: boolean; }
 interface WarehouseItem { id: number; code: string; name: string; category: string; currentStock: number; minStock: number; safetyStock: number; unit: string; unitCost: number; supplier: string; location: string; lastUpdated: string; notes: string; }
 interface PurchaseRequest { id: number; date: string; warehouseItemId: number; itemCode: string; itemName: string; qty: number; reason: string; requestedBy: string; approvedBy: string; status: 'Pending'|'Approved'|'Rejected'|'Received'; priority: 'High'|'Medium'|'Low'; notes: string; autoRejected: boolean; }
 interface MixingStation { 
@@ -226,7 +227,18 @@ export default function Workshop() {
   useEffect(() => { if (!loaded||!currentUser) return; localStorage.setItem('fms_cfg_'+currentUser.plantName,JSON.stringify(config)); }, [config,loaded]);
   useEffect(() => { if (!loaded) return; localStorage.setItem('ws_oil', JSON.stringify(oilLogs)); }, [oilLogs, loaded]);
   useEffect(() => { if (!loaded) return; localStorage.setItem('ws_parts', JSON.stringify(sparePartLogs)); }, [sparePartLogs, loaded]);
-  useEffect(() => { if (!loaded) return; localStorage.setItem('ws_breakdowns', JSON.stringify(breakdowns)); }, [breakdowns, loaded]);
+  useEffect(() => { if (!loaded) return; localStorage.setItem('ws_breakdowns', JSON.stringify(breakdowns)); if (currentUser) saveBreakdowns(currentUser.username, breakdowns).catch(() => {}); }, [breakdowns, loaded]);
+  useEffect(() => {
+    if (!loaded || !currentUser) return;
+    loadBreakdowns(currentUser.username).then(fb => {
+      if (!Array.isArray(fb) || !fb.length) return;
+      setBreakdowns(prev => {
+        const ids = new Set(prev.map(b => b.id));
+        const extra = (fb as BreakdownReport[]).filter(b => b && !ids.has(b.id));
+        return extra.length ? [...extra, ...prev] : prev;
+      });
+    }).catch(() => {});
+  }, [loaded]);
   useEffect(() => { if (!loaded) return; localStorage.setItem('ws_warehouse', JSON.stringify(warehouse)); }, [warehouse, loaded]);
   useEffect(() => { if (!loaded) return; localStorage.setItem('ws_purchreq', JSON.stringify(purchaseReqs)); }, [purchaseReqs, loaded]);
   useEffect(() => { if (!loaded) return; localStorage.setItem('ws_stations', JSON.stringify(stations)); }, [stations, loaded]);
@@ -490,6 +502,7 @@ export default function Workshop() {
         <div className="flex gap-3 items-center flex-wrap">
           <BrandLogo width={56} />
           <Link to="/" className="text-slate-400 text-xs border border-white/10 px-3 py-2 rounded hover:text-white hover:bg-white/[0.06] transition">{t('backToDashboard')}</Link>
+          <Link to="/board/workshop" className="text-amber-300 text-xs border border-amber-500/40 bg-amber-500/10 px-3 py-2 rounded hover:bg-amber-500/20 transition font-bold">🖥️ شاشة الورشة</Link>
           <QuickJump />
           <LangSelector />
           <span className="bg-emerald-500/15 text-emerald-500 text-xs px-3 py-1.5 rounded-lg font-bold border border-emerald-500/30">{currentUser.plantName}</span>
@@ -583,7 +596,7 @@ export default function Workshop() {
           </div>)}
 
           {/* Open Breakdowns */}
-          <div className="bg-white/[0.04] border border-white/10 rounded-xl p-5"><h3 className="text-lg font-bold text-red-400 mb-4">{t('openBreakdownsList')}</h3>{openBDs.length===0?<p className="text-slate-500 text-center py-8">{t('noOpenBreakdowns')}</p>:<div className="overflow-x-auto"><table className="w-full text-sm text-slate-300"><thead className="bg-white/[0.04] text-slate-400 text-xs"><tr><th className="p-3">{t('date')}</th><th className="p-3">{t('vehicle')}</th><th className="p-3">{t('symptom')}</th><th className="p-3">{t('severity')}</th><th className="p-3">{t('status')}</th><th className="p-3">{t('mechanic')}</th><th className="p-3">{t('actions')}</th></tr></thead><tbody>{openBDs.map(b=>(<tr key={b.id} className="border-b border-white/10"><td className="p-3">{b.date}</td><td className="p-3 font-bold">{b.assetId}</td><td className="p-3">{b.symptom}</td><td className="p-3"><span className={`px-2 py-0.5 rounded text-xs font-bold ${sevColor(b.severity)}`}>{b.severity}</span></td><td className="p-3"><span className="text-yellow-400 font-bold">{b.status==='Open'?'Open':b.status==='In Repair'?'In Repair':'Done'}</span></td><td className="p-3">{b.mechanicAssigned||'-'}</td><td className="p-3 flex gap-1"><button onClick={()=>editBD(b)} className="bg-sky-500 text-white text-xs px-2 py-1 rounded">{t('edit')}</button><button onClick={()=>resolveBD(b.id)} className="bg-emerald-600 text-white text-xs px-2 py-1 rounded">{t('fixBtn')}</button></td></tr>))}</tbody></table></div>}</div>
+          <div className="bg-white/[0.04] border border-white/10 rounded-xl p-5"><h3 className="text-lg font-bold text-red-400 mb-4">{t('openBreakdownsList')}</h3>{openBDs.length===0?<p className="text-slate-500 text-center py-8">{t('noOpenBreakdowns')}</p>:<div className="overflow-x-auto"><table className="w-full text-sm text-slate-300"><thead className="bg-white/[0.04] text-slate-400 text-xs"><tr><th className="p-3">{t('date')}</th><th className="p-3">{t('vehicle')}</th><th className="p-3">{t('symptom')}</th><th className="p-3">{t('severity')}</th><th className="p-3">{t('status')}</th><th className="p-3">{t('mechanic')}</th><th className="p-3">{t('actions')}</th></tr></thead><tbody>{openBDs.map(b=>(<tr key={b.id} className="border-b border-white/10"><td className="p-3">{b.date}</td><td className="p-3 font-bold">{b.assetId}</td><td className="p-3">{b.symptom}</td><td className="p-3"><span className={`px-2 py-0.5 rounded text-xs font-bold ${sevColor(b.severity)}`}>{b.severity}</span></td><td className="p-3"><span className="text-yellow-400 font-bold">{b.status==='Open'?'Open':b.status==='In Repair'?'In Repair':'Done'}</span></td><td className="p-3">{b.mechanicAssigned||'-'}</td><td className="p-3 flex gap-1 flex-wrap"><button onClick={()=>editBD(b)} className="bg-sky-500 text-white text-xs px-2 py-1 rounded">{t('edit')}</button><button onClick={()=>resolveBD(b.id)} className="bg-emerald-600 text-white text-xs px-2 py-1 rounded">{t('fixBtn')}</button><button onClick={()=>setBreakdowns(p=>p.map(x=>x.id===b.id?{...x,partsReady:!x.partsReady}:x))} title="توافر قطع الغيار" className={`text-xs px-2 py-1 rounded font-bold ${b.partsReady?'bg-emerald-500 text-white':'bg-white/10 text-slate-300'}`}>{b.partsReady?'✅ قطع متوفرة':'⬜ قطع الغيار'}</button><button onClick={()=>setBreakdowns(p=>p.map(x=>x.id===b.id?{...x,emergency:!x.emergency}:x))} title="طوارئ" className={`text-xs px-2 py-1 rounded font-bold ${b.emergency?'bg-red-600 text-white animate-pulse':'bg-white/10 text-slate-300'}`}>🚨 طوارئ</button></td></tr>))}</tbody></table></div>}</div>
 
           {/* Fleet Overview */}
           <div className="bg-white/[0.04] border border-white/10 rounded-xl p-5"><h3 className="text-lg font-bold text-sky-400 mb-4">{t('fleetOverview')}</h3><div className="overflow-x-auto"><table className="w-full text-sm text-slate-300"><thead className="bg-white/[0.04] text-slate-400 text-xs uppercase"><tr><th className="p-3">{t('vehicleCode')}</th><th className="p-3">{t('plateNumber')}</th><th className="p-3">{t('assetType')}</th><th className="p-3">{t('driverName')}</th><th className="p-3">{t('currentOdometer')}</th><th className="p-3">{t('status')}</th></tr></thead><tbody>{assets.map(a=>{const hasBD=openBDs.some(b=>b.assetId===a.id);return(<tr key={a.id} className="border-b border-white/10"><td className="p-3 font-bold">{a.id}</td><td className="p-3">{a.plate}</td><td className="p-3">{a.type}</td><td className="p-3">{a.driver||'-'}</td><td className="p-3">{a.initOdo} km</td><td className="p-3"><span className={`px-2 py-0.5 rounded text-xs font-bold ${hasBD||a.status==='Workshop'?'bg-yellow-500/80 text-white':a.status==='Ready'?'bg-emerald-500/80 text-white':'bg-red-500/80 text-white'}`}>{hasBD?'In Workshop':a.status}</span></td></tr>);})}</tbody></table></div></div>

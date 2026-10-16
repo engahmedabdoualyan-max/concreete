@@ -5,6 +5,8 @@ import { DateProvider } from './context/DateContext';
 import { AdminProvider } from './context/AdminContext';
 import Dashboard from './pages/Dashboard';
 import Operations from './pages/Operations';
+import BoardWorkshop from './pages/BoardWorkshop';
+import BoardPlant from './pages/BoardPlant';
 import Evaluation from './pages/Evaluation';
 import Workshop from './pages/Workshop';
 import MixingQuality from './pages/MixingQuality';
@@ -94,6 +96,8 @@ export default function App() {
           <Route path="/operations" element={<Operations />} />
           <Route path="/evaluation" element={<Evaluation />} />
           <Route path="/workshop" element={<Workshop />} />
+          <Route path="/board/workshop" element={<BoardWorkshop />} />
+          <Route path="/board/plant" element={<BoardPlant />} />
           <Route path="/fleet/coding" element={<FleetCoding />} />
           <Route path="/sites" element={<Sites />} />
           <Route path="/command" element={<CommandCenter />} />
