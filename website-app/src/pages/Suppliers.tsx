@@ -4,18 +4,21 @@
  * ============================================================
  *  Company-wide supplier list: search, category filter, add /
  *  edit / bulk-add, Excel export and print. First open is
- *  pre-seeded from the legacy "موردين.xls" export (240 suppliers)
+ *  pre-seeded from the legacy "موردين.xls" export (239 suppliers)
  *  — afterwards the user's own list wins, nothing is overwritten.
  *  Stored per company in Firestore (users/{username}/suppliers).
  * ============================================================
  */
 
 import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 import { useAuth } from '../context/AuthContext';
 import { loadSuppliers, saveSuppliers } from '../firebase/firestore';
 import { SUPPLIERS_SEED } from '../data/suppliersSeed';
+import BrandLogo from '../components/BrandLogo';
+import QuickJump from '../components/QuickJump';
+import LangSelector from '../components/LangSelector';
 
 export interface Supplier {
   id: string;
@@ -51,7 +54,8 @@ function seedRows(): Supplier[] {
 }
 
 export default function Suppliers() {
-  const { currentUser } = useAuth();
+  const { currentUser, logout } = useAuth();
+  const navigate = useNavigate();
   const [items, setItems] = useState<Supplier[]>(() => readCache() ?? []);
   const [loading, setLoading] = useState(true);
   const [seeded, setSeeded] = useState(false);
@@ -211,11 +215,29 @@ export default function Suppliers() {
   const labelCls = 'block text-[11px] font-bold text-slate-400 mb-1';
 
   return (
-    <div className="min-h-screen bg-[#0B111E] text-slate-200 p-6" dir="rtl">
-      <div className="max-w-6xl mx-auto">
+    <div className="min-h-screen bg-[#0B111E] text-slate-200" dir="rtl">
+      <div className="bg-[#0B111E]/80 backdrop-blur-xl border-b border-white/10 px-6 py-2.5 flex flex-wrap justify-between items-center gap-x-3 gap-y-1.5 sticky top-0 z-50 shadow-lg">
+        <div className="flex flex-wrap items-center gap-3">
+          <BrandLogo width={56} />
+          <Link to="/" className="text-slate-400 text-xs border border-white/10 px-2.5 py-1 rounded hover:text-white transition">← Dashboard</Link>
+          <QuickJump /> <LangSelector />
+          <h1 className="text-sm font-bold text-white">🏢 الموردون</h1>
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
+          {currentUser?.username ? (
+            <>
+              <span className="bg-emerald-500/15 text-emerald-500 text-xs px-3 py-1.5 rounded-lg font-bold border border-emerald-500/30">👑 {currentUser.username}</span>
+              <button onClick={() => { logout(); navigate('/'); }} className="bg-white/[0.05] text-slate-300 text-xs px-3 py-1.5 rounded-lg font-bold border border-white/10 hover:border-red-400/60 hover:text-red-300 transition-colors">🚪 خروج</button>
+            </>
+          ) : (
+            <Link to="/login" className="bg-sky-500/15 text-sky-300 text-xs px-3 py-1.5 rounded-lg font-bold border border-sky-500/40 hover:bg-sky-500/25 transition">🔑 دخول</Link>
+          )}
+        </div>
+      </div>
+
+      <div className="max-w-6xl mx-auto p-6">
         <div className="flex items-center justify-between mb-5 flex-wrap gap-2">
           <div>
-            <h1 className="text-3xl font-black text-white">🏢 الموردون</h1>
             <p className="text-slate-400 text-sm">دليل موردي المصنع — بحث، فئات، إضافة وتعديل · {items.length} مورد</p>
           </div>
           <div className="flex gap-2 flex-wrap">
