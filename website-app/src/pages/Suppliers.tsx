@@ -66,16 +66,22 @@ export default function Suppliers() {
   useEffect(() => {
     if (!currentUser?.username) {
       // Logged out / auth still restoring — show local data immediately instead of hanging.
-      setItems(prev => (prev.length ? prev : (readCache() ?? seedRows())));
+      setItems(prev => {
+        if (prev.length) return prev;
+        const cached = readCache();
+        return cached && cached.length ? cached : seedRows();
+      });
       setLoading(false);
       return;
     }
     loadSuppliers(currentUser.username).then((rows: unknown) => {
-      if (Array.isArray(rows)) {
-        // Drop the legacy Excel header row if a previous seed captured it.
-        setItems((rows as Supplier[]).filter(s => norm(s.name) !== 'الاسم'));
+      // Drop the legacy Excel header row if a previous seed captured it.
+      const list = Array.isArray(rows) ? (rows as Supplier[]).filter(s => norm(s.name) !== 'الاسم') : [];
+      if (list.length > 0) {
+        setItems(list);
       } else {
-        // First open — seed from the legacy Excel export, then persist.
+        // Missing OR empty cloud list = the legacy import never landed
+        // (an early build could persist an empty array) → (re)seed and persist.
         const seededRows = seedRows();
         setItems(seededRows);
         setSeeded(true);
@@ -85,7 +91,11 @@ export default function Suppliers() {
       setLoading(false);
     }).catch(() => {
       // Cloud unreachable — keep whatever local view we have.
-      setItems(prev => (prev.length ? prev : (readCache() ?? seedRows())));
+      setItems(prev => {
+        if (prev.length) return prev;
+        const cached = readCache();
+        return cached && cached.length ? cached : seedRows();
+      });
       setLoading(false);
     });
   }, [currentUser?.username]);
