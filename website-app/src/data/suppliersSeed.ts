@@ -3,7 +3,7 @@
  *  FIMTO SOFT — Suppliers seed (بذرة الموردين)
  * ============================================================
  *  Imported from the legacy Access export "موردين.xls"
- *  (241 suppliers, /run/media/dr-ahmed/85A4-2E99/محمد علاء).
+ *  (240 suppliers, /run/media/dr-ahmed/85A4-2E99/محمد علاء).
  *  Used the FIRST time the suppliers page opens to pre-fill the
  *  company list — never overwrites user data afterwards.
  * ============================================================
@@ -19,8 +19,7 @@ export interface SeedSupplier {
 export const SUPPLIERS_SEED_VERSION = 1;
 
 export const SUPPLIERS_SEED: SeedSupplier[] = [
-  { id: 'sup-001', name: "الاسم", kind: "مورد", category: "متنوع" },
-  { id: 'sup-002', name: "شركة الراشد للاسمنت - مورد أسمنت", kind: "مورد", category: "اسمنت" },
+  { id: 'sup-001', name: "شركة الراشد للاسمنت", kind: "مورد", category: "اسمنت" },
   { id: 'sup-003', name: "شركة الفا للنقل المحدودة", kind: "مورد", category: "نقل وناقلات" },
   { id: 'sup-004', name: "مؤسسة ناصر الحجيلان", kind: "مورد", category: "متنوع" },
   { id: 'sup-005', name: "مؤسسة عبدالله ابراهيم الفوزان", kind: "مورد", category: "متنوع" },

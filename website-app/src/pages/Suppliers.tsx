@@ -72,7 +72,8 @@ export default function Suppliers() {
     }
     loadSuppliers(currentUser.username).then((rows: unknown) => {
       if (Array.isArray(rows)) {
-        setItems(rows as Supplier[]);
+        // Drop the legacy Excel header row if a previous seed captured it.
+        setItems((rows as Supplier[]).filter(s => norm(s.name) !== 'الاسم'));
       } else {
         // First open — seed from the legacy Excel export, then persist.
         const seededRows = seedRows();
