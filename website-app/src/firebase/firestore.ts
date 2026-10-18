@@ -845,6 +845,14 @@ export async function loadPurchaseOrders(userId: string) {
   return await loadUserData(userId, 'purchaseOrders');
 }
 
+// ====================== Suppliers (Procurement — صفحة الموردين) ======================
+export async function saveSuppliers(userId: string, records: any[]) {
+  await saveUserData(userId, 'suppliers', records);
+}
+export async function loadSuppliers(userId: string) {
+  return await loadUserData(userId, 'suppliers');
+}
+
 // ====================== Raw Material Stock (Reorder) ======================
 export async function saveRawStock(userId: string, stock: any) {
   await saveUserData(userId, 'rawStock', stock);

@@ -24,6 +24,7 @@ const ALL_PAGES = [
   { path: '/governance', labelKey: 'governance' as const },
   { path: '/finance', labelKey: 'finance' as const },
   { path: '/multiplant', labelKey: 'multiplant' as const },
+  { path: '/suppliers', labelKey: 'suppliers' as const },
   { path: '/board/workshop', labelKey: 'boardWorkshop' as const },
   { path: '/board/plant', labelKey: 'boardPlant' as const },
 ];
@@ -32,7 +33,7 @@ const ALL_PAGES = [
 const ROLE_ACCESS: Record<string, string[]> = {
   SUPER_ADMIN: ALL_PAGES.map(p => p.path),
   PLANT_MGR: ALL_PAGES.map(p => p.path),
-  ACCOUNTANT: ['/', '/orders', '/schedule', '/finance'],
+  ACCOUNTANT: ['/', '/orders', '/schedule', '/finance', '/suppliers'],
   QUALITY_MGR: ['/', '/mixing', '/evaluation', '/governance', '/rnd'],
   // Lab accounts see the lab section only — everything else is locked.
   LAB_TECH: ['/', '/mixing'],
