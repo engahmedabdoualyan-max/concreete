@@ -26,6 +26,7 @@ const DICT: PageDict = {
   finance: { en: '💰 Finance: Payments & Reorder', ar: '💰 المالية والمدفوعات', ru: '💰 Finance', de: '💰 Finance', it: '💰 Finance', hi: '💰 Finance', ur: '💰 Finance', ja: '💰 Finance', zh: '💰 Finance' },
   multiplant: { en: '🏭 Multi-Plant Command Center', ar: '🏭 متعدد المصانع', ru: '🏭 Multi-Plant', de: '🏭 Multi-Plant', it: '🏭 Multi-Plant', hi: '🏭 Multi-Plant', ur: '🏭 Multi-Plant', ja: '🏭 Multi-Plant', zh: '🏭 Multi-Plant' },
   suppliers: { en: '🏢 Suppliers directory', ar: '🏢 الموردون', ru: '🏢 Поставщики', de: '🏢 Lieferanten', it: '🏢 Fornitori', hi: '🏢 आपूर्तिकर्ता', ur: '🏢 سپلائرز', ja: '🏢 供給業者', zh: '🏢 供应商名录' },
+  debts: { en: '💳 Customers & Debts', ar: '💳 العملاء والمديونيات', ru: '💳 Клиенты и долги', de: '💳 Kunden & Forderungen', it: '💳 Clienti & Debiti', hi: '💳 ग्राहक और देनदारियाँ', ur: '💳 گاہک اور قرضے', ja: '💳 顧客・売掛金', zh: '💳 客户及应收款' },
   boardWorkshop: { en: '🖥️ Workshop screen', ar: '🖥️ شاشة الورشة', ru: '🖥️ Экран цеха', de: '🖥️ Werkstatt-Bildschirm', it: '🖥️ Schermo officina', hi: '🖥️ वर्कशॉप स्क्रीन', ur: '🖥️ ورکشاپ اسکرین', ja: '🖥️ 整備画面', zh: '🖥️ 维修看板' },
   boardPlant: { en: '🏭 Plant screen (operator)', ar: '🏭 شاشة المحطة', ru: '🏭 Экран завода', de: '🏭 Anlagen-Bildschirm', it: '🏭 Schermo impianto', hi: '🏭 प्लांट स्क्रीन', ur: '🏭 پلانٹ اسکرین', ja: '🏭 プラント画面', zh: '🏭 搅拌站看板' },
 };

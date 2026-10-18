@@ -18,6 +18,7 @@ import Governance from './pages/Governance';
 import Finance from './pages/Finance';
 import ErpMaterials from './pages/ErpMaterials';
 import MultiPlant from './pages/MultiPlant';
+import Debts from './pages/Debts';
 import Suppliers from './pages/Suppliers';
 import LoginRegister from './components/LoginRegister';
 import FloatingActions from './components/FloatingActions';
@@ -117,6 +118,7 @@ export default function App() {
           <Route path="/materials" element={<ErpMaterials />} />
           <Route path="/multiplant" element={<MultiPlant />} />
           <Route path="/suppliers" element={<Suppliers />} />
+        <Route path="/debts" element={<Debts />} />
         </Routes>
         </PageGuard>
         <FloatingActions />
