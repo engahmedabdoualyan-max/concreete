@@ -42,6 +42,14 @@ function readCache(): Supplier[] | null {
   } catch { return null; }
 }
 
+function seedRows(): Supplier[] {
+  const now = new Date().toISOString();
+  return SUPPLIERS_SEED.map(s => ({
+    id: s.id, name: s.name, kind: s.kind, category: s.category,
+    phone: '', contactPerson: '', notes: '', createdAt: now,
+  }));
+}
+
 export default function Suppliers() {
   const { currentUser } = useAuth();
   const [items, setItems] = useState<Supplier[]>(() => readCache() ?? []);
@@ -56,24 +64,29 @@ export default function Suppliers() {
   const [editId, setEditId] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!currentUser?.username) return;
+    if (!currentUser?.username) {
+      // Logged out / auth still restoring — show local data immediately instead of hanging.
+      setItems(prev => (prev.length ? prev : (readCache() ?? seedRows())));
+      setLoading(false);
+      return;
+    }
     loadSuppliers(currentUser.username).then((rows: unknown) => {
       if (Array.isArray(rows)) {
         setItems(rows as Supplier[]);
       } else {
         // First open — seed from the legacy Excel export, then persist.
-        const now = new Date().toISOString();
-        const seededRows: Supplier[] = SUPPLIERS_SEED.map(s => ({
-          id: s.id, name: s.name, kind: s.kind, category: s.category,
-          phone: '', contactPerson: '', notes: '', createdAt: now,
-        }));
+        const seededRows = seedRows();
         setItems(seededRows);
         setSeeded(true);
         saveSuppliers(currentUser.username, seededRows).catch(() => {});
         try { localStorage.setItem('suppliersCache', JSON.stringify(seededRows)); } catch {}
       }
       setLoading(false);
-    }).catch(() => setLoading(false));
+    }).catch(() => {
+      // Cloud unreachable — keep whatever local view we have.
+      setItems(prev => (prev.length ? prev : (readCache() ?? seedRows())));
+      setLoading(false);
+    });
   }, [currentUser?.username]);
 
   useEffect(() => {
@@ -103,7 +116,13 @@ export default function Suppliers() {
 
   const commit = (next: Supplier[]) => setItems(next);
 
+  const guard = () => {
+    if (!currentUser?.username) { alert('سجّل الدخول أولاً لحفظ التعديلات في السحابة'); return false; }
+    return true;
+  };
+
   const saveForm = () => {
+    if (!guard()) return;
     if (!form.name.trim()) { alert('اكتب اسم المورد أولاً'); return; }
     if (editId) {
       commit(items.map(s => s.id === editId ? { ...s, ...form, name: form.name.trim() } : s));
@@ -123,11 +142,13 @@ export default function Suppliers() {
   };
 
   const remove = (s: Supplier) => {
+    if (!guard()) return;
     if (!window.confirm(`حذف المورد "${s.name}" نهائياً؟`)) return;
     commit(items.filter(x => x.id !== s.id));
   };
 
   const addBulk = () => {
+    if (!guard()) return;
     const names = bulkText.split('\n').map(l => l.trim()).filter(Boolean);
     if (!names.length) return;
     const now = new Date().toISOString();
@@ -198,6 +219,12 @@ export default function Suppliers() {
         {seeded && (
           <div className="bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs rounded-xl px-4 py-3 mb-4">
             ✅ تم استيراد {SUPPLIERS_SEED.length} مورداً من ملف الإكسل الأصلي (موردين.xls). عدّل الفئات أو الأرقام براحتك — أي تعديل يُحفظ تلقائياً.
+          </div>
+        )}
+
+        {!currentUser?.username && (
+          <div className="bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs rounded-xl px-4 py-3 mb-4">
+            👁️ وضع عرض — البيانات معروضة من النسخة المحلية. سجّل الدخول لحفظ التعديلات ومزامنتها في السحابة.
           </div>
         )}
 
@@ -301,7 +328,7 @@ export default function Suppliers() {
           </div>
         )}
 
-        <p className="text-[10px] text-slate-600 text-center mt-4">يُحفظ القائمة في حساب الشركة على السحابة — المزامنة تلقائية بعد كل تعديل</p>
+        <p className="text-[10px] text-slate-600 text-center mt-4">{currentUser?.username ? 'يُحفظ القائمة في حساب الشركة على السحابة — المزامنة تلقائية بعد كل تعديل' : 'سجّل الدخول لتفعيل الحفظ السحابي'}</p>
       </div>
     </div>
   );
