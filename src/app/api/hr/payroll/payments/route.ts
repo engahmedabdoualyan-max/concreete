@@ -89,6 +89,13 @@ export async function PATCH(req: NextRequest) {
 
   try {
     const row = await upsertPayment(auth.user.tenantId, auth.user.sub, parsed.data);
+    if (!row) {
+      return errorResponse(
+        "EMPLOYEE_NOT_FOUND",
+        "No such employee in this tenant",
+        404
+      );
+    }
     return successResponse(row, "تم حفظ حالة القبض");
   } catch (err) {
     console.error("[PATCH /api/hr/payroll/payments]", err);

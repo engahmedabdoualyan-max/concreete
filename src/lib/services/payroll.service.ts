@@ -593,6 +593,20 @@ export async function upsertPayment(
   input: PaymentInput
 ) {
   const now = new Date();
+  // Tenant guard: the ledger is tenant-scoped, so a foreign employee id must
+  // never be able to create a cross-tenant row (the unique key is
+  // tenant+employee+period, which would happily accept it).
+  const [employee] = await db
+    .select({ id: payrollEmployees.id })
+    .from(payrollEmployees)
+    .where(
+      and(
+        eq(payrollEmployees.id, input.employeeId),
+        eq(payrollEmployees.tenantId, tenantId)
+      )
+    )
+    .limit(1);
+  if (!employee) return null;
   const countAsPaid = input.status === "PAID" || input.status === "PARTIAL";
   const dec = (n?: number | null) => (n === null || n === undefined ? null : String(n));
   const cols = {

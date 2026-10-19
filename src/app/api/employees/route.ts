@@ -128,6 +128,7 @@ export async function GET(req: NextRequest) {
       ilike(payrollEmployees.fullName, needle),
       ilike(payrollEmployees.employeeCode, needle),
       ilike(payrollEmployees.jobTitle, needle),
+      ilike(payrollEmployees.iqamaJobTitle, needle),
       ilike(payrollEmployees.department, needle)
     );
     if (clause) conditions.push(clause);
