@@ -2609,16 +2609,23 @@ function ageOf(raw: unknown): number | null {
                   { header: 'الكفالة', key: 'sponsor' },
                   { header: 'التأمين', key: 'ins' },
                   { header: 'الفرع', key: 'branch' },
+                  { header: 'حالة الملف', key: 'fileState' },
+                  { header: 'الناقص', key: 'fileMissing' },
                 ]}
                 branding={brandParam}
-                rows={team.map((e) => ({
-                  name: nameOf(e), code: e.employeeCode ?? '',
-                  title: e.role ?? e.jobTitle ?? '', dept: e.department ?? '',
-                  sponsor: e.sponsorship ?? 'المطور',
-                  ins: (e as any).insuranceStatus === 'INSURED' ? (ar ? 'مومن' : 'Insured') : (ar ? 'غير مومن' : 'Uninsured'),
-                  branch: (((x: any) => x ? orgSiteName(x) : '')(vehRd.sites.find((x: any) => x.id === (e as any).branchSiteId))),
-                  passport: (e as any).passportNo ?? '',
-                }))}
+                rows={team.map((e) => {
+                  const fc = fileColorOf(e);
+                  return {
+                    name: nameOf(e), code: e.employeeCode ?? '',
+                    title: e.role ?? e.jobTitle ?? '', dept: e.department ?? '',
+                    sponsor: e.sponsorship ?? 'المطور',
+                    ins: (e as any).insuranceStatus === 'INSURED' ? (ar ? 'مومن' : 'Insured') : (ar ? 'غير مومن' : 'Uninsured'),
+                    branch: (((x: any) => x ? orgSiteName(x) : '')(vehRd.sites.find((x: any) => x.id === (e as any).branchSiteId))),
+                    passport: (e as any).passportNo ?? '',
+                    fileState: `${FILE_COLOR[fc.color].dot} ${ar ? FILE_COLOR[fc.color].ar : FILE_COLOR[fc.color].en}${e?.fileColorOverride ? ' 📌' : ''}`,
+                    fileMissing: [...fc.red, ...fc.yellow].map((r) => (ar ? r.ar : r.en)).join('، '),
+                  };
+                })}
               />
             </div>
             {showAdd && !editingEmp && renderEmpForm()}
