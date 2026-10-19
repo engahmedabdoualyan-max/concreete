@@ -14,7 +14,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 import { useAuth } from '../context/AuthContext';
-import { loadDebtsEdits, saveDebtsEdits } from '../firebase/firestore';
+import { loadDebtsEdits, saveDebtsEdits, uploadDebtDoc, resolveDbImage, type DebtDoc } from '../firebase/firestore';
 import { api } from '../api/client';
 import { DEBTS_SEED, type DebtGroup, type DebtRow } from '../data/debtsSeed';
 import BrandLogo from '../components/BrandLogo';
@@ -29,6 +29,7 @@ interface DebtEdit {
   paid: number;                          // إجمالي المسدد
   papers: 'contract' | 'note' | 'none' | ''; // الورقيات: عقد / سند أمر / لا يوجد
   collector: string;                     // موظف متابعة التحصيل
+  docs: DebtDoc[];                       // مرفقات: عقود/سندات (صور أو PDF)
   updatedAt?: string;
   updatedBy?: string;
 }
@@ -63,6 +64,10 @@ export default function Debts() {
   const [draftPapers, setDraftPapers] = useState<DebtEdit['papers']>('');
   const [draftCollector, setDraftCollector] = useState('');
   const [emps, setEmps] = useState<{ id: string; name: string }[]>([]);
+  const [docBusy, setDocBusy] = useState(false);
+  const [docErr, setDocErr] = useState('');
+  const [docThumbs, setDocThumbs] = useState<Record<string, string>>({}); // ref → dataUrl (صور فقط)
+  const [preview, setPreview] = useState<{ url: string; name: string } | null>(null);
 
   const isAll = selected === ALL_ID;
   const group = useMemo(() => groups.find(g => g.id === selected), [groups, selected]);
@@ -126,6 +131,7 @@ export default function Debts() {
           case 'paidFull': return r.total > 0 && paid >= r.total;
           case 'partial': return paid > 0 && paid < r.total;
           case 'unpaid': return paid <= 0;
+          case 'withDocs': return (e?.docs?.length ?? 0) > 0;
           default: return true;
         }
       });
@@ -154,29 +160,31 @@ export default function Debts() {
 
   // ملخص سريع: مين ليه ورقيات / مسدد
   const summary = useMemo(() => {
-    let contract = 0, note = 0, paidFull = 0, partial = 0;
+    let contract = 0, note = 0, paidFull = 0, partial = 0, withDocs = 0;
     for (const g of groups) {
       for (const r of g.rows) {
         const e = edits[editKey(g.id, r)];
         if (e?.papers === 'contract') contract++;
         else if (e?.papers === 'note') note++;
+        if ((e?.docs?.length ?? 0) > 0) withDocs++;
         const paid = e?.paid ?? 0;
         if (paid >= r.total && r.total > 0) paidFull++;
         else if (paid > 0) partial++;
       }
     }
-    return { contract, note, paidFull, partial };
+    return { contract, note, paidFull, partial, withDocs };
   }, [groups, edits]);
 
   function applyEdit(row: ViewRow, patch: Partial<DebtEdit>) {
     const k = editKey(row.gid, row);
     setEdits(prev => {
-      const cur: DebtEdit = prev[k] ?? { paid: 0, papers: '', collector: '' };
+      const cur: DebtEdit = prev[k] ?? { paid: 0, papers: '', collector: '', docs: [] };
       return {
         ...prev,
         [k]: {
           ...cur,
           ...patch,
+          docs: patch.docs ?? cur.docs ?? [],
           updatedAt: new Date().toISOString(),
           updatedBy: currentUser?.username || '—',
         },
@@ -191,6 +199,56 @@ export default function Debts() {
     setDraftAdd('');
     setDraftPapers(e?.papers ?? '');
     setDraftCollector(e?.collector ?? '');
+    setDocErr('');
+    loadThumbs(e?.docs ?? []);
+  }
+
+  // تحميل مصغرات الصور للمرفقات المفتوحة
+  async function loadThumbs(docs: DebtDoc[]) {
+    for (const d of docs) {
+      if (d.kind !== 'image') continue;
+      if (docThumbs[d.ref]) continue;
+      try {
+        const url = await resolveDbImage(d.ref);
+        if (url) setDocThumbs(prev => ({ ...prev, [d.ref]: url }));
+      } catch { /* ignore */ }
+    }
+  }
+
+  async function handleUpload(input: HTMLInputElement) {
+    const file = input.files?.[0];
+    input.value = ''; // يسمح بإعادة اختيار نفس الملف
+    if (!file || !editing) return;
+    setDocBusy(true);
+    setDocErr('');
+    try {
+      const doc = await uploadDebtDoc(file);
+      const cur = edits[editKey(editing.gid, editing)]?.docs ?? [];
+      applyEdit(editing, { docs: [...cur, doc] });
+      if (doc.kind === 'image') {
+        const url = await resolveDbImage(doc.ref);
+        if (url) setDocThumbs(prev => ({ ...prev, [doc.ref]: url }));
+      }
+    } catch (err: any) {
+      setDocErr(err?.message || 'تعذر رفع الملف');
+    } finally {
+      setDocBusy(false);
+    }
+  }
+
+  function removeDoc(row: ViewRow, ref: string) {
+    const cur = edits[editKey(row.gid, row)]?.docs ?? [];
+    applyEdit(row, { docs: cur.filter(d => d.ref !== ref) });
+  }
+
+  async function openDoc(d: DebtDoc) {
+    if (d.kind === 'image' && docThumbs[d.ref]) { setPreview({ url: docThumbs[d.ref], name: d.name }); return; }
+    try {
+      const url = await resolveDbImage(d.ref);
+      if (!url) { setDocErr('تعذر فتح الملف'); return; }
+      if (d.kind === 'image') setDocThumbs(prev => ({ ...prev, [d.ref]: url }));
+      setPreview({ url, name: d.name });
+    } catch { setDocErr('تعذر فتح الملف'); }
   }
 
   function saveEdit() {
@@ -201,7 +259,7 @@ export default function Debts() {
   }
 
   function exportExcel() {
-    const head = ['المسدد', 'المتبقي', 'الورقيات', 'متابع التحصيل'];
+    const head = ['المسدد', 'المتبقي', 'الورقيات', 'متابع التحصيل', 'عدد المرفقات'];
     const wsData: any[] = [
       [`أعمار الديون (حساب الأستاذ) - تجميع حسب العميل`],
       [isAll ? `الوقت: ${groups.map(g => g.reportAt).filter(Boolean).sort().pop() || '—'} (أحدث تقرير)` : `الوقت: ${group?.reportAt}`],
@@ -214,15 +272,15 @@ export default function Debts() {
     for (const r of filtered) {
       const e = edits[editKey(r.gid, r)];
       const paid = e?.paid ?? 0;
-      const extra = [paid, Math.max(0, r.total - paid), PAPERS_LABEL[e?.papers ?? ''] || '—', e?.collector || '—'];
+      const extra = [paid, Math.max(0, r.total - paid), PAPERS_LABEL[e?.papers ?? ''] || '—', e?.collector || '—', e?.docs?.length ?? 0];
       const row = isAll
         ? [r.debtor, r.code, r.acc, r.name, r.today, r.d30, r.d60, r.d90, r.d120, r.d120p, r.total, ...extra]
         : [r.code, r.acc, r.name, r.today, r.d30, r.d60, r.d90, r.d120, r.d120p, r.total, ...extra];
       wsData.push(row);
     }
     wsData.push(isAll
-      ? ['المجموع', '', '', '', totals.today, totals.d30, totals.d60, totals.d90, totals.d120, totals.d120p, totals.total, totals.paid, Math.max(0, totals.total - totals.paid), '', '']
-      : ['المجموع', '', '', totals.today, totals.d30, totals.d60, totals.d90, totals.d120, totals.d120p, totals.total, totals.paid, Math.max(0, totals.total - totals.paid), '', '']);
+      ? ['المجموع', '', '', '', totals.today, totals.d30, totals.d60, totals.d90, totals.d120, totals.d120p, totals.total, totals.paid, Math.max(0, totals.total - totals.paid), '', '', '']
+      : ['المجموع', '', '', totals.today, totals.d30, totals.d60, totals.d90, totals.d120, totals.d120p, totals.total, totals.paid, Math.max(0, totals.total - totals.paid), '', '', '']);
     const ws = XLSX.utils.aoa_to_sheet(wsData);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'الديون');
@@ -336,6 +394,7 @@ export default function Debts() {
           <span className="bg-indigo-500/10 text-indigo-300 border border-indigo-500/30 px-2.5 py-1 rounded-lg">📄 سندات أمر: <strong>{summary.note}</strong></span>
           <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 px-2.5 py-1 rounded-lg">✅ سداد كامل: <strong>{summary.paidFull}</strong></span>
           <span className="bg-amber-500/10 text-amber-300 border border-amber-500/30 px-2.5 py-1 rounded-lg">🟡 سداد جزئي: <strong>{summary.partial}</strong></span>
+          <span className="bg-rose-500/10 text-rose-300 border border-rose-500/30 px-2.5 py-1 rounded-lg">📎 ليه مرفقات: <strong>{summary.withDocs}</strong></span>
         </div>
 
         <div className="mb-3 flex items-center justify-between flex-wrap gap-2">
@@ -348,6 +407,7 @@ export default function Debts() {
             <option value="paidFull">✅ مسدد بالكامل</option>
             <option value="partial">🟡 سداد جزئي</option>
             <option value="unpaid">⏳ بدون سداد</option>
+            <option value="withDocs">📎 ليه مرفقات</option>
           </select>
         </div>
 
@@ -395,7 +455,10 @@ export default function Debts() {
                     <td className={`border border-white/10 px-2 py-1 text-right num font-bold ${remaining <= 0 ? 'text-emerald-400' : paid > 0 ? 'text-amber-300' : 'text-slate-300'}`}>
                       {remaining <= 0 ? '✅ مسدد بالكامل' : remaining.toLocaleString('ar-SA',{minimumFractionDigits:2,maximumFractionDigits:2})}
                     </td>
-                    <td className="border border-white/10 px-2 py-1 text-center text-[11px]">{PAPERS_LABEL[e?.papers ?? ''] || '—'}</td>
+                    <td className="border border-white/10 px-2 py-1 text-center text-[11px]">
+                      {PAPERS_LABEL[e?.papers ?? ''] || '—'}
+                      {(e?.docs?.length ?? 0) > 0 && <span className="mr-1 text-amber-300 font-bold" title={`${e!.docs.length} مرفق (صورة/PDF)`}>📎{e!.docs.length}</span>}
+                    </td>
                     <td className="border border-white/10 px-2 py-1 text-center text-[11px] text-sky-300">{e?.collector || '—'}</td>
                     <td className="border border-white/10 px-2 py-1 text-center no-print">
                       <button onClick={() => openEdit(r)} title="تعديل (سداد / ورقيات / متابعة)" className="text-base hover:scale-125 transition-transform">✏️</button>
@@ -497,10 +560,34 @@ export default function Debts() {
               </div>
             </div>
 
+            {/* المرفقات — عقود وسندات */}
+            <div className="mb-4 bg-white/[0.04] border border-white/10 rounded-lg p-3 space-y-2">
+              <div className="text-xs font-bold text-amber-300">📎 المرفقات (عقود وسنداتأمر)</div>
+              <label className={`flex items-center justify-center gap-2 border-2 border-dashed rounded-lg px-3 py-3 text-xs cursor-pointer transition ${docBusy ? 'opacity-50 pointer-events-none' : 'border-white/15 text-slate-400 hover:border-amber-400/50 hover:text-amber-200'}`}>
+                {docBusy ? '⏳ جارِ الرفع...' : '📤 اضغط لرفع صورة أو PDF (دبوس عقد / سند أمر)'}
+                <input type="file" accept="image/*,application/pdf,.pdf" className="hidden" disabled={docBusy} onChange={ev => ev.target.files && handleUpload(ev.target)} />
+              </label>
+              {docErr && <div className="text-[11px] text-red-400">⚠️ {docErr}</div>}
+              {(edits[editKey(editing.gid, editing)]?.docs ?? []).length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {(edits[editKey(editing.gid, editing)]?.docs ?? []).map(d => (
+                    <div key={d.ref} className="relative bg-white/[0.05] border border-white/10 rounded-lg p-1.5 w-24 text-center group">
+                      {d.kind === 'image' && docThumbs[d.ref] ? (
+                        <img src={docThumbs[d.ref]} alt={d.name} className="w-20 h-16 object-cover rounded cursor-pointer mx-auto" onClick={() => openDoc(d)} title="اضغط للتكبير" />
+                      ) : (
+                        <div className="w-20 h-16 flex items-center justify-center text-2xl cursor-pointer mx-auto" onClick={() => openDoc(d)} title="افتح الملف">📄</div>
+                      )}
+                      <div className="text-[9px] text-slate-400 truncate mt-1" title={d.name}>{d.name}</div>
+                      <button onClick={() => removeDoc(editing, d.ref)} title="حذف المرفق" className="absolute -top-1.5 -left-1.5 bg-red-600 text-white rounded-full text-[10px] w-5 h-5 leading-none hover:bg-red-500 transition hidden group-hover:block">✕</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
             {/* متابعة التحصيل */}
             <div className="mb-4 bg-white/[0.04] border border-white/10 rounded-lg p-3 space-y-2">
-              <div className="text-xs font-bold text-sky-300">🎯 متابعة التحصيل</div>
-              {emps.length > 0 ? (
+              <div className="text-xs font-bold text-sky-300">🎯 متابعة التحصيل</div>              {emps.length > 0 ? (
                 <select value={emps.some(e => e.name === draftCollector) ? draftCollector : ''} onChange={ev => setDraftCollector(ev.target.value)} className="bg-white/[0.06] border border-white/10 rounded-lg px-2 py-1.5 text-sm w-full">
                   <option value="">— بدون متابعة —</option>
                   {emps.map(e => <option key={e.id || e.name} value={e.name}>{e.name}</option>)}
@@ -521,6 +608,24 @@ export default function Debts() {
               <button onClick={() => setEditing(null)} className="bg-white/[0.06] hover:bg-white/[0.1] text-slate-300 text-xs px-4 py-2 rounded-lg border border-white/10 transition font-bold">إلغاء</button>
               <button onClick={saveEdit} className="bg-sky-600 hover:bg-sky-500 text-white text-xs px-5 py-2 rounded-lg font-bold transition">💾 حفظ</button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ===================== معاينة المرفق ===================== */}
+      {preview && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/85 p-4" onClick={() => setPreview(null)}>
+          <div className="max-w-4xl w-full max-h-[90vh] flex flex-col items-center" onClick={ev => ev.stopPropagation()}>
+            <div className="flex items-center gap-3 mb-2">
+              <span className="text-xs text-slate-300 bg-white/10 px-3 py-1 rounded-lg">{preview.name}</span>
+              <a href={preview.url} download={preview.name} className="text-xs text-emerald-300 bg-emerald-500/15 border border-emerald-500/40 px-3 py-1 rounded-lg font-bold hover:bg-emerald-500/25 transition">⬇️ تحميل</a>
+              <button onClick={() => setPreview(null)} className="text-slate-400 hover:text-red-400 text-lg leading-none">✕</button>
+            </div>
+            {preview.url.startsWith('data:application/pdf') ? (
+              <iframe src={preview.url} title={preview.name} className="w-full h-[80vh] rounded-lg bg-white" />
+            ) : (
+              <img src={preview.url} alt={preview.name} className="max-h-[80vh] rounded-lg object-contain" />
+            )}
           </div>
         </div>
       )}

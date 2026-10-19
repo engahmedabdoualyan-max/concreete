@@ -297,6 +297,43 @@ export function isDbImageRef(v: string): boolean {
   return typeof v === 'string' && v.startsWith(DBIMG_PREFIX);
 }
 
+// ====================== Debts attachments (عقود وسنداتأمر — صور/PDF) ======================
+export interface DebtDoc {
+  id: string;
+  name: string;
+  kind: 'image' | 'pdf';
+  ref: string; // dbimg://id
+}
+
+function readFileAsDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const fr = new FileReader();
+    fr.onload = () => resolve(String(fr.result || ''));
+    fr.onerror = () => reject(new Error('تعذر قراءة الملف'));
+    fr.readAsDataURL(file);
+  });
+}
+
+/** رفع مرفق (صورة أو PDF) لسجل مديونية — يُخزَّن في مجموعة media مثل صور الكونسول */
+export async function uploadDebtDoc(file: File): Promise<DebtDoc> {
+  const isPdf = file.type === 'application/pdf' || /\.pdf$/i.test(file.name);
+  const isImg = file.type.startsWith('image/');
+  if (!isPdf && !isImg) throw new Error('الملف لازم يكون صورة أو PDF');
+  const id = `debt-doc-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+  if (isPdf) {
+    // Firestore doc limit = 1MB → base64 ~1.37x → cap raw PDF at 600KB
+    if (file.size > 600 * 1024) throw new Error('حجم الـ PDF كبير (الحد 600KB) — صوّره صورة بدل كده');
+    const dataUrl = await readFileAsDataUrl(file);
+    if (dataUrl.length > 950_000) throw new Error('الـ PDF كبير بعد التحويل — جرّب صورة بدل PDF');
+    await setDoc(doc(db, 'media', id), { dataUrl, fileName: file.name, kind: 'pdf', purpose: 'debtDoc', ts: serverTimestamp() });
+    return { id, name: file.name, kind: 'pdf', ref: `${DBIMG_PREFIX}${id}` };
+  }
+  const dataUrl = await compressImage(file, 1400, 0.8);
+  if (dataUrl.length > 950_000) throw new Error('الصورة كبيرة جداً — جرّب صورة أصغر');
+  await setDoc(doc(db, 'media', id), { dataUrl, fileName: file.name, kind: 'image', purpose: 'debtDoc', ts: serverTimestamp() });
+  return { id, name: file.name, kind: 'image', ref: `${DBIMG_PREFIX}${id}` };
+}
+
 // Resolve a `dbimg://id` reference to its data URL (cached in localStorage).
 export async function resolveDbImage(ref: string): Promise<string> {
   const id = ref.slice(DBIMG_PREFIX.length);
