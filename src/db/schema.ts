@@ -3793,6 +3793,10 @@ export const payrollEmployees = pgTable(
     bankIban: varchar("bank_iban", { length: 40 }),
     bankName: varchar("bank_name", { length: 80 }),
     hireDate: timestamp("hire_date"),
+    /** Contract period: start date and end date. The end date drives the
+     *  60-day contract-expiry watch (same idea as iqamaExpiry). */
+    contractStart: timestamp("contract_start"),
+    contractEnd: timestamp("contract_end"),
     isActive: boolean("is_active").notNull().default(true),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),

@@ -43,6 +43,8 @@ const UpdateEmployeeSchema = z.object({
   dateOfBirth: z.string().min(1).optional(),
   bloodGroup: z.string().max(5).optional(),
   hireDate: z.string().min(1).optional(),
+  contractStart: z.string().min(1).optional(),
+  contractEnd: z.string().min(1).optional(),
   countryCode: z.string().max(4).optional(),
   contactPhone: z.string().max(20).optional(),
   emergencyContactName: z.string().max(120).optional(),
