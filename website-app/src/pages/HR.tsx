@@ -344,7 +344,9 @@ export default function HR() {
   const [fileColorSaving, setFileColorSaving] = useState('');
   const [search, setSearch] = useState('');
   const [showInactive, setShowInactive] = useState(false);
-  const [orgView, setOrgView] = useState<'depts' | 'branches' | 'all'>('depts');
+  const [orgView, setOrgView] = useState<'depts' | 'branches'>('depts');
+  const [orgBranchSel, setOrgBranchSel] = useState('ALL');
+  const [orgDeptSel, setOrgDeptSel] = useState('ALL');
   const [equipBranch, setEquipBranch] = useState('ALL');
   const drvLbl = ar ? '🧑‍✈️ سائقين' : 'Drivers';
   const sauLbl = ar ? '🇸🇦 السعوديين' : 'Saudis';
@@ -393,15 +395,130 @@ export default function HR() {
     }
     return rows;
   };
-  /** الهيكل الوظيفي: الموظفون مجمّعين على الفروع (مفيش مركبات هنا). */
-  const staffByBranch = () => {
-    const sites = vehRd.sites || [];
-    const list = sites.map((s: any) => ({ id: s.id, label: orgSiteName(s) }));
-    list.push({ id: 'NONE', label: ar ? 'غير محدد' : 'Unspecified' });
-    return list.map((b) => ({
+  /** كروت الهيكل: أقسام الموظفين + المجموعات المستخرجة من المسمى (سائقين/عمالة/سعوديين). */
+  const orgGroupCards = (pool: any[]): { label: string; list: any[] }[] => {
+    const groups = new Map<string, any[]>();
+    for (const e of pool) {
+      if (orgIsDrv(e) || orgIsSaudi(e) || isLabor(e)) continue;
+      const d = (pickField(e, 'department') ?? '').toString().trim() || (ar ? 'بدون قسم' : 'Unassigned');
+      if (!groups.has(d)) groups.set(d, []);
+      groups.get(d)!.push(e);
+    }
+    const drvList = pool.filter(orgIsDrv);
+    if (drvList.length) groups.set(drvLbl, drvList);
+    const sauList = pool.filter((e) => !orgIsDrv(e) && !isLabor(e) && orgIsSaudi(e));
+    if (sauList.length) groups.set(sauLbl, sauList);
+    for (const [lbl, fn] of [[blkLbl, orgIsBlock], [concLbl, orgIsConc], [opsLbl, orgIsOps], [wsLbl, orgIsWs]] as const) {
+      const lst = pool.filter((e) => !orgIsDrv(e) && (fn as any)(e));
+      if (lst.length) groups.set(lbl, lst);
+    }
+    for (const k of OPS_KIDS) if (!groups.has(k)) groups.set(k, []);
+    const baseOrdered = [...DEPTS.filter((d) => groups.has(d)), ...[...groups.keys()].filter((d) => !DEPTS.includes(d))];
+    // Operations block: التشغيل, then drivers, then its sub-departments; Saudis under Administration.
+    const block = [drvLbl, blkLbl, concLbl, opsLbl, wsLbl, ...OPS_KIDS].filter((k) => groups.has(k));
+    const rest = baseOrdered.filter((d) => d !== sauLbl && !block.includes(d));
+    const ai = rest.indexOf('التشغيل');
+    const withOps = ai >= 0 ? [...rest.slice(0, ai + 1), ...block, ...rest.slice(ai + 1)] : [...rest, ...block];
+    const si = withOps.indexOf('الإدارة');
+    const finalOrder = groups.has(sauLbl) ? (si >= 0 ? [...withOps.slice(0, si + 1), sauLbl, ...withOps.slice(si + 1).filter((d) => d !== sauLbl)] : [...withOps, sauLbl]) : withOps;
+    return finalOrder.map((d) => ({ label: d, list: groups.get(d) ?? [] }));
+  };
+
+  /** عناوين «تابعة لـ…» على كروت المجموعات. */
+  const orgUnderOf: Record<string, string> = (() => {
+    const m: Record<string, string> = { [drvLbl]: ar ? '⬆ تابعة لإدارة التشغيل' : 'under Operations', [sauLbl]: ar ? '⬆ تابعة للإدارة' : 'under Administration' };
+    for (const k of [...OPS_KIDS, blkLbl, concLbl, opsLbl, wsLbl]) m[k] = ar ? '⬆ تابعة للتشغيل' : 'under Operations';
+    return m;
+  })();
+
+  /** المجموعات المشتقّة من المسمى الوظيفي — تظهر كاختيارات في فلتر «القسم». */
+  const orgVirtualGroups: Array<{ label: string; test: (e: any) => boolean }> = [
+    { label: sauLbl, test: (e) => !orgIsDrv(e) && !isLabor(e) && orgIsSaudi(e) },
+    { label: drvLbl, test: (e) => orgIsDrv(e) },
+    { label: blkLbl, test: (e) => !orgIsDrv(e) && orgIsBlock(e) },
+    { label: concLbl, test: (e) => !orgIsDrv(e) && orgIsConc(e) },
+    { label: opsLbl, test: (e) => !orgIsDrv(e) && orgIsOps(e) },
+    { label: wsLbl, test: (e) => !orgIsDrv(e) && orgIsWs(e) },
+  ];
+
+  /** الأقسام الحقيقية الموجودة فعلاً في بيانات الموظفين. */
+  const orgDeptOptions = [...new Set(employees.map((e) => (pickField(e, 'department') ?? '').toString().trim()).filter(Boolean))].sort();
+
+  const orgBranchLabel = (id: string): string =>
+    !id || id === 'NONE' ? (ar ? 'بدون فرع' : 'No branch')
+      : id === '__other__' ? (ar ? 'فرع غير معروف' : 'Unknown branch')
+        : orgSiteName(orgSites.find((x: any) => x.id === id) ?? null);
+
+  /** الموظفون بعد فلتر الفرع + فلتر القسم. */
+  const orgPool = employees.filter((e) => {
+    const bid = (pickField(e, 'branchSiteId') ?? '') as string;
+    if (orgBranchSel === 'NONE' ? !!bid : (orgBranchSel !== 'ALL' && bid !== orgBranchSel)) return false;
+    if (orgDeptSel === 'ALL') return true;
+    const vg = orgVirtualGroups.find((g) => g.label === orgDeptSel);
+    if (vg) return vg.test(e);
+    const dep = (pickField(e, 'department') ?? '').toString().trim();
+    return orgDeptSel === 'NONE' ? dep === '' : dep === orgDeptSel;
+  });
+
+  /** الفروع: كل فرع + موظفينه (بعد الفلتر). */
+  const orgBranchStaff = (): { id: string; label: string; staff: any[] }[] => {
+    const list: Array<{ id: string; label: string }> = orgSites.map((s: any) => ({ id: s.id, label: orgSiteName(s) }));
+    const known = new Set(list.map((b) => b.id));
+    if (orgPool.some((e) => { const b = pickField(e, 'branchSiteId'); return !!b && !known.has(b); })) {
+      list.push({ id: '__other__', label: ar ? 'فرع غير معروف' : 'Unknown branch' });
+    }
+    list.push({ id: 'NONE', label: ar ? 'بدون فرع' : 'No branch' });
+    const withStaff = list.map((b) => ({
       ...b,
-      staff: employees.filter((e) => (b.id === 'NONE' ? !pickField(e, 'branchSiteId') : pickField(e, 'branchSiteId') === b.id)),
+      staff: orgPool.filter((e) => {
+        const bid = (pickField(e, 'branchSiteId') ?? '') as string;
+        if (b.id === 'NONE') return !bid;
+        if (b.id === '__other__') return !!bid && !known.has(bid);
+        return bid === b.id;
+      }),
     }));
+    if (orgBranchSel === 'ALL') {
+      // الفروع الأكبر الأول، و«بدون فرع» / «غير معروف» في الآخر دائمًا.
+      return withStaff
+        .filter((b) => b.staff.length > 0)
+        .sort((a, b) => {
+          const an = a.id === 'NONE' || a.id === '__other__' ? -1 : a.staff.length;
+          const bn = b.id === 'NONE' || b.id === '__other__' ? -1 : b.staff.length;
+          return bn - an;
+        });
+    }
+    return withStaff.filter((b) => b.id === orgBranchSel);
+  };
+
+  /** كارت مجموعة في الهيكل (قسم / مجموعة / فرع). */
+  const renderOrgCard = (label: string, list: any[], opts?: { under?: string; key?: string }) => {
+    const amber = [drvLbl, sauLbl, ...(OPS_KIDS as string[]), blkLbl, concLbl, opsLbl, wsLbl].includes(label);
+    return (
+      <div key={opts?.key ?? label} className={`rounded-2xl border overflow-hidden ${amber ? 'border-amber-500/40 bg-amber-500/[0.04]' : 'border-white/10 bg-white/[0.02]'}`}>
+        <div className="bg-white/[0.05] border-b border-white/10 px-3 py-2 flex items-center justify-between">
+          <span className="text-xs font-black text-sky-300">{label}
+            {opts?.under && <span className="block text-[10px] font-bold text-amber-300/90">{opts.under}</span>}
+          </span>
+          <span className="text-[10px] font-black text-slate-400 bg-white/10 rounded-full px-2 py-0.5">{list.length}</span>
+        </div>
+        <div className="p-2 space-y-1.5 max-h-[320px] overflow-y-auto">
+          {list.length === 0 && <p className="text-[11px] text-slate-500 text-center py-2">{ar ? 'لا موظفين بعد — عيّن من ملف الموظف.' : 'No staff yet.'}</p>}
+          {list.map((e: any, i: number) => (
+            <div key={e.id ?? i} className="flex items-center gap-2 rounded-xl border border-white/5 bg-white/[0.02] px-2 py-1.5">
+              <button onClick={() => gotoEmpFile(e)} title={ar ? 'فتح ملف الموظف' : 'Open employee file'}
+                className="w-7 h-7 shrink-0 rounded-full bg-sky-500/15 border border-sky-500/30 flex items-center justify-center text-xs font-black text-sky-300 hover:bg-sky-500/30 hover:border-sky-400/60 hover:scale-110 transition cursor-pointer">
+                {(nameOf(e) || '?').trim().charAt(0)}
+              </button>
+              <div className="min-w-0">
+                <p className="text-[11px] font-black text-white truncate">{nameOf(e)}</p>
+                <p className="text-[10px] text-slate-500 truncate">{e.jobTitle ?? e.role ?? e.employeeCode ?? ''}</p>
+                {(e as any).iqamaJobTitle && <p className="text-[10px] text-slate-600 truncate">🪪 {(e as any).iqamaJobTitle}</p>}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
   };
   const [showAllRenewals, setShowAllRenewals] = useState(false);
   const [showAllContractRenewals, setShowAllContractRenewals] = useState(false);
@@ -548,6 +665,9 @@ export default function HR() {
   const vehFiltered = () => fleet.filter(vehPassesFilter);
   // Readiness snapshot for the statement: branch + status per vehicle.
   const [vehRd, setVehRd] = useState<{ map: Record<string, { status: string | null; siteId: string | null }>; sites: any[] }>({ map: {}, sites: [] });
+  /** فروع الشركة (من HR مباشرة — مش من تقرير المركبات). */
+  const [branchSites, setBranchSites] = useState<any[]>([]);
+  const orgSites = branchSites.length ? branchSites : (vehRd.sites || []);
   const RD_AR: Record<string, string> = { WORKING: 'شغال', IDLE: 'عاطل', IN_WORKSHOP: 'ورشة', STORED: 'مخزن' };
   const vehBranchOf = (vehicleId: string) => {
     const siteId = vehRd.map[vehicleId]?.siteId ?? null;
@@ -1995,6 +2115,10 @@ function ageOf(raw: unknown): number | null {
       setEmployees(Array.isArray(e?.employees) ? e.employees : []);
     } catch { setEmployees([]); }
     try {
+      const st = await api.get<{ sites?: any[] }>('/api/hr/sites');
+      setBranchSites(Array.isArray(st?.sites) ? st.sites : []);
+    } catch { setBranchSites([]); }
+    try {
       const a = await api.get<any[]>(`/api/hr/attendance?from=${fromDate}&to=${toDate}`);
       setAttRows(Array.isArray(a) ? a : (a as any)?.rows ?? []);
     } catch { setAttRows([]); }
@@ -2289,7 +2413,7 @@ function ageOf(raw: unknown): number | null {
                     <select value={form.branchSiteId} onChange={(e) => setForm({ ...form, branchSiteId: e.target.value })}
                       className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none">
                       <option value="">—</option>
-                      {vehRd.sites.map((x: any) => <option key={x.id} value={x.id}>{orgSiteName(x)}</option>)}
+                      {orgSites.map((x: any) => <option key={x.id} value={x.id}>{orgSiteName(x)}</option>)}
                     </select></label>
         <label className="text-[11px] text-slate-400 font-bold">{ar ? 'الراتب الأساسي (ر.س)' : 'Base salary'}
           <input value={form.baseSalarySar} onChange={(e) => setForm({ ...form, baseSalarySar: e.target.value })} inputMode="decimal"
@@ -2632,7 +2756,7 @@ function ageOf(raw: unknown): number | null {
                     title: e.role ?? e.jobTitle ?? '', dept: e.department ?? '',
                     sponsor: e.sponsorship ?? 'المطور',
                     ins: (e as any).insuranceStatus === 'INSURED' ? (ar ? 'مومن' : 'Insured') : (ar ? 'غير مومن' : 'Uninsured'),
-                    branch: (((x: any) => x ? orgSiteName(x) : '')(vehRd.sites.find((x: any) => x.id === (e as any).branchSiteId))),
+                    branch: (((x: any) => x ? orgSiteName(x) : '')(orgSites.find((x: any) => x.id === (e as any).branchSiteId))),
                     passport: (e as any).passportNo ?? '',
                     fileState: `${FILE_COLOR[fc.color].dot} ${ar ? FILE_COLOR[fc.color].ar : FILE_COLOR[fc.color].en}${e?.fileColorOverride ? ' 📌' : ''}`,
                     fileMissing: [...fc.red, ...fc.yellow].map((r) => (ar ? r.ar : r.en)).join('، '),
@@ -2729,7 +2853,7 @@ function ageOf(raw: unknown): number | null {
                       <p className="text-[11px] text-slate-500 truncate">🤝 {ar ? 'الكفالة' : 'Sponsor'}: {e.sponsorship}</p>
                     )}
                     {(e as any).branchSiteId && (
-                      <p className="text-[11px] text-slate-500 truncate">🏢 {ar ? 'الفرع' : 'Branch'}: {orgSiteName(vehRd.sites.find((x: any) => x.id === (e as any).branchSiteId) ?? null) || (ar ? 'فرع' : 'Branch')}</p>
+                      <p className="text-[11px] text-slate-500 truncate">🏢 {ar ? 'الفرع' : 'Branch'}: {orgSiteName(orgSites.find((x: any) => x.id === (e as any).branchSiteId) ?? null) || (ar ? 'فرع' : 'Branch')}</p>
                     )}
                     {(e.nationality === 'SAUDI' || e.countryCode === 'SA' || /^1\d{9}$/.test(String(e.nationalId ?? '').trim()) || (e as any).insuranceStatus === 'INSURED') && (
                       <p className="text-[11px] text-slate-500 truncate">🛡️ {ar ? 'التأمين' : 'Insurance'}: {(e as any).insuranceStatus === 'INSURED' ? (ar ? 'مومن' : 'Insured') : (ar ? 'غير مومن' : 'Uninsured')}</p>
@@ -4323,126 +4447,99 @@ function ageOf(raw: unknown): number | null {
               <label className="text-[11px] text-slate-400 font-bold">{ar ? 'العرض' : 'View'}
                 <select value={orgView} onChange={(e) => setOrgView(e.target.value as any)}
                   className="mr-1 bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none">
-                  <option value="depts">{ar ? 'الأقسام' : 'Departments'}</option>
-                  <option value="branches">{ar ? 'الفروع' : 'Branches'}</option>
-                  <option value="all">{ar ? 'الكامل (أقسام + فروع)' : 'Full'}</option>
+                  <option value="depts">{ar ? 'بالأقسام' : 'By department'}</option>
+                  <option value="branches">{ar ? 'بالفروع (كل فرع بأقسامه)' : 'By branch'}</option>
                 </select></label>
-              {orgView !== 'depts' && (
-                <span className="text-[10px] text-slate-500">{ar ? 'الموظفون مجمّعين على الفروع — المركبات في «هيكل المعدات».' : 'Staff grouped by branch — vehicles live in Equipment chart.'}</span>
+              <label className="text-[11px] text-slate-400 font-bold">{ar ? 'الفرع' : 'Branch'}
+                <select value={orgBranchSel} onChange={(e) => setOrgBranchSel(e.target.value)}
+                  className="mr-1 bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none max-w-[180px]">
+                  <option value="ALL">{ar ? 'كل الفروع' : 'All branches'}</option>
+                  {orgSites.map((x: any) => <option key={x.id} value={x.id}>{orgSiteName(x)}</option>)}
+                  <option value="NONE">{ar ? 'بدون فرع' : 'No branch'}</option>
+                </select></label>
+              <label className="text-[11px] text-slate-400 font-bold">{ar ? 'القسم' : 'Department'}
+                <select value={orgDeptSel} onChange={(e) => setOrgDeptSel(e.target.value)}
+                  className="mr-1 bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none max-w-[180px]">
+                  <option value="ALL">{ar ? 'كل الأقسام' : 'All departments'}</option>
+                  {orgDeptOptions.map((d) => <option key={d} value={d}>{d}</option>)}
+                  {orgVirtualGroups.map((g) => <option key={g.label} value={g.label}>{g.label}</option>)}
+                  <option value="NONE">{ar ? 'بدون قسم' : 'No department'}</option>
+                </select></label>
+              {(orgBranchSel !== 'ALL' || orgDeptSel !== 'ALL') && (
+                <button onClick={() => { setOrgBranchSel('ALL'); setOrgDeptSel('ALL'); }}
+                  className="text-[11px] font-black rounded-lg px-3 py-1.5 border border-white/15 text-slate-300 hover:bg-white/10">
+                  ✕ {ar ? 'إلغاء الفلتر' : 'Clear filter'}
+                </button>
               )}
               <ExportBar
                 title={ar ? 'الهيكل الوظيفي' : 'Org chart'}
-                subtitle={`${employees.length} ${ar ? 'موظف' : 'employees'}`}
+                subtitle={`${orgPool.length} ${ar ? 'موظف' : 'employees'}`}
                 fileBase="hr-org"
-                columns={orgView === 'branches'
-                  ? [{ header: 'الفرع', key: 'branch' }, { header: 'الاسم', key: 'name' }, { header: 'الكود', key: 'code' }, { header: 'المسمى', key: 'title' }, { header: 'مهنة الإقامة', key: 'iqamaTitle' }, { header: 'القسم', key: 'group' }]
-                  : [{ header: 'الاسم', key: 'name' }, { header: 'الكود', key: 'code' }, { header: 'المسمى', key: 'title' }, { header: 'مهنة الإقامة', key: 'iqamaTitle' }, { header: 'المجموعة', key: 'group' }, { header: 'الإقامة', key: 'iqama' }, { header: 'الجوال', key: 'phone' }]}
+                columns={[
+                  { header: 'الفرع', key: 'branch' }, { header: 'الاسم', key: 'name' }, { header: 'الكود', key: 'code' },
+                  { header: 'المسمى', key: 'title' }, { header: 'مهنة الإقامة', key: 'iqamaTitle' },
+                  { header: 'القسم', key: 'dept' }, { header: 'المجموعة', key: 'group' },
+                  { header: 'الإقامة', key: 'iqama' }, { header: 'الجوال', key: 'phone' },
+                ]}
                 branding={brandParam}
-                rows={orgView === 'branches'
-                  ? staffByBranch().flatMap((b) => b.staff.map((e: any) => ({ branch: b.label, name: nameOf(e), code: e.employeeCode ?? '', title: e.jobTitle ?? e.role ?? '', iqamaTitle: e.iqamaJobTitle ?? '', group: e.department ?? '' })))
-                  : employees.map((e) => ({
-                    name: nameOf(e), code: e.employeeCode ?? '', title: e.jobTitle ?? e.role ?? '',
-                    iqamaTitle: e.iqamaJobTitle ?? '',
-                    group: orgGroupOf(e), iqama: e.nationalId ?? '', phone: e.contactPhone ?? e.phone ?? '',
-                  }))}
+                rows={orgPool.map((e: any) => ({
+                  branch: orgBranchLabel((pickField(e, 'branchSiteId') ?? '') as string),
+                  name: nameOf(e), code: e.employeeCode ?? '', title: e.jobTitle ?? e.role ?? '',
+                  iqamaTitle: e.iqamaJobTitle ?? '', dept: (pickField(e, 'department') ?? '') as string,
+                  group: orgGroupOf(e), iqama: e.nationalId ?? '', phone: e.contactPhone ?? e.phone ?? '',
+                }))}
               />
             </div>
             <div className="flex flex-col items-center">
               <div className="rounded-2xl border border-sky-500/50 bg-sky-500/10 px-6 py-3 text-center shadow-[0_0_25px_rgba(56,189,248,0.25)]">
                 {tenant?.logoUrl && <img src={tenant.logoUrl} alt="" className="w-10 h-10 rounded-lg object-contain bg-white p-0.5 mx-auto mb-1" />}
                 <p className="text-base font-black text-white">{tenant?.companyName ?? (ar ? 'الشركة' : 'Company')}</p>
-                <p className="text-[11px] text-slate-400">{employees.length} {ar ? 'موظف' : 'employees'}</p>
+                <p className="text-[11px] text-slate-400">
+                  {orgPool.length} {ar ? 'موظف' : 'employees'}
+                  {orgBranchSel !== 'ALL' && <> · <span className="text-sky-300">{orgBranchLabel(orgBranchSel)}</span></>}
+                  {orgDeptSel !== 'ALL' && <> · <span className="text-amber-300">{orgDeptSel === 'NONE' ? (ar ? 'بدون قسم' : 'No department') : orgDeptSel}</span></>}
+                </p>
               </div>
               <div className="w-px h-6 bg-sky-500/40" />
-              {(orgView === 'depts' || orgView === 'all') && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 w-full">
-                {(() => {
-                  const groups = new Map<string, any[]>();
-                  for (const e of employees) {
-                    if (orgIsDrv(e) || orgIsSaudi(e) || isLabor(e)) continue;
-                    const d = e.department || (ar ? 'بدون قسم' : 'Unassigned');
-                    if (!groups.has(d)) groups.set(d, []);
-                    groups.get(d)!.push(e);
-                  }
-                  const drvList = employees.filter(orgIsDrv);
-                  if (drvList.length) groups.set(drvLbl, drvList);
-                  const sauList = employees.filter((e) => !orgIsDrv(e) && !isLabor(e) && orgIsSaudi(e));
-                  if (sauList.length) groups.set(sauLbl, sauList);
-                  for (const [lbl, fn] of [[blkLbl, orgIsBlock], [concLbl, orgIsConc], [opsLbl, orgIsOps], [wsLbl, orgIsWs]] as const) {
-                    const lst = employees.filter((e) => !orgIsDrv(e) && (fn as any)(e));
-                    if (lst.length) groups.set(lbl, lst);
-                  }
-                  if (sauList.length) groups.set(sauLbl, sauList);
-                  for (const k of OPS_KIDS) if (!groups.has(k)) groups.set(k, []);
-                  const baseOrdered = [...DEPTS.filter((d) => groups.has(d)), ...[...groups.keys()].filter((d) => !DEPTS.includes(d))];
-                  // Operations block: التشغيل, then drivers, then its sub-departments; Saudis under Administration.
-                  const block = [drvLbl, blkLbl, concLbl, opsLbl, wsLbl, ...OPS_KIDS].filter((k) => groups.has(k));
-                  const rest = baseOrdered.filter((d) => d !== sauLbl && !block.includes(d));
-                  const ai = rest.indexOf('التشغيل');
-                  const withOps = ai >= 0 ? [...rest.slice(0, ai + 1), ...block, ...rest.slice(ai + 1)] : [...rest, ...block];
-                  const si = withOps.indexOf('الإدارة');
-                  const finalOrder = groups.has(sauLbl) ? (si >= 0 ? [...withOps.slice(0, si + 1), sauLbl, ...withOps.slice(si + 1).filter((d) => d !== sauLbl)] : [...withOps, sauLbl]) : withOps;
-                  const underOf: Record<string, string> = { [drvLbl]: ar ? '⬆ تابعة لإدارة التشغيل' : 'under Operations', [sauLbl]: ar ? '⬆ تابعة للإدارة' : 'under Administration' };
-                  for (const k of [...OPS_KIDS, blkLbl, concLbl, opsLbl, wsLbl]) underOf[k] = ar ? '⬆ تابعة للتشغيل' : 'under Operations';
-                  const ordered = finalOrder;
-                  return ordered.map((d) => (
-                    <div key={d} className={`rounded-2xl border overflow-hidden ${((d === drvLbl || d === sauLbl || (OPS_KIDS as string[]).includes(d) || [blkLbl, concLbl, opsLbl, wsLbl].includes(d))) ? 'border-amber-500/40 bg-amber-500/[0.04]' : 'border-white/10 bg-white/[0.02]'}`}>
-                      <div className="bg-white/[0.05] border-b border-white/10 px-3 py-2 flex items-center justify-between">
-                        <span className="text-xs font-black text-sky-300">{d}
-                          {underOf[d] && <span className="block text-[10px] font-bold text-amber-300/90">{underOf[d]}</span>}
-                        </span>
-                        <span className="text-[10px] font-black text-slate-400 bg-white/10 rounded-full px-2 py-0.5">{groups.get(d)!.length}</span>
-                      </div>
-                      <div className="p-2 space-y-1.5 max-h-[320px] overflow-y-auto">
-                        {(groups.get(d) ?? []).length === 0 && <p className="text-[11px] text-slate-500 text-center py-2">{ar ? 'لا موظفين بعد — عيّن من ملف الموظف (الإدارة التابع لها).' : 'No staff yet.'}</p>}
-                        {(groups.get(d) ?? []).map((e, i) => (
-                          <div key={e.id ?? i} className="flex items-center gap-2 rounded-xl border border-white/5 bg-white/[0.02] px-2 py-1.5">
-                            <button onClick={() => gotoEmpFile(e)} title={ar ? 'فتح ملف الموظف' : 'Open employee file'}
-                              className="w-7 h-7 shrink-0 rounded-full bg-sky-500/15 border border-sky-500/30 flex items-center justify-center text-xs font-black text-sky-300 hover:bg-sky-500/30 hover:border-sky-400/60 hover:scale-110 transition cursor-pointer">
-                              {(nameOf(e) || '?').trim().charAt(0)}
-                            </button>
-                            <div className="min-w-0">
-                              <p className="text-[11px] font-black text-white truncate">{nameOf(e)}</p>
-                              <p className="text-[10px] text-slate-500 truncate">{e.jobTitle ?? e.role ?? e.employeeCode ?? ''}</p>
-                              {(e as any).iqamaJobTitle && <p className="text-[10px] text-slate-600 truncate">🪪 {(e as any).iqamaJobTitle}</p>}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ));
-                })()}
-              </div>
-              )}
-              {(orgView === 'branches' || orgView === 'all') && (
-              <div className="mt-4 w-full">
-                <p className="text-xs font-black text-sky-300 mb-2">🏢 {ar ? 'الفروع — الموظفون' : 'Branches — staff'}</p>
+              {orgPool.length === 0 ? (
+                <p className="text-xs text-slate-500 mt-2">{ar ? 'مفيش موظفين مطابقين للفلتر.' : 'No staff match the filter.'}</p>
+              ) : orgDeptSel !== 'ALL' ? (
+                <div className="w-full">
+                  <div className="flex justify-center mb-2">
+                    <span className="text-[11px] font-black rounded-full px-3 py-1 border border-amber-500/40 bg-amber-500/10 text-amber-200">
+                      {orgDeptSel === 'NONE' ? (ar ? 'بدون قسم' : 'No department') : orgDeptSel}
+                      {orgBranchSel !== 'ALL' && ` · ${orgBranchLabel(orgBranchSel)}`}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 w-full">
+                    {renderOrgCard(orgDeptSel === 'NONE' ? (ar ? 'بدون قسم' : 'Unassigned') : orgDeptSel, orgPool, { key: 'single' })}
+                  </div>
+                </div>
+              ) : orgView === 'depts' ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 w-full">
-                  {staffByBranch().map((b) => (
-                    <div key={b.id} className="rounded-2xl border border-white/10 bg-white/[0.02] overflow-hidden">
-                      <div className="bg-white/[0.05] border-b border-white/10 px-3 py-2 flex items-center justify-between">
-                        <span className="text-xs font-black text-sky-300">{b.label}</span>
-                        <span className="text-[10px] font-black text-slate-400 bg-white/10 rounded-full px-2 py-0.5">{b.staff.length}</span>
+                  {(() => {
+                    const cards = orgGroupCards(orgPool);
+                    const shown = orgBranchSel === 'ALL' ? cards : cards.filter((c) => c.list.length > 0);
+                    return shown.map((c) => renderOrgCard(c.label, c.list, { under: orgUnderOf[c.label] }));
+                  })()}
+                </div>
+              ) : (
+                <div className="w-full">
+                  {orgBranchStaff().map((b) => (
+                    <div key={b.id} className="w-full mt-4">
+                      <div className="flex flex-col items-center">
+                        <div className="w-px h-5 bg-sky-500/40" />
+                        <div className="rounded-2xl border border-sky-500/40 bg-sky-500/[0.07] px-5 py-2 text-center">
+                          <p className="text-sm font-black text-sky-200">🏢 {b.label}</p>
+                          <p className="text-[10px] text-slate-400">{b.staff.length} {ar ? 'موظف' : 'employees'}</p>
+                        </div>
                       </div>
-                      <div className="p-2 space-y-1.5 max-h-[320px] overflow-y-auto">
-                        {b.staff.length === 0 && <p className="text-[11px] text-slate-500 text-center py-2">{ar ? 'لا موظفين على هذا الفرع.' : 'No staff.'}</p>}
-                        {b.staff.map((e: any, i: number) => (
-                          <div key={e.id ?? i} className="flex items-center gap-2 rounded-xl border border-white/5 bg-white/[0.02] px-2 py-1.5">
-                            <button onClick={() => gotoEmpFile(e)} title={ar ? 'فتح ملف الموظف' : 'Open employee file'}
-                              className="w-7 h-7 shrink-0 rounded-full bg-sky-500/15 border border-sky-500/30 flex items-center justify-center text-xs font-black text-sky-300 hover:bg-sky-500/30 hover:border-sky-400/60 hover:scale-110 transition cursor-pointer">
-                              {(nameOf(e) || '?').trim().charAt(0)}
-                            </button>
-                            <div className="min-w-0">
-                              <p className="text-[11px] font-black text-white truncate">{nameOf(e)}</p>
-                              <p className="text-[10px] text-slate-500 truncate">{e.jobTitle ?? e.role ?? e.employeeCode ?? ''}</p>
-                            </div>
-                          </div>
-                        ))}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 w-full mt-3">
+                        {orgGroupCards(b.staff).filter((c) => c.list.length > 0).map((c) => renderOrgCard(c.label, c.list, { under: orgUnderOf[c.label], key: `${b.id}:${c.label}` }))}
                       </div>
                     </div>
                   ))}
                 </div>
-              </div>
               )}
               {employees.length === 0 && <p className="text-xs text-slate-500 mt-3">{ar ? 'لا بيانات فريق.' : 'No team data.'}</p>}
             </div>
