@@ -31,6 +31,7 @@ const UpdateEmployeeSchema = z.object({
   nationality: z.enum(["SAUDI", "NON_SAUDI"]).optional(),
   gosiSystem: z.enum(["LEGACY", "NEW"]).optional(),
   jobTitle: z.string().max(120).optional(),
+  iqamaJobTitle: z.string().max(120).optional(),
   department: z.string().max(80).optional(),
   baseSalarySar: z.number().nonnegative().optional(),
   housingAllowanceSar: z.number().nonnegative().optional(),

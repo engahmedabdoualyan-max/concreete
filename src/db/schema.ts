@@ -3784,7 +3784,10 @@ export const payrollEmployees = pgTable(
      * Non-Saudis ignore this (hazards-only regardless).
      */
     gosiSystem: varchar("gosi_system", { length: 10 }).notNull().default("LEGACY"),
+    /** المهنة الحالية — the worker's actual/current job at the plant. */
     jobTitle: varchar("job_title", { length: 120 }),
+    /** المهنة المكتوبة على الإقامة — the official profession on the iqama. */
+    iqamaJobTitle: varchar("iqama_job_title", { length: 120 }),
     department: varchar("department", { length: 80 }),
     baseSalarySar: decimal("base_salary_sar", { precision: 12, scale: 2 }).notNull().default("0"),
     housingAllowanceSar: decimal("housing_allowance_sar", { precision: 12, scale: 2 }).notNull().default("0"),
