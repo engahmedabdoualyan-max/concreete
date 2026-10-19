@@ -399,7 +399,7 @@ export default function HR() {
   const [fromDate, setFromDate] = useState(() => new Date(Date.now() - 6 * 864e5).toISOString().slice(0, 10));
   const [toDate, setToDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [showAdd, setShowAdd] = useState(false);
-  const [form, setForm] = useState({ employeeCode: '', fullName: '', nationalId: '', countryCode: '', jobTitle: '', department: '', baseSalarySar: '', housingAllowanceSar: '', transportAllowanceSar: '', bankIban: '', bankName: '', hireDate: '', contractStart: '', contractEnd: '', contactPhone: '', emergencyContactName: '', emergencyContactPhone: '', lastVacationDate: '', lastResumptionDate: '', medicalInsuranceNo: '', medicalInsuranceExpiry: '', vehiclePlate: '', vehicleOwnership: '', sponsorship: 'المطور', insuranceStatus: 'UNINSURED', branchSiteId: '', iqamaExpiry: '', passportNo: '', photoUrl: '' });
+  const [form, setForm] = useState({ employeeCode: '', fullName: '', nationalId: '', countryCode: '', jobTitle: '', iqamaJobTitle: '', department: '', baseSalarySar: '', housingAllowanceSar: '', transportAllowanceSar: '', bankIban: '', bankName: '', hireDate: '', contractStart: '', contractEnd: '', contactPhone: '', emergencyContactName: '', emergencyContactPhone: '', lastVacationDate: '', lastResumptionDate: '', medicalInsuranceNo: '', medicalInsuranceExpiry: '', vehiclePlate: '', vehicleOwnership: '', sponsorship: 'المطور', insuranceStatus: 'UNINSURED', branchSiteId: '', iqamaExpiry: '', passportNo: '', photoUrl: '' });
   const [actions, setActions] = useState<any[]>([]);
   const [actionFilter, setActionFilter] = useState('ALL');
   const [showActionForm, setShowActionForm] = useState(false);
@@ -663,6 +663,7 @@ function ageOf(raw: unknown): number | null {
         nationality: form.countryCode === 'SA' ? 'SAUDI' : 'NON_SAUDI',
         countryCode: form.countryCode || undefined,
         jobTitle: form.jobTitle.trim() || undefined,
+        iqamaJobTitle: form.iqamaJobTitle.trim() || undefined,
         department: form.department || undefined,
         baseSalarySar: num(form.baseSalarySar),
         housingAllowanceSar: num(form.housingAllowanceSar),
@@ -695,7 +696,7 @@ function ageOf(raw: unknown): number | null {
         await api.post('/api/hr/employees', { employeeCode: form.employeeCode.trim(), ...payload });
         setMsg('✅ تمت إضافة الموظف');
       }
-      setForm({ employeeCode: '', fullName: '', nationalId: '', countryCode: '', jobTitle: '', department: '', baseSalarySar: '', housingAllowanceSar: '', transportAllowanceSar: '', bankIban: '', bankName: '', hireDate: '', contractStart: '', contractEnd: '', contactPhone: '', emergencyContactName: '', emergencyContactPhone: '', lastVacationDate: '', lastResumptionDate: '', medicalInsuranceNo: '', medicalInsuranceExpiry: '', vehiclePlate: '', vehicleOwnership: '', sponsorship: 'المطور', insuranceStatus: 'UNINSURED', branchSiteId: '', iqamaExpiry: '', passportNo: '', photoUrl: '' });
+      setForm({ employeeCode: '', fullName: '', nationalId: '', countryCode: '', jobTitle: '', iqamaJobTitle: '', department: '', baseSalarySar: '', housingAllowanceSar: '', transportAllowanceSar: '', bankIban: '', bankName: '', hireDate: '', contractStart: '', contractEnd: '', contactPhone: '', emergencyContactName: '', emergencyContactPhone: '', lastVacationDate: '', lastResumptionDate: '', medicalInsuranceNo: '', medicalInsuranceExpiry: '', vehiclePlate: '', vehicleOwnership: '', sponsorship: 'المطور', insuranceStatus: 'UNINSURED', branchSiteId: '', iqamaExpiry: '', passportNo: '', photoUrl: '' });
       setEditingEmp(null);
       setShowAdd(false);
       await load();
@@ -711,7 +712,7 @@ function ageOf(raw: unknown): number | null {
     setForm({
       employeeCode: e.employeeCode ?? '', fullName: e.fullName ?? e.full_name ?? '',
       nationalId: e.nationalId ?? '', passportNo: (e as any).passportNo ?? '', countryCode: e.countryCode ?? '',
-      jobTitle: e.jobTitle ?? e.role ?? '', department: e.department ?? '',
+      jobTitle: e.jobTitle ?? e.role ?? '', iqamaJobTitle: e.iqamaJobTitle ?? '', department: e.department ?? '',
       baseSalarySar: e.baseSalarySar ?? '', housingAllowanceSar: e.housingAllowanceSar ?? '',
       transportAllowanceSar: e.transportAllowanceSar ?? '', bankIban: e.bankIban ?? '',
       bankName: e.bankName ?? '', hireDate: iso(e.hireDate),
@@ -1871,7 +1872,7 @@ function ageOf(raw: unknown): number | null {
     .filter((e) => {
       const q = payEmpSearch.trim().toLowerCase();
       if (!q) return true;
-      return [e.fullName, e.employeeCode, e.nationalId, e.jobTitle].filter(Boolean).join(' ').toLowerCase().includes(q);
+      return [e.fullName, e.employeeCode, e.nationalId, e.jobTitle, e.iqamaJobTitle].filter(Boolean).join(' ').toLowerCase().includes(q);
     });
   const payMonthLabel = `${MONTHS_AR[Number(payMonth.slice(5, 7)) - 1] ?? ''} ${payMonth.slice(0, 4)}`;
   const payYearPaid = Object.values(payGrid).reduce((s, g) => s + g.paid, 0);
@@ -2159,8 +2160,11 @@ function ageOf(raw: unknown): number | null {
             <option value="">—</option>
             {COUNTRIES.map((c) => <option key={c.code} value={c.code}>{c.flag} {c.ar}</option>)}
           </select></label>
-        <label className="text-[11px] text-slate-400 font-bold">{ar ? 'الوظيفة' : 'Job title'}
+        <label className="text-[11px] text-slate-400 font-bold">{ar ? 'المهنة الحالية' : 'Current profession'}
           <input value={form.jobTitle} onChange={(e) => setForm({ ...form, jobTitle: e.target.value })}
+            className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
+        <label className="text-[11px] text-slate-400 font-bold">{ar ? 'المهنة في الإقامة' : 'Iqama profession'}
+          <input value={form.iqamaJobTitle} onChange={(e) => setForm({ ...form, iqamaJobTitle: e.target.value })}
             className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
         <label className="text-[11px] text-slate-400 font-bold">{ar ? 'الإدارة التابع لها' : 'Department'}
           <select value={form.department} onChange={(e) => setForm({ ...form, department: e.target.value })}
@@ -2565,6 +2569,9 @@ function ageOf(raw: unknown): number | null {
                     <p className="text-[11px] text-slate-400 truncate">
                       {[e.role ?? e.jobTitle, e.department, e.employeeCode, e.phone ?? e.contactPhone].filter(Boolean).join(' · ')}
                     </p>
+                    {(e as any).iqamaJobTitle && (
+                      <p className="text-[11px] text-slate-500 truncate">🪪 {ar ? 'مهنة الإقامة' : 'Iqama job'}: {(e as any).iqamaJobTitle}</p>
+                    )}
                     {(e as any).passportNo && (
                       <p className="text-[11px] text-slate-500 truncate">🛂 <span dir="ltr">{(e as any).passportNo}</span></p>
                     )}
@@ -4185,11 +4192,12 @@ function ageOf(raw: unknown): number | null {
                 fileBase="hr-org"
                 columns={orgView === 'branches'
                   ? [{ header: 'الفرع', key: 'branch' }, { header: 'الكود', key: 'code' }, { header: 'اللوحة', key: 'plate' }, { header: 'النوع', key: 'type' }, { header: 'السائق', key: 'driver' }]
-                  : [{ header: 'الاسم', key: 'name' }, { header: 'الكود', key: 'code' }, { header: 'المسمى', key: 'title' }, { header: 'المجموعة', key: 'group' }, { header: 'الإقامة', key: 'iqama' }, { header: 'الجوال', key: 'phone' }]}
+                  : [{ header: 'الاسم', key: 'name' }, { header: 'الكود', key: 'code' }, { header: 'المسمى', key: 'title' }, { header: 'مهنة الإقامة', key: 'iqamaTitle' }, { header: 'المجموعة', key: 'group' }, { header: 'الإقامة', key: 'iqama' }, { header: 'الجوال', key: 'phone' }]}
                 branding={brandParam}
                 extraSheets={orgView === 'all' ? [{ name: 'المركبات والفروع', columns: [{ header: 'الفرع', key: 'branch' }, { header: 'الكود', key: 'code' }, { header: 'اللوحة', key: 'plate' }, { header: 'النوع', key: 'type' }, { header: 'السائق', key: 'driver' }], rows: orgBranchRows() }] : undefined}
                 rows={orgView === 'branches' ? orgBranchRows() : employees.map((e) => ({
                   name: nameOf(e), code: e.employeeCode ?? '', title: e.jobTitle ?? e.role ?? '',
+                  iqamaTitle: e.iqamaJobTitle ?? '',
                   group: orgGroupOf(e), iqama: e.nationalId ?? '', phone: e.contactPhone ?? e.phone ?? '',
                 }))}
               />
@@ -4251,6 +4259,7 @@ function ageOf(raw: unknown): number | null {
                             <div className="min-w-0">
                               <p className="text-[11px] font-black text-white truncate">{nameOf(e)}</p>
                               <p className="text-[10px] text-slate-500 truncate">{e.jobTitle ?? e.role ?? e.employeeCode ?? ''}</p>
+                              {(e as any).iqamaJobTitle && <p className="text-[10px] text-slate-600 truncate">🪪 {(e as any).iqamaJobTitle}</p>}
                             </div>
                           </div>
                         ))}
