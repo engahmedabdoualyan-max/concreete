@@ -20,7 +20,7 @@ import { downloadExcel, openPrintPDF, type ExportColumn, type ExportRow } from '
  * (HR_READ / HR_WRITE); every tab degrades independently.
  */
 
-type Tab = 'requests' | 'team' | 'attendance' | 'broadcasts' | 'payroll' | 'actions' | 'investigations' | 'custody' | 'vehicles' | 'violations' | 'deductions' | 'company' | 'petty' | 'leave' | 'vlog' | 'overtime' | 'expenses' | 'modules' | 'org' | 'tree' | 'exit';
+type Tab = 'requests' | 'team' | 'attendance' | 'broadcasts' | 'payroll' | 'actions' | 'investigations' | 'custody' | 'vehicles' | 'violations' | 'deductions' | 'company' | 'petty' | 'leave' | 'vlog' | 'overtime' | 'expenses' | 'modules' | 'org' | 'equipment' | 'tree' | 'exit';
 
 const COUNTRIES = [
   { code: 'SA', ar: 'السعودية', flag: '🇸🇦' }, { code: 'EG', ar: 'مصر', flag: '🇪🇬' },
@@ -345,7 +345,7 @@ export default function HR() {
   const [search, setSearch] = useState('');
   const [showInactive, setShowInactive] = useState(false);
   const [orgView, setOrgView] = useState<'depts' | 'branches' | 'all'>('depts');
-  const [orgBranch, setOrgBranch] = useState('ALL');
+  const [equipBranch, setEquipBranch] = useState('ALL');
   const drvLbl = ar ? '🧑‍✈️ سائقين' : 'Drivers';
   const sauLbl = ar ? '🇸🇦 السعوديين' : 'Saudis';
   const blkLbl = ar ? '🧱 عمالة بلك' : 'Block labor';
@@ -371,7 +371,8 @@ export default function HR() {
       setFileColorSaving('');
     }
   };
-  const orgBranchList = () => {
+  /** فروع المركبات — لهيكل المعدات فقط (الهيكل الوظيفي للموظفين بس). */
+  const equipBranchList = () => {
     const all: { id: string; label: string; vehicles: any[] }[] = (vehRd.sites || []).map((s: any) => ({
       id: s.id, label: orgSiteName(s),
       vehicles: fleet.filter((v: any) => (vehRd.map[v.id]?.siteId ?? '') === s.id),
@@ -380,17 +381,27 @@ export default function HR() {
       id: 'NONE', label: ar ? 'غير محدد' : 'Unspecified',
       vehicles: fleet.filter((v: any) => !(vehRd.map[v.id]?.siteId ?? '')),
     });
-    if (orgBranch === 'ALL') return all;
-    return all.filter((b) => b.id === orgBranch);
+    if (equipBranch === 'ALL') return all;
+    return all.filter((b) => b.id === equipBranch);
   };
-  const orgBranchRows = () => {
+  const equipBranchRows = () => {
     const rows: { branch: string; code: string; plate: string; type: string; driver: string }[] = [];
-    for (const b of orgBranchList()) {
+    for (const b of equipBranchList()) {
       for (const v of b.vehicles) {
         rows.push({ branch: b.label, code: v.vehicleCode ?? '', plate: v.plateNumber ?? '', type: vehTypeAr(v.vehicleType), driver: vehDriverOf(v).name });
       }
     }
     return rows;
+  };
+  /** الهيكل الوظيفي: الموظفون مجمّعين على الفروع (مفيش مركبات هنا). */
+  const staffByBranch = () => {
+    const sites = vehRd.sites || [];
+    const list = sites.map((s: any) => ({ id: s.id, label: orgSiteName(s) }));
+    list.push({ id: 'NONE', label: ar ? 'غير محدد' : 'Unspecified' });
+    return list.map((b) => ({
+      ...b,
+      staff: employees.filter((e) => (b.id === 'NONE' ? !pickField(e, 'branchSiteId') : pickField(e, 'branchSiteId') === b.id)),
+    }));
   };
   const [showAllRenewals, setShowAllRenewals] = useState(false);
   const [showAllContractRenewals, setShowAllContractRenewals] = useState(false);
@@ -1612,9 +1623,9 @@ function ageOf(raw: unknown): number | null {
     const next = { ...modules, [key]: !(modules[key] !== false) };
     setModules(next);
     if (next[key] === false) {
-      const tabMod: Record<string, string> = { requests: 'requests', team: 'team', attendance: 'attendance', broadcasts: 'broadcasts', payroll: 'payroll', actions: 'actions', investigations: 'investigations', custody: 'custody', vehicles: 'vehicles', violations: 'violations', deductions: 'deductions', company: 'company', petty: 'petty', leave: 'leaveBalances', vlog: 'vehicleLog', overtime: 'overtime', expenses: 'expenses', org: 'org', tree: 'tree' };
+      const tabMod: Record<string, string> = { requests: 'requests', team: 'team', attendance: 'attendance', broadcasts: 'broadcasts', payroll: 'payroll', actions: 'actions', investigations: 'investigations', custody: 'custody', vehicles: 'vehicles', violations: 'violations', deductions: 'deductions', company: 'company', petty: 'petty', leave: 'leaveBalances', vlog: 'vehicleLog', overtime: 'overtime', expenses: 'expenses', org: 'org', equipment: 'equipment', tree: 'tree' };
       if (tabMod[tab] === key) {
-        const fallback = (['requests', 'team', 'leave', 'vlog', 'overtime', 'expenses', 'attendance', 'broadcasts', 'payroll', 'actions', 'investigations', 'custody', 'vehicles', 'violations', 'deductions', 'company', 'petty', 'org', 'tree'] as Tab[]).find((t) => (tabMod[t] ? next[tabMod[t]] !== false : true));
+        const fallback = (['requests', 'team', 'leave', 'vlog', 'overtime', 'expenses', 'attendance', 'broadcasts', 'payroll', 'actions', 'investigations', 'custody', 'vehicles', 'violations', 'deductions', 'company', 'petty', 'org', 'equipment', 'tree'] as Tab[]).find((t) => (tabMod[t] ? next[tabMod[t]] !== false : true));
         if (fallback) setTab(fallback);
       }
     }
@@ -2122,6 +2133,7 @@ function ageOf(raw: unknown): number | null {
     { id: 'company', ar: '📂 أوراق الشركة', en: 'Company docs', mod: 'company' },
     { id: 'petty', ar: '💰 العهدة المالية', en: 'Petty cash', mod: 'petty' },
     { id: 'org', ar: '🏢 الهيكل الوظيفي', en: 'Org chart', mod: 'org' },
+    { id: 'equipment', ar: '🏗️ هيكل المعدات', en: 'Equipment chart', mod: 'equipment' },
     { id: 'tree', ar: '🌳 حسابات الدخول', en: 'Login tree', mod: 'tree' },
     { id: 'exit', ar: '🚪 إخلاء الطرف', en: 'Exit', mod: 'exit' },
     { id: 'leave', ar: '🏖️ الأرصدة', en: 'Balances', mod: 'leaveBalances' },
@@ -2137,7 +2149,7 @@ function ageOf(raw: unknown): number | null {
     investigations: 'التحقيقات', custody: 'العهد', vehicles: 'المركبات', violations: 'المخالفات',
     deductions: 'كشف الخصومات', company: 'أوراق الشركة', petty: 'العهدة المالية',
     leaveBalances: 'أرصدة الإجازات', vehicleLog: 'سجل المركبات', overtime: 'الأجر الإضافي',
-    expenses: 'مطالبات المصاريف', org: 'الهيكل الوظيفي', tree: 'حسابات الدخول', exit: 'إخلاء الطرف',
+    expenses: 'مطالبات المصاريف', org: 'الهيكل الوظيفي', equipment: 'هيكل المعدات', tree: 'حسابات الدخول', exit: 'إخلاء الطرف',
   };
 
   const team = employees.filter((e) => {
@@ -4316,28 +4328,23 @@ function ageOf(raw: unknown): number | null {
                   <option value="all">{ar ? 'الكامل (أقسام + فروع)' : 'Full'}</option>
                 </select></label>
               {orgView !== 'depts' && (
-                <label className="text-[11px] text-slate-400 font-bold">{ar ? 'الفرع' : 'Branch'}
-                  <select value={orgBranch} onChange={(e) => setOrgBranch(e.target.value)}
-                    className="mr-1 bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none max-w-[190px]">
-                    <option value="ALL">{ar ? 'كل الفروع' : 'All branches'}</option>
-                    {vehRd.sites.map((x: any) => <option key={x.id} value={x.id}>{orgSiteName(x)}</option>)}
-                    <option value="NONE">{ar ? 'غير محدد' : 'Unspecified'}</option>
-                  </select></label>
+                <span className="text-[10px] text-slate-500">{ar ? 'الموظفون مجمّعين على الفروع — المركبات في «هيكل المعدات».' : 'Staff grouped by branch — vehicles live in Equipment chart.'}</span>
               )}
               <ExportBar
                 title={ar ? 'الهيكل الوظيفي' : 'Org chart'}
                 subtitle={`${employees.length} ${ar ? 'موظف' : 'employees'}`}
                 fileBase="hr-org"
                 columns={orgView === 'branches'
-                  ? [{ header: 'الفرع', key: 'branch' }, { header: 'الكود', key: 'code' }, { header: 'اللوحة', key: 'plate' }, { header: 'النوع', key: 'type' }, { header: 'السائق', key: 'driver' }]
+                  ? [{ header: 'الفرع', key: 'branch' }, { header: 'الاسم', key: 'name' }, { header: 'الكود', key: 'code' }, { header: 'المسمى', key: 'title' }, { header: 'مهنة الإقامة', key: 'iqamaTitle' }, { header: 'القسم', key: 'group' }]
                   : [{ header: 'الاسم', key: 'name' }, { header: 'الكود', key: 'code' }, { header: 'المسمى', key: 'title' }, { header: 'مهنة الإقامة', key: 'iqamaTitle' }, { header: 'المجموعة', key: 'group' }, { header: 'الإقامة', key: 'iqama' }, { header: 'الجوال', key: 'phone' }]}
                 branding={brandParam}
-                extraSheets={orgView === 'all' ? [{ name: 'المركبات والفروع', columns: [{ header: 'الفرع', key: 'branch' }, { header: 'الكود', key: 'code' }, { header: 'اللوحة', key: 'plate' }, { header: 'النوع', key: 'type' }, { header: 'السائق', key: 'driver' }], rows: orgBranchRows() }] : undefined}
-                rows={orgView === 'branches' ? orgBranchRows() : employees.map((e) => ({
-                  name: nameOf(e), code: e.employeeCode ?? '', title: e.jobTitle ?? e.role ?? '',
-                  iqamaTitle: e.iqamaJobTitle ?? '',
-                  group: orgGroupOf(e), iqama: e.nationalId ?? '', phone: e.contactPhone ?? e.phone ?? '',
-                }))}
+                rows={orgView === 'branches'
+                  ? staffByBranch().flatMap((b) => b.staff.map((e: any) => ({ branch: b.label, name: nameOf(e), code: e.employeeCode ?? '', title: e.jobTitle ?? e.role ?? '', iqamaTitle: e.iqamaJobTitle ?? '', group: e.department ?? '' })))
+                  : employees.map((e) => ({
+                    name: nameOf(e), code: e.employeeCode ?? '', title: e.jobTitle ?? e.role ?? '',
+                    iqamaTitle: e.iqamaJobTitle ?? '',
+                    group: orgGroupOf(e), iqama: e.nationalId ?? '', phone: e.contactPhone ?? e.phone ?? '',
+                  }))}
               />
             </div>
             <div className="flex flex-col items-center">
@@ -4408,34 +4415,29 @@ function ageOf(raw: unknown): number | null {
               </div>
               )}
               {(orgView === 'branches' || orgView === 'all') && (
-              <div className="mt-4">
-                <p className="text-xs font-black text-sky-300 mb-2">🏢 {ar ? 'الفروع — المركبات وسائقوها' : 'Branches — vehicles & drivers'}</p>
+              <div className="mt-4 w-full">
+                <p className="text-xs font-black text-sky-300 mb-2">🏢 {ar ? 'الفروع — الموظفون' : 'Branches — staff'}</p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 w-full">
-                  {orgBranchList().map((b) => (
+                  {staffByBranch().map((b) => (
                     <div key={b.id} className="rounded-2xl border border-white/10 bg-white/[0.02] overflow-hidden">
                       <div className="bg-white/[0.05] border-b border-white/10 px-3 py-2 flex items-center justify-between">
                         <span className="text-xs font-black text-sky-300">{b.label}</span>
-                        <span className="text-[10px] font-black text-slate-400 bg-white/10 rounded-full px-2 py-0.5">{b.vehicles.length}</span>
+                        <span className="text-[10px] font-black text-slate-400 bg-white/10 rounded-full px-2 py-0.5">{b.staff.length}</span>
                       </div>
                       <div className="p-2 space-y-1.5 max-h-[320px] overflow-y-auto">
-                        {b.vehicles.length === 0 && <p className="text-[11px] text-slate-500 text-center py-2">{ar ? 'لا مركبات مسجلة على هذا الفرع.' : 'No vehicles.'}</p>}
-                        {b.vehicles.map((v: any) => {
-                          const dr = vehDriverOf(v);
-                          return (
-                            <div key={v.id} className="flex items-center gap-2 rounded-xl border border-white/5 bg-white/[0.02] px-2 py-1.5">
-                              <div className="min-w-0 flex-1">
-                                <p className="text-[11px] font-black text-white truncate" dir="ltr">{v.vehicleCode} · {v.plateNumber}</p>
-                                <p className="text-[10px] text-slate-500 truncate">{vehTypeAr(v.vehicleType)}{dr.name ? ` · 🧑‍✈️ ${dr.name}` : ''}</p>
-                              </div>
-                              {dr.id ? (
-                                <button onClick={() => gotoEmpFile(employees.find((x) => x.id === dr.id) ?? { id: dr.id })} title={ar ? 'فتح ملف السائق' : 'Open driver file'}
-                                  className="w-7 h-7 shrink-0 rounded-full bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-xs font-black text-emerald-300 hover:bg-emerald-500/30 hover:scale-110 transition cursor-pointer">
-                                  {(dr.name || '?').trim().charAt(0)}
-                                </button>
-                              ) : null}
+                        {b.staff.length === 0 && <p className="text-[11px] text-slate-500 text-center py-2">{ar ? 'لا موظفين على هذا الفرع.' : 'No staff.'}</p>}
+                        {b.staff.map((e: any, i: number) => (
+                          <div key={e.id ?? i} className="flex items-center gap-2 rounded-xl border border-white/5 bg-white/[0.02] px-2 py-1.5">
+                            <button onClick={() => gotoEmpFile(e)} title={ar ? 'فتح ملف الموظف' : 'Open employee file'}
+                              className="w-7 h-7 shrink-0 rounded-full bg-sky-500/15 border border-sky-500/30 flex items-center justify-center text-xs font-black text-sky-300 hover:bg-sky-500/30 hover:border-sky-400/60 hover:scale-110 transition cursor-pointer">
+                              {(nameOf(e) || '?').trim().charAt(0)}
+                            </button>
+                            <div className="min-w-0">
+                              <p className="text-[11px] font-black text-white truncate">{nameOf(e)}</p>
+                              <p className="text-[10px] text-slate-500 truncate">{e.jobTitle ?? e.role ?? e.employeeCode ?? ''}</p>
                             </div>
-                          );
-                        })}
+                          </div>
+                        ))}
                       </div>
                     </div>
                   ))}
@@ -4443,6 +4445,66 @@ function ageOf(raw: unknown): number | null {
               </div>
               )}
               {employees.length === 0 && <p className="text-xs text-slate-500 mt-3">{ar ? 'لا بيانات فريق.' : 'No team data.'}</p>}
+            </div>
+          </div>
+        )}
+
+        {/* ===== equipment chart: company → branches → vehicles (kept separate from the staff org chart) ===== */}
+        {tab === 'equipment' && (
+          <div className="mt-4">
+            <div className="flex flex-wrap items-center gap-2 mb-3">
+              <label className="text-[11px] text-slate-400 font-bold">{ar ? 'الفرع' : 'Branch'}
+                <select value={equipBranch} onChange={(e) => setEquipBranch(e.target.value)}
+                  className="mr-1 bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none max-w-[190px]">
+                  <option value="ALL">{ar ? 'كل الفروع' : 'All branches'}</option>
+                  {vehRd.sites.map((x: any) => <option key={x.id} value={x.id}>{orgSiteName(x)}</option>)}
+                  <option value="NONE">{ar ? 'غير محدد' : 'Unspecified'}</option>
+                </select></label>
+              <ExportBar
+                title={ar ? 'هيكل المعدات' : 'Equipment chart'}
+                subtitle={`${fleet.length} ${ar ? 'مركبة' : 'vehicles'}`}
+                fileBase="hr-equipment"
+                columns={[{ header: 'الفرع', key: 'branch' }, { header: 'الكود', key: 'code' }, { header: 'اللوحة', key: 'plate' }, { header: 'النوع', key: 'type' }, { header: 'السائق', key: 'driver' }]}
+                branding={brandParam}
+                rows={equipBranchRows()}
+              />
+            </div>
+            <div className="flex flex-col items-center">
+              <div className="rounded-2xl border border-amber-500/50 bg-amber-500/10 px-6 py-3 text-center shadow-[0_0_25px_rgba(245,158,11,0.2)]">
+                <p className="text-base font-black text-white">🏗️ {ar ? 'المعدات والمركبات' : 'Equipment & vehicles'}</p>
+                <p className="text-[11px] text-slate-400">{fleet.length} {ar ? 'مركبة' : 'vehicles'} · {(vehRd.sites || []).length} {ar ? 'فرع' : 'sites'}</p>
+              </div>
+              <div className="w-px h-6 bg-amber-500/40" />
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 w-full">
+                {equipBranchList().map((b) => (
+                  <div key={b.id} className="rounded-2xl border border-white/10 bg-white/[0.02] overflow-hidden">
+                    <div className="bg-white/[0.05] border-b border-white/10 px-3 py-2 flex items-center justify-between">
+                      <span className="text-xs font-black text-amber-300">{b.label}</span>
+                      <span className="text-[10px] font-black text-slate-400 bg-white/10 rounded-full px-2 py-0.5">{b.vehicles.length}</span>
+                    </div>
+                    <div className="p-2 space-y-1.5 max-h-[320px] overflow-y-auto">
+                      {b.vehicles.length === 0 && <p className="text-[11px] text-slate-500 text-center py-2">{ar ? 'لا مركبات مسجلة على هذا الفرع.' : 'No vehicles.'}</p>}
+                      {b.vehicles.map((v: any) => {
+                        const dr = vehDriverOf(v);
+                        return (
+                          <div key={v.id} className="flex items-center gap-2 rounded-xl border border-white/5 bg-white/[0.02] px-2 py-1.5">
+                            <div className="min-w-0 flex-1">
+                              <p className="text-[11px] font-black text-white truncate" dir="ltr">{v.vehicleCode} · {v.plateNumber}</p>
+                              <p className="text-[10px] text-slate-500 truncate">{vehTypeAr(v.vehicleType)}{dr.name ? ` · 🧑‍✈️ ${dr.name}` : ''}</p>
+                            </div>
+                            {dr.id ? (
+                              <button onClick={() => gotoEmpFile(employees.find((x) => x.id === dr.id) ?? { id: dr.id })} title={ar ? 'فتح ملف السائق' : 'Open driver file'}
+                                className="w-7 h-7 shrink-0 rounded-full bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-xs font-black text-emerald-300 hover:bg-emerald-500/30 hover:scale-110 transition cursor-pointer">
+                                {(dr.name || '?').trim().charAt(0)}
+                              </button>
+                            ) : null}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         )}
