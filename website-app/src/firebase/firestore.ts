@@ -853,6 +853,14 @@ export async function loadSuppliers(userId: string) {
   return await loadUserData(userId, 'suppliers');
 }
 
+// ====================== Debts Edits (العملاء والمديونيات — سداد/ورقيات/متابعة) ======================
+export async function saveDebtsEdits(userId: string, records: any) {
+  await saveUserData(userId, 'debtsEdits', records);
+}
+export async function loadDebtsEdits(userId: string) {
+  return await loadUserData(userId, 'debtsEdits');
+}
+
 // ====================== Raw Material Stock (Reorder) ======================
 export async function saveRawStock(userId: string, stock: any) {
   await saveUserData(userId, 'rawStock', stock);
