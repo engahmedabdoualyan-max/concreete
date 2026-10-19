@@ -413,6 +413,10 @@ export default function HR() {
   const [docKind, setDocKind] = useState('IQAMA');
   const [docTitle, setDocTitle] = useState('');
   const [uploading, setUploading] = useState(false);
+  // ملفات الموظف داخل نموذج "بيانات الموظف"
+  const [formDocs, setFormDocs] = useState<any[]>([]);
+  const [formDocName, setFormDocName] = useState('');
+  const [uploadingFormDoc, setUploadingFormDoc] = useState(false);
 
   const printDoc = (d: any) => {
     const w = window.open('', '_blank', 'width=900,height=700');
@@ -702,6 +706,10 @@ function ageOf(raw: unknown): number | null {
     });
     setEditingEmp(e.id);
     setShowAdd(false);
+    // احمّل ملفات الموظف عشان تظهر في النموذج
+    setFormDocs([]);
+    setFormDocName('');
+    loadFormDocs(e.id);
   };
 
   // From org chart (or anywhere): jump straight to this employee's file.
@@ -719,6 +727,58 @@ function ageOf(raw: unknown): number | null {
       const d = await api.get<{ documents?: any[] }>(`/api/hr/documents?employeeId=${employeeId}`);
       setDocs(Array.isArray(d?.documents) ? d.documents : []);
     } catch { setDocs([]); }
+  };
+
+  // ---- ملفات الموظف داخل نموذج "بيانات الموظف" (خانة الاسم + دبوس رفع صورة/PDF) ----
+  const loadFormDocs = async (employeeId: string) => {
+    try {
+      const d = await api.get<{ documents?: any[] }>(`/api/hr/documents?employeeId=${employeeId}`);
+      setFormDocs(Array.isArray(d?.documents) ? d.documents : []);
+    } catch { setFormDocs([]); }
+  };
+
+  const uploadFormDoc = async (file: File | undefined) => {
+    if (!file || !editingEmp) return;
+    if (file.size > 8 * 1024 * 1024) { setMsg('❌ الملف أكبر من 8MB'); return; }
+    if (!/pdf|image/i.test(file.type) && !/\.(pdf|png|jpe?g|webp)$/i.test(file.name)) { setMsg('❌ PDF أو صور فقط'); return; }
+    setUploadingFormDoc(true);
+    try {
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const r = new FileReader();
+        r.onload = () => resolve(String(r.result));
+        r.onerror = () => reject(new Error('تعذر قراءة الملف'));
+        r.readAsDataURL(file);
+      });
+      await api.post('/api/hr/documents', {
+        employeeId: editingEmp,
+        kind: 'OTHER',
+        title: formDocName.trim() || file.name,
+        fileName: file.name,
+        mimeType: file.type || 'application/octet-stream',
+        sizeBytes: file.size,
+        fileData: dataUrl,
+      });
+      setMsg('✅ تم رفع الملف');
+      setFormDocName('');
+      await loadFormDocs(editingEmp);
+    } catch (e: any) {
+      setMsg(`❌ ${e?.message ?? 'فشل الرفع'}`);
+    } finally {
+      setUploadingFormDoc(false);
+    }
+  };
+
+  const delFormDoc = async (id: string) => {
+    setDelBusy('formdoc' + id);
+    try {
+      await api.del(`/api/hr/records?table=documents&id=${id}`);
+      setMsg('✅ تم حذف الملف');
+      if (editingEmp) await loadFormDocs(editingEmp);
+    } catch (e: any) {
+      setMsg(`❌ ${e?.message ?? 'فشل الحذف'}`);
+    } finally {
+      setDelBusy('');
+    }
   };
 
   const uploadDoc = async (file: File | undefined) => {
@@ -2019,6 +2079,45 @@ function ageOf(raw: unknown): number | null {
             <span className="block mt-1 text-[10px] text-yellow-300/90 font-bold">{ar ? '⚠️ لا مركبات مسجلة — أضفها أولاً من تبويب 🚛 المركبات' : 'No vehicles registered — add them in the Vehicles tab first'}</span>
           )}</label>
       </div>
+
+      {/* ===== ملفات الموظف (عقود/سندات/أي مستند) ===== */}
+      <div className="mt-3 rounded-xl border border-white/10 bg-white/[0.03] p-3">
+        <div className="flex items-center justify-between mb-2">
+          <h4 className="text-xs font-black text-white">📎 {ar ? 'ملفات الموظف' : 'Employee files'}</h4>
+          {editingEmp && formDocs.length > 0 && (
+            <span className="text-[10px] font-black text-slate-400 bg-white/[0.06] border border-white/10 rounded-lg px-2 py-0.5">{formDocs.length} {ar ? 'ملف' : 'files'}</span>
+          )}
+        </div>
+        {!editingEmp ? (
+          <p className="text-[11px] text-slate-500 font-bold">💡 {ar ? 'احفظ بيانات الموظف أولاً، ثم افتح تعديل عليه تقدر ترفع ملفاته هنا.' : 'Save the employee first, then edit to upload files.'}</p>
+        ) : (
+          <>
+            {formDocs.length === 0 && <p className="text-[11px] text-slate-500 mb-2">{ar ? 'لا توجد ملفات مرفوعة بعد.' : 'No files uploaded yet.'}</p>}
+            {formDocs.map((d, i) => (
+              <div key={d.id ?? i} className="flex items-center justify-between gap-2 text-xs border-b border-white/5 py-1.5 last:border-0">
+                <span className="font-bold text-slate-200 truncate">📄 {d.title ?? d.fileName}</span>
+                <span className="flex gap-2 shrink-0 items-center">
+                  <button onClick={() => printDoc(d)} className="text-slate-300 font-black hover:text-white">🖨️ {ar ? 'طباعة' : 'Print'}</button>
+                  <a href={d.storageUrl} download={d.fileName} className="text-emerald-300 font-black">⬇ {ar ? 'تنزيل' : 'Save'}</a>
+                  <a href={d.storageUrl} target="_blank" rel="noreferrer" className="text-sky-400 font-black">{ar ? 'فتح' : 'Open'}</a>
+                  <DelBtn onDel={() => delFormDoc(d.id)} busy={delBusy === 'formdoc' + d.id} />
+                </span>
+              </div>
+            ))}
+            <div className="flex flex-wrap items-center gap-2 mt-2">
+              <input value={formDocName} onChange={(e) => setFormDocName(e.target.value)}
+                placeholder={ar ? '✏️ اسم الملف (مثال: عقد العمل)' : 'File name (e.g. contract)'}
+                className="flex-1 min-w-[160px] bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" />
+              <label className={`text-[11px] font-black rounded-lg px-3 py-1.5 border cursor-pointer ${uploadingFormDoc ? 'opacity-50 border-white/15 text-slate-400' : 'border-amber-400/50 bg-amber-400/15 text-amber-200 hover:bg-amber-400/25'}`}>
+                📎 {uploadingFormDoc ? '…' : (ar ? 'دبوس — رفع صورة أو PDF (حتى 8MB)' : 'Attach image/PDF (8MB)')}
+                <input type="file" accept="application/pdf,image/*" className="hidden" disabled={uploadingFormDoc}
+                  onChange={(e) => { uploadFormDoc(e.target.files?.[0]); e.target.value = ''; }} />
+              </label>
+            </div>
+          </>
+        )}
+      </div>
+
       <button disabled={busy === 'add'} onClick={addEmployee}
         className="mt-3 w-full sm:w-auto bg-sky-500 hover:bg-sky-400 disabled:opacity-50 text-white text-xs font-black rounded-lg px-6 py-2">
         {busy === 'add' ? '…' : `✅ ${ar ? 'حفظ الموظف' : 'Save employee'}`}
