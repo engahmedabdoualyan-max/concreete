@@ -144,6 +144,8 @@ export async function createEmployee(
     bankIban?: string;
     bankName?: string;
     hireDate?: string;
+    contractStart?: string;
+    contractEnd?: string;
     countryCode?: string;
     contactPhone?: string;
     emergencyContactName?: string;
@@ -183,6 +185,8 @@ export async function createEmployee(
       bankIban: input.bankIban,
       bankName: input.bankName,
       hireDate: input.hireDate ? new Date(input.hireDate) : null,
+      contractStart: input.contractStart ? new Date(input.contractStart) : null,
+      contractEnd: input.contractEnd ? new Date(input.contractEnd) : null,
       countryCode: input.countryCode,
       contactPhone: input.contactPhone,
       emergencyContactName: input.emergencyContactName,
@@ -228,6 +232,8 @@ export async function updateEmployee(
     dateOfBirth?: string;
     bloodGroup?: string;
     hireDate?: string;
+    contractStart?: string;
+    contractEnd?: string;
     countryCode?: string;
     contactPhone?: string;
     emergencyContactName?: string;
@@ -269,6 +275,7 @@ export async function updateEmployee(
     patch.hireDate = input.hireDate ? new Date(input.hireDate) : null;
   for (const k of [
     "lastVacationDate", "lastResumptionDate", "medicalInsuranceExpiry", "iqamaExpiry",
+    "contractStart", "contractEnd",
   ] as const) {
     if (input[k] !== undefined) patch[k] = input[k] ? new Date(input[k] as string) : null;
   }

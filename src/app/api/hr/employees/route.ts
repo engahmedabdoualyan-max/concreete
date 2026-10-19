@@ -45,6 +45,8 @@ const CreateEmployeeSchema = z.object({
   bankIban: z.string().max(40).optional(),
   bankName: z.string().max(80).optional(),
   hireDate: z.string().min(1).optional(),
+  contractStart: z.string().min(1).optional(),
+  contractEnd: z.string().min(1).optional(),
   userId: z.string().uuid().optional(),
   countryCode: z.string().max(4).optional(),
   contactPhone: z.string().max(20).optional(),
