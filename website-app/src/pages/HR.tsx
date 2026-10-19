@@ -2161,10 +2161,10 @@ function ageOf(raw: unknown): number | null {
             {COUNTRIES.map((c) => <option key={c.code} value={c.code}>{c.flag} {c.ar}</option>)}
           </select></label>
         <label className="text-[11px] text-slate-400 font-bold">{ar ? 'المهنة الحالية' : 'Current profession'}
-          <input value={form.jobTitle} onChange={(e) => setForm({ ...form, jobTitle: e.target.value })}
+          <input value={form.jobTitle} maxLength={120} onChange={(e) => setForm({ ...form, jobTitle: e.target.value })}
             className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
         <label className="text-[11px] text-slate-400 font-bold">{ar ? 'المهنة في الإقامة' : 'Iqama profession'}
-          <input value={form.iqamaJobTitle} onChange={(e) => setForm({ ...form, iqamaJobTitle: e.target.value })}
+          <input value={form.iqamaJobTitle} maxLength={120} onChange={(e) => setForm({ ...form, iqamaJobTitle: e.target.value })}
             className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
         <label className="text-[11px] text-slate-400 font-bold">{ar ? 'الإدارة التابع لها' : 'Department'}
           <select value={form.department} onChange={(e) => setForm({ ...form, department: e.target.value })}

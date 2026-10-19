@@ -111,7 +111,7 @@ export default function Debts() {
   const items = useMemo<ViewRow[]>(() => {
     const list: ViewRow[] = isAll
       ? groups.flatMap(g => g.rows.map(r => ({ ...r, debtor: g.debtor, gid: g.id })))
-      : (group?.rows ?? []).map(r => ({ ...r, debtor: group.debtor, gid: group.id }));
+      : (group ? group.rows.map(r => ({ ...r, debtor: group.debtor, gid: group.id })) : []);
     let out = list;
     const s = q.trim();
     if (s) {
