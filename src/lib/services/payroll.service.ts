@@ -26,8 +26,10 @@ import {
   payrollEmployees,
   payrollRuns,
   payrollLines,
+  payrollPayments,
+  hrDocuments,
 } from "@/db/schema";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, getTableColumns, gte, lte, sql } from "drizzle-orm";
 
 export const GOSI_CAP_SAR = 45_000;
 export const STANDARD_MONTH_DAYS = 30;
@@ -518,4 +520,96 @@ export async function getPayslip(tenantId: string, runId: string, employeeId: st
     deductions: { amount: line.deductionsSar, note: line.deductionNote },
     net: line.netSar,
   };
+}
+
+/* ==========================================================================
+ *  Cash-collection ledger — بيان القبض الشهري
+ * --------------------------------------------------------------------------
+ *  Independent of payroll_runs: the owner can mark any month (UNPAID / PAID /
+ *  PARTIAL / STOPPED) with the signed receipt, a reason and the paid amount,
+ *  so the plant sees what it paid and what it deducted.
+ * ==========================================================================
+ */
+
+export type PaymentStatus = "UNPAID" | "PAID" | "PARTIAL" | "STOPPED";
+
+export interface PaymentInput {
+  employeeId: string;
+  period: string; // YYYY-MM
+  status: PaymentStatus;
+  dueAmountSar?: number | null;
+  paidAmountSar?: number | null;
+  deductionSar?: number | null;
+  note?: string | null;
+  receiptDocumentId?: string | null;
+}
+
+/** One month's ledger rows for a tenant, with the receipt reference joined in. */
+export async function listPaymentsForPeriod(tenantId: string, period: string) {
+  return db
+    .select({
+      ...getTableColumns(payrollPayments),
+      receiptUrl: hrDocuments.storageUrl,
+      receiptName: hrDocuments.fileName,
+      receiptMime: hrDocuments.mimeType,
+    })
+    .from(payrollPayments)
+    .leftJoin(hrDocuments, eq(payrollPayments.receiptDocumentId, hrDocuments.id))
+    .where(
+      and(eq(payrollPayments.tenantId, tenantId), eq(payrollPayments.period, period))
+    )
+    .orderBy(desc(payrollPayments.updatedAt));
+}
+
+/** Per-month / per-status aggregates for a whole year (drives the year grid). */
+export async function paymentSummaryForYear(tenantId: string, year: string) {
+  return db
+    .select({
+      period: payrollPayments.period,
+      status: payrollPayments.status,
+      count: sql<number>`count(*)::int`,
+      due: sql<string>`coalesce(sum(${payrollPayments.dueAmountSar}), 0)`,
+      paid: sql<string>`coalesce(sum(${payrollPayments.paidAmountSar}), 0)`,
+      deduction: sql<string>`coalesce(sum(${payrollPayments.deductionSar}), 0)`,
+    })
+    .from(payrollPayments)
+    .where(
+      and(
+        eq(payrollPayments.tenantId, tenantId),
+        gte(payrollPayments.period, `${year}-01`),
+        lte(payrollPayments.period, `${year}-12`)
+      )
+    )
+    .groupBy(payrollPayments.period, payrollPayments.status);
+}
+
+/** Mark / update one employee's month (upsert on tenant+employee+period). */
+export async function upsertPayment(
+  tenantId: string,
+  userId: string,
+  input: PaymentInput
+) {
+  const now = new Date();
+  const countAsPaid = input.status === "PAID" || input.status === "PARTIAL";
+  const dec = (n?: number | null) => (n === null || n === undefined ? null : String(n));
+  const cols = {
+    status: input.status,
+    dueAmountSar: dec(input.dueAmountSar),
+    paidAmountSar: dec(input.paidAmountSar),
+    deductionSar: dec(input.deductionSar),
+    note: input.note?.trim() || null,
+    receiptDocumentId: input.receiptDocumentId ?? null,
+    paidAt: countAsPaid ? now : null,
+    updatedById: userId,
+    updatedAt: now,
+  };
+  const [row] = await db
+    .insert(payrollPayments)
+    .values({ tenantId, employeeId: input.employeeId, period: input.period, ...cols })
+    .onConflictDoUpdate({
+      target: [payrollPayments.tenantId, payrollPayments.employeeId, payrollPayments.period],
+      set: cols,
+    })
+    .returning();
+  return row;
 }

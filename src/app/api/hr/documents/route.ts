@@ -20,7 +20,7 @@ export const dynamic = "force-dynamic";
  *  Bytes live in object storage; this table holds the reference.
  *  Until a storage bucket is configured, the UI offers the registry
  *  (kinds, names) and marks byte-upload as pending instead of faking it.
- *  Kinds: IQAMA | DRIVING_LICENCE | INSURANCE | CONTRACT | CUSTODY | OTHER.
+ *  Kinds: IQAMA | DRIVING_LICENCE | INSURANCE | CONTRACT | CUSTODY | INVESTIGATION | RECEIPT | OTHER.
  */
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -49,7 +49,7 @@ export async function GET(req: NextRequest) {
 
 const DocSchema = z.object({
   employeeId: z.string().uuid(),
-  kind: z.enum(["IQAMA", "DRIVING_LICENCE", "INSURANCE", "CONTRACT", "CUSTODY", "INVESTIGATION", "OTHER"]),
+  kind: z.enum(["IQAMA", "DRIVING_LICENCE", "INSURANCE", "CONTRACT", "CUSTODY", "INVESTIGATION", "RECEIPT", "OTHER"]),
   title: z.string().max(200).optional(),
   custodyId: z.string().uuid().optional(),
   investigationId: z.string().uuid().optional(),
