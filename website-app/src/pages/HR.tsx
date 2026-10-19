@@ -305,6 +305,7 @@ export default function HR() {
     return rows;
   };
   const [showAllRenewals, setShowAllRenewals] = useState(false);
+  const [showAllContractRenewals, setShowAllContractRenewals] = useState(false);
 
   const toggleActive = async (e: any) => {
     const toActive = !e.isActive;
@@ -387,7 +388,7 @@ export default function HR() {
   const [fromDate, setFromDate] = useState(() => new Date(Date.now() - 6 * 864e5).toISOString().slice(0, 10));
   const [toDate, setToDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [showAdd, setShowAdd] = useState(false);
-  const [form, setForm] = useState({ employeeCode: '', fullName: '', nationalId: '', countryCode: '', jobTitle: '', department: '', baseSalarySar: '', housingAllowanceSar: '', transportAllowanceSar: '', bankIban: '', bankName: '', hireDate: '', contactPhone: '', emergencyContactName: '', emergencyContactPhone: '', lastVacationDate: '', lastResumptionDate: '', medicalInsuranceNo: '', medicalInsuranceExpiry: '', vehiclePlate: '', vehicleOwnership: '', sponsorship: 'المطور', insuranceStatus: 'UNINSURED', branchSiteId: '', iqamaExpiry: '', passportNo: '', photoUrl: '' });
+  const [form, setForm] = useState({ employeeCode: '', fullName: '', nationalId: '', countryCode: '', jobTitle: '', department: '', baseSalarySar: '', housingAllowanceSar: '', transportAllowanceSar: '', bankIban: '', bankName: '', hireDate: '', contractStart: '', contractEnd: '', contactPhone: '', emergencyContactName: '', emergencyContactPhone: '', lastVacationDate: '', lastResumptionDate: '', medicalInsuranceNo: '', medicalInsuranceExpiry: '', vehiclePlate: '', vehicleOwnership: '', sponsorship: 'المطور', insuranceStatus: 'UNINSURED', branchSiteId: '', iqamaExpiry: '', passportNo: '', photoUrl: '' });
   const [actions, setActions] = useState<any[]>([]);
   const [actionFilter, setActionFilter] = useState('ALL');
   const [showActionForm, setShowActionForm] = useState(false);
@@ -651,6 +652,8 @@ function ageOf(raw: unknown): number | null {
         bankIban: form.bankIban.trim() || undefined,
         bankName: form.bankName.trim() || undefined,
         hireDate: form.hireDate || undefined,
+        contractStart: form.contractStart || undefined,
+        contractEnd: form.contractEnd || undefined,
         contactPhone: form.contactPhone.trim() || undefined,
         emergencyContactName: form.emergencyContactName.trim() || undefined,
         emergencyContactPhone: form.emergencyContactPhone.trim() || undefined,
@@ -674,7 +677,7 @@ function ageOf(raw: unknown): number | null {
         await api.post('/api/hr/employees', { employeeCode: form.employeeCode.trim(), ...payload });
         setMsg('✅ تمت إضافة الموظف');
       }
-      setForm({ employeeCode: '', fullName: '', nationalId: '', countryCode: '', jobTitle: '', department: '', baseSalarySar: '', housingAllowanceSar: '', transportAllowanceSar: '', bankIban: '', bankName: '', hireDate: '', contactPhone: '', emergencyContactName: '', emergencyContactPhone: '', lastVacationDate: '', lastResumptionDate: '', medicalInsuranceNo: '', medicalInsuranceExpiry: '', vehiclePlate: '', vehicleOwnership: '', sponsorship: 'المطور', insuranceStatus: 'UNINSURED', branchSiteId: '', iqamaExpiry: '', passportNo: '', photoUrl: '' });
+      setForm({ employeeCode: '', fullName: '', nationalId: '', countryCode: '', jobTitle: '', department: '', baseSalarySar: '', housingAllowanceSar: '', transportAllowanceSar: '', bankIban: '', bankName: '', hireDate: '', contractStart: '', contractEnd: '', contactPhone: '', emergencyContactName: '', emergencyContactPhone: '', lastVacationDate: '', lastResumptionDate: '', medicalInsuranceNo: '', medicalInsuranceExpiry: '', vehiclePlate: '', vehicleOwnership: '', sponsorship: 'المطور', insuranceStatus: 'UNINSURED', branchSiteId: '', iqamaExpiry: '', passportNo: '', photoUrl: '' });
       setEditingEmp(null);
       setShowAdd(false);
       await load();
@@ -694,6 +697,8 @@ function ageOf(raw: unknown): number | null {
       baseSalarySar: e.baseSalarySar ?? '', housingAllowanceSar: e.housingAllowanceSar ?? '',
       transportAllowanceSar: e.transportAllowanceSar ?? '', bankIban: e.bankIban ?? '',
       bankName: e.bankName ?? '', hireDate: iso(e.hireDate),
+      contractStart: iso((e as any).contractStart ?? (e as any).contract_start),
+      contractEnd: iso((e as any).contractEnd ?? (e as any).contract_end),
       contactPhone: e.contactPhone ?? e.phone ?? '',
       emergencyContactName: e.emergencyContactName ?? '', emergencyContactPhone: e.emergencyContactPhone ?? '',
       lastVacationDate: iso(e.lastVacationDate), lastResumptionDate: iso(e.lastResumptionDate),
@@ -1932,6 +1937,19 @@ function ageOf(raw: unknown): number | null {
     .filter((x): x is { e: any; days: number } => !!x)
     .sort((a, b) => a.days - b.days);
 
+  // انتهاء العقود_due within 60 days (or already ended) — قائمة منبثقة منفصلة عن الإقامات.
+  const contractRenewals = employees
+    .map((e) => {
+      const raw = (e as any).contractEnd ?? (e as any).contract_end;
+      if (!raw) return null;
+      const t = new Date(raw).getTime();
+      if (Number.isNaN(t)) return null;
+      const days = Math.ceil((t - Date.now()) / 864e5);
+      return days <= 60 ? { e, days } : null;
+    })
+    .filter((x): x is { e: any; days: number } => !!x)
+    .sort((a, b) => a.days - b.days);
+
   // Employee add/edit form — top panel for new hires, inline under the card when editing.
   const renderEmpForm = () => (
     <div className="rounded-2xl border border-sky-500/30 bg-sky-500/[0.06] p-4 mb-3">
@@ -2027,6 +2045,12 @@ function ageOf(raw: unknown): number | null {
             className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
         <label className="text-[11px] text-slate-400 font-bold">{ar ? 'تاريخ التعيين' : 'Hire date'}
           <input type="date" value={form.hireDate} onChange={(e) => setForm({ ...form, hireDate: e.target.value })}
+            className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
+        <label className="text-[11px] text-slate-400 font-bold">{ar ? 'تاريخ بداية العقد' : 'Contract start'}
+          <input type="date" value={form.contractStart} onChange={(e) => setForm({ ...form, contractStart: e.target.value })}
+            className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
+        <label className="text-[11px] text-slate-400 font-bold">{ar ? 'تاريخ انتهاء العقد * للتنبيه' : 'Contract end (alerts)'}
+          <input type="date" value={form.contractEnd} onChange={(e) => setForm({ ...form, contractEnd: e.target.value })}
             className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
         <label className="text-[11px] text-slate-400 font-bold">{ar ? 'رقم التواصل' : 'Contact phone'}
           <input value={form.contactPhone} onChange={(e) => setForm({ ...form, contactPhone: e.target.value })} inputMode="tel"
@@ -2282,6 +2306,29 @@ function ageOf(raw: unknown): number | null {
                     {showAllRenewals
                       ? (ar ? 'إخفاء ▲' : 'Show less ▲')
                       : (ar ? `عرض الكل (${renewals.length}) ▼` : `Show all (${renewals.length}) ▼`)}
+                  </button>
+                )}
+              </div>
+            )}
+            {contractRenewals.length > 0 && (
+              <div className="rounded-2xl border border-rose-500/40 bg-rose-500/[0.07] p-3 mb-3">
+                <h3 className="text-xs font-black text-rose-300 mb-2">
+                  📝 {ar ? `انتهاء العقود القادمة (${contractRenewals.length}) — قبل الانتهاء بشهرين` : `Contract expiries due (${contractRenewals.length})`}
+                </h3>
+                {(showAllContractRenewals ? contractRenewals : contractRenewals.slice(0, 8)).map(({ e, days }, i) => (
+                  <div key={e.id ?? i} className="flex items-center justify-between text-xs border-b border-white/5 py-1 last:border-0">
+                    <span className="font-bold text-slate-200">{nameOf(e)} · {e.employeeCode}{e.jobTitle || e.role ? ` · ${e.jobTitle ?? e.role}` : ''}</span>
+                    <span className={`font-black ${days < 0 ? 'text-red-400' : days <= 30 ? 'text-rose-300' : 'text-slate-300'}`}>
+                      {days < 0 ? (ar ? `انتهى منذ ${-days} يوم` : `ended ${-days}d ago`) : (ar ? `متبقي ${days} يوم` : `${days}d left`)}
+                    </span>
+                  </div>
+                ))}
+                {contractRenewals.length > 8 && (
+                  <button onClick={() => setShowAllContractRenewals((v) => !v)}
+                    className="mt-2 w-full text-[11px] font-black rounded-lg px-3 py-2 border border-rose-500/50 bg-rose-500/10 text-rose-300 hover:bg-rose-500/20">
+                    {showAllContractRenewals
+                      ? (ar ? 'إخفاء ▲' : 'Show less ▲')
+                      : (ar ? `عرض الكل (${contractRenewals.length}) ▼` : `Show all (${contractRenewals.length}) ▼`)}
                   </button>
                 )}
               </div>
