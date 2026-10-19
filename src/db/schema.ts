@@ -4015,7 +4015,7 @@ export const hrInvestigations = pgTable(
 /**
  * hr_documents — employee file registry (iqama, driving licence, …).
  * Bytes live in object storage; only the reference is stored here.
- * Kinds: IQAMA | DRIVING_LICENCE | INSURANCE | CONTRACT | OTHER.
+ * Kinds: IQAMA | DRIVING_LICENCE | INSURANCE | CONTRACT | RECEIPT | OTHER.
  */
 export const hrDocuments = pgTable(
   "hr_documents",
@@ -4033,7 +4033,7 @@ export const hrDocuments = pgTable(
     investigationId: uuid("investigation_id").references(() => hrInvestigations.id, { onDelete: "cascade" }),
     /** Free-text label (used when kind is OTHER, e.g. "خبرة سابقة") */
     title: varchar("title", { length: 200 }),
-    /** IQAMA | DRIVING_LICENCE | INSURANCE | CONTRACT | OTHER */
+    /** IQAMA | DRIVING_LICENCE | INSURANCE | CONTRACT | RECEIPT | OTHER */
     kind: varchar("kind", { length: 20 }).notNull(),
     fileName: varchar("file_name", { length: 255 }).notNull(),
     mimeType: varchar("mime_type", { length: 100 }),
@@ -4045,6 +4045,56 @@ export const hrDocuments = pgTable(
   (t) => [
     index("idx_hr_doc_tenant").on(t.tenantId),
     index("idx_hr_doc_employee").on(t.employeeId),
+  ]
+);
+
+/**
+ * payroll_payments — Cash-collection ledger: one row per employee per month.
+ *
+ * The owner marks each employee's month: PAID (تم القبض) with the signed
+ * receipt attached, PARTIAL (قبض جزئي), or STOPPED (وقف القبض) with a reason —
+ * so the plant knows what it paid, what was deducted and what is still open.
+ * Independent of payroll_runs so a month can be tracked before a run exists.
+ */
+export const payrollPayments = pgTable(
+  "payroll_payments",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    employeeId: uuid("employee_id")
+      .notNull()
+      .references(() => payrollEmployees.id, { onDelete: "cascade" }),
+    /** Month this line belongs to — YYYY-MM */
+    period: varchar("period", { length: 7 }).notNull(),
+    /** UNPAID | PAID | PARTIAL | STOPPED */
+    status: varchar("status", { length: 16 }).notNull().default("UNPAID"),
+    /** Salary due for the month (snapshot so history stays stable) */
+    dueAmountSar: decimal("due_amount_sar", { precision: 12, scale: 2 }),
+    /** Amount actually handed to the employee */
+    paidAmountSar: decimal("paid_amount_sar", { precision: 12, scale: 2 }),
+    /** Amount deducted (غياب/سلفة/جزاء…) */
+    deductionSar: decimal("deduction_sar", { precision: 12, scale: 2 }),
+    /** Reason for a stop / note for a partial payment */
+    note: varchar("note", { length: 300 }),
+    /** The signed سند قبض (uploaded to hr_documents) */
+    receiptDocumentId: uuid("receipt_document_id").references(() => hrDocuments.id, {
+      onDelete: "set null",
+    }),
+    paidAt: timestamp("paid_at"),
+    updatedById: uuid("updated_by_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("payroll_payments_tenant_emp_period_unique").on(
+      t.tenantId,
+      t.employeeId,
+      t.period
+    ),
+    index("idx_pay_payment_period").on(t.tenantId, t.period),
+    index("idx_pay_payment_emp").on(t.employeeId),
   ]
 );
 
