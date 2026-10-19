@@ -85,26 +85,35 @@ function ibanValid(raw: any): boolean {
 
 const fieldHas = (v: any): boolean => v !== null && v !== undefined && String(v).trim() !== '';
 
+/** يقرأ الحقل بأي من التسميتين camelCase أو snake_case (الواجهة بتستقبل الاتنين). */
+const pickField = (e: any, k: string): any =>
+  e?.[k] ?? e?.[k.replace(/[A-Z]/g, (c) => '_' + c.toLowerCase())];
+
 type FileColorReason = { ar: string; en: string };
 
 /** يرجّع لون الملف + أسباب النقص (لو فيه). */
 function fileColorOf(e: any): { color: string; red: FileColorReason[]; yellow: FileColorReason[] } {
   const red: FileColorReason[] = [];
   const yellow: FileColorReason[] = [];
-  const nonSaudi = e?.nationality === 'NON_SAUDI';
-  if (!fieldHas(e?.nationalId)) red.push({ ar: 'رقم الهوية/الإقامة', en: 'National/Iqama ID' });
-  if (!fieldHas(e?.jobTitle)) red.push({ ar: 'المهنة الحالية', en: 'Current profession' });
-  if (fieldHas(e?.bankIban) && !ibanValid(e.bankIban)) red.push({ ar: 'الآيبان غير صالح', en: 'Invalid IBAN' });
-  if (nonSaudi && fieldHas(e?.iqamaExpiry) && new Date(e.iqamaExpiry).getTime() < Date.now())
+  const nationalId = pickField(e, 'nationalId');
+  const jobTitle = pickField(e, 'jobTitle');
+  const bankIban = pickField(e, 'bankIban');
+  const iqamaExpiry = pickField(e, 'iqamaExpiry');
+  const iqamaJobTitle = pickField(e, 'iqamaJobTitle');
+  const nonSaudi = pickField(e, 'nationality') === 'NON_SAUDI';
+  if (!fieldHas(nationalId)) red.push({ ar: 'رقم الهوية/الإقامة', en: 'National/Iqama ID' });
+  if (!fieldHas(jobTitle)) red.push({ ar: 'المهنة الحالية', en: 'Current profession' });
+  if (fieldHas(bankIban) && !ibanValid(bankIban)) red.push({ ar: 'الآيبان غير صالح', en: 'Invalid IBAN' });
+  if (nonSaudi && fieldHas(iqamaExpiry) && new Date(iqamaExpiry).getTime() < Date.now())
     red.push({ ar: 'إقامة منتهية', en: 'Iqama expired' });
-  if (!fieldHas(e?.bankIban)) yellow.push({ ar: 'الآيبان', en: 'IBAN' });
-  if (!fieldHas(e?.department)) yellow.push({ ar: 'القسم', en: 'Department' });
-  if (!fieldHas(e?.contractEnd)) yellow.push({ ar: 'نهاية العقد', en: 'Contract end' });
-  if (nonSaudi && !fieldHas(e?.iqamaJobTitle)) yellow.push({ ar: 'مهنة الإقامة', en: 'Iqama profession' });
-  if (nonSaudi && !fieldHas(e?.iqamaExpiry)) yellow.push({ ar: 'انتهاء الإقامة', en: 'Iqama expiry' });
+  if (!fieldHas(bankIban)) yellow.push({ ar: 'الآيبان', en: 'IBAN' });
+  if (!fieldHas(pickField(e, 'department'))) yellow.push({ ar: 'القسم', en: 'Department' });
+  if (!fieldHas(pickField(e, 'contractEnd'))) yellow.push({ ar: 'نهاية العقد', en: 'Contract end' });
+  if (nonSaudi && !fieldHas(iqamaJobTitle)) yellow.push({ ar: 'مهنة الإقامة', en: 'Iqama profession' });
+  if (nonSaudi && !fieldHas(iqamaExpiry)) yellow.push({ ar: 'انتهاء الإقامة', en: 'Iqama expiry' });
 
-  if (e?.isActive === false) return { color: 'GRAY', red, yellow };
-  const ov = e?.fileColorOverride ?? e?.file_color_override;
+  if (pickField(e, 'isActive') === false) return { color: 'GRAY', red, yellow };
+  const ov = pickField(e, 'fileColorOverride');
   if (ov === 'GREEN' || ov === 'YELLOW' || ov === 'RED') return { color: ov, red, yellow };
   return { color: red.length ? 'RED' : yellow.length ? 'YELLOW' : 'GREEN', red, yellow };
 }
