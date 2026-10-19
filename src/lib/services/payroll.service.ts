@@ -225,6 +225,7 @@ export async function updateEmployee(
     gosiSystem: string;
     jobTitle: string;
     iqamaJobTitle: string;
+    fileColorOverride: string | null;
     department: string;
     baseSalarySar: number;
     housingAllowanceSar: number;
@@ -261,6 +262,7 @@ export async function updateEmployee(
     "photoUrl", "bloodGroup", "countryCode", "contactPhone",
     "emergencyContactName", "emergencyContactPhone", "medicalInsuranceNo",
     "vehiclePlate", "vehicleOwnership", "sponsorship", "insuranceStatus", "branchSiteId", "passportNo",
+    "fileColorOverride",
   ] as const) {
     if (input[k] !== undefined) patch[k] = input[k];
   }

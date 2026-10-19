@@ -3788,6 +3788,9 @@ export const payrollEmployees = pgTable(
     jobTitle: varchar("job_title", { length: 120 }),
     /** المهنة المكتوبة على الإقامة — the official profession on the iqama. */
     iqamaJobTitle: varchar("iqama_job_title", { length: 120 }),
+    /** لون ملف الموظف: NULL = يُحسب أوتوماتيك من اكتمال البيانات،
+     *  أو 'GREEN' | 'YELLOW' | 'RED' لو المستخدم ثبّته يدويًا. */
+    fileColorOverride: varchar("file_color_override", { length: 10 }),
     department: varchar("department", { length: 80 }),
     baseSalarySar: decimal("base_salary_sar", { precision: 12, scale: 2 }).notNull().default("0"),
     housingAllowanceSar: decimal("housing_allowance_sar", { precision: 12, scale: 2 }).notNull().default("0"),

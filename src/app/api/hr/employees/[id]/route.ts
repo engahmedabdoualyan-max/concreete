@@ -32,6 +32,7 @@ const UpdateEmployeeSchema = z.object({
   gosiSystem: z.enum(["LEGACY", "NEW"]).optional(),
   jobTitle: z.string().max(120).optional(),
   iqamaJobTitle: z.string().max(120).optional(),
+  fileColorOverride: z.enum(["GREEN", "YELLOW", "RED"]).nullable().optional(),
   department: z.string().max(80).optional(),
   baseSalarySar: z.number().nonnegative().optional(),
   housingAllowanceSar: z.number().nonnegative().optional(),

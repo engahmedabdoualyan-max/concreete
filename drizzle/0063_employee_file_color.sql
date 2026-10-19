@@ -1,0 +1,15 @@
+-- Employee file colour (جودة بيانات الملف)
+--
+--   file_color_override → NULL  = يُحسب أوتوماتيك من اكتمال البيانات (أخضر/أصفر/أحمر)
+--                         'GREEN' | 'YELLOW' | 'RED' = لون ثبّته المستخدم بعد المراجعة
+--
+-- الحساب الأوتوماتيكي:
+--   🔴 أحمر  : ناقص رقم الهوية/الإقامة · ناقص المهنة الحالية · آيبان غير صالح ·
+--              إقامة منتهية (للمقيمين)
+--   🟡 أصفر  : ناقص أي من: الآيبان · القسم · نهاية العقد ·
+--              مهنة الإقامة (للمقيم) · تاريخ انتهاء الإقامة (للمقيم)
+--   🟢 أخضر  : مفيش أي نقص من اللي فوق
+--
+-- NOTE: applied manually on the live Supabase DB (2026-10-19), like 0060–0062.
+-- Not added to the drizzle journal on purpose.
+ALTER TABLE "payroll_employees" ADD COLUMN IF NOT EXISTS "file_color_override" varchar(10);
