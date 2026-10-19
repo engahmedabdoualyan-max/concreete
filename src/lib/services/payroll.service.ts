@@ -138,6 +138,7 @@ export async function createEmployee(
     nationality?: string;
     gosiSystem?: string;
     jobTitle?: string;
+    iqamaJobTitle?: string;
     department?: string;
     baseSalarySar?: number;
     housingAllowanceSar?: number;
@@ -179,6 +180,7 @@ export async function createEmployee(
       nationality: input.nationality === "SAUDI" ? "SAUDI" : "NON_SAUDI",
       gosiSystem: input.gosiSystem === "NEW" ? "NEW" : "LEGACY",
       jobTitle: input.jobTitle,
+      iqamaJobTitle: input.iqamaJobTitle,
       department: input.department,
       baseSalarySar: String(input.baseSalarySar ?? 0),
       housingAllowanceSar: String(input.housingAllowanceSar ?? 0),
@@ -222,6 +224,7 @@ export async function updateEmployee(
     nationality: string;
     gosiSystem: string;
     jobTitle: string;
+    iqamaJobTitle: string;
     department: string;
     baseSalarySar: number;
     housingAllowanceSar: number;
@@ -254,7 +257,7 @@ export async function updateEmployee(
 ) {
   const patch: Record<string, unknown> = { updatedAt: new Date() };
   for (const k of [
-    "fullName", "nationalId", "jobTitle", "department", "bankIban", "bankName",
+    "fullName", "nationalId", "jobTitle", "iqamaJobTitle", "department", "bankIban", "bankName",
     "photoUrl", "bloodGroup", "countryCode", "contactPhone",
     "emergencyContactName", "emergencyContactPhone", "medicalInsuranceNo",
     "vehiclePlate", "vehicleOwnership", "sponsorship", "insuranceStatus", "branchSiteId", "passportNo",
