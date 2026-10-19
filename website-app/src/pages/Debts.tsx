@@ -16,6 +16,11 @@ import BrandLogo from '../components/BrandLogo';
 import QuickJump from '../components/QuickJump';
 import LangSelector from '../components/LangSelector';
 
+/** Special tab id: show every group's rows merged in one sheet */
+const ALL_ID = '__all__';
+
+type ViewRow = DebtRow & { debtor: string };
+
 export default function Debts() {
   const { currentUser, logout } = useAuth();
   const navigate = useNavigate();
@@ -25,23 +30,25 @@ export default function Debts() {
     // Keep all groups (include master even if duplicates أحمد حسين content-wise)
     return base;
   });
-  const [selected, setSelected] = useState<string>(() => {
-    if (groups.length) return groups[0].id;
-    return '';
-  });
+  const [selected, setSelected] = useState<string>(ALL_ID);
   const [q, setQ] = useState('');
   const [showAll, setShowAll] = useState(true);
 
+  const isAll = selected === ALL_ID;
   const group = useMemo(() => groups.find(g => g.id === selected), [groups, selected]);
 
-  const items = useMemo(() => {
-    const list = group?.rows ?? [];
+  const allCount = useMemo(() => groups.reduce((s, g) => s + g.rows.length, 0), [groups]);
+
+  const items = useMemo<ViewRow[]>(() => {
+    const list: ViewRow[] = isAll
+      ? groups.flatMap(g => g.rows.map(r => ({ ...r, debtor: g.debtor })))
+      : (group?.rows ?? []).map(r => ({ ...r, debtor: group.debtor }));
     if (!q.trim()) return list;
     const s = q.trim();
     return list.filter(r =>
       r.name.includes(s) || r.code.includes(s) || r.acc.includes(s)
     );
-  }, [group, q]);
+  }, [isAll, groups, group, q]);
 
   const filtered = items;
   const totals = useMemo(() => {
@@ -61,22 +68,28 @@ export default function Debts() {
   }, [groups]);
 
   function exportExcel() {
-    if (!group) return;
     const wsData: any[] = [
       [`أعمار الديون (حساب الأستاذ) - تجميع حسب العميل`],
-      [`الوقت: ${group.reportAt}`],
-      [`من يحمل عليه المديونية: ${group.debtor}`],
+      [isAll ? `الوقت: ${groups.map(g => g.reportAt).filter(Boolean).sort().pop() || '—'} (أحدث تقرير)` : `الوقت: ${group?.reportAt}`],
+      [isAll ? `من يحمل عليه المديونية: الكل (${groups.length} ملف)` : `من يحمل عليه المديونية: ${group?.debtor}`],
       [],
-      ['كود العميل', 'رقم الحساب', 'الاسم', 'اليوم', '30 - 1 يوم', '60 - 31 يوم', '90 - 61 يوم', '120 - 91 يوم', '+120 يوم', 'الإجمالي'],
+      isAll
+        ? ['من حمل عليه', 'كود العميل', 'رقم الحساب', 'الاسم', 'اليوم', '30 - 1 يوم', '60 - 31 يوم', '90 - 61 يوم', '120 - 91 يوم', '+120 يوم', 'الإجمالي']
+        : ['كود العميل', 'رقم الحساب', 'الاسم', 'اليوم', '30 - 1 يوم', '60 - 31 يوم', '90 - 61 يوم', '120 - 91 يوم', '+120 يوم', 'الإجمالي'],
     ];
     for (const r of filtered) {
-      wsData.push([r.code, r.acc, r.name, r.today, r.d30, r.d60, r.d90, r.d120, r.d120p, r.total]);
+      const row = isAll
+        ? [r.debtor, r.code, r.acc, r.name, r.today, r.d30, r.d60, r.d90, r.d120, r.d120p, r.total]
+        : [r.code, r.acc, r.name, r.today, r.d30, r.d60, r.d90, r.d120, r.d120p, r.total];
+      wsData.push(row);
     }
-    wsData.push(['المجموع', '', '', totals.today, totals.d30, totals.d60, totals.d90, totals.d120, totals.d120p, totals.total]);
+    wsData.push(isAll
+      ? ['المجموع', '', '', '', totals.today, totals.d30, totals.d60, totals.d90, totals.d120, totals.d120p, totals.total]
+      : ['المجموع', '', '', totals.today, totals.d30, totals.d60, totals.d90, totals.d120, totals.d120p, totals.total]);
     const ws = XLSX.utils.aoa_to_sheet(wsData);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'الديون');
-    XLSX.writeFile(wb, `الديون_${group.debtor.replace(/\s+/g, '_')}.xlsx`);
+    XLSX.writeFile(wb, isAll ? 'الديون_الكل.xlsx' : `الديون_${group!.debtor.replace(/\s+/g, '_')}.xlsx`);
   }
 
   function printTable() {
@@ -128,7 +141,7 @@ export default function Debts() {
       <div className="max-w-7xl mx-auto p-6">
         <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
           <div>
-            <p className="text-slate-400 text-sm">أعمار الديون (حساب الأستاذ) – تجميع حسب العميل · {group?.rows.length ?? 0} سجل</p>
+            <p className="text-slate-400 text-sm">أعمار الديون (حساب الأستاذ) – تجميع حسب العميل · {isAll ? `${allCount} سجل في ${groups.length} ملف` : `${group?.rows.length ?? 0} سجل`}</p>
           </div>
           <div className="flex gap-2 flex-wrap">
             <button onClick={exportExcel} className="bg-emerald-600/90 hover:bg-emerald-600 text-white text-xs px-3 py-1.5 rounded-lg border border-emerald-500/40 transition">⬇️ Excel</button>
@@ -137,6 +150,13 @@ export default function Debts() {
         </div>
 
         <div className="mb-4 flex flex-wrap gap-2 max-w-full overflow-x-auto pb-1">
+          <button
+            onClick={() => setSelected(ALL_ID)}
+            className={`text-xs px-3 py-1.5 rounded-full border transition whitespace-nowrap font-bold ${selected===ALL_ID ? 'bg-amber-500/20 text-amber-300 border-amber-500/50' : 'bg-white/[0.03] text-slate-300 border-white/10 hover:bg-white/[0.06]'}`}
+            title="عرض كل الملفات في شيت واحد"
+          >
+            📋 الكل ({allCount})
+          </button>
           {groups.map(g => (
             <button
               key={g.id}
@@ -149,7 +169,16 @@ export default function Debts() {
           ))}
         </div>
 
-        {group && (
+        {isAll ? (
+          <div className="mb-4 bg-white/[0.03] border border-white/10 rounded-lg p-3 text-xs space-y-1">
+            <div className="flex flex-wrap justify-between gap-3">
+              <div>العرض: <strong>الكل ({groups.length} ملف)</strong></div>
+              <div>عدد السجلات: <strong>{allCount}</strong></div>
+              <div>الإجمالي الكلي: <strong>{grand.toLocaleString('ar-SA',{minimumFractionDigits:2,maximumFractionDigits:2})}</strong> ر.س</div>
+            </div>
+            <div className="text-[10px] text-slate-400">تظهر السجلات من كل الملفات في شيت واحد، والعمود "من حمل عليه" يوضح الملف المصدر. الملف الرئيسي مطابق لملف "احمد حسين.pdf" (التكرار محتفظ به كما هو).</div>
+          </div>
+        ) : group && (
           <div className="mb-4 bg-white/[0.03] border border-white/10 rounded-lg p-3 text-xs space-y-1">
             <div className="flex flex-wrap justify-between gap-3">
               <div>الوقت: <strong>{group.reportAt || '—'}</strong></div>
@@ -173,6 +202,7 @@ export default function Debts() {
           <table className="w-full text-sm border-collapse" dir="rtl">
             <thead>
               <tr className="bg-white/[0.05]">
+                {isAll && <th className="border border-white/10 px-2 py-1.5 text-right">من حمل عليه</th>}
                 <th className="border border-white/10 px-2 py-1.5 text-center">كود العميل</th>
                 <th className="border border-white/10 px-2 py-1.5 text-center">رقم الحساب</th>
                 <th className="border border-white/10 px-2 py-1.5 text-right">الاسم</th>
@@ -188,6 +218,7 @@ export default function Debts() {
             <tbody>
               {filtered.map((r, i) => (
                 <tr key={i} className="even:bg-white/[0.02] hover:bg-white/[0.05]">
+                  {isAll && <td className="border border-white/10 px-2 py-1 text-[11px] text-sky-300 whitespace-nowrap">{r.debtor}</td>}
                   <td className="border border-white/10 px-2 py-1">{r.code}</td>
                   <td className="border border-white/10 px-2 py-1">{r.acc}</td>
                   <td className="border border-white/10 px-2 py-1 text-right">{r.name}</td>
@@ -201,13 +232,13 @@ export default function Debts() {
                 </tr>
               ))}
               {filtered.length === 0 && (
-                <tr><td colSpan={10} className="p-4 text-center text-slate-400">لا توجد نتائج مطابقة</td></tr>
+                <tr><td colSpan={isAll ? 11 : 10} className="p-4 text-center text-slate-400">لا توجد نتائج مطابقة</td></tr>
               )}
             </tbody>
             <tfoot>
               <tr className="bg-white/[0.08] font-bold">
                 <td className="border border-white/10 px-2 py-1.5">المجموع</td>
-                <td className="border border-white/10 px-2 py-1.5" colSpan={2}></td>
+                <td className="border border-white/10 px-2 py-1.5" colSpan={isAll ? 3 : 2}></td>
                 <td className="border border-white/10 px-2 py-1.5 text-right num">{totals.today.toLocaleString('ar-SA',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
                 <td className="border border-white/10 px-2 py-1.5 text-right num">{totals.d30.toLocaleString('ar-SA',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
                 <td className="border border-white/10 px-2 py-1.5 text-right num">{totals.d60.toLocaleString('ar-SA',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
