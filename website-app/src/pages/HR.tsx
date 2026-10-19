@@ -58,6 +58,57 @@ const PAY_STATUS: Record<string, { icon: string; ar: string; en: string; cls: st
 
 const TYPE_AR: Record<string, string> = { LEAVE: 'إجازة', ADVANCE: 'سلفة', SALARY_CONFIRM: 'تعريف راتب', OTHER: 'أخرى' };
 
+/**
+ * حالة ملف الموظف (جودة البيانات) — بتُحسب أوتوماتيك، وأي تثبيت يدوي
+ * (fileColorOverride) بياخد الأولوية.
+ *   🟢 أخضر : مفيش أي نقص
+ *   🟡 أصفر : ناقص بيانات مهمة
+ *   🔴 أحمر : مشكلة كبيرة (هوية/مهنة ناقصة · آيبان غير صالح · إقامة منتهية)
+ *   ⚪ رمادي : موظف غير نشط (مستبعد من التقييم)
+ */
+const FILE_COLOR: Record<string, { dot: string; ar: string; en: string; ring: string; chip: string }> = {
+  GREEN: { dot: '🟢', ar: 'بياناته سليمة', en: 'Complete', ring: 'border-emerald-500/60', chip: 'border-emerald-500/50 bg-emerald-500/15 text-emerald-300' },
+  YELLOW: { dot: '🟡', ar: 'بيانات ناقصة', en: 'Incomplete', ring: 'border-amber-500/60', chip: 'border-amber-500/50 bg-amber-500/15 text-amber-300' },
+  RED: { dot: '🔴', ar: 'مشكلة كبيرة', en: 'Needs attention', ring: 'border-red-500/60', chip: 'border-red-500/50 bg-red-500/15 text-red-300' },
+  GRAY: { dot: '⚪', ar: 'غير نشط', en: 'Inactive', ring: 'border-white/10', chip: 'border-white/10 bg-white/[0.04] text-slate-400' },
+};
+
+/** Saudi IBAN validity (SA + 22 digits, MOD-97 = 1) — نفس فحص السيرفر. */
+function ibanValid(raw: any): boolean {
+  const s = String(raw ?? '').replace(/\s+/g, '').toUpperCase();
+  if (!/^SA\d{22}$/.test(s)) return false;
+  const digits = (s.slice(4) + s.slice(0, 4)).replace(/[A-Z]/g, (c) => String(c.charCodeAt(0) - 55));
+  let rem = 0;
+  for (const d of digits) rem = (rem * 10 + Number(d)) % 97;
+  return rem === 1;
+}
+
+const fieldHas = (v: any): boolean => v !== null && v !== undefined && String(v).trim() !== '';
+
+type FileColorReason = { ar: string; en: string };
+
+/** يرجّع لون الملف + أسباب النقص (لو فيه). */
+function fileColorOf(e: any): { color: string; red: FileColorReason[]; yellow: FileColorReason[] } {
+  const red: FileColorReason[] = [];
+  const yellow: FileColorReason[] = [];
+  const nonSaudi = e?.nationality === 'NON_SAUDI';
+  if (!fieldHas(e?.nationalId)) red.push({ ar: 'رقم الهوية/الإقامة', en: 'National/Iqama ID' });
+  if (!fieldHas(e?.jobTitle)) red.push({ ar: 'المهنة الحالية', en: 'Current profession' });
+  if (fieldHas(e?.bankIban) && !ibanValid(e.bankIban)) red.push({ ar: 'الآيبان غير صالح', en: 'Invalid IBAN' });
+  if (nonSaudi && fieldHas(e?.iqamaExpiry) && new Date(e.iqamaExpiry).getTime() < Date.now())
+    red.push({ ar: 'إقامة منتهية', en: 'Iqama expired' });
+  if (!fieldHas(e?.bankIban)) yellow.push({ ar: 'الآيبان', en: 'IBAN' });
+  if (!fieldHas(e?.department)) yellow.push({ ar: 'القسم', en: 'Department' });
+  if (!fieldHas(e?.contractEnd)) yellow.push({ ar: 'نهاية العقد', en: 'Contract end' });
+  if (nonSaudi && !fieldHas(e?.iqamaJobTitle)) yellow.push({ ar: 'مهنة الإقامة', en: 'Iqama profession' });
+  if (nonSaudi && !fieldHas(e?.iqamaExpiry)) yellow.push({ ar: 'انتهاء الإقامة', en: 'Iqama expiry' });
+
+  if (e?.isActive === false) return { color: 'GRAY', red, yellow };
+  const ov = e?.fileColorOverride ?? e?.file_color_override;
+  if (ov === 'GREEN' || ov === 'YELLOW' || ov === 'RED') return { color: ov, red, yellow };
+  return { color: red.length ? 'RED' : yellow.length ? 'YELLOW' : 'GREEN', red, yellow };
+}
+
 const SPONSORSHIP_OPTS = ['المطور', 'زاوية المطور', 'مؤسسة عبد الإله', 'أبو مبارك', 'مبارك', 'مشاري', 'عبد العزيز', 'عزبية'];
 
 const STATUS_AR: Record<string, string> = { PENDING: 'بانتظار', APPROVED: 'مقبول', REJECTED: 'مرفوض', CANCELLED: 'ملغي' };
@@ -280,6 +331,8 @@ export default function HR() {
   const [filter, setFilter] = useState('PENDING');
   const [requests, setRequests] = useState<any[]>([]);
   const [employees, setEmployees] = useState<any[]>([]);
+  const [fileColorMenu, setFileColorMenu] = useState<string | null>(null);
+  const [fileColorSaving, setFileColorSaving] = useState('');
   const [search, setSearch] = useState('');
   const [showInactive, setShowInactive] = useState(false);
   const [orgView, setOrgView] = useState<'depts' | 'branches' | 'all'>('depts');
@@ -294,6 +347,21 @@ export default function HR() {
   const laborLbl = (e: any): string => orgIsBlock(e) ? blkLbl : (orgIsConc(e) ? concLbl : (orgIsOps(e) ? opsLbl : wsLbl));
   const orgGroupOf = (e: any): string => orgIsDrv(e) ? drvLbl : (isLabor(e) ? laborLbl(e) : (orgIsSaudi(e) ? sauLbl : (e.department || (ar ? 'بدون قسم' : 'Unassigned'))));
   const orgSiteName = (s: any): string => (!s ? (ar ? 'غير محدد' : 'Unspecified') : (s.code === 'HQ' ? (ar ? 'المصنع' : 'Plant') : (s.name ?? s.code ?? '')));
+
+  /** تثبيت لون ملف الموظف يدويًا بعد المراجعة (أو إرجاعه للحساب التلقائي). */
+  const setFileColor = async (employeeId: string, color: 'GREEN' | 'YELLOW' | 'RED' | null) => {
+    setFileColorSaving(employeeId);
+    try {
+      await api.put(`/api/hr/employees/${employeeId}`, { fileColorOverride: color });
+      setEmployees((list) => list.map((x) => (x.id === employeeId ? { ...x, fileColorOverride: color } : x)));
+      setFileColorMenu(null);
+      setMsg(color ? `✅ ${ar ? 'تم تثبيت لون الملف' : 'File colour pinned'}` : `✅ ${ar ? 'رجع للحساب التلقائي' : 'Back to automatic'}`);
+    } catch (e: any) {
+      setMsg(`❌ ${e?.message ?? (ar ? 'فشل تغيير اللون' : 'Failed to set colour')}`);
+    } finally {
+      setFileColorSaving('');
+    }
+  };
   const orgBranchList = () => {
     const all: { id: string; label: string; vehicles: any[] }[] = (vehRd.sites || []).map((s: any) => ({
       id: s.id, label: orgSiteName(s),
@@ -2069,6 +2137,16 @@ function ageOf(raw: unknown): number | null {
     return [e.fullName, e.full_name, e.email, e.employeeCode, e.phone, e.department, e.nationalId, e.sponsorship].filter(Boolean).join(' ').toLowerCase().includes(q);
   });
 
+  /** ملخص ألوان ملفات الفريق المعروض (🟢/🟡/🔴/⚪). */
+  const teamColorStats = team.reduce(
+    (acc: Record<string, number>, e: any) => {
+      const c = fileColorOf(e).color;
+      acc[c] = (acc[c] ?? 0) + 1;
+      return acc;
+    },
+    { GREEN: 0, YELLOW: 0, RED: 0, GRAY: 0 }
+  );
+
   // Vehicle paperwork watch (istimara / insurance / inspection ≤ 60 days).
   const vehWatch = fleet
     .flatMap((v) => ([
@@ -2535,11 +2613,49 @@ function ageOf(raw: unknown): number | null {
               />
             </div>
             {showAdd && !editingEmp && renderEmpForm()}
-            <p className="text-[11px] text-slate-500 mb-2">{team.length} {ar ? 'موظف' : 'employees'}</p>
+            <div className="flex flex-wrap items-center gap-2 mb-2">
+              <p className="text-[11px] text-slate-500">{team.length} {ar ? 'موظف' : 'employees'}</p>
+              <span className="text-[11px] font-black text-emerald-300">🟢 {teamColorStats.GREEN}</span>
+              <span className="text-[11px] font-black text-amber-300">🟡 {teamColorStats.YELLOW}</span>
+              <span className="text-[11px] font-black text-red-300">🔴 {teamColorStats.RED}</span>
+              {teamColorStats.GRAY > 0 && <span className="text-[11px] font-black text-slate-400">⚪ {teamColorStats.GRAY}</span>}
+              <span className="text-[10px] text-slate-500">{ar ? '— دوس على الشارة جنب الاسم لمراجعة الملف وتثبيت اللون' : '— tap the badge to review and pin the colour'}</span>
+            </div>
             {team.length === 0 && <p className="text-xs text-slate-500">{ar ? 'لا بيانات فريق.' : 'No team data.'}</p>}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              {team.map((e, i) => (<Fragment key={e.id ?? i}>
-                <div key={e.id ?? i} className={`rounded-2xl border border-white/10 bg-white/[0.03] p-4 flex items-center gap-3 ${e.isActive === false ? 'opacity-55' : ''}`}>
+              {team.map((e, i) => {
+                const fc = fileColorOf(e);
+                const fm = FILE_COLOR[fc.color] ?? FILE_COLOR.GRAY;
+                const reasons = [...fc.red, ...fc.yellow].map((r) => (ar ? r.ar : r.en));
+                const pinned = e?.fileColorOverride === 'GREEN' || e?.fileColorOverride === 'YELLOW' || e?.fileColorOverride === 'RED';
+                return (<Fragment key={e.id ?? i}>
+                <div key={e.id ?? i} className={`relative rounded-2xl border ${fm.ring} bg-white/[0.03] p-4 flex items-center gap-3 ${e.isActive === false ? 'opacity-55' : ''}`}>
+                  {fileColorMenu === e.id && (
+                    <div className="absolute z-30 inset-x-2 top-2 rounded-xl border border-white/15 bg-slate-950/95 p-2 shadow-2xl">
+                      <p className="text-[10px] font-black text-slate-300 mb-1">
+                        {pinned ? `📌 ${ar ? 'لون مثبّت يدويًا' : 'Pinned manually'}` : (ar ? 'اللون محسوب تلقائيًا' : 'Automatic colour')}
+                        {reasons.length > 0 && <span className="font-normal text-slate-400"> — {ar ? 'ناقص' : 'Missing'}: {reasons.slice(0, 4).join('، ')}{reasons.length > 4 ? '…' : ''}</span>}
+                      </p>
+                      <div className="flex flex-wrap gap-1">
+                        {(['GREEN', 'YELLOW', 'RED'] as const).map((c) => (
+                          <button key={c} type="button" disabled={fileColorSaving === e.id}
+                            onClick={() => setFileColor(e.id, c)}
+                            className={`text-[11px] font-black rounded-lg px-2 py-1 border ${FILE_COLOR[c].chip} disabled:opacity-50`}>
+                            {FILE_COLOR[c].dot} {ar ? FILE_COLOR[c].ar : FILE_COLOR[c].en}
+                          </button>
+                        ))}
+                        <button type="button" disabled={fileColorSaving === e.id}
+                          onClick={() => setFileColor(e.id, null)}
+                          className="text-[11px] font-black rounded-lg px-2 py-1 border border-white/15 bg-white/[0.05] text-slate-300 disabled:opacity-50">
+                          ↺ {ar ? 'تلقائي' : 'Auto'}
+                        </button>
+                        <button type="button" onClick={() => setFileColorMenu(null)}
+                          className="text-[11px] font-black rounded-lg px-2 py-1 border border-white/10 text-slate-400">
+                          ✕
+                        </button>
+                      </div>
+                    </div>
+                  )}
                   <div className="relative shrink-0">
                     {e.photoUrl ? (
                       <img src={e.photoUrl} alt={nameOf(e)} className="w-11 h-11 rounded-full object-cover border border-sky-500/40" />
@@ -2566,6 +2682,12 @@ function ageOf(raw: unknown): number | null {
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-black text-white truncate">{nameOf(e)}{ageOf(e.dateOfBirth) !== null ? <span className="text-[10px] font-bold text-slate-400"> · {ageOf(e.dateOfBirth)} {ar ? 'سنة' : 'y'}</span> : null}</p>
+                    <button type="button" disabled={!e.id || fileColorSaving === e.id}
+                      onClick={() => setFileColorMenu(fileColorMenu === e.id ? null : e.id)}
+                      title={reasons.length ? `${ar ? 'ناقص' : 'Missing'}: ${reasons.join('، ')}` : (ar ? 'مفيش نقص في البيانات' : 'Nothing missing')}
+                      className={`mt-0.5 text-[10px] font-black rounded-md px-1.5 py-0.5 border ${fm.chip} disabled:opacity-50`}>
+                      {fileColorSaving === e.id ? '…' : `${fm.dot} ${ar ? fm.ar : fm.en}${pinned ? ' 📌' : ''}`}
+                    </button>
                     <p className="text-[11px] text-slate-400 truncate">
                       {[e.role ?? e.jobTitle, e.department, e.employeeCode, e.phone ?? e.contactPhone].filter(Boolean).join(' · ')}
                     </p>
@@ -2616,7 +2738,7 @@ function ageOf(raw: unknown): number | null {
                     {renderEmpForm()}
                   </div>
                 )}
-              </Fragment>))}
+              </Fragment>); })}
             </div>
             {docsEmp && (
               <div ref={(el) => { if (el) el.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }}
