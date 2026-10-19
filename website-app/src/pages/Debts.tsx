@@ -219,6 +219,10 @@ export default function Debts() {
     const file = input.files?.[0];
     input.value = ''; // يسمح بإعادة اختيار نفس الملف
     if (!file || !editing) return;
+    if (!currentUser?.username) {
+      setDocErr('سجّل الدخول الأول عشان ترفع المرفقات وتتحفظ على السيرفر');
+      return;
+    }
     setDocBusy(true);
     setDocErr('');
     try {
