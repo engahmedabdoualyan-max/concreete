@@ -42,7 +42,18 @@ const ACTION_KIND_AR: Record<string, string> = {
   BONUS: 'مكافأة', OVERTIME_BONUS: 'بدل إضافي', RECOGNITION: 'تكريم',
 };
 const DOC_KIND_AR: Record<string, string> = {
-  IQAMA: 'الإقامة', DRIVING_LICENCE: 'رخصة القيادة', INSURANCE: 'التأمين الطبي', CONTRACT: 'العقد', CUSTODY: 'صورة عهدة', INVESTIGATION: 'ملف تحقيق', OTHER: 'أخرى',
+  IQAMA: 'الإقامة', DRIVING_LICENCE: 'رخصة القيادة', INSURANCE: 'التأمين الطبي', CONTRACT: 'العقد', CUSTODY: 'صورة عهدة', INVESTIGATION: 'ملف تحقيق', RECEIPT: 'سند قبض', OTHER: 'أخرى',
+};
+
+/** Gregorian month names (ar) for the payroll cash-collection year view. */
+const MONTHS_AR = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
+
+/** Cash-collection status presentation (icon + Arabic label + colours). */
+const PAY_STATUS: Record<string, { icon: string; ar: string; en: string; cls: string }> = {
+  PAID: { icon: '✅', ar: 'تم القبض', en: 'Paid', cls: 'border-emerald-500/50 bg-emerald-500/15 text-emerald-300' },
+  PARTIAL: { icon: '◐', ar: 'قبض جزئي', en: 'Partial', cls: 'border-amber-500/50 bg-amber-500/15 text-amber-300' },
+  STOPPED: { icon: '⛔', ar: 'وقف القبض', en: 'Stopped', cls: 'border-red-500/50 bg-red-500/15 text-red-300' },
+  UNPAID: { icon: '⬜', ar: 'لم يُقبض', en: 'Open', cls: 'border-white/10 bg-white/[0.04] text-slate-400' },
 };
 
 const TYPE_AR: Record<string, string> = { LEAVE: 'إجازة', ADVANCE: 'سلفة', SALARY_CONFIRM: 'تعريف راتب', OTHER: 'أخرى' };
@@ -418,6 +429,13 @@ export default function HR() {
   const [formDocs, setFormDocs] = useState<any[]>([]);
   const [formDocName, setFormDocName] = useState('');
   const [uploadingFormDoc, setUploadingFormDoc] = useState(false);
+  // بيان القبض الشهري — حالة القبض لكل موظف في كل شهر
+  const [payYear, setPayYear] = useState(() => new Date().getFullYear());
+  const [payMonth, setPayMonth] = useState(() => new Date().toISOString().slice(0, 7));
+  const [payments, setPayments] = useState<Record<string, any>>({});
+  const [payGrid, setPayGrid] = useState<Record<string, { due: number; paid: number; deduction: number; total: number; PAID: number; PARTIAL: number; STOPPED: number }>>({});
+  const [payEmpSearch, setPayEmpSearch] = useState('');
+  const [paySaving, setPaySaving] = useState('');
 
   const printDoc = (d: any) => {
     const w = window.open('', '_blank', 'width=900,height=700');
@@ -1740,6 +1758,136 @@ function ageOf(raw: unknown): number | null {
   };
   // Employee directory by id for iqama/code lookup on run lines.
   const empById = (id: string) => employees.find((e) => e.id === id);
+
+  /* ===== بيان القبض الشهري (payroll cash-collection ledger) ===== */
+  // Salary expected for the month when no payslip line exists yet.
+  const dueFor = (employeeId: string) => {
+    const e = empById(employeeId);
+    if (!e) return 0;
+    const n = (v: any) => Number(v) || 0;
+    return n(e.baseSalarySar) + n(e.housingAllowanceSar) + n(e.transportAllowanceSar) + n(e.otherAllowancesSar);
+  };
+
+  const loadYearGrid = async (year: number) => {
+    try {
+      const d = await api.get<{ summary?: any[] }>(`/api/hr/payroll/payments?year=${year}`);
+      const grid: Record<string, any> = {};
+      for (const r of d?.summary ?? []) {
+        const g = (grid[r.period] ||= { due: 0, paid: 0, deduction: 0, total: 0, PAID: 0, PARTIAL: 0, STOPPED: 0 });
+        g.due += Number(r.due) || 0;
+        g.paid += Number(r.paid) || 0;
+        g.deduction += Number(r.deduction) || 0;
+        g.total += Number(r.count) || 0;
+        if (r.status in g) g[r.status] += Number(r.count) || 0;
+      }
+      setPayGrid(grid);
+    } catch {
+      setPayGrid({});
+    }
+  };
+
+  const loadMonthPayments = async (period: string) => {
+    try {
+      const d = await api.get<{ payments?: any[] }>(`/api/hr/payroll/payments?period=${period}`);
+      const map: Record<string, any> = {};
+      for (const p of d?.payments ?? []) if (p?.employeeId) map[p.employeeId] = p;
+      setPayments(map);
+    } catch {
+      setPayments({});
+    }
+  };
+
+  // Save one employee's month (upsert). `patch` may carry any subset.
+  const savePayment = async (employeeId: string, patch: any, localExtra?: any) => {
+    const cur = payments[employeeId] ?? {};
+    const num = (v: any) => (v === null || v === undefined || v === '' ? null : Number(v));
+    const status = patch.status ?? cur.status ?? 'UNPAID';
+    const body = {
+      employeeId,
+      period: payMonth,
+      status,
+      dueAmountSar: patch.dueAmountSar !== undefined ? num(patch.dueAmountSar) : (cur.dueAmountSar != null ? num(cur.dueAmountSar) : dueFor(employeeId)),
+      paidAmountSar: patch.paidAmountSar !== undefined ? num(patch.paidAmountSar) : num(cur.paidAmountSar),
+      deductionSar: patch.deductionSar !== undefined ? num(patch.deductionSar) : num(cur.deductionSar),
+      note: patch.note !== undefined ? patch.note : (cur.note ?? null),
+      receiptDocumentId: patch.receiptDocumentId !== undefined ? patch.receiptDocumentId : (cur.receiptDocumentId ?? null),
+    };
+    setPaySaving(employeeId);
+    try {
+      const row: any = await api.patch('/api/hr/payroll/payments', body);
+      setPayments((m) => ({ ...m, [employeeId]: { ...(m[employeeId] ?? {}), ...(row ?? {}), ...(localExtra ?? {}) } }));
+      void loadYearGrid(payYear);
+    } catch (e: any) {
+      setMsg(`❌ ${e?.message ?? 'فشل حفظ حالة القبض'}`);
+    } finally {
+      setPaySaving('');
+    }
+  };
+
+  // Upload the signed سند قبض for one employee/month, then attach it.
+  const uploadPayReceipt = async (employeeId: string, file?: File) => {
+    if (!file) return;
+    if (file.size > 8 * 1024 * 1024) { setMsg('❌ الملف أكبر من 8MB'); return; }
+    if (!/pdf|image/i.test(file.type) && !/\.(pdf|png|jpe?g|webp)$/i.test(file.name)) { setMsg('❌ PDF أو صور فقط'); return; }
+    setPaySaving(employeeId);
+    try {
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const r = new FileReader();
+        r.onload = () => resolve(String(r.result));
+        r.onerror = reject;
+        r.readAsDataURL(file);
+      });
+      const doc: any = await api.post('/api/hr/documents', {
+        employeeId,
+        kind: 'RECEIPT',
+        title: `سند قبض ${payMonth}`,
+        fileName: file.name,
+        mimeType: file.type || 'application/octet-stream',
+        sizeBytes: file.size,
+        fileData: dataUrl,
+      });
+      const cur = payments[employeeId] ?? {};
+      const keepStatus = cur.status === 'PARTIAL' || cur.status === 'STOPPED' ? cur.status : 'PAID';
+      await savePayment(
+        employeeId,
+        {
+          receiptDocumentId: doc?.id,
+          status: keepStatus,
+          paidAmountSar: keepStatus === 'PAID' ? cur.paidAmountSar ?? dueFor(employeeId) : cur.paidAmountSar ?? null,
+        },
+        { receiptUrl: doc?.storageUrl, receiptName: doc?.fileName, receiptMime: doc?.mimeType }
+      );
+      setMsg('✅ تم رفع سند القبض');
+    } catch (e: any) {
+      setMsg(`❌ ${e?.message ?? 'فشل رفع السند'}`);
+    } finally {
+      setPaySaving('');
+    }
+  };
+
+  // The "same list" per month: every active employee.
+  const payLedger = employees
+    .filter((e) => e.isActive !== false)
+    .filter((e) => {
+      const q = payEmpSearch.trim().toLowerCase();
+      if (!q) return true;
+      return [e.fullName, e.employeeCode, e.nationalId, e.jobTitle].filter(Boolean).join(' ').toLowerCase().includes(q);
+    });
+  const payMonthLabel = `${MONTHS_AR[Number(payMonth.slice(5, 7)) - 1] ?? ''} ${payMonth.slice(0, 4)}`;
+  const payYearPaid = Object.values(payGrid).reduce((s, g) => s + g.paid, 0);
+  const payMonthStat = (() => {
+    let due = 0, paid = 0, deduction = 0, PAID = 0, PARTIAL = 0, STOPPED = 0;
+    for (const p of Object.values(payments)) {
+      due += Number(p.dueAmountSar) || 0;
+      paid += Number(p.paidAmountSar) || 0;
+      deduction += Number(p.deductionSar) || 0;
+      if (p.status === 'PAID') PAID++;
+      else if (p.status === 'PARTIAL') PARTIAL++;
+      else if (p.status === 'STOPPED') STOPPED++;
+    }
+    return { due, paid, deduction, PAID, PARTIAL, STOPPED };
+  })();
+
   const payRows = runLines.filter((l) => {
     const q = paySearch.trim().toLowerCase();
     if (!q) return true;
@@ -1845,6 +1993,18 @@ function ageOf(raw: unknown): number | null {
     if (tab === 'attendance') loadAbs();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab]);
+
+  useEffect(() => {
+    if (tab !== 'payroll') return;
+    void loadYearGrid(payYear);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, payYear]);
+
+  useEffect(() => {
+    if (tab !== 'payroll') return;
+    void loadMonthPayments(payMonth);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, payMonth]);
 
   const review = async (id: string, decision: 'APPROVED' | 'REJECTED') => {    setBusy(id + decision);
     setMsg('');
@@ -2452,12 +2612,13 @@ function ageOf(raw: unknown): number | null {
               </Fragment>))}
             </div>
             {docsEmp && (
-              <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-4 mt-3">
+              <div ref={(el) => { if (el) el.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }}
+                className="rounded-2xl border border-white/10 bg-white/[0.02] p-4 mt-3">
                 <div className="flex items-center justify-between mb-2">
                   <h3 className="text-sm font-black text-white">📁 {ar ? 'مستندات' : 'Documents'} — {docsEmp.name}</h3>
                   <button onClick={() => setDocsEmp(null)} className="text-slate-400 hover:text-white px-2">✕</button>
                 </div>
-                {docs.length === 0 && <p className="text-xs text-slate-500">{ar ? 'لا مستندات مسجلة.' : 'No documents registered.'}</p>}
+                {docs.length === 0 && <p className="text-xs text-slate-500">{ar ? 'لا مستندات مسجلة — ارفع أول ملف من هنا ↓' : 'No documents yet — upload the first file below ↓'}</p>}
                 {docs.map((d, i) => (
                   <div key={d.id ?? i} className="flex items-center justify-between text-xs border-b border-white/5 py-1.5 last:border-0">
                     <span className="font-bold text-slate-200">{d.title ?? DOC_KIND_AR[d.kind] ?? d.kind} · {d.fileName}</span>
@@ -2662,6 +2823,167 @@ function ageOf(raw: unknown): number | null {
         {/* ===== payroll ===== */}
         {tab === 'payroll' && (
           <div className="mt-4 space-y-2">
+            {/* ===== بيان القبض الشهري — السنة كاملة بالشهور ===== */}
+            <div className="rounded-2xl border border-emerald-500/25 bg-emerald-500/[0.04] p-3 space-y-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <h3 className="text-xs font-black text-white">📅 {ar ? 'بيان القبض الشهري' : 'Monthly cash-collection ledger'}</h3>
+                <div className="flex items-center gap-1 ms-auto">
+                  <button onClick={() => { const y = payYear - 1; setPayYear(y); setPayMonth(`${y}-${payMonth.slice(5, 7)}`); }}
+                    className="text-xs font-black rounded-lg px-2 py-1 border border-white/10 bg-white/[0.05] text-slate-300 hover:border-emerald-400/50">{'‹'}</button>
+                  <span className="font-black text-white text-xs w-14 text-center">{payYear}</span>
+                  <button onClick={() => { const y = payYear + 1; setPayYear(y); setPayMonth(`${y}-${payMonth.slice(5, 7)}`); }}
+                    className="text-xs font-black rounded-lg px-2 py-1 border border-white/10 bg-white/[0.05] text-slate-300 hover:border-emerald-400/50">{'›'}</button>
+                </div>
+                <span className="text-[11px] text-slate-300 font-bold">
+                  {ar ? 'إجمالي المدفوع' : 'Paid'}: <span className="text-emerald-300 font-black">{Math.round(payYearPaid).toLocaleString('en-US')}</span> {ar ? 'ر.س' : 'SAR'}
+                </span>
+              </div>
+
+              {/* 12 شهر للسنة */}
+              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2">
+                {MONTHS_AR.map((name, i) => {
+                  const period = `${payYear}-${String(i + 1).padStart(2, '0')}`;
+                  const g = payGrid[period];
+                  const sel = payMonth === period;
+                  return (
+                    <button key={period} onClick={() => setPayMonth(period)}
+                      className={`rounded-xl border px-2 py-1.5 text-right ${sel ? 'border-emerald-400/70 bg-emerald-500/15' : 'border-white/10 bg-white/[0.03] hover:border-emerald-400/40'}`}>
+                      <div className={`text-[11px] font-black ${sel ? 'text-emerald-200' : 'text-white'}`}>{name}</div>
+                      {g && g.total > 0 ? (
+                        <div className="mt-0.5 text-[9px] leading-4">
+                          <span className="text-emerald-300 font-black">✅ {g.PAID}</span>
+                          {g.PARTIAL > 0 && <span className="text-amber-300 font-black"> ◐ {g.PARTIAL}</span>}
+                          {g.STOPPED > 0 && <span className="text-red-300 font-black"> ⛔ {g.STOPPED}</span>}
+                          <div className="text-slate-400 font-bold">{Math.round(g.paid).toLocaleString('en-US')} {ar ? 'ر.س' : ''}</div>
+                        </div>
+                      ) : (
+                        <div className="mt-0.5 text-[9px] text-slate-600">{ar ? 'لا قبض' : '—'}</div>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* قائمة الموظفين للشهر المختار */}
+              <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3 space-y-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-xs font-black text-white">📋 {payMonthLabel}</span>
+                  <span className="text-[11px] text-slate-300 font-bold">
+                    {ar ? 'مستحق' : 'Due'}: {Math.round(payMonthStat.due).toLocaleString('en-US')} ·
+                    <span className="text-emerald-300"> ✅ {payMonthStat.PAID}</span>
+                    <span className="text-amber-300"> ◐ {payMonthStat.PARTIAL}</span>
+                    <span className="text-red-300"> ⛔ {payMonthStat.STOPPED}</span>
+                    · {ar ? 'مدفوع' : 'Paid'}: <span className="text-emerald-300 font-black">{Math.round(payMonthStat.paid).toLocaleString('en-US')}</span>
+                    · {ar ? 'خصم' : 'Deducted'}: <span className="text-amber-300 font-black">{Math.round(payMonthStat.deduction).toLocaleString('en-US')}</span>
+                  </span>
+                  <input value={payEmpSearch} onChange={(e) => setPayEmpSearch(e.target.value)}
+                    placeholder={ar ? '🔍 بحث بالاسم / الكود / الإقامة…' : 'Search name / code…'}
+                    className="flex-1 min-w-[180px] bg-white/[0.04] border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white outline-none" />
+                  <ExportBar
+                    title={ar ? `بيان القبض ${payMonthLabel}` : `Cash ledger ${payMonthLabel}`}
+                    subtitle={`${payLedger.length} ${ar ? 'موظف' : 'employees'}`}
+                    fileBase={`payments-${payMonth}`}
+                    columns={[
+                      { header: 'الاسم', key: 'name' },
+                      { header: 'الكود', key: 'code' },
+                      { header: 'المستحق', key: 'due' },
+                      { header: 'الحالة', key: 'status' },
+                      { header: 'المدفوع', key: 'paid' },
+                      { header: 'الخصم', key: 'ded' },
+                      { header: 'السبب/ملاحظة', key: 'note' },
+                      { header: 'السند', key: 'receipt' },
+                    ]}
+                    branding={brandParam}
+                    rows={payLedger.map((e) => {
+                      const p = payments[e.id] ?? {};
+                      const st = p.status ?? 'UNPAID';
+                      return {
+                        name: e.fullName ?? '', code: e.employeeCode ?? '',
+                        due: p.dueAmountSar != null ? p.dueAmountSar : dueFor(e.id),
+                        status: PAY_STATUS[st]?.ar ?? st,
+                        paid: p.paidAmountSar ?? '', ded: p.deductionSar ?? '',
+                        note: p.note ?? '', receipt: p.receiptName ?? (p.receiptUrl ? 'مرفق' : ''),
+                      };
+                    })}
+                  />
+                </div>
+
+                {payLedger.length === 0 && <p className="text-xs text-slate-500">{ar ? 'لا موظفين نطابقوا البحث.' : 'No employees match.'}</p>}
+
+                <div className="space-y-1 max-h-[560px] overflow-y-auto">
+                  {payLedger.map((e) => {
+                    const p = payments[e.id] ?? {};
+                    const st = p.status ?? 'UNPAID';
+                    const meta = PAY_STATUS[st] ?? PAY_STATUS.UNPAID;
+                    const due = p.dueAmountSar != null ? Number(p.dueAmountSar) : dueFor(e.id);
+                    const paidN = p.paidAmountSar != null ? Number(p.paidAmountSar) : null;
+                    const dedN = p.deductionSar != null ? Number(p.deductionSar) : null;
+                    const busyRow = paySaving === e.id;
+                    const vkey = `${e.id}-${p.updatedAt ?? ''}`;
+                    return (
+                      <div key={e.id} className="rounded-lg border border-white/10 bg-white/[0.03] px-2 py-1.5 text-[11px]">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-black text-white truncate">
+                            {e.fullName}{e.employeeCode ? <span className="text-slate-500 font-bold"> · {e.employeeCode}</span> : ''}
+                            {e.jobTitle ? <span className="text-slate-500 font-bold"> · {e.jobTitle}</span> : ''}
+                          </span>
+                          <span className={`shrink-0 rounded-lg border px-2 py-0.5 font-black ${meta.cls}`}>{meta.icon} {ar ? meta.ar : meta.en}</span>
+                        </div>
+                        <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-slate-400 mt-0.5">
+                          <span>{ar ? 'المستحق' : 'Due'}: <b className="text-slate-200">{due.toLocaleString('en-US', { maximumFractionDigits: 0 })}</b></span>
+                          {paidN != null && <span>{ar ? 'المدفوع' : 'Paid'}: <b className="text-emerald-300">{paidN.toLocaleString('en-US', { maximumFractionDigits: 0 })}</b></span>}
+                          {dedN != null && <span>{ar ? 'الخصم' : 'Ded'}: <b className="text-amber-300">{dedN.toLocaleString('en-US', { maximumFractionDigits: 0 })}</b></span>}
+                          {st === 'PARTIAL' && <span>{ar ? 'المتبقي' : 'Left'}: <b className="text-slate-200">{Math.max(0, due - (paidN ?? 0)).toLocaleString('en-US', { maximumFractionDigits: 0 })}</b></span>}
+                          {busyRow && <span className="text-slate-500">⏳ …</span>}
+                        </div>
+                        <div className="flex flex-wrap items-center gap-1 mt-1">
+                          <button onClick={() => savePayment(e.id, { status: 'PAID', dueAmountSar: due, paidAmountSar: due, deductionSar: 0 })}
+                            className={`text-[10px] font-black rounded-lg px-2 py-1 border ${st === 'PAID' ? 'border-emerald-500/60 bg-emerald-500/20 text-emerald-200' : 'border-white/10 text-slate-300 hover:border-emerald-400/50'}`}>✅ {ar ? 'تم القبض' : 'Paid'}</button>
+                          <button onClick={() => savePayment(e.id, { status: 'PARTIAL', dueAmountSar: due, paidAmountSar: paidN ?? 0 })}
+                            className={`text-[10px] font-black rounded-lg px-2 py-1 border ${st === 'PARTIAL' ? 'border-amber-500/60 bg-amber-500/20 text-amber-200' : 'border-white/10 text-slate-300 hover:border-amber-400/50'}`}>◐ {ar ? 'قبض جزئي' : 'Partial'}</button>
+                          <button onClick={() => savePayment(e.id, { status: 'STOPPED', dueAmountSar: due, paidAmountSar: 0 })}
+                            className={`text-[10px] font-black rounded-lg px-2 py-1 border ${st === 'STOPPED' ? 'border-red-500/60 bg-red-500/20 text-red-200' : 'border-white/10 text-slate-300 hover:border-red-400/50'}`}>⛔ {ar ? 'وقف القبض' : 'Stop'}</button>
+                          {st !== 'UNPAID' && (
+                            <button onClick={() => savePayment(e.id, { status: 'UNPAID', paidAmountSar: null, deductionSar: null, note: null })}
+                              className="text-[10px] font-black rounded-lg px-2 py-1 border border-white/10 text-slate-500 hover:text-slate-300">↺ {ar ? 'إلغاء' : 'Clear'}</button>
+                          )}
+                          <label className="text-[10px] font-black rounded-lg px-2 py-1 border border-sky-500/40 bg-sky-500/10 text-sky-300 cursor-pointer hover:bg-sky-500/20">
+                            📎 {p.receiptUrl ? (ar ? 'تغيير السند' : 'Replace') : (ar ? 'رفع السند' : 'Upload receipt')}
+                            <input type="file" accept="application/pdf,image/*" className="hidden"
+                              onChange={(ev) => { void uploadPayReceipt(e.id, ev.target.files?.[0]); ev.target.value = ''; }} />
+                          </label>
+                          {p.receiptUrl && (
+                            <a href={p.receiptUrl} target="_blank" rel="noreferrer"
+                              className="text-[10px] font-black rounded-lg px-2 py-1 border border-emerald-500/40 bg-emerald-500/10 text-emerald-300">📄 {ar ? 'عرض السند' : 'View'}</a>
+                          )}
+                        </div>
+                        {(st === 'PARTIAL' || st === 'STOPPED' || p.note) && (
+                          <div className="flex flex-wrap items-center gap-1 mt-1">
+                            {st === 'PARTIAL' && (
+                              <>
+                                <input key={`paid-${vkey}`} type="number" inputMode="decimal" defaultValue={paidN != null ? String(paidN) : ''}
+                                  placeholder={ar ? 'المدفوع' : 'Paid'}
+                                  onBlur={(ev) => savePayment(e.id, { paidAmountSar: ev.target.value === '' ? null : Number(ev.target.value) })}
+                                  className="w-24 bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1 text-[10px] text-white outline-none" />
+                                <input key={`ded-${vkey}`} type="number" inputMode="decimal" defaultValue={dedN != null ? String(dedN) : ''}
+                                  placeholder={ar ? 'الخصم' : 'Deduction'}
+                                  onBlur={(ev) => savePayment(e.id, { deductionSar: ev.target.value === '' ? null : Number(ev.target.value) })}
+                                  className="w-24 bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1 text-[10px] text-white outline-none" />
+                              </>
+                            )}
+                            <input key={`note-${vkey}`} defaultValue={p.note ?? ''}
+                              placeholder={st === 'STOPPED' ? (ar ? 'سبب وقف القبض' : 'Reason') : (ar ? 'ملاحظة' : 'Note')}
+                              onBlur={(ev) => { const v = ev.target.value; if (v !== (p.note ?? '')) void savePayment(e.id, { note: v }); }}
+                              className="flex-1 min-w-[140px] bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1 text-[10px] text-white outline-none" />
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
             <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.02] p-3">
               <span className="text-[11px] text-slate-400 font-bold">{ar ? 'مسير شهر (YYYY-MM)' : 'Run month'}</span>
               <input value={runPeriod} onChange={(e) => setRunPeriod(e.target.value)}
