@@ -24,6 +24,8 @@ const CreateSupplierSchema = z.object({
   paymentTerms: z.string().max(120).optional().nullable(),
   /** آيبان المورد — where the money actually goes */
   bankIban: z.string().max(40).optional().nullable(),
+  /** مجال العمل (اسمنت، رمل، قطع غيار …) — أساس مقارنة الأسعار */
+  category: z.string().max(60).optional().nullable(),
   address: z.string().optional().nullable(),
   notes: z.string().optional().nullable(),
 });

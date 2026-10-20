@@ -28,6 +28,8 @@ export interface CreateSupplierInput {
   crNumber?: string | null;
   paymentTerms?: string | null;
   bankIban?: string | null;
+  /** مجال العمل — اسمنت، رمل، قطع غيار … */
+  category?: string | null;
   address?: string | null;
   notes?: string | null;
 }
@@ -42,6 +44,7 @@ export interface UpdateSupplierInput {
   crNumber?: string | null;
   paymentTerms?: string | null;
   bankIban?: string | null;
+  category?: string | null;
   address?: string | null;
   notes?: string | null;
   isActive?: boolean;
@@ -161,6 +164,7 @@ export async function createSupplier(tenantId: string, createdById: string, inpu
       crNumber: input.crNumber ?? null,
       paymentTerms: input.paymentTerms ?? null,
       bankIban: input.bankIban ?? null,
+      category: input.category ?? null,
       address: input.address ?? null,
       notes: input.notes ?? null,
       createdById,
@@ -193,6 +197,7 @@ export async function updateSupplier(tenantId: string, supplierId: string, input
   if (input.crNumber !== undefined) patch.crNumber = input.crNumber;
   if (input.paymentTerms !== undefined) patch.paymentTerms = input.paymentTerms;
   if (input.bankIban !== undefined) patch.bankIban = input.bankIban;
+  if (input.category !== undefined) patch.category = input.category;
   if (input.address !== undefined) patch.address = input.address;
   if (input.notes !== undefined) patch.notes = input.notes;
   if (input.isActive !== undefined) patch.isActive = input.isActive;
@@ -297,6 +302,7 @@ export async function listPurchaseOrders(tenantId: string) {
   }
   const paysByPo = new Map<string, typeof payments>();
   for (const p of payments) {
+    if (!p.purchaseOrderId) continue; // invoice-targeted payments never match this query
     const list = paysByPo.get(p.purchaseOrderId) ?? [];
     list.push(p);
     paysByPo.set(p.purchaseOrderId, list);

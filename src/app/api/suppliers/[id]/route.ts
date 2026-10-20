@@ -30,6 +30,8 @@ const UpdateSupplierSchema = z.object({
   crNumber: z.string().max(32).nullable().optional(),
   paymentTerms: z.string().max(120).nullable().optional(),
   bankIban: z.string().max(40).nullable().optional(),
+  /** مجال العمل — أساس مقارنة الموردين بعضهم بعضاً */
+  category: z.string().max(60).nullable().optional(),
   address: z.string().nullable().optional(),
   notes: z.string().nullable().optional(),
   isActive: z.boolean().optional(),

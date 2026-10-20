@@ -1458,6 +1458,127 @@ export const salaries = pgTable(
   ]
 );
 
+export const miscExpenseKindEnum = pgEnum("misc_expense_kind", [
+  "employee_fuel",     // بنزين الموظفين
+  "employee_car_rent", // إيجار سيارات الموظفين
+  "employee_housing",  // سكن الموظفين
+]);
+
+/**
+ * miscExpenses — قسم «نثريات»: بنزين الموظفين / إيجار سياراتهم / سكنهم.
+ * month-scoped cash outflows that auto-link a ledger entry (like `expenses`).
+ * employee_name is a snapshot so history survives an employee rename/removal.
+ */
+export const miscExpenses = pgTable(
+  "misc_expenses",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    kind: miscExpenseKindEnum("kind").notNull(),
+    employeeId: uuid("employee_id").references(() => payrollEmployees.id, {
+      onDelete: "set null",
+    }),
+    employeeName: varchar("employee_name", { length: 120 }),
+    /** First day of the covered month */
+    periodMonth: date("period_month").notNull(),
+    /** Amount in SAR cents */
+    amountSar: integer("amount_sar").notNull(),
+    paymentDate: date("payment_date").notNull(),
+    paymentMethod: expensePaymentMethodEnum("payment_method").notNull().default("cash"),
+    notes: text("notes"),
+    referenceNumber: varchar("reference_number", { length: 100 }),
+    ledgerEntryId: uuid("ledger_entry_id").references(() => ledgerEntries.id, {
+      onDelete: "set null",
+    }),
+    createdById: uuid("created_by_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("idx_misc_expenses_tenant").on(t.tenantId),
+    index("idx_misc_expenses_period").on(t.tenantId, t.periodMonth),
+    index("idx_misc_expenses_kind").on(t.tenantId, t.kind),
+    index("idx_misc_expenses_employee").on(t.employeeId),
+  ]
+);
+
+export const depreciationSourceEnum = pgEnum("depreciation_source", ["vehicle", "equipment"]);
+
+/**
+ * depreciationAssets — قسم «اهلاك معدات»: أصل واحد لكل مركبة/معدات،
+ * سعر شراء + تاريخ + معدل إهلاك سنوي (خطي). التشغيل الشهري يكتب في
+ * `depreciationEntries` (فريد لكل شهر ⇒ تشغيل مكرر لا يكرر القيد).
+ */
+export const depreciationAssets = pgTable(
+  "depreciation_assets",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    source: depreciationSourceEnum("source").notNull().default("vehicle"),
+    vehicleId: uuid("vehicle_id").references(() => fleetVehicles.id, {
+      onDelete: "restrict",
+    }),
+    equipmentId: uuid("equipment_id").references(() => equipment.id, {
+      onDelete: "restrict",
+    }),
+    /** plate/code snapshot for display history */
+    assetLabel: varchar("asset_label", { length: 120 }).notNull(),
+    /** SAR cents */
+    purchaseCostSar: integer("purchase_cost_sar").notNull(),
+    purchaseDate: date("purchase_date"),
+    /** 25.00 = 25% per year, straight line */
+    annualRatePct: decimal("annual_rate_pct", { precision: 5, scale: 2 }).notNull(),
+    /** SAR cents */
+    salvageValueSar: integer("salvage_value_sar").notNull().default(0),
+    isActive: boolean("is_active").notNull().default(true),
+    notes: text("notes"),
+    createdById: uuid("created_by_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("idx_dep_assets_tenant").on(t.tenantId),
+    uniqueIndex("uq_dep_assets_vehicle").on(t.tenantId, t.vehicleId).where(sql`${t.vehicleId} is not null`),
+    uniqueIndex("uq_dep_assets_equipment").on(t.tenantId, t.equipmentId).where(sql`${t.equipmentId} is not null`),
+  ]
+);
+
+/** One row per depreciated month per asset — the ledger posting trail. */
+export const depreciationEntries = pgTable(
+  "depreciation_entries",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    assetId: uuid("asset_id")
+      .notNull()
+      .references(() => depreciationAssets.id, { onDelete: "cascade" }),
+    /** First day of the depreciated month */
+    periodMonth: date("period_month").notNull(),
+    /** SAR cents */
+    amountSar: integer("amount_sar").notNull(),
+    ledgerEntryId: uuid("ledger_entry_id").references(() => ledgerEntries.id, {
+      onDelete: "set null",
+    }),
+    createdById: uuid("created_by_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("uq_dep_entries_period").on(t.tenantId, t.assetId, t.periodMonth),
+    index("idx_dep_entries_period_tenant").on(t.tenantId, t.periodMonth),
+  ]
+);
+
 export const supplierPaymentModeEnum = pgEnum("supplier_payment_mode", [
   "CASH",
   "CHEQUE",
@@ -1497,6 +1618,8 @@ export const suppliers = pgTable(
     paymentTerms: varchar("payment_terms", { length: 120 }),
     /** IBAN — حساب المورد؛ يُستهدف عند التحويل ويُطبع في أمر الشراء */
     bankIban: varchar("bank_iban", { length: 40 }),
+    /** مجال العمل — اسمنت، رمل، قطع غيار … (يُستخدم في مقارنة الأسعار) */
+    category: varchar("category", { length: 60 }),
     address: text("address"),
     notes: text("notes"),
     isActive: boolean("is_active").notNull().default(true),
@@ -1586,8 +1709,16 @@ export const purchaseOrderItems = pgTable(
   ]
 );
 
+export const supplierInvoiceStatusEnum = pgEnum("supplier_invoice_status", [
+  "OPEN",
+  "PARTIAL",
+  "PAID",
+  "CANCELLED",
+]);
+
 /**
- * supplierPayments — Payments made to suppliers against POs.
+ * supplierPayments — Payments made to suppliers against POs or invoices.
+ * purchase_order_id XOR invoice_id (see sp_target_check in 0065).
  * Auto-links a ledger entry (transaction_type = purchase).
  */
 export const supplierPayments = pgTable(
@@ -1600,9 +1731,13 @@ export const supplierPayments = pgTable(
     supplierId: uuid("supplier_id")
       .notNull()
       .references(() => suppliers.id, { onDelete: "restrict" }),
-    purchaseOrderId: uuid("purchase_order_id")
-      .notNull()
-      .references(() => purchaseOrders.id, { onDelete: "cascade" }),
+    purchaseOrderId: uuid("purchase_order_id").references(() => purchaseOrders.id, {
+      onDelete: "cascade",
+    }),
+    /** Optional target instead of a PO — a direct invoice payment */
+    invoiceId: uuid("invoice_id").references(() => supplierInvoices.id, {
+      onDelete: "restrict",
+    }),
     amountSar: integer("amount_sar").notNull(),
     paymentMode: supplierPaymentModeEnum("payment_mode").notNull().default("BANK"),
     paymentDate: date("payment_date").notNull(),
@@ -1621,6 +1756,53 @@ export const supplierPayments = pgTable(
     index("idx_supplier_payments_tenant").on(t.tenantId),
     index("idx_supplier_payments_supplier").on(t.supplierId),
     index("idx_supplier_payments_po").on(t.purchaseOrderId),
+    index("idx_supplier_payments_invoice").on(t.invoiceId),
+  ]
+);
+
+/**
+ * supplierInvoices — فواتير المورد (فاتورة مشتريات تصدر للمورد في أي وقت).
+ * purchase_order_id اختياري: فاتورة مرتبطة بأمر شراء تُحتسب مرة واحدة فقط
+ * في كشف الحساب (أمر الشراء المستلم المرتبط بها يُستبعد من المدين).
+ * paid_amount_sar يُحدَّث مع كل سداد، والحالة مشتقة: OPEN/PARTIAL/PAID.
+ */
+export const supplierInvoices = pgTable(
+  "supplier_invoices",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    /** SINV-2026-00001 — unique per tenant */
+    invoiceNumber: varchar("invoice_number", { length: 30 }).notNull(),
+    supplierId: uuid("supplier_id")
+      .notNull()
+      .references(() => suppliers.id, { onDelete: "restrict" }),
+    purchaseOrderId: uuid("purchase_order_id").references(() => purchaseOrders.id, {
+      onDelete: "set null",
+    }),
+    invoiceDate: date("invoice_date").notNull(),
+    dueDate: date("due_date"),
+    /** SAR cents */
+    subtotalSar: integer("subtotal_sar").notNull().default(0),
+    vatPercent: integer("vat_percent").notNull().default(15),
+    vatAmountSar: integer("vat_amount_sar").notNull().default(0),
+    totalAmountSar: integer("total_amount_sar").notNull().default(0),
+    paidAmountSar: integer("paid_amount_sar").notNull().default(0),
+    status: supplierInvoiceStatusEnum("status").notNull().default("OPEN"),
+    description: text("description"),
+    notes: text("notes"),
+    createdById: uuid("created_by_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("uq_supplier_invoices_number").on(t.tenantId, t.invoiceNumber),
+    index("idx_supplier_invoices_supplier").on(t.supplierId),
+    index("idx_supplier_invoices_tenant").on(t.tenantId),
+    index("idx_supplier_invoices_po").on(t.purchaseOrderId),
   ]
 );
 
