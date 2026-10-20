@@ -13,10 +13,27 @@ import ErpCommitments from '../components/ErpCommitments';
 import ErpExpenses from '../components/ErpExpenses';
 import PriceAnalysis from '../components/PriceAnalysis';
 import ErpSuppliers from '../components/ErpSuppliers';
+import ErpMiscExpenses from '../components/ErpMiscExpenses';
+import ErpDepreciation from '../components/ErpDepreciation';
 import AccountingIntegration from '../components/AccountingIntegration';
 import DemandForecast from '../components/DemandForecast';
 import { DeviceStatusBadge } from '../components/DeviceHub';
 import { useFinanceDict } from '../i18n/financeDict';
+
+/**
+ * أدوار قسمي «نثريات» و«اهلاك معدات»: الدورات القديمة (sysadmin/accountant/ptown)
+ * + أدوار الحسابات الفعلية في قاعدة البيانات (uppercase) + Owner.
+ */
+const FINANCE_SECTION_ROLES = [
+  'sysadmin', 'accountant', 'ptown', 'owner',
+  'SUPER_ADMIN', 'PLANT_MGR', 'ACCOUNTANT', 'FINANCE', 'CFO',
+];
+
+function SectionGuard({ children }: { children: React.ReactNode }) {
+  const { currentUser } = useAuth();
+  if (!FINANCE_SECTION_ROLES.includes(currentUser?.role || '')) return null;
+  return <>{children}</>;
+}
 
 /* ── Backend shapes (exact fields from route files, no invention) ── */
 
@@ -367,6 +384,12 @@ export default function Finance() {
         {['sysadmin', 'accountant', 'ptown'].includes(currentUser.role || '') && <ErpCommitments />}
         {['sysadmin', 'accountant', 'ptown'].includes(currentUser.role || '') && <ErpExpenses />}
         {['sysadmin', 'accountant', 'ptown'].includes(currentUser.role || '') && <ErpSuppliers />}
+
+        {/* نثريات الموظفين + اهلاك معدات — للأدوار القديمة وأدوار الحسابات الفعلية */}
+        <SectionGuard>
+          <ErpMiscExpenses />
+          <ErpDepreciation />
+        </SectionGuard>
 
         {/* ربط المحاسبة */}
         {['sysadmin', 'accountant', 'ptown'].includes(currentUser.role || '') && (

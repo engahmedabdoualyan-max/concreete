@@ -27,6 +27,8 @@ interface Supplier {
   paymentTerms?: string | null;
   /** آيبان المورد — وجهة التحويل */
   bankIban?: string | null;
+  /** مجال العمل — اسمنت، رمل، قطع غيار … (أساس مقارنة الأسعار) */
+  category?: string | null;
   address: string | null;
   isActive?: boolean;
 }
@@ -98,6 +100,96 @@ interface AgingData {
   totals: { supplierCount: number; balanceSar: number; overdueSar: number; buckets: AgingBuckets };
 }
 
+/** فاتورة مورد — إصدار/سداد/طباعة */
+interface InvoiceSupplier {
+  id: string;
+  invoiceNumber: string;
+  supplierId: string;
+  purchaseOrderId: string | null;
+  invoiceDate: string;
+  dueDate: string | null;
+  subtotalSar: number;
+  vatPercent: number;
+  vatAmountSar: number;
+  totalAmountSar: number;
+  paidAmountSar: number;
+  status: string;
+  description: string | null;
+}
+
+interface InvoiceRow {
+  invoice: InvoiceSupplier;
+  supplierName: string;
+  supplierCategory: string | null;
+  poNumber: string | null;
+}
+
+interface InvoicesData { invoices: InvoiceRow[] }
+
+/** كشف حساب المورد */
+interface StmtMovement {
+  date: string;
+  type: 'INVOICE' | 'PO' | 'PAYMENT';
+  ref: string;
+  description: string;
+  debitSar: number;
+  creditSar: number;
+  balanceSar: number;
+}
+
+interface StatementData {
+  supplier: {
+    id: string; name: string; category: string | null; phone: string;
+    crNumber: string | null; paymentTerms: string | null; bankIban: string | null;
+  };
+  movements: StmtMovement[];
+  openingBalanceSar: number;
+  totalDebitSar: number;
+  totalCreditSar: number;
+  balanceSar: number;
+  from: string | null;
+  to: string | null;
+}
+
+/** مقارنة الأسعار — ذكاء الموردين */
+interface PriceRow {
+  supplierId: string;
+  supplierName: string;
+  supplierCategory: string | null;
+  purchaseCount: number;
+  totalQtyKg: number;
+  totalSar: number;
+  latestRateSar: number | null;
+  avgRateSar: number | null;
+  minRateSar: number | null;
+  maxRateSar: number | null;
+  lastDate: string | null;
+  priority: number;
+  diffPctBest: number | null;
+  isFocusSupplier: boolean;
+}
+
+interface PriceMaterial { materialCategory: string; supplierCount: number; bestRateSar: number | null; rows: PriceRow[] }
+
+interface PriceProfile {
+  supplierId: string;
+  supplierName: string;
+  supplierCategory: string | null;
+  materialsCount: number;
+  bestCount: number;
+  avgDiffPct: number | null;
+  totalSar: number;
+  priorityRank: number;
+  isFocusSupplier: boolean;
+}
+
+interface PriceData {
+  materials: PriceMaterial[];
+  supplierProfile: PriceProfile[];
+  categories: string[];
+  focusSupplierId: string | null;
+}
+
 const CAT_LABEL: Record<string, string> = {
   CEMENT: 'catCement', SAND: 'catSand', GRAVEL_10MM: 'catGravel10', GRAVEL_20MM: 'catGravel20',
   GRAVEL_40MM: 'catGravel40', WATER: 'catWater', ADMIXTURE_PLASTICIZER: 'catPlasticizer',
@@ -118,11 +210,37 @@ const PAY_MODE_LABEL: Record<string, string> = {
   CASH: 'payModeCash', CHEQUE: 'payModeCheque', BANK: 'payModeBank', CREDIT: 'payModeCredit', UPI: 'payModeUpi', OTHER: 'payModeOther',
 };
 
+/** حالات فاتورة المورد */
+const INV_STATUS_LABEL: Record<string, string> = {
+  OPEN: 'invStatusOpen', PARTIAL: 'invStatusPartial', PAID: 'invStatusPaid', CANCELLED: 'invStatusCancelled',
+};
+
+const INV_STATUS_CLASS: Record<string, string> = {
+  OPEN: 'bg-red-500/20 text-red-300',
+  PARTIAL: 'bg-yellow-500/20 text-yellow-200',
+  PAID: 'bg-emerald-500/20 text-emerald-300',
+  CANCELLED: 'bg-white/10 text-slate-400',
+};
+
+const STMT_TYPE_LABEL: Record<string, string> = {
+  INVOICE: 'stmtTypeInvoice', PO: 'stmtTypePo', PAYMENT: 'stmtTypePayment',
+};
+
+const STMT_TYPE_EMOJI: Record<string, string> = { INVOICE: '🧾', PO: '📦', PAYMENT: '💵' };
+
+/** اقتراحات مجالات العمل (السجل القديم) — حقل حر، القائمة للتسهيل فقط */
+const SUP_CATEGORY_SUGGESTIONS = [
+  'اسمنت', 'رمل', 'بحص', 'بلك ومنتجات أسمنتية', 'حديد', 'إضافات خرسانة',
+  'نقل وناقلات', 'معدات وإيجارات', 'قطع غيار', 'ورش وصيانة', 'محروقات',
+  'مقاولات', 'كهرباء ومياه', 'تقنية معلومات', 'خدمات', 'مطاعم', 'متنوع',
+];
+
 const fmtSar = (n: number) => (Number(n) / 100).toLocaleString('en-US', { maximumFractionDigits: 2 });
+const fmtRate = (n: number | null) => (n === null ? '—' : (n / 100).toLocaleString('en-US', { maximumFractionDigits: 4 }));
 
 const EMPTY_SUP_FORM = {
   name: '', contactPerson: '', phone: '', email: '', vatNumber: '',
-  crNumber: '', paymentTerms: '', bankIban: '', address: '',
+  crNumber: '', paymentTerms: '', bankIban: '', category: '', address: '',
 };
 
 /** null instead of '' — the API validates '' as a malformed email */
@@ -134,11 +252,14 @@ export default function ErpSuppliers() {
   const statusLabel = (k: string) => t(STATUS_LABEL[k] ?? k);
   const payStatusLabel = (k: string) => t(PAY_STATUS_LABEL[k] ?? k);
   const payModeLabel = (k: string) => t(PAY_MODE_LABEL[k] ?? k);
-  const [tab, setTab] = useState<'suppliers' | 'pos' | 'aging'>('suppliers');
+  const [tab, setTab] = useState<'suppliers' | 'pos' | 'aging' | 'invoices' | 'statement' | 'prices'>('suppliers');
   const [supData, setSupData] = useState<SuppliersData | null>(null);
   const [poData, setPoData] = useState<POsData | null>(null);
   const [agingData, setAgingData] = useState<AgingData | null>(null);
-  /** non-null while editing a supplier — the add-form doubles as the edit-form */
+  const [invData, setInvData] = useState<InvoicesData | null>(null);
+  const [stmtData, setStmtData] = useState<StatementData | null>(null);
+  const [priceData, setPriceData] = useState<PriceData | null>(null);
+  /** غير فارغ أثناء تعديل مورد — نفس نموذج الإضافة يعمل كنموذج تعديل */
   const [editFor, setEditFor] = useState<Supplier | null>(null);
   const [silos, setSilos] = useState<Silo[]>([]);
   const [error, setError] = useState('');
@@ -150,6 +271,29 @@ export default function ErpSuppliers() {
   const [poForm, setPoForm] = useState({ supplierId: '', purchaseDate: new Date().toISOString().slice(0, 10), vatPercent: '15', transportCostSar: '', notes: '', items: [] as { siloId: string; materialName: string; quantityKg: string; ratePerKgSar: string }[] });
   const [payForm, setPayForm] = useState({ amountSar: '', paymentDate: new Date().toISOString().slice(0, 10), paymentMode: 'BANK', referenceNumber: '' });
 
+  /* ── الموردون: فلتر مجال العمل ── */
+  const [fieldFilter, setFieldFilter] = useState('');
+
+  /* ── الفواتير ── */
+  const [showNewInv, setShowNewInv] = useState(false);
+  const [invForm, setInvForm] = useState({
+    supplierId: '', invoiceDate: new Date().toISOString().slice(0, 10), dueDate: '',
+    subtotalSar: '', vatPercent: '15', totalAmountSar: '', description: '', purchaseOrderId: '',
+  });
+  const [invPayFor, setInvPayFor] = useState<InvoiceSupplier | null>(null);
+  const [invPayForm, setInvPayForm] = useState({ amountSar: '', paymentDate: new Date().toISOString().slice(0, 10), paymentMode: 'BANK', referenceNumber: '' });
+
+  /* ── كشف الحساب ── */
+  const [stmtSupplierId, setStmtSupplierId] = useState('');
+  const [stmtFrom, setStmtFrom] = useState('');
+  const [stmtTo, setStmtTo] = useState('');
+  const [stmtLoaded, setStmtLoaded] = useState(false);
+
+  /* ── مقارنة الأسعار ── */
+  const [priceMaterial, setPriceMaterial] = useState('');
+  const [priceField, setPriceField] = useState('');
+  const [priceFocusId, setPriceFocusId] = useState('');
+
   const loadAll = () => {
     setError('');
     // includeInactive=1 so a retired supplier can be brought back — the
@@ -157,7 +301,20 @@ export default function ErpSuppliers() {
     api.get<SuppliersData>('/api/suppliers?includeInactive=1').then(setSupData).catch((e: any) => setError(e?.message || t('errLoadSuppliers')));
     api.get<POsData>('/api/suppliers/purchase-orders').then(setPoData).catch((e: any) => setError(e?.message || t('errLoadPOs')));
     api.get<AgingData>('/api/suppliers/aging').then(setAgingData).catch(() => { /* aging is additive */ });
+    api.get<InvoicesData>('/api/suppliers/invoices').then(setInvData).catch(() => { /* invoices are additive */ });
     api.get<InventoryData>('/api/inventory').then(d => setSilos(d.silos.map(s => ({ id: s.id, siloName: s.siloName, siloCode: s.siloCode, materialCategory: s.materialCategory })))).catch(() => {});
+  };
+
+  /** ذكاء الأسعار — يُعاد تحميله عند تغيير الفلاتر فقط */
+  const loadPrices = (opts: { material?: string; field?: string; focus?: string } = {}) => {
+    const sp = new URLSearchParams();
+    if (opts.material) sp.set('materialCategory', opts.material);
+    if (opts.field) sp.set('category', opts.field);
+    if (opts.focus) sp.set('supplierId', opts.focus);
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- user-triggered fetch
+    api.get<PriceData>(`/api/suppliers/price-comparison?${sp.toString()}`)
+      .then(setPriceData)
+      .catch((e: any) => setError(e?.message || t('errLoad')));
   };
 
   // eslint-disable-next-line react-hooks/set-state-in-effect -- initial data fetch
@@ -174,6 +331,7 @@ export default function ErpSuppliers() {
       crNumber: sup.crNumber ?? '',
       paymentTerms: sup.paymentTerms ?? '',
       bankIban: sup.bankIban ?? '',
+      category: sup.category ?? '',
       address: sup.address ?? '',
     });
     setShowAdd(true);
@@ -198,6 +356,7 @@ export default function ErpSuppliers() {
       crNumber: nullable(supForm.crNumber),
       paymentTerms: nullable(supForm.paymentTerms),
       bankIban: nullable(supForm.bankIban),
+      category: nullable(supForm.category),
       address: nullable(supForm.address),
     };
     try {
@@ -314,6 +473,174 @@ export default function ErpSuppliers() {
   const s = supData?.summary;
   const tenant = useTenant();
 
+  /* ══════════════════════════════════════════════════════════════
+     فواتير المورد — إصدار / سداد / إلغاء
+     ══════════════════════════════════════════════════════════════ */
+
+  const openInvoiceForm = (supplierId?: string, po?: PO) => {
+    const total = po ? po.totalAmountSar : 0;
+    const vat = po ? po.vatPercent : 15;
+    const sub = po ? po.subtotalSar + po.transportCostSar : 0;
+    setInvForm({
+      supplierId: supplierId ?? '',
+      invoiceDate: new Date().toISOString().slice(0, 10),
+      dueDate: po?.dueDate ? po.dueDate.slice(0, 10) : '',
+      subtotalSar: sub ? String(sub / 100) : '',
+      vatPercent: String(vat ?? 15),
+      totalAmountSar: total ? String(total / 100) : '',
+      description: po ? `${t('stmtTypePo')} ${po.poNumber}` : '',
+      purchaseOrderId: po?.id ?? '',
+    });
+    setShowNewInv(true);
+    setTab('invoices');
+  };
+
+  /** الإجمالي يُحسب تلقائياً: المبلغ قبل الضريبة + النسبة */
+  const recalcInvoiceTotal = (subtotalSar: string, vatPercent: string) => {
+    const sub = Number(subtotalSar) || 0;
+    const vat = Number(vatPercent) || 0;
+    return (sub * (1 + vat / 100)).toFixed(2);
+  };
+
+  const createInvoice = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    setError('');
+    try {
+      const sub = Math.round((Number(invForm.subtotalSar) || 0) * 100);
+      const total = Math.round((Number(invForm.totalAmountSar) || 0) * 100);
+      await api.post('/api/suppliers/invoices', {
+        supplierId: invForm.supplierId,
+        invoiceDate: new Date(invForm.invoiceDate).toISOString(),
+        dueDate: invForm.dueDate ? new Date(invForm.dueDate).toISOString() : null,
+        subtotalSar: sub,
+        vatPercent: Number(invForm.vatPercent) || 0,
+        totalAmountSar: total,
+        description: invForm.description || null,
+        purchaseOrderId: invForm.purchaseOrderId || null,
+      });
+      setShowNewInv(false);
+      setInvForm({ supplierId: '', invoiceDate: new Date().toISOString().slice(0, 10), dueDate: '', subtotalSar: '', vatPercent: '15', totalAmountSar: '', description: '', purchaseOrderId: '' });
+      loadAll();
+    } catch (err: any) {
+      setError(err?.message || t('errSave'));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const recordInvoicePayment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!invPayFor) return;
+    setBusy(true);
+    setError('');
+    try {
+      await api.post(`/api/suppliers/invoices/${invPayFor.id}/pay`, {
+        amountSar: Math.round((Number(invPayForm.amountSar) || 0) * 100),
+        paymentDate: new Date(invPayForm.paymentDate).toISOString(),
+        paymentMode: invPayForm.paymentMode,
+        referenceNumber: invPayForm.referenceNumber || null,
+      });
+      setInvPayFor(null);
+      loadAll();
+    } catch (err: any) {
+      setError(err?.message || t('errRecordPayment'));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const cancelInvoice = async (inv: InvoiceSupplier) => {
+    if (!window.confirm(t('invCancelConfirm'))) return;
+    setBusy(true);
+    setError('');
+    try {
+      await api.put(`/api/suppliers/invoices/${inv.id}`, { status: 'CANCELLED' });
+      loadAll();
+    } catch (err: any) {
+      setError(err?.message || t('errUpdate'));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  /* ══════════════════════════════════════════════════════════════
+     كشف حساب المورد
+     ══════════════════════════════════════════════════════════════ */
+
+  const loadStatement = () => {
+    if (!stmtSupplierId) return;
+    setError('');
+    const sp = new URLSearchParams();
+    if (stmtFrom) sp.set('from', stmtFrom);
+    if (stmtTo) sp.set('to', stmtTo);
+    api.get<StatementData>(`/api/suppliers/${stmtSupplierId}/statement?${sp.toString()}`)
+      .then(d => { setStmtData(d); setStmtLoaded(true); })
+      .catch((e: any) => setError(e?.message || t('errLoad')));
+  };
+
+  /** طباعة كشف الحساب — A4 مع ترويسة الشركة والحركات والرصيد الختامي */
+  const printStatement = () => {
+    if (!stmtData) return;
+    const esc = (v: unknown) =>
+      String(v ?? '—').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c] as string);
+    const rows = stmtData.movements.map(m =>
+      `<tr><td>${new Date(`${m.date.slice(0, 10)}T00:00:00`).toLocaleDateString('ar-EG')}</td><td>${STMT_TYPE_EMOJI[m.type] ?? ''} ${esc(m.ref)}</td><td>${esc(m.description)}</td><td>${m.debitSar ? fmtSar(m.debitSar) : '—'}</td><td>${m.creditSar ? fmtSar(m.creditSar) : '—'}</td><td>${fmtSar(m.balanceSar)}</td></tr>`
+    ).join('');
+    const logo = tenant?.logoUrl ? `<img src="${tenant.logoUrl}" style="height:54px;object-fit:contain;" />` : '';
+    const w = window.open('', '_blank', 'width=1000,height=760');
+    if (!w) return;
+    w.document.write(`<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>${esc(stmtData.supplier.name)}</title>
+    <style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:'Segoe UI',Tahoma;padding:28px;color:#111}.head{display:flex;align-items:center;gap:14px;margin-bottom:6px}h1{font-size:21px}.sub{font-size:12px;color:#555;margin-bottom:14px}table{width:100%;border-collapse:collapse;font-size:12px;margin:8px 0}th{background:#0f172a;color:#fff;padding:6px 8px;text-align:right}td{padding:5px 8px;border-bottom:1px solid #ddd}.tot{font-weight:800}.foot{margin-top:18px;font-size:11px;color:#555;display:flex;gap:40px}.sig{border-top:1px solid #999;padding-top:4px;min-width:150px;text-align:center}@media print{body{padding:10mm}}</style></head><body>
+    <div class="head">${logo}<div><div style="font-size:18px;font-weight:800;">${esc(tenant?.companyName ?? '')}</div><h1>كشف حساب مورد — ${esc(stmtData.supplier.name)}</h1></div></div>
+    <div class="sub">${stmtData.from ? `من: ${new Date(`${stmtData.from}T00:00:00`).toLocaleDateString('ar-EG')} ` : ''}${stmtData.to ? `· إلى: ${new Date(`${stmtData.to}T00:00:00`).toLocaleDateString('ar-EG')}` : ''}${!stmtData.from && !stmtData.to ? 'كل الفترات' : ''} · تاريخ الطباعة: ${new Date().toLocaleDateString('ar-EG')}</div>
+    <table><tr><th>المورد</th><td>${esc(stmtData.supplier.name)}</td><th>مجال العمل</th><td>${esc(stmtData.supplier.category ?? '—')}</td></tr>
+    <tr><th>السجل التجاري</th><td>${esc(stmtData.supplier.crNumber ?? '—')}</td><th>الهاتف</th><td>${esc(stmtData.supplier.phone)}</td></tr>
+    <tr><th>شروط الدفع</th><td>${esc(stmtData.supplier.paymentTerms ?? '—')}</td><th>الآيبان</th><td>${esc(stmtData.supplier.bankIban ?? '—')}</td></tr></table>
+    <table><thead><tr><th>التاريخ</th><th>المرجع</th><th>البيان</th><th>مدين (ر.س)</th><th>دائن (ر.س)</th><th>الرصيد (ر.س)</th></tr></thead><tbody>
+    ${stmtData.openingBalanceSar ? `<tr><td colspan="5" class="tot">رصيد افتتاحي</td><td class="tot">${fmtSar(stmtData.openingBalanceSar)}</td></tr>` : ''}
+    ${rows || '<tr><td colspan="6">—</td></tr>'}
+    <tr><td colspan="3" class="tot">إجمالي الحركة</td><td class="tot">${fmtSar(stmtData.totalDebitSar)}</td><td class="tot">${fmtSar(stmtData.totalCreditSar)}</td><td class="tot">${fmtSar(stmtData.balanceSar)} ر.س</td></tr>
+    </tbody></table>
+    <div class="foot"><div class="sig">المحاسب</div><div class="sig">مدير المشتريات</div><div class="sig">المورد</div></div>
+    <script>window.onload=()=>setTimeout(()=>window.print(),400);<\/script></body></html>`);
+    w.document.close();
+  };
+
+  /* ══════════════════════════════════════════════════════════════
+     طباعة فاتورة المورد — A4
+     ══════════════════════════════════════════════════════════════ */
+
+  const printInvoice = (inv: InvoiceSupplier, supplierName: string) => {
+    const esc = (v: unknown) =>
+      String(v ?? '—').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c] as string);
+    const sup = (supData?.suppliers ?? []).find(x => x.id === inv.supplierId);
+    const logo = tenant?.logoUrl ? `<img src="${tenant.logoUrl}" style="height:54px;object-fit:contain;" />` : '';
+    const w = window.open('', '_blank', 'width=900,height=700');
+    if (!w) return;
+    w.document.write(`<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>${esc(inv.invoiceNumber)}</title>
+    <style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:'Segoe UI',Tahoma;padding:28px;color:#111}.head{display:flex;align-items:center;gap:14px;margin-bottom:6px}h1{font-size:22px}.sub{font-size:12px;color:#555;margin-bottom:14px}table{width:100%;border-collapse:collapse;font-size:12px;margin:10px 0}th{background:#0f172a;color:#fff;padding:6px 8px;text-align:right}td{padding:6px 8px;border-bottom:1px solid #ddd}.foot{margin-top:18px;font-size:11px;color:#555;display:flex;gap:40px}.sig{border-top:1px solid #999;padding-top:4px;min-width:140px;text-align:center}@media print{body{padding:10mm}}</style></head><body>
+    <div class="head">${logo}<div><div style="font-size:18px;font-weight:800;">${esc(tenant?.companyName ?? '')}</div><h1>فاتورة مشتريات — ${esc(inv.invoiceNumber)}</h1></div></div>
+    <div class="sub">التاريخ: ${new Date(`${inv.invoiceDate.slice(0, 10)}T00:00:00`).toLocaleDateString('ar-EG')}${inv.dueDate ? ` · الاستحقاق: ${new Date(`${inv.dueDate.slice(0, 10)}T00:00:00`).toLocaleDateString('ar-EG')}` : ''} · الحالة: ${esc(t(INV_STATUS_LABEL[inv.status] ?? inv.status))}</div>
+    <h2 style="font-size:15px;margin:12px 0 4px;">المورد</h2>
+    <table>
+    <tr><th>الاسم</th><td colspan="3">${esc(sup?.name ?? supplierName)}</td></tr>
+    <tr><th>مجال العمل</th><td>${esc(sup?.category ?? '—')}</td><th>الرقم الضريبي</th><td>${esc(sup?.vatNumber ?? '—')}</td></tr>
+    <tr><th>السجل التجاري</th><td>${esc(sup?.crNumber ?? '—')}</td><th>الهاتف</th><td>${esc(sup?.phone ?? '—')}</td></tr>
+    <tr><th>شروط الدفع</th><td>${esc(sup?.paymentTerms ?? '—')}</td><th>الآيبان</th><td>${esc(sup?.bankIban ?? '—')}</td></tr>
+    </table>
+    ${inv.description ? `<h2 style="font-size:15px;margin:12px 0 4px;">البيان</h2><table><tr><td>${esc(inv.description)}</td></tr></table>` : ''}
+    <h2 style="font-size:15px;margin:12px 0 4px;">المبالغ</h2>
+    <table>
+    <tr><th>المبلغ قبل الضريبة</th><td>${fmtSar(inv.subtotalSar)}</td><th>ضريبة ${esc(inv.vatPercent)}%</th><td>${fmtSar(inv.vatAmountSar)}</td></tr>
+    <tr><th>الإجمالي شامل الضريبة</th><td colspan="3"><b>${fmtSar(inv.totalAmountSar)} ر.س</b></td></tr>
+    <tr><th>المسدَّد</th><td>${fmtSar(inv.paidAmountSar)}</td><th>المتبقي</th><td>${fmtSar(inv.totalAmountSar - inv.paidAmountSar)} ر.س</td></tr>
+    </table>
+    <div class="foot"><div class="sig">المورد</div><div class="sig">مدير المشتريات</div><div class="sig">المحاسب</div></div>
+    <script>window.onload=()=>setTimeout(()=>window.print(),400);<\/script></body></html>`);
+    w.document.close();
+  };
+
   /** طباعة أمر الشراء — ورقة A4 بالهوية الكاملة للمورد + البنود + الإجماليات */
   const printPO = (po: PO) => {
     const sup = (supData?.suppliers ?? []).find(x => x.id === po.supplierId);
@@ -370,8 +697,22 @@ export default function ErpSuppliers() {
         </h3>
         <div className="flex gap-2">
           <ExportButtons
-            filename={tab === 'aging' ? t('fileNameAging') : tab === 'suppliers' ? t('fileNameSuppliers') : t('fileNamePOs')}
-            title={tab === 'aging' ? t('agingExportTitle') : tab === 'suppliers' ? t('suppliersExportTitle') : t('posExportTitle')}
+            filename={
+              tab === 'aging' ? t('fileNameAging')
+                : tab === 'suppliers' ? t('fileNameSuppliers')
+                  : tab === 'invoices' ? t('fileNameInvoices')
+                    : tab === 'statement' ? t('fileNameStatement')
+                      : tab === 'prices' ? t('fileNamePrices')
+                        : t('fileNamePOs')
+            }
+            title={
+              tab === 'aging' ? t('agingExportTitle')
+                : tab === 'suppliers' ? t('suppliersExportTitle')
+                  : tab === 'invoices' ? t('invoicesExportTitle')
+                    : tab === 'statement' ? t('statementExportTitle')
+                      : tab === 'prices' ? t('pricesExportTitle')
+                        : t('posExportTitle')
+            }
             columns={
               tab === 'aging'
                 ? [
@@ -388,10 +729,42 @@ export default function ErpSuppliers() {
                 : tab === 'suppliers'
                 ? [
                     { header: t('exportColSupplierName'), key: 'name' },
+                    { header: t('supCategory'), key: 'category' },
                     { header: t('exportColContact'), key: 'contact' },
                     { header: t('exportColVat'), key: 'vat' },
                     { header: t('exportColPhone'), key: 'phone' },
                     { header: t('exportColAddress'), key: 'address' },
+                  ]
+                : tab === 'invoices'
+                ? [
+                    { header: t('invNo'), key: 'no' },
+                    { header: t('exportColSupplier'), key: 'supplier' },
+                    { header: t('supCategory'), key: 'category' },
+                    { header: t('invInvoiceDate'), key: 'date' },
+                    { header: t('total'), key: 'total' },
+                    { header: t('paid'), key: 'paid' },
+                    { header: t('status'), key: 'status' },
+                  ]
+                : tab === 'statement'
+                ? [
+                    { header: t('date'), key: 'date' },
+                    { header: t('type'), key: 'type' },
+                    { header: t('invNo'), key: 'ref' },
+                    { header: t('description'), key: 'desc' },
+                    { header: t('exportColDebit'), key: 'debit' },
+                    { header: t('exportColCredit'), key: 'credit' },
+                    { header: t('exportColBalance'), key: 'balance' },
+                  ]
+                : tab === 'prices'
+                ? [
+                    { header: t('priceMaterial'), key: 'material' },
+                    { header: t('priceRank'), key: 'rank' },
+                    { header: t('exportColSupplier'), key: 'supplier' },
+                    { header: t('supCategory'), key: 'category' },
+                    { header: t('priceLastPrice'), key: 'latest' },
+                    { header: t('priceAvg'), key: 'avg' },
+                    { header: t('pricePurchases'), key: 'pos' },
+                    { header: t('priceVsBest'), key: 'diff' },
                   ]
                 : [
                     { header: t('exportColPoNo'), key: 'po' },
@@ -418,11 +791,44 @@ export default function ErpSuppliers() {
                 : tab === 'suppliers'
                 ? (supData?.suppliers ?? []).map(x => ({
                     name: x.name,
+                    category: x.category ?? '-',
                     contact: x.contactPerson ?? '-',
                     vat: x.vatNumber ?? '-',
                     phone: x.phone ?? '-',
                     address: x.address ?? '-',
                   }))
+                : tab === 'invoices'
+                ? (invData?.invoices ?? []).map(x => ({
+                    no: x.invoice.invoiceNumber,
+                    supplier: x.supplierName,
+                    category: x.supplierCategory ?? '-',
+                    date: new Date(`${x.invoice.invoiceDate.slice(0, 10)}T00:00:00`).toLocaleDateString(),
+                    total: `${fmtSar(x.invoice.totalAmountSar)} ${t('sar')}`,
+                    paid: `${fmtSar(x.invoice.paidAmountSar)} ${t('sar')}`,
+                    status: t(INV_STATUS_LABEL[x.invoice.status] ?? x.invoice.status),
+                  }))
+                : tab === 'statement'
+                ? (stmtData?.movements ?? []).map(m => ({
+                    date: new Date(`${m.date.slice(0, 10)}T00:00:00`).toLocaleDateString(),
+                    type: t(STMT_TYPE_LABEL[m.type] ?? m.type),
+                    ref: m.ref,
+                    desc: m.description,
+                    debit: m.debitSar ? fmtSar(m.debitSar) : '',
+                    credit: m.creditSar ? fmtSar(m.creditSar) : '',
+                    balance: fmtSar(m.balanceSar),
+                  }))
+                : tab === 'prices'
+                ? (priceData?.materials ?? []).flatMap(g =>
+                    g.rows.map(r => ({
+                      material: catLabel(g.materialCategory),
+                      rank: `#${r.priority}`,
+                      supplier: r.supplierName,
+                      category: r.supplierCategory ?? '-',
+                      latest: fmtRate(r.latestRateSar),
+                      avg: fmtRate(r.avgRateSar),
+                      pos: r.purchaseCount,
+                      diff: r.diffPctBest === null ? '-' : `${r.diffPctBest >= 0 ? '+' : ''}${r.diffPctBest}%`,
+                    })))
                 : (poData?.purchaseOrders ?? []).map(x => ({
                     po: x.poNumber,
                     supplier: x.supplierName,
@@ -433,14 +839,27 @@ export default function ErpSuppliers() {
                   }))
             }
           />
-          <div className="flex bg-white/[0.04] border border-white/10 rounded-lg overflow-hidden">
+          <div className="flex flex-wrap bg-white/[0.04] border border-white/10 rounded-lg overflow-hidden">
             <button onClick={() => setTab('suppliers')} className={`px-3 py-1 text-[11px] font-bold ${tab === 'suppliers' ? 'bg-emerald-500 text-white' : 'text-slate-400'}`}>{t('tabSuppliers')}</button>
             <button onClick={() => setTab('pos')} className={`px-3 py-1 text-[11px] font-bold ${tab === 'pos' ? 'bg-emerald-500 text-white' : 'text-slate-400'}`}>{t('tabPurchaseOrders')}</button>
+            <button onClick={() => setTab('invoices')} className={`px-3 py-1 text-[11px] font-bold ${tab === 'invoices' ? 'bg-emerald-500 text-white' : 'text-slate-400'}`}>{t('tabInvoices')}</button>
+            <button onClick={() => setTab('statement')} className={`px-3 py-1 text-[11px] font-bold ${tab === 'statement' ? 'bg-emerald-500 text-white' : 'text-slate-400'}`}>{t('tabStatement')}</button>
+            <button onClick={() => setTab('prices')} className={`px-3 py-1 text-[11px] font-bold ${tab === 'prices' ? 'bg-sky-500 text-white' : 'text-slate-400'}`}>📊 {t('tabPrices')}</button>
             <button onClick={() => setTab('aging')} className={`px-3 py-1 text-[11px] font-bold ${tab === 'aging' ? 'bg-emerald-500 text-white' : 'text-slate-400'}`}>{t('tabAging')}</button>
           </div>
-          {tab !== 'aging' && (
-            <button onClick={() => { tab === 'suppliers' ? setShowAdd(v => !v) : setShowNewPO(v => !v); }} className="text-[11px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 rounded px-2 py-1 hover:bg-emerald-500/30">
-              {tab === 'suppliers' ? (showAdd ? t('close') : t('addSupplier')) : (showNewPO ? t('close') : t('addPurchaseOrder'))}
+          {tab === 'suppliers' && (
+            <button onClick={() => setShowAdd(v => !v)} className="text-[11px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 rounded px-2 py-1 hover:bg-emerald-500/30">
+              {showAdd ? t('close') : t('addSupplier')}
+            </button>
+          )}
+          {tab === 'pos' && (
+            <button onClick={() => setShowNewPO(v => !v)} className="text-[11px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 rounded px-2 py-1 hover:bg-emerald-500/30">
+              {showNewPO ? t('close') : t('addPurchaseOrder')}
+            </button>
+          )}
+          {tab === 'invoices' && (
+            <button onClick={() => setShowNewInv(v => !v)} className="text-[11px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 rounded px-2 py-1 hover:bg-emerald-500/30">
+              {showNewInv ? t('close') : t('invIssue')}
             </button>
           )}
         </div>
@@ -484,7 +903,11 @@ export default function ErpSuppliers() {
               <input value={supForm.crNumber} onChange={e => setSupForm({ ...supForm, crNumber: e.target.value })} placeholder={t('crNumber')} className="bg-white/[0.04] border border-white/10 rounded px-2 py-1.5 text-white text-xs" />
               <input value={supForm.paymentTerms} onChange={e => setSupForm({ ...supForm, paymentTerms: e.target.value })} placeholder={t('paymentTerms')} className="bg-white/[0.04] border border-white/10 rounded px-2 py-1.5 text-white text-xs" />
               <input value={supForm.bankIban} onChange={e => setSupForm({ ...supForm, bankIban: e.target.value })} placeholder={t('bankIban')} dir="ltr" className="bg-white/[0.04] border border-white/10 rounded px-2 py-1.5 text-white text-xs font-mono" />
-              <input value={supForm.address} onChange={e => setSupForm({ ...supForm, address: e.target.value })} placeholder={t('address')} className="bg-white/[0.04] border border-white/10 rounded px-2 py-1.5 text-white text-xs col-span-2 md:col-span-3" />
+              <input value={supForm.category} onChange={e => setSupForm({ ...supForm, category: e.target.value })} placeholder={t('supCategory')} list="sup-cat-list" className="bg-white/[0.04] border border-white/10 rounded px-2 py-1.5 text-white text-xs" />
+              <datalist id="sup-cat-list">
+                {SUP_CATEGORY_SUGGESTIONS.map(c => <option key={c} value={c} />)}
+              </datalist>
+              <input value={supForm.address} onChange={e => setSupForm({ ...supForm, address: e.target.value })} placeholder={t('address')} className="bg-white/[0.04] border border-white/10 rounded px-2 py-1.5 text-white text-xs col-span-2 md:col-span-2" />
               <div className="col-span-2 md:col-span-1 flex gap-2">
                 <button type="submit" disabled={busy} className="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-1.5 rounded-lg text-xs disabled:opacity-40">{editFor ? t('saveChanges') : t('saveSupplier')}</button>
                 {editFor && (
@@ -495,8 +918,30 @@ export default function ErpSuppliers() {
           )}
 
           {(supData?.suppliers ?? []).length === 0 && <div className="text-xs text-slate-500 text-center py-4">{t('noSuppliers')}</div>}
+
+          {/* فلتر مجال العمل + ملخص الأولوية */}
+          {(supData?.suppliers ?? []).length > 0 && (
+            <div className="flex flex-wrap items-center gap-1.5 mb-3">
+              <span className="text-[10px] text-slate-400">{t('supCategory')}:</span>
+              <button onClick={() => setFieldFilter('')}
+                className={`text-[10px] px-2 py-0.5 rounded border ${fieldFilter === '' ? 'bg-emerald-500/30 text-emerald-200 border-emerald-500/40' : 'border-white/15 text-slate-400 hover:text-white'}`}>
+                {t('supAllFields')}
+              </button>
+              {[...new Set((supData?.suppliers ?? []).map(x => x.category).filter((c): c is string => !!c))].sort().map(c => (
+                <button key={c} onClick={() => setFieldFilter(c)}
+                  className={`text-[10px] px-2 py-0.5 rounded border ${fieldFilter === c ? 'bg-emerald-500/30 text-emerald-200 border-emerald-500/40' : 'border-white/15 text-slate-400 hover:text-white'}`}>
+                  {c}
+                </button>
+              ))}
+            </div>
+          )}
+
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2">
-            {(supData?.suppliers ?? []).map(sup => (
+            {(supData?.suppliers ?? [])
+              .filter(sup => !fieldFilter || sup.category === fieldFilter)
+              .map(sup => {
+                const prof = priceData?.supplierProfile.find(p => p.supplierId === sup.id);
+                return (
               <div key={sup.id} className={`bg-white/[0.03] border rounded-lg p-3 ${sup.isActive === false ? 'border-white/5 opacity-60' : 'border-white/10'}`}>
                 <div className="flex items-start justify-between gap-2">
                   <div className="text-xs font-bold text-white truncate">{sup.name}</div>
@@ -509,14 +954,36 @@ export default function ErpSuppliers() {
                   </div>
                 </div>
                 {sup.isActive === false && <div className="text-[10px] text-amber-400 font-bold">⚠️ {t('inactiveSupplier')}</div>}
+                <div className="flex flex-wrap gap-1 mt-1">
+                  {sup.category && <span className="text-[10px] px-2 py-0.5 rounded bg-sky-500/15 text-sky-200 border border-sky-500/25">🏷 {sup.category}</span>}
+                  {prof && prof.priorityRank === 1 && (
+                    <span className="text-[10px] px-2 py-0.5 rounded bg-amber-500/20 text-amber-200 border border-amber-500/30 font-bold" title={t('priceProfile')}>
+                      🥇 {t('supPriorityBadge')} #1{prof.bestCount ? ` · ${prof.bestCount} ${t('priceMaterialsWon')}` : ''}
+                    </span>
+                  )}
+                  {prof && prof.priorityRank > 1 && prof.bestCount > 0 && (
+                    <span className="text-[10px] px-2 py-0.5 rounded bg-white/10 text-slate-300 border border-white/15" title={t('priceProfile')}>
+                      #{prof.priorityRank} · {prof.bestCount} {t('priceMaterialsWon')}
+                    </span>
+                  )}
+                </div>
                 <div className="text-[10px] text-slate-400 mt-0.5">📞 {sup.phone}{sup.email ? ` · ${sup.email}` : ''}</div>
                 {sup.contactPerson && <div className="text-[10px] text-slate-500">👤 {sup.contactPerson}</div>}
                 {sup.vatNumber && <div className="text-[10px] text-slate-500 font-mono">{t('vatNumberLabel')}{sup.vatNumber}</div>}
                 {sup.crNumber && <div className="text-[10px] text-slate-500">🏛 {t('crNumberLabel')}: <span className="font-mono" dir="ltr">{sup.crNumber}</span></div>}
                 {sup.paymentTerms && <div className="text-[10px] text-slate-500">🧾 {t('paymentTerms')}: {sup.paymentTerms}</div>}
                 {sup.bankIban && <div className="text-[10px] text-slate-500">🏦 {t('bankIban')}: <span className="font-mono" dir="ltr">{sup.bankIban}</span></div>}
+                <div className="flex flex-wrap gap-1 mt-2">
+                  <button onClick={() => { setStmtSupplierId(sup.id); setTab('statement'); setStmtData(null); setStmtLoaded(false); }}
+                    className="text-[10px] bg-white/[0.06] text-slate-200 border border-white/15 rounded px-2 py-0.5 hover:bg-white/10">📄 {t('tabStatement')}</button>
+                  <button onClick={() => openInvoiceForm(sup.id)}
+                    className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 rounded px-2 py-0.5 hover:bg-emerald-500/30">🧾 {t('invIssue')}</button>
+                  <button onClick={() => { setPriceFocusId(sup.id); setTab('prices'); loadPrices({ material: priceMaterial, field: priceField, focus: sup.id }); }}
+                    className="text-[10px] bg-sky-500/20 text-sky-300 border border-sky-500/40 rounded px-2 py-0.5 hover:bg-sky-500/30">📊 {t('tabPrices')}</button>
+                </div>
               </div>
-            ))}
+                );
+              })}
           </div>
         </>
       )}
@@ -602,6 +1069,9 @@ export default function ErpSuppliers() {
 
                 <div className="flex gap-2 mt-2">
                   <button onClick={() => printPO(po)} className="text-[11px] bg-white/[0.06] text-slate-200 border border-white/15 rounded px-2 py-1 hover:bg-white/10">🖨️ {t('printPO')}</button>
+                  {po.status !== 'CANCELLED' && (
+                    <button onClick={() => openInvoiceForm(po.supplierId, po)} className="text-[11px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 rounded px-2 py-1 hover:bg-emerald-500/30">{t('invFromPo')}</button>
+                  )}
                   {!po.inventoryUpdated && po.status !== 'CANCELLED' && (
                     <button onClick={() => receivePO(po)} disabled={busy} className="text-[11px] bg-sky-500/20 text-sky-300 border border-sky-500/40 rounded px-2 py-1 hover:bg-sky-500/30">{t('receiveAndUpdateStock')}</button>
                   )}
@@ -679,6 +1149,307 @@ export default function ErpSuppliers() {
         </div>
       )}
 
+      {/* ── Invoices tab — فواتير المورد ── */}
+      {tab === 'invoices' && (
+        <div>
+          {showNewInv && (
+            <form onSubmit={createInvoice} className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4 bg-emerald-500/5 border border-emerald-500/20 rounded-lg p-3">
+              <div className="col-span-2 md:col-span-4 text-[11px] font-black text-emerald-200">{t('invIssue')}</div>
+              <select value={invForm.supplierId} onChange={e => setInvForm({ ...invForm, supplierId: e.target.value })}
+                className="bg-white/[0.04] border border-white/10 rounded px-2 py-1.5 text-white text-xs" required>
+                <option value="">{t('supplierSelect')}</option>
+                {(supData?.suppliers ?? []).filter(x => x.isActive !== false).map(x => <option key={x.id} value={x.id}>{x.name}</option>)}
+              </select>
+              <select value={invForm.purchaseOrderId} onChange={e => setInvForm({ ...invForm, purchaseOrderId: e.target.value })}
+                className="bg-white/[0.04] border border-white/10 rounded px-2 py-1.5 text-white text-xs">
+                <option value="">{t('invLinkedPo')} — {t('type')}</option>
+                {(poData?.purchaseOrders ?? []).filter(p => !invForm.supplierId || p.supplierId === invForm.supplierId).map(p => (
+                  <option key={p.id} value={p.id}>{p.poNumber} — {fmtSar(p.totalAmountSar)} {t('sar')}</option>
+                ))}
+              </select>
+              <input type="date" value={invForm.invoiceDate} onChange={e => setInvForm({ ...invForm, invoiceDate: e.target.value })}
+                className="bg-white/[0.04] border border-white/10 rounded px-2 py-1.5 text-white text-xs" />
+              <input type="date" value={invForm.dueDate} onChange={e => setInvForm({ ...invForm, dueDate: e.target.value })}
+                className="bg-white/[0.04] border border-white/10 rounded px-2 py-1.5 text-white text-xs" />
+              <input type="number" step="0.01" min="0.01" value={invForm.subtotalSar}
+                onChange={e => setInvForm({ ...invForm, subtotalSar: e.target.value, totalAmountSar: recalcInvoiceTotal(e.target.value, invForm.vatPercent) })}
+                placeholder={t('invSubtotal')} className="bg-white/[0.04] border border-white/10 rounded px-2 py-1.5 text-white text-xs" required />
+              <input type="number" min="0" max="100" value={invForm.vatPercent}
+                onChange={e => setInvForm({ ...invForm, vatPercent: e.target.value, totalAmountSar: recalcInvoiceTotal(invForm.subtotalSar, e.target.value) })}
+                placeholder={t('vatPct')} className="bg-white/[0.04] border border-white/10 rounded px-2 py-1.5 text-white text-xs" />
+              <input type="number" step="0.01" min="0.01" value={invForm.totalAmountSar} onChange={e => setInvForm({ ...invForm, totalAmountSar: e.target.value })}
+                placeholder={t('invTotal')} className="bg-white/[0.04] border border-white/10 rounded px-2 py-1.5 text-white text-xs" required />
+              <input value={invForm.description} onChange={e => setInvForm({ ...invForm, description: e.target.value })}
+                placeholder={t('description')} className="bg-white/[0.04] border border-white/10 rounded px-2 py-1.5 text-white text-xs" />
+              <div className="col-span-2 md:col-span-1 flex gap-2">
+                <button type="submit" disabled={busy} className="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-1.5 rounded-lg text-xs disabled:opacity-40">{t('invIssue')}</button>
+                <button type="button" onClick={() => setShowNewInv(false)} className="bg-white/[0.06] border border-white/15 text-slate-300 font-bold py-1.5 rounded-lg text-xs px-3">{t('cancel')}</button>
+              </div>
+            </form>
+          )}
+
+          {(invData?.invoices ?? []).length === 0 ? (
+            <div className="text-xs text-slate-500 text-center py-6">{t('invNoData')}</div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-[11px] border-collapse">
+                <thead>
+                  <tr className="text-slate-400 border-b border-white/10">
+                    <th className="text-right px-2 py-2 font-black">{t('invNo')}</th>
+                    <th className="text-right px-2 py-2 font-black">{t('exportColSupplier')}</th>
+                    <th className="text-right px-2 py-2 font-black">{t('supCategory')}</th>
+                    <th className="text-right px-2 py-2 font-black">{t('invInvoiceDate')}</th>
+                    <th className="text-right px-2 py-2 font-black">{t('invDue')}</th>
+                    <th className="text-right px-2 py-2 font-black">{t('total')}</th>
+                    <th className="text-right px-2 py-2 font-black">{t('paid')}</th>
+                    <th className="text-right px-2 py-2 font-black">{t('remaining')}</th>
+                    <th className="text-right px-2 py-2 font-black">{t('status')}</th>
+                    <th className="px-2 py-2" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {(invData?.invoices ?? []).map(({ invoice: inv, supplierName, supplierCategory, poNumber }) => (
+                    <tr key={inv.id} className="border-b border-white/5">
+                      <td className="px-2 py-1.5 font-bold text-white font-mono" dir="ltr">{inv.invoiceNumber}</td>
+                      <td className="px-2 py-1.5 text-slate-300">{supplierName}{poNumber ? <span className="text-[10px] text-slate-500"> · {poNumber}</span> : null}</td>
+                      <td className="px-2 py-1.5 text-sky-200">{supplierCategory ?? '—'}</td>
+                      <td className="px-2 py-1.5 text-slate-400">{new Date(`${inv.invoiceDate.slice(0, 10)}T00:00:00`).toLocaleDateString()}</td>
+                      <td className="px-2 py-1.5 text-slate-400">{inv.dueDate ? new Date(`${inv.dueDate.slice(0, 10)}T00:00:00`).toLocaleDateString() : '—'}</td>
+                      <td className="px-2 py-1.5 font-black text-white">{fmtSar(inv.totalAmountSar)}</td>
+                      <td className="px-2 py-1.5 text-emerald-300">{fmtSar(inv.paidAmountSar)}</td>
+                      <td className="px-2 py-1.5 font-bold text-red-300">{fmtSar(inv.totalAmountSar - inv.paidAmountSar)}</td>
+                      <td className="px-2 py-1.5">
+                        <span className={`text-[10px] px-2 py-0.5 rounded font-bold ${INV_STATUS_CLASS[inv.status] ?? 'bg-white/10 text-slate-300'}`}>
+                          {t(INV_STATUS_LABEL[inv.status] ?? inv.status)}
+                        </span>
+                      </td>
+                      <td className="px-2 py-1.5 text-right whitespace-nowrap">
+                        <button onClick={() => printInvoice(inv, supplierName)} className="text-[10px] bg-white/[0.06] text-slate-200 border border-white/15 rounded px-2 py-0.5 hover:bg-white/10 mr-1">🖨️</button>
+                        {inv.status !== 'CANCELLED' && inv.status !== 'PAID' && (
+                          <button onClick={() => { setInvPayFor(inv); setInvPayForm({ ...invPayForm, amountSar: String((inv.totalAmountSar - inv.paidAmountSar) / 100) }); }}
+                            className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 rounded px-2 py-0.5 hover:bg-emerald-500/30 mr-1">{t('invPay')}</button>
+                        )}
+                        {inv.status !== 'CANCELLED' && inv.paidAmountSar === 0 && (
+                          <button onClick={() => cancelInvoice(inv)} disabled={busy}
+                            className="text-[10px] bg-red-500/10 text-red-300 border border-red-500/30 rounded px-2 py-0.5 hover:bg-red-500/20">{t('invCancelBtn')}</button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <p className="text-[10px] text-slate-500 mt-2">{t('invNoData').split('—')[0]}{t('stmtHint')}</p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Statement tab — كشف حساب المورد ── */}
+      {tab === 'statement' && (
+        <div>
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-2 mb-3 bg-white/[0.03] border border-white/10 rounded-lg p-3">
+            <select value={stmtSupplierId} onChange={e => { setStmtSupplierId(e.target.value); setStmtData(null); setStmtLoaded(false); }}
+              className="bg-white/[0.04] border border-white/10 rounded px-2 py-1.5 text-white text-xs col-span-2">
+              <option value="">{t('supplierSelect')}</option>
+              {(supData?.suppliers ?? []).map(x => <option key={x.id} value={x.id}>{x.name}{x.category ? ` (${x.category})` : ''}</option>)}
+            </select>
+            <input type="date" value={stmtFrom} onChange={e => setStmtFrom(e.target.value)}
+              title={t('stmtFrom')} className="bg-white/[0.04] border border-white/10 rounded px-2 py-1.5 text-white text-xs" />
+            <input type="date" value={stmtTo} onChange={e => setStmtTo(e.target.value)}
+              title={t('stmtTo')} className="bg-white/[0.04] border border-white/10 rounded px-2 py-1.5 text-white text-xs" />
+            <div className="flex gap-2">
+              <button onClick={loadStatement} disabled={!stmtSupplierId}
+                className="flex-1 bg-sky-500/20 text-sky-200 border border-sky-500/40 rounded px-2 py-1 text-[11px] font-bold hover:bg-sky-500/30 disabled:opacity-40">{t('stmtShow')}</button>
+              {stmtData && (
+                <button onClick={printStatement} className="bg-white/[0.06] text-slate-200 border border-white/15 rounded px-2 py-1 text-[11px] hover:bg-white/10">🖨️</button>
+              )}
+            </div>
+          </div>
+
+          {!stmtData ? (
+            <div className="text-xs text-slate-500 text-center py-6">{stmtLoaded ? t('stmtPick') : t('stmtPick')}</div>
+          ) : (
+            <>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">
+                <div className="bg-white/[0.03] border border-white/10 rounded-lg p-2 text-center">
+                  <div className="text-lg font-black text-white">{stmtData.supplier.name}</div>
+                  <div className="text-[10px] text-slate-400">{stmtData.supplier.category ?? '—'}</div>
+                </div>
+                <div className="bg-white/[0.03] border border-white/10 rounded-lg p-2 text-center">
+                  <div className="text-lg font-black text-amber-200">{fmtSar(stmtData.totalDebitSar)}</div>
+                  <div className="text-[10px] text-slate-400">{t('stmtDebit')}</div>
+                </div>
+                <div className="bg-white/[0.03] border border-white/10 rounded-lg p-2 text-center">
+                  <div className="text-lg font-black text-emerald-300">{fmtSar(stmtData.totalCreditSar)}</div>
+                  <div className="text-[10px] text-slate-400">{t('stmtCredit')}</div>
+                </div>
+                <div className="bg-white/[0.03] border border-white/10 rounded-lg p-2 text-center">
+                  <div className={`text-lg font-black ${stmtData.balanceSar > 0 ? 'text-red-300' : 'text-slate-200'}`}>{fmtSar(stmtData.balanceSar)}</div>
+                  <div className="text-[10px] text-slate-400">{t('stmtClosing')} ({t('sar')})</div>
+                </div>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-[11px] border-collapse">
+                  <thead>
+                    <tr className="text-slate-400 border-b border-white/10">
+                      <th className="text-right px-2 py-2 font-black">{t('date')}</th>
+                      <th className="text-right px-2 py-2 font-black">{t('type')}</th>
+                      <th className="text-right px-2 py-2 font-black">{t('invNo')}</th>
+                      <th className="text-right px-2 py-2 font-black">{t('description')}</th>
+                      <th className="text-right px-2 py-2 font-black">{t('stmtDebit')}</th>
+                      <th className="text-right px-2 py-2 font-black">{t('stmtCredit')}</th>
+                      <th className="text-right px-2 py-2 font-black">{t('exportColBalance')}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {stmtData.openingBalanceSar !== 0 && (
+                      <tr className="border-b border-white/5 bg-white/[0.02]">
+                        <td className="px-2 py-1.5 text-slate-400" colSpan={6}>{t('stmtOpening')}</td>
+                        <td className="px-2 py-1.5 font-black text-slate-200">{fmtSar(stmtData.openingBalanceSar)}</td>
+                      </tr>
+                    )}
+                    {stmtData.movements.length === 0 && (
+                      <tr><td colSpan={7} className="px-2 py-4 text-center text-slate-500">{t('miscNoData')}</td></tr>
+                    )}
+                    {stmtData.movements.map((m, i) => (
+                      <tr key={`${m.date}-${m.ref}-${i}`} className="border-b border-white/5">
+                        <td className="px-2 py-1.5 text-slate-400">{new Date(`${m.date.slice(0, 10)}T00:00:00`).toLocaleDateString()}</td>
+                        <td className="px-2 py-1.5">
+                          <span className={`text-[10px] px-2 py-0.5 rounded font-bold ${m.type === 'PAYMENT' ? 'bg-emerald-500/20 text-emerald-300' : m.type === 'INVOICE' ? 'bg-amber-500/20 text-amber-200' : 'bg-white/10 text-slate-300'}`}>
+                            {STMT_TYPE_EMOJI[m.type]} {t(STMT_TYPE_LABEL[m.type] ?? m.type)}
+                          </span>
+                        </td>
+                        <td className="px-2 py-1.5 font-mono text-slate-300" dir="ltr">{m.ref}</td>
+                        <td className="px-2 py-1.5 text-slate-400">{m.description}</td>
+                        <td className="px-2 py-1.5 text-amber-200">{m.debitSar ? fmtSar(m.debitSar) : '—'}</td>
+                        <td className="px-2 py-1.5 text-emerald-300">{m.creditSar ? fmtSar(m.creditSar) : '—'}</td>
+                        <td className="px-2 py-1.5 font-black text-white">{fmtSar(m.balanceSar)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <p className="text-[10px] text-slate-500 mt-2">{t('stmtHint')}</p>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* ── Prices tab — مقارنة الأسعار والأولوية ── */}
+      {tab === 'prices' && (
+        <div>
+          <div className="flex flex-wrap items-center gap-2 mb-3 bg-white/[0.03] border border-white/10 rounded-lg p-3">
+            <select value={priceMaterial}
+              onChange={e => { setPriceMaterial(e.target.value); loadPrices({ material: e.target.value, field: priceField, focus: priceFocusId }); }}
+              className="bg-white/[0.04] border border-white/10 rounded px-2 py-1.5 text-white text-xs">
+              <option value="">{t('priceAllMaterials')}</option>
+              {[...new Set((priceData?.materials ?? []).map(g => g.materialCategory))].map(mc => (
+                <option key={mc} value={mc}>{catLabel(mc)}</option>
+              ))}
+            </select>
+            <select value={priceField}
+              onChange={e => { setPriceField(e.target.value); setPriceFocusId(''); loadPrices({ material: priceMaterial, field: e.target.value }); }}
+              className="bg-white/[0.04] border border-white/10 rounded px-2 py-1.5 text-white text-xs">
+              <option value="">{t('priceAllFields')}</option>
+              {(priceData?.categories ?? []).map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+            <select value={priceFocusId}
+              onChange={e => { setPriceFocusId(e.target.value); loadPrices({ material: priceMaterial, field: priceField, focus: e.target.value }); }}
+              className="bg-white/[0.04] border border-white/10 rounded px-2 py-1.5 text-white text-xs">
+              <option value="">{t('priceAllMaterials')} — {t('exportColSupplier')}</option>
+              {(supData?.suppliers ?? []).map(x => <option key={x.id} value={x.id}>{x.name}</option>)}
+            </select>
+            <button onClick={() => loadPrices({ material: priceMaterial, field: priceField, focus: priceFocusId })}
+              className="text-[11px] bg-sky-500/20 text-sky-200 border border-sky-500/40 rounded px-3 py-1 hover:bg-sky-500/30">{t('refresh')}</button>
+            {priceFocusId && (
+              <span className="text-[10px] text-sky-200">{t('priceFocusHint')}
+                <button onClick={() => { setPriceFocusId(''); loadPrices({ material: priceMaterial, field: priceField }); }} className="ml-2 underline">{t('cancel')}</button>
+              </span>
+            )}
+          </div>
+
+          {(priceData?.materials ?? []).length === 0 ? (
+            <div className="text-xs text-slate-500 text-center py-6">{t('priceNoData')}</div>
+          ) : (
+            <>
+              {/* أولوية الموردين الإجمالية */}
+              <div className="mb-4">
+                <div className="text-[11px] font-black text-sky-200 mb-2">🏆 {t('priceProfile')}</div>
+                <div className="flex flex-wrap gap-2">
+                  {(priceData?.supplierProfile ?? []).slice(0, 12).map(p => (
+                    <div key={p.supplierId}
+                      className={`bg-white/[0.03] border rounded-lg p-2 min-w-[160px] ${p.isFocusSupplier ? 'border-sky-500/50' : p.priorityRank === 1 ? 'border-amber-500/40' : 'border-white/10'}`}>
+                      <div className="text-[11px] font-bold text-white truncate">
+                        {p.priorityRank === 1 ? '🥇' : p.priorityRank === 2 ? '🥈' : p.priorityRank === 3 ? '🥉' : `#${p.priorityRank}`} {p.supplierName}
+                      </div>
+                      {p.supplierCategory && <div className="text-[10px] text-sky-200">🏷 {p.supplierCategory}</div>}
+                      <div className="text-[10px] text-slate-400">
+                        {t('priceMaterialsWon')}: <b className="text-amber-200">{p.bestCount}</b>/{p.materialsCount}
+                      </div>
+                      <div className="text-[10px] text-slate-400">
+                        {t('priceAvgDiff')}: <b className={p.avgDiffPct === null ? 'text-slate-400' : p.avgDiffPct <= 0 ? 'text-emerald-300' : 'text-red-300'}>
+                          {p.avgDiffPct === null ? '—' : `${p.avgDiffPct >= 0 ? '+' : ''}${p.avgDiffPct}%`}
+                        </b>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* تفصيل كل مادة */}
+              <div className="space-y-3">
+                {(priceData?.materials ?? []).map(g => (
+                  <div key={g.materialCategory} className="bg-white/[0.02] border border-white/10 rounded-lg p-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="text-[11px] font-black text-white">📦 {catLabel(g.materialCategory)} <span className="text-slate-500 font-normal">· {g.supplierCount} {t('suppliersLabel')}</span></div>
+                      <div className="text-[10px] text-slate-400">{t('priceBest')}: <b className="text-emerald-300">{fmtRate(g.bestRateSar)} {t('sar')}/{t('kg')}</b></div>
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-[11px] border-collapse">
+                        <thead>
+                          <tr className="text-slate-400 border-b border-white/10">
+                            <th className="text-right px-2 py-1.5 font-black">{t('priceRank')}</th>
+                            <th className="text-right px-2 py-1.5 font-black">{t('exportColSupplier')}</th>
+                            <th className="text-right px-2 py-1.5 font-black">{t('supCategory')}</th>
+                            <th className="text-right px-2 py-1.5 font-black">{t('priceLastPrice')}</th>
+                            <th className="text-right px-2 py-1.5 font-black">{t('priceAvg')}</th>
+                            <th className="text-right px-2 py-1.5 font-black">{t('priceRange')}</th>
+                            <th className="text-right px-2 py-1.5 font-black">{t('pricePurchases')}</th>
+                            <th className="text-right px-2 py-1.5 font-black">{t('priceLastDate')}</th>
+                            <th className="text-right px-2 py-1.5 font-black">{t('priceVsBest')}</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {g.rows.map(r => (
+                            <tr key={r.supplierId} className={`border-b border-white/5 ${r.priority === 1 ? 'bg-amber-500/5' : ''} ${r.isFocusSupplier ? 'ring-1 ring-sky-500/40' : ''}`}>
+                              <td className="px-2 py-1.5 font-black text-white">
+                                {r.priority === 1 ? '🥇' : r.priority === 2 ? '🥈' : r.priority === 3 ? '🥉' : `#${r.priority}`}
+                              </td>
+                              <td className="px-2 py-1.5 font-bold text-white">{r.supplierName}{r.isFocusSupplier ? <span className="text-[10px] text-sky-300"> {t('priceFocus')}</span> : null}</td>
+                              <td className="px-2 py-1.5 text-sky-200">{r.supplierCategory ?? '—'}</td>
+                              <td className="px-2 py-1.5 font-bold text-amber-200">{fmtRate(r.latestRateSar)}</td>
+                              <td className="px-2 py-1.5 text-slate-300">{fmtRate(r.avgRateSar)}</td>
+                              <td className="px-2 py-1.5 text-slate-400">{fmtRate(r.minRateSar)}–{fmtRate(r.maxRateSar)}</td>
+                              <td className="px-2 py-1.5 text-slate-300">{r.purchaseCount}</td>
+                              <td className="px-2 py-1.5 text-slate-400">{r.lastDate ? new Date(`${r.lastDate.slice(0, 10)}T00:00:00`).toLocaleDateString() : '—'}</td>
+                              <td className={`px-2 py-1.5 font-bold ${r.diffPctBest === null ? 'text-slate-400' : r.diffPctBest <= 0 ? 'text-emerald-300' : 'text-red-300'}`}>
+                                {r.diffPctBest === null ? '—' : `${r.diffPctBest > 0 ? '+' : ''}${r.diffPctBest}%`}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <p className="text-[10px] text-slate-500 mt-2">{t('priceNoData').split('—')[0]}{t('supPriorityBadge')} = {t('priceProfile')}</p>
+            </>
+          )}
+        </div>
+      )}
+
       {/* Payment modal */}
       {payFor && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
@@ -707,6 +1478,40 @@ export default function ErpSuppliers() {
               <div className="flex gap-2 pt-1">
                 <button type="submit" disabled={busy} className="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-2 rounded-lg text-xs disabled:opacity-40">{t('confirmPayment')}</button>
                 <button type="button" onClick={() => setPayFor(null)} className="px-4 border border-white/20 text-slate-300 rounded-lg text-xs">{t('cancel')}</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── Invoice payment modal — سداد فاتورة مورد ── */}
+      {invPayFor && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-slate-900 border border-emerald-500/30 rounded-xl p-5 w-full max-w-sm">
+            <h4 className="text-sm font-bold text-white mb-1">{t('invPay')} — <span className="font-mono" dir="ltr">{invPayFor.invoiceNumber}</span></h4>
+            <p className="text-[11px] text-slate-400 mb-4">{t('remaining')} {fmtSar(invPayFor.totalAmountSar - invPayFor.paidAmountSar)} {t('sar')}</p>
+            <form onSubmit={recordInvoicePayment} className="space-y-3">
+              <div>
+                <label className="text-[10px] text-slate-400 block mb-1">{t('amountSarReq')}</label>
+                <input type="number" step="0.01" max={(invPayFor.totalAmountSar - invPayFor.paidAmountSar) / 100} value={invPayForm.amountSar} onChange={e => setInvPayForm({ ...invPayForm, amountSar: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded px-2 py-1.5 text-white text-xs" required />
+              </div>
+              <div>
+                <label className="text-[10px] text-slate-400 block mb-1">{t('paymentDate')}</label>
+                <input type="date" value={invPayForm.paymentDate} onChange={e => setInvPayForm({ ...invPayForm, paymentDate: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded px-2 py-1.5 text-white text-xs" />
+              </div>
+              <div>
+                <label className="text-[10px] text-slate-400 block mb-1">{t('paymentMethod')}</label>
+                <select value={invPayForm.paymentMode} onChange={e => setInvPayForm({ ...invPayForm, paymentMode: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded px-2 py-1.5 text-white text-xs">
+                  {Object.keys(PAY_MODE_LABEL).map(m => <option key={m} value={m}>{payModeLabel(m)}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-[10px] text-slate-400 block mb-1">{t('txnRefNo')}</label>
+                <input value={invPayForm.referenceNumber} onChange={e => setInvPayForm({ ...invPayForm, referenceNumber: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded px-2 py-1.5 text-white text-xs" />
+              </div>
+              <div className="flex gap-2 pt-1">
+                <button type="submit" disabled={busy} className="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-2 rounded-lg text-xs disabled:opacity-40">{t('confirmPayment')}</button>
+                <button type="button" onClick={() => setInvPayFor(null)} className="px-4 border border-white/20 text-slate-300 rounded-lg text-xs">{t('cancel')}</button>
               </div>
             </form>
           </div>
