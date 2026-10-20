@@ -54,6 +54,30 @@ const ROLE_ACCESS: Record<string, string[]> = {
   // entries must not be offered — he cannot open them, and a menu that leads to
   // a 403 reads as "the system is broken".
   PURCHASING_MGR: ['/', '/procurement', '/materials'],
+
+  // ── API roles that used to fall through to the "unknown role sees everything
+  //    fallback" above. Each entry mirrors that role's dashboard modules
+  //    (API_ROLE_MODS in lib/treeRoles.ts): a page its card already opens stays
+  //    in the dropdown, and a page that answers 403 is not offered. Board and
+  //    forms screens are read-only utilities and are added where they belong.
+  SALES_REP: ['/', '/orders', '/operations'],
+  REPS_MGR: ['/', '/orders'],
+  SCHEDULE_MGR: ['/', '/schedule', '/orders', '/board/plant'],
+  OPERATIONS_MGR: ['/', '/operations', '/schedule', '/orders', '/multiplant', '/procurement', '/board/plant'],
+  PRODUCTION_MGR: ['/', '/production', '/mixing', '/workshop', '/multiplant', '/procurement', '/board/plant', '/board/workshop'],
+  STOREKEEPER: ['/', '/production', '/orders', '/materials', '/procurement'],
+  WORKSHOP_MECHANIC: ['/', '/workshop', '/board/workshop'],
+  MECHANIC: ['/', '/workshop', '/board/workshop'],
+  STATION_TECH: ['/', '/workshop', '/mixing', '/multiplant', '/board/workshop', '/board/plant'],
+  BATCH_OP: ['/', '/production', '/mixing', '/multiplant', '/board/plant'],
+  BATCH_OPERATOR: ['/', '/production', '/mixing', '/multiplant', '/board/plant'],
+  RND_MANAGER: ['/', '/rnd', '/evaluation', '/orders'],
+  HR_OFFICER: ['/', '/hr', '/orders', '/forms'],
+  HR_MANAGER: ['/', '/hr', '/orders', '/evaluation', '/forms'],
+  // Finance family mirrors the ACCOUNTANT entry above (register + debts stay
+  // reachable for anyone who reads money).
+  CFO: ['/', '/orders', '/evaluation', '/finance', '/governance', '/procurement', '/suppliers', '/debts'],
+  FINANCE: ['/', '/orders', '/evaluation', '/finance', '/governance', '/suppliers', '/debts'],
 };
 
 export default function QuickJump() {
