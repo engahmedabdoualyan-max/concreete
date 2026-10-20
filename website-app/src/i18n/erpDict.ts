@@ -209,6 +209,35 @@ const DICT: PageDict = {
   fileNameSuppliers: { en: 'Suppliers', ar: 'الموردون', ru: 'Поставщики', de: 'Lieferanten', it: 'Fornitori', hi: 'Suppliers', ur: 'Suppliers', ja: 'Suppliers', zh: '供应商' },
   fileNamePOs: { en: 'Purchase_Orders', ar: 'أوامر_الشراء', ru: 'Заказы_на_поставку', de: 'Bestellungen', it: 'Ordini_acquisto', hi: 'Purchase_Orders', ur: 'Purchase_Orders', ja: 'Purchase_Orders', zh: '采购订单' },
 
+  /* ── Supplier identity + editing (حقول المورد وتعديله) ── */
+  crNumber: { en: 'Commercial reg. no.', ar: 'السجل التجاري', ru: 'Рег. номер', de: 'Handelsregister-Nr.', it: 'Reg. commerciale', hi: 'व्यापार पंजी संख्या', ur: 'تجارتی رجسٹر نمبر', ja: '商業登記番号', zh: '工商注册号' },
+  crNumberLabel: { en: 'CR: ', ar: 'السجل: ', ru: 'Рег. №: ', de: 'HR-Nr.: ', it: 'Reg.: ', hi: 'पंजी.: ', ur: 'رجسٹر: ', ja: '登記: ', zh: '注册号: ' },
+  paymentTerms: { en: 'Payment terms', ar: 'شروط الدفع', ru: 'Условия оплаты', de: 'Zahlungsbedingungen', it: 'Termini di pagamento', hi: 'भुगतान शर्तें', ur: 'ادائیگی کی شرائط', ja: '支払条件', zh: '付款条件' },
+  bankIban: { en: 'IBAN', ar: 'الآيبان', ru: 'IBAN', de: 'IBAN', it: 'IBAN', hi: 'IBAN', ur: 'IBAN', ja: 'IBAN', zh: 'IBAN' },
+  editSupplier: { en: 'Edit supplier', ar: 'تعديل بيانات المورد', ru: 'Редактировать поставщика', de: 'Lieferant bearbeiten', it: 'Modifica fornitore', hi: 'आपूर्तिकर्ता संपादित करें', ur: 'سپلائر میں ترمیم', ja: '仕入先を編集', zh: '编辑供应商' },
+  editingSupplier: { en: 'Editing supplier', ar: 'تعديل المورد', ru: 'Редактирование поставщика', de: 'Lieferant bearbeiten', it: 'Modifica fornitore', hi: 'आपूर्तिकर्ता संपादन', ur: 'سپلائر کی ترمیم', ja: '仕入先の編集', zh: '正在编辑供应商' },
+  saveChanges: { en: '💾 Save changes', ar: '💾 حفظ التعديلات', ru: '💾 Сохранить', de: '💾 Speichern', it: '💾 Salva', hi: '💾 सहेजें', ur: '💾 محفوظ کریں', ja: '💾 保存', zh: '💾 保存' },
+  activate: { en: 'Activate', ar: 'تفعيل', ru: 'Включить', de: 'Aktivieren', it: 'Attiva', hi: 'सक्रिय करें', ur: 'فعال کریں', ja: '有効化', zh: '启用' },
+  deactivate: { en: 'Suspend', ar: 'إيقاف', ru: 'Отключить', de: 'Aussetzen', it: 'Sospendi', hi: 'निलंबित करें', ur: 'معطل کریں', ja: '停止', zh: '停用' },
+  inactiveSupplier: { en: 'Suspended — kept for history, hidden from new orders', ar: 'موقوف — للأرشيف فقط ولا يظهر لأوامر الشراء الجديدة', ru: 'Отключён — остаётся в истории', de: 'Ausgesetzt — bleibt in der Historie', it: 'Sospeso — resta nello storico', hi: 'निलंबित — इतिहास में रहेगा', ur: 'معطل — تاریخ میں برقرار', ja: '停止中 — 履歴として保持', zh: '已停用 — 保留历史' },
+  printPO: { en: '🖨️ Print', ar: '🖨️ طباعة', ru: '🖨️ Печать', de: '🖨️ Drucken', it: '🖨️ Stampa', hi: '🖨️ प्रिंट', ur: '🖨️ پرنٹ', ja: '🖨️ 印刷', zh: '🖨️ 打印' },
+
+  /* ── Vendor aging — عمر ذمم الموردين ── */
+  tabAging: { en: '⏳ Aging', ar: '⏳ التقادم', ru: '⏳ Старение долга', de: '⏳ Altersstruktur', it: '⏳ Scaduto', hi: '⏳ उम्र', ur: '⏳ عمر الادائیگی', ja: '⏳ 延滞齢', zh: '⏳ 账龄' },
+  agingExportTitle: { en: 'Supplier aging report', ar: 'تقرير تقادم ذمم الموردين', ru: 'Отчёт о старении долга', de: 'Lieferanten-Altersbericht', it: 'Report scaduto fornitori', hi: 'आपूर्तिकर्ता आयु रिपोर्ट', ur: 'سپلائر ایجنگ رپورٹ', ja: '仕入先債権齢分析', zh: '供应商账龄报告' },
+  fileNameAging: { en: 'Supplier_Aging', ar: 'تقادم_الموردين', ru: 'Старение_долга', de: 'Lieferanten_Altersstruktur', it: 'Scaduto_fornitori', hi: 'Supplier_Aging', ur: 'Supplier_Aging', ja: 'Supplier_Aging', zh: '供应商账龄' },
+  balance: { en: 'Balance', ar: 'الرصيد', ru: 'Остаток', de: 'Restbetrag', it: 'Saldo', hi: 'शेष', ur: 'بقایا', ja: '残高', zh: '余额' },
+  overdue: { en: 'Overdue', ar: 'متأخر', ru: 'Просрочено', de: 'Überfällig', it: 'Scaduto', hi: 'अतिदेय', ur: 'تاخیر شدہ', ja: '延滞額', zh: '逾期' },
+  openPos: { en: 'Open POs', ar: 'أوامر مفتوحة', ru: 'Открытых заказов', de: 'Offene Bestellungen', it: 'Ordini aperti', hi: 'खुले ऑर्डर', ur: 'کھلے آرڈرز', ja: '未処理発注', zh: '未结订单' },
+  ageCurrent: { en: 'Current', ar: 'جاري', ru: 'Текущие', de: 'Aktuell', it: 'Correnti', hi: 'चालू', ur: 'موجودہ', ja: '未期', zh: '未到期' },
+  age1_30: { en: '1–30 days', ar: '1–30 يوم', ru: '1–30 дней', de: '1–30 Tage', it: '1–30 giorni', hi: '1–30 दिन', ur: '1–30 دن', ja: '1–30日', zh: '1–30天' },
+  age31_60: { en: '31–60 days', ar: '31–60 يوم', ru: '31–60 дней', de: '31–60 Tage', it: '31–60 giorni', hi: '31–60 दिन', ur: '31–60 دن', ja: '31–60日', zh: '31–60天' },
+  age61_90: { en: '61–90 days', ar: '61–90 يوم', ru: '61–90 дней', de: '61–90 Tage', it: '61–90 giorni', hi: '61–90 दिन', ur: '61–90 دن', ja: '61–90日', zh: '61–90天' },
+  age90Plus: { en: '90+ days', ar: 'أكثر من 90 يوم', ru: '90+ дней', de: '90+ Tage', it: '90+ giorni', hi: '90+ दिन', ur: '90+ دن', ja: '90日以上', zh: '90天以上' },
+  oldestOpen: { en: 'Oldest open PO', ar: 'أقدم أمر مفتوح', ru: 'Старейший заказ', de: 'Älteste Bestellung', it: 'Ordine più vecchio', hi: 'सबसे पुराना ऑर्डर', ur: 'سب سے پرانا آرڈر', ja: '最古の未処理発注', zh: '最早未结订单' },
+  noAging: { en: 'No open supplier balances.', ar: 'مفيش أرصدة مفتوحة على أي مورد.', ru: 'Нет открытых остатков.', de: 'Keine offenen Salden.', it: 'Nessun saldo aperto.', hi: 'कोई खुला शेष नहीं।', ur: 'کوئی کھلی بقایا نہیں۔', ja: '未払い残高はありません。', zh: '没有未结供应商余额。' },
+  agingHint: { en: 'Each balance is bucketed by its PO due date (or purchase date when no due date). Amounts in SAR.', ar: 'كل رصيد يتقادم بتاريخ استحقاق أمر الشراء (أو تاريخ الطلب لو مفيش استحقاق). المبالغ بالريال السعودي.', ru: 'Каждый остаток группируется по сроку оплаты заказа. Суммы в риалах.', de: 'Jeder Saldo wird nach Fälligkeitsdatum gruppiert. Beträge in SAR.', it: 'Ogni saldo è raggruppato per data di scadenza. Importi in SAR.', hi: 'प्रत्येक शेष देय तिथि के अनुसार वर्गीकृत है। राशि SAR में।', ur: 'ہر بقایا واجب الادا تاریخ کے مطابق تقسیم ہے۔ رقم SAR میں۔', ja: '各残高は支払期日で区分されます。金額はSAR。', zh: '每笔余额按到期日分组。金额单位为里亚尔。' },
+
   /* ── Ledger page ── */
   ledgerExportTitle: { en: 'Unified ledger', ar: 'دفتر الأستاذ الموحّد', ru: 'Единый гроссбух', de: 'Einheitliches Hauptbuch', it: 'Registro unificato', hi: 'एकीकृत खाता बही', ur: 'یونیفائیڈ لیجر', ja: '統合元帳', zh: '统一总账' },
   fileNameLedger: { en: 'Unified_Ledger', ar: 'دفتر_الأستاذ', ru: 'Единый_гроссбух', de: 'Hauptbuch', it: 'Registro_unificato', hi: 'Unified_Ledger', ur: 'Unified_Ledger', ja: 'Unified_Ledger', zh: '统一总账' },

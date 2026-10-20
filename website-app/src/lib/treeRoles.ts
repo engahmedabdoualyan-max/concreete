@@ -78,6 +78,9 @@ const API_ROLE_MODS: Record<string, string[]> = {
   // never wander into procurement, finance or HR.
   GATE_OPERATOR: ['gate'],
   HR_MANAGER: ['hr', 'orders', 'evaluation'],
+  // مدير المشتروات: the requisition chain + the supplier register, which now
+  // lives inside '/procurement' (its own view) — no finance card on purpose.
+  PURCHASING_MGR: ['procurement', 'materials'],
 };
 
 export const TREE_ROLE_KEYS: string[] = TREE_ROLES.map(r => r.key);

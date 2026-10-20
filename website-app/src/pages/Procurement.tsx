@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import QuickJump from '../components/QuickJump';
 import LangSelector from '../components/LangSelector';
+import ErpSuppliers from '../components/ErpSuppliers';
 import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { useLang } from '../context/LangContext';
@@ -32,6 +33,10 @@ export default function Procurement() {
 
   const [filter, setFilter] = useState('ALL');
   const [catFilter, setCatFilter] = useState('ALL');
+  // Two views under one module: the requisition chain (طلبات الشراء) and the
+  // supplier register + purchase orders + aging (الموردون) — the purchasing
+  // manager's own screen, so buying does not have to be done from Finance.
+  const [view, setView] = useState<'requests' | 'suppliers'>('requests');
   const [requests, setRequests] = useState<any[]>([]);
   const [sel, setSel] = useState<any | null>(null);
   const [quotes, setQuotes] = useState<any[]>([]);
@@ -280,6 +285,12 @@ const TREE_CAT_AR: Record<string, string> = {
     }
   };
 
+  // 🏆 إبراز أقل سعر بين العروض: lowest attached quote is highlighted in the
+  // three slots (+ the gap to it in amber) and starred in the winning dropdown.
+  const quoteAmounts = quotes.map((q) => Number(q.amountSar)).filter((n) => Number.isFinite(n) && n > 0);
+  const lowestQuoteSar = quoteAmounts.length ? Math.min(...quoteAmounts) : null;
+  const lowestCount = lowestQuoteSar === null ? 0 : quoteAmounts.filter((n) => n === lowestQuoteSar).length;
+
   if (!currentUser) {
     return (
       <div className="min-h-screen bg-[#080C14] text-slate-200 flex items-center justify-center p-6 text-center">
@@ -325,6 +336,26 @@ const TREE_CAT_AR: Record<string, string> = {
           </div>
         </div>
 
+        {/* ── View switcher: الطلبات ↔ الموردون ─────────────────────────── */}
+        <div className="flex flex-wrap gap-2 mt-4">
+          {([
+            { key: 'requests' as const, label: ar ? '📋 طلبات الشراء' : 'Purchase requests', badge: requests.length as number | undefined },
+            { key: 'suppliers' as const, label: ar ? '🏭 الموردون وأوامر الشراء' : 'Suppliers & POs', badge: undefined as number | undefined },
+          ]).map((v) => (
+            <button key={v.key} onClick={() => setView(v.key)}
+              className={`text-[11px] font-black rounded-lg px-3 py-1.5 border ${view === v.key ? 'bg-sky-400 text-black border-sky-400' : 'text-slate-400 border-white/10 hover:text-white'}`}>
+              {v.label}{' '}
+              {typeof v.badge === 'number' && <span className={view === v.key ? 'text-black/60' : 'text-slate-500'}>· {v.badge}</span>}
+            </button>
+          ))}
+        </div>
+
+        {view === 'suppliers' ? (
+          <div className="mt-4">
+            <ErpSuppliers />
+          </div>
+        ) : (
+        <>
         <div className="flex flex-wrap gap-2 mt-4">
           {['ALL', 'RAW_MATERIALS', 'SPARE_PARTS', 'OPERATING'].map((c) => (
             <button key={c} onClick={() => setCatFilter(c)}
@@ -517,12 +548,20 @@ const TREE_CAT_AR: Record<string, string> = {
                   </div>
                   {[1, 2, 3].map((slot) => {
                     const q = quotes.find((x) => Number(x.slotNo) === slot);
+                    const isLowest = !!q && lowestQuoteSar !== null && Number(q.amountSar) === lowestQuoteSar && lowestCount === 1;
+                    const gap = !!q && lowestQuoteSar !== null && Number(q.amountSar) > lowestQuoteSar ? Number(q.amountSar) - lowestQuoteSar : 0;
                     return (
-                      <div key={slot} className="rounded-lg border border-white/10 bg-white/[0.02] p-2 mb-1.5">
-                        <p className="text-[10px] font-black text-slate-400 mb-1">{ar ? `العرض ${slot}` : `Quote ${slot}`}</p>
+                      <div key={slot} className={`rounded-lg border p-2 mb-1.5 ${isLowest ? 'border-emerald-400/60 bg-emerald-500/10' : 'border-white/10 bg-white/[0.02]'}`}>
+                        <p className="text-[10px] font-black text-slate-400 mb-1">
+                          {ar ? `العرض ${slot}` : `Quote ${slot}`}
+                          {isLowest && <span className="text-emerald-300"> · 🏆 {ar ? 'أقل سعر' : 'Lowest'}</span>}
+                        </p>
                         {q ? (
                           <div className="flex items-center justify-between text-[11px]">
-                            <span className="text-slate-200 font-bold">{q.supplierName} · {q.amountSar} {ar ? 'ر.س' : 'SAR'}</span>
+                            <span className={`font-bold ${isLowest ? 'text-emerald-200 font-black' : 'text-slate-200'}`}>
+                              {q.supplierName} · {q.amountSar} {ar ? 'ر.س' : 'SAR'}
+                              {gap > 0 && <span className="text-amber-300 font-mono"> +{gap.toLocaleString('en-US')}</span>}
+                            </span>
                             {q.storageUrl && <a href={q.storageUrl} target="_blank" rel="noreferrer" className="text-sky-400 font-black">⬇</a>}
                           </div>
                         ) : sel.status === 'DRAFT' ? (
@@ -601,7 +640,7 @@ const TREE_CAT_AR: Record<string, string> = {
                     <select value={quotePick} onChange={(e) => setQuotePick(e.target.value)}
                       className="w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-[11px] text-white outline-none">
                       <option value="">{ar ? 'العرض الفائز (اختياري)' : 'Winning quote'}</option>
-                      {quotes.map((q) => <option key={q.id} value={q.id}>{q.supplierName} · {q.amountSar}</option>)}
+                      {quotes.map((q) => <option key={q.id} value={q.id}>{lowestQuoteSar !== null && Number(q.amountSar) === lowestQuoteSar ? '🏆 ' : ''}{q.supplierName} · {q.amountSar}</option>)}
                     </select>
                     <div className="flex gap-1">
                       <input value={disbursed} onChange={(e) => setDisbursed(e.target.value)} inputMode="decimal" placeholder={ar ? 'المبلغ المصروف' : 'Disbursed'}
@@ -661,6 +700,8 @@ const TREE_CAT_AR: Record<string, string> = {
             )}
           </div>
         </div>
+        </>
+        )}
       </div>
     </div>
   );
