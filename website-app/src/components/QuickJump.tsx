@@ -50,6 +50,10 @@ const ROLE_ACCESS: Record<string, string[]> = {
   // the gate account must not see procurement, finance or HR cards.
   GATE_OPERATOR: ['/', '/gate'],
   DRIVER: ['/', '/operations', '/board/plant'],
+  // مدير المشتروات: dashboard + his own module + materials. The finance and HR
+  // entries must not be offered — he cannot open them, and a menu that leads to
+  // a 403 reads as "the system is broken".
+  PURCHASING_MGR: ['/', '/procurement', '/materials'],
 };
 
 export default function QuickJump() {
