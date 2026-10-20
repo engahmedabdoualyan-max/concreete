@@ -21,11 +21,13 @@ import { DeviceStatusBadge } from '../components/DeviceHub';
 import { useFinanceDict } from '../i18n/financeDict';
 
 /**
- * أدوار قسمي «نثريات» و«اهلاك معدات»: الدورات القديمة (sysadmin/accountant/ptown)
- * + أدوار الحسابات الفعلية في قاعدة البيانات (uppercase) + Owner.
+ * أدوار قسمي «نثريات» و«اهلاك معدات»: نفس بوابة أقسام الحسابات القائمة
+ * (الأدوار القديمة sysadmin/accountant/ptown) + أدوار الحسابات الفعلية في
+ * قاعدة البيانات — وكلها تملك finance:read / finance:client_update فعلاً،
+ * فلا يظهر القسم لدور لا يستطيع قراءته (مبدأ عدم إظهار صفحة تُرجع 403).
  */
 const FINANCE_SECTION_ROLES = [
-  'sysadmin', 'accountant', 'ptown', 'owner',
+  'sysadmin', 'accountant', 'ptown',
   'SUPER_ADMIN', 'PLANT_MGR', 'ACCOUNTANT', 'FINANCE', 'CFO',
 ];
 
