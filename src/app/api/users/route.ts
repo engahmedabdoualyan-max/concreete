@@ -42,6 +42,7 @@ const USER_ROLES = [
   "WORKSHOP_MGR",
   "LAB_TECHNICIAN",
   "WORKSHOP_MECHANIC",
+  "PURCHASING_MGR",
 ] as const;
 
 const CreateUserSchema = z.object({

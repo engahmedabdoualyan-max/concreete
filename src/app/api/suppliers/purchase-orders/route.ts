@@ -5,7 +5,7 @@
  */
 
 import { NextRequest } from "next/server";
-import { requirePermission, errorResponse, successResponse } from "@/lib/auth/middleware";
+import { requireAnyPermission, errorResponse, successResponse } from "@/lib/auth/middleware";
 import { PERMISSIONS } from "@/lib/auth/rbac";
 import { listPurchaseOrders, createPurchaseOrder } from "@/lib/services/suppliers.service";
 import { z } from "zod";
@@ -31,7 +31,8 @@ const CreatePOSchema = z.object({
 });
 
 export async function GET(req: NextRequest) {
-  const auth = await requirePermission(req, PERMISSIONS.FINANCE_READ);
+  // Finance reads it as before; مدير المشتروات reads it with SUPPLIER_READ.
+  const auth = await requireAnyPermission(req, [PERMISSIONS.FINANCE_READ, PERMISSIONS.SUPPLIER_READ]);
   if ("status" in auth) return auth;
 
   try {
@@ -44,7 +45,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const auth = await requirePermission(req, PERMISSIONS.FINANCE_CLIENT_UPDATE);
+  const auth = await requireAnyPermission(req, [PERMISSIONS.FINANCE_CLIENT_UPDATE, PERMISSIONS.SUPPLIER_MANAGE]);
   if ("status" in auth) return auth;
 
   let body: unknown;

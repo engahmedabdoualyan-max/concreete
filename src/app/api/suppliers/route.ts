@@ -5,7 +5,7 @@
  */
 
 import { NextRequest } from "next/server";
-import { requirePermission, errorResponse, successResponse } from "@/lib/auth/middleware";
+import { requireAnyPermission, errorResponse, successResponse } from "@/lib/auth/middleware";
 import { PERMISSIONS } from "@/lib/auth/rbac";
 import { listSuppliers, createSupplier, supplierSummary } from "@/lib/services/suppliers.service";
 import { z } from "zod";
@@ -18,17 +18,29 @@ const CreateSupplierSchema = z.object({
   phone: z.string().min(5, "رقم الهاتف مطلوب"),
   email: z.string().email("بريد غير صحيح").optional().nullable(),
   vatNumber: z.string().optional().nullable(),
+  /** السجل التجاري — supplier identity for the purchase contract */
+  crNumber: z.string().max(32).optional().nullable(),
+  /** شروط الدفع (مثال: 30 يوم · كاش) */
+  paymentTerms: z.string().max(120).optional().nullable(),
+  /** آيبان المورد — where the money actually goes */
+  bankIban: z.string().max(40).optional().nullable(),
   address: z.string().optional().nullable(),
   notes: z.string().optional().nullable(),
 });
 
 export async function GET(req: NextRequest) {
-  const auth = await requirePermission(req, PERMISSIONS.FINANCE_READ);
+  // Either key opens the register: FINANCE (unchanged) or the narrow supplier
+  // read held by مدير المشتروات.
+  const auth = await requireAnyPermission(req, [PERMISSIONS.FINANCE_READ, PERMISSIONS.SUPPLIER_READ]);
   if ("status" in auth) return auth;
+
+  // ?includeInactive=1 → retired suppliers too, so a suspension can be undone
+  // from the register (their purchase orders reference them either way).
+  const includeInactive = new URL(req.url).searchParams.get("includeInactive") === "1";
 
   try {
     const [suppliers, summary] = await Promise.all([
-      listSuppliers(auth.user.tenantId),
+      listSuppliers(auth.user.tenantId, includeInactive),
       supplierSummary(auth.user.tenantId),
     ]);
     return successResponse({ suppliers, summary });
@@ -39,7 +51,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const auth = await requirePermission(req, PERMISSIONS.FINANCE_CLIENT_UPDATE);
+  const auth = await requireAnyPermission(req, [PERMISSIONS.FINANCE_CLIENT_UPDATE, PERMISSIONS.SUPPLIER_MANAGE]);
   if ("status" in auth) return auth;
 
   let body: unknown;

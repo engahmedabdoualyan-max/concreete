@@ -4,9 +4,9 @@
  */
 
 import { NextRequest } from "next/server";
-import { requirePermission, errorResponse, successResponse } from "@/lib/auth/middleware";
+import { requireAnyPermission, errorResponse, successResponse } from "@/lib/auth/middleware";
 import { PERMISSIONS } from "@/lib/auth/rbac";
-import { recordSupplierPayment } from "@/lib/services/suppliers.service";
+import { recordSupplierPayment, OverpaymentError } from "@/lib/services/suppliers.service";
 import { z } from "zod";
 
 export const dynamic = "force-dynamic";
@@ -23,7 +23,7 @@ const PaymentSchema = z.object({
 });
 
 export async function POST(req: NextRequest) {
-  const auth = await requirePermission(req, PERMISSIONS.FINANCE_CLIENT_UPDATE);
+  const auth = await requireAnyPermission(req, [PERMISSIONS.FINANCE_CLIENT_UPDATE, PERMISSIONS.SUPPLIER_MANAGE]);
   if ("status" in auth) return auth;
 
   let body: unknown;
@@ -54,6 +54,15 @@ export async function POST(req: NextRequest) {
     });
     return successResponse(result, "تم تسجيل دفعة المورد");
   } catch (err) {
+    // The over-payment guard is a client mistake, not a server failure:
+    // answer 400 so the UI can show the message instead of "500".
+    if (err instanceof OverpaymentError) {
+      return errorResponse("OVERPAYMENT_NOT_ALLOWED", err.message, 400, {
+        balanceBeforeSar: err.balanceBeforeSar,
+        amountSar: err.amountSar,
+        poNumber: err.poNumber,
+      });
+    }
     console.error("[POST /api/suppliers/payments]", err);
     const message = err instanceof Error ? err.message : "Unknown error";
     return errorResponse("SUPPLIER_PAYMENT_ERROR", message, 500);

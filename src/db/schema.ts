@@ -115,6 +115,10 @@ export const userRoleEnum = pgEnum("user_role", [
   "HR_MANAGER",           // مدير الموارد البشرية — owns the employee master: adds workers,
                           //   creates employee cards, issues their QR codes, edits the record
   "GATE_OPERATOR",        // مسئول البوابة والميزان — gate & scale tickets only
+  // PURCHASING_MGR sits last because ALTER TYPE … ADD VALUE can only append —
+  // it is the manager of purchases (مدير المشتروات): suppliers, purchase
+  // orders and the requisition/quote/approval chain, without finance or HR.
+  "PURCHASING_MGR",
 ]);
 
 /** Order lifecycle states — maps directly to the Sales Pipeline module */
@@ -1487,6 +1491,12 @@ export const suppliers = pgTable(
     email: varchar("email", { length: 200 }),
     /** VAT number (Saudi / GCC) */
     vatNumber: varchar("vat_number", { length: 20 }),
+    /** السجل التجاري — commercial registration, printed on the PO */
+    crNumber: varchar("cr_number", { length: 32 }),
+    /** شروط الدفع المتّفق عليها (مثال: «30 يوم» · «كاش عند التسليم») */
+    paymentTerms: varchar("payment_terms", { length: 120 }),
+    /** IBAN — حساب المورد؛ يُستهدف عند التحويل ويُطبع في أمر الشراء */
+    bankIban: varchar("bank_iban", { length: 40 }),
     address: text("address"),
     notes: text("notes"),
     isActive: boolean("is_active").notNull().default(true),

@@ -15,7 +15,7 @@ import {
   inventoryTransactions,
   ledgerEntries,
 } from "@/db/schema";
-import { eq, and, desc, asc, sql, inArray } from "drizzle-orm";
+import { eq, and, desc, asc, sql, inArray, ne } from "drizzle-orm";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -25,8 +25,26 @@ export interface CreateSupplierInput {
   phone: string;
   email?: string | null;
   vatNumber?: string | null;
+  crNumber?: string | null;
+  paymentTerms?: string | null;
+  bankIban?: string | null;
   address?: string | null;
   notes?: string | null;
+}
+
+/** Partial edit of a supplier — every field optional, only what is sent changes. */
+export interface UpdateSupplierInput {
+  name?: string;
+  contactPerson?: string | null;
+  phone?: string;
+  email?: string | null;
+  vatNumber?: string | null;
+  crNumber?: string | null;
+  paymentTerms?: string | null;
+  bankIban?: string | null;
+  address?: string | null;
+  notes?: string | null;
+  isActive?: boolean;
 }
 
 export interface PurchaseOrderItemInput {
@@ -56,6 +74,42 @@ export interface RecordSupplierPaymentInput {
   dueDate?: Date | null;
   referenceNumber?: string | null;
   remarks?: string | null;
+}
+
+// ─── Errors that routes map to HTTP status codes ──────────────────────────────
+
+/** 404 — the supplier id is not in this tenant. */
+export class SupplierNotFoundError extends Error {
+  constructor() {
+    super("المورد غير موجود");
+    this.name = "SupplierNotFoundError";
+  }
+}
+
+/**
+ * 400 — the payment would take the PO past what is still owed.
+ *
+ * This guard is the whole reason to check instead of insert: before it, a
+ * mistyped amount (an extra digit, or paying the same invoice twice) posted a
+ * negative balance into the ledger and nobody saw it until reconciliation.
+ *
+ * Amounts arrive in SAR cents (as everything in these tables does); the
+ * message converts them for the human reading the screen.
+ */
+export class OverpaymentError extends Error {
+  readonly poNumber: string;
+  readonly amountSar: number;
+  readonly balanceBeforeSar: number;
+  constructor(poNumber: string, amountSar: number, balanceBeforeSar: number) {
+    const sar = (n: number) => (n / 100).toLocaleString("en-US", { maximumFractionDigits: 2 });
+    super(
+      `مبلغ السداد (${sar(amountSar)} ر.س) يتجاوز المتبقي على أمر الشراء ${poNumber} (${sar(balanceBeforeSar)} ر.س) — المسموح به كحد أقصى: ${sar(balanceBeforeSar)} ر.س`
+    );
+    this.name = "OverpaymentError";
+    this.poNumber = poNumber;
+    this.amountSar = amountSar;
+    this.balanceBeforeSar = balanceBeforeSar;
+  }
 }
 
 // ─── Labels ───────────────────────────────────────────────────────────────────
@@ -104,11 +158,46 @@ export async function createSupplier(tenantId: string, createdById: string, inpu
       phone: input.phone,
       email: input.email ?? null,
       vatNumber: input.vatNumber ?? null,
+      crNumber: input.crNumber ?? null,
+      paymentTerms: input.paymentTerms ?? null,
+      bankIban: input.bankIban ?? null,
       address: input.address ?? null,
       notes: input.notes ?? null,
       createdById,
     })
     .returning();
+  return row;
+}
+
+/**
+ * Edit a supplier in place (PUT /api/suppliers/:id).
+ *
+ * Tenant-scoped on purpose: a supplier id from another tenant must read as
+ * "not found", never as an editable row. Deactivation (isActive=false) is a
+ * soft retire — the FKs on purchase orders would reject a hard delete anyway,
+ * and the payment history is the point.
+ */
+export async function updateSupplier(tenantId: string, supplierId: string, input: UpdateSupplierInput) {
+  const [existing] = await db
+    .select({ id: suppliers.id })
+    .from(suppliers)
+    .where(and(eq(suppliers.id, supplierId), eq(suppliers.tenantId, tenantId)));
+  if (!existing) throw new SupplierNotFoundError();
+
+  const patch: Record<string, unknown> = { updatedAt: new Date() };
+  if (input.name !== undefined) patch.name = input.name;
+  if (input.contactPerson !== undefined) patch.contactPerson = input.contactPerson;
+  if (input.phone !== undefined) patch.phone = input.phone;
+  if (input.email !== undefined) patch.email = input.email;
+  if (input.vatNumber !== undefined) patch.vatNumber = input.vatNumber;
+  if (input.crNumber !== undefined) patch.crNumber = input.crNumber;
+  if (input.paymentTerms !== undefined) patch.paymentTerms = input.paymentTerms;
+  if (input.bankIban !== undefined) patch.bankIban = input.bankIban;
+  if (input.address !== undefined) patch.address = input.address;
+  if (input.notes !== undefined) patch.notes = input.notes;
+  if (input.isActive !== undefined) patch.isActive = input.isActive;
+
+  const [row] = await db.update(suppliers).set(patch).where(eq(suppliers.id, supplierId)).returning();
   return row;
 }
 
@@ -240,6 +329,15 @@ export async function recordSupplierPayment(tenantId: string, createdById: strin
     if (!po) throw new Error("أمر الشراء غير موجود");
 
     const newPaid = po.paidAmountSar + input.amountSar;
+    const balanceBefore = po.totalAmountSar - po.paidAmountSar;
+
+    if (!Number.isFinite(input.amountSar) || input.amountSar <= 0) {
+      throw new Error("مبلغ السداد يجب أن يكون رقماً موجباً");
+    }
+    // ⛔ Over-payment guard: never let the PO go negative.
+    if (input.amountSar > balanceBefore) {
+      throw new OverpaymentError(po.poNumber, input.amountSar, balanceBefore);
+    }
 
     const [payment] = await tx
       .insert(supplierPayments)
@@ -381,4 +479,135 @@ export async function supplierSummary(tenantId: string) {
     totalOrderedSar: Number(poAgg?.totalOrderedSar ?? 0),
     openPoCount: Number(poAgg?.openPoCount ?? 0),
   };
+}
+
+// ─── Vendor aging — عمر ذمم الموردين ──────────────────────────────────────────
+
+/**
+ * Per-supplier open balance bucketed by how overdue it is:
+ *   current  → not yet past its due date
+ *   d1_30    → 1–30 days overdue
+ *   d31_60   → 31–60
+ *   d61_90   → 61–90
+ *   d90_plus → more than 90 days
+ *
+ * The due date is what ages a balance; a PO with no due date ages from its
+ * purchase date, because "ordered but never dated" should not sit in
+ * current forever. Cancelled POs are excluded — a void order is not a debt.
+ */
+export interface SupplierAgingRow {
+  supplierId: string;
+  supplierName: string;
+  phone: string | null;
+  openPoCount: number;
+  /** Total still owed across all open POs */
+  balanceSar: number;
+  /** Portion of `balanceSar` that is past due (any bucket but current) */
+  overdueSar: number;
+  /** purchase/due date of the oldest still-open PO — يبدأ من عنده التقادم */
+  oldestOpenDate: string | null;
+  buckets: { current: number; d1_30: number; d31_60: number; d61_90: number; d90_plus: number };
+}
+
+export interface SupplierAgingResult {
+  rows: SupplierAgingRow[];
+  totals: {
+    supplierCount: number;
+    balanceSar: number;
+    overdueSar: number;
+    buckets: { current: number; d1_30: number; d31_60: number; d61_90: number; d90_plus: number };
+  };
+}
+
+function parseDateOnly(s: string | Date | null | undefined): Date | null {
+  if (!s) return null;
+  if (s instanceof Date) return Number.isNaN(s.getTime()) ? null : s;
+  const d = new Date(`${s}T00:00:00`);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+const MS_PER_DAY = 86_400_000;
+
+export async function supplierAging(tenantId: string, today = new Date()): Promise<SupplierAgingResult> {
+  const [supplierRows, poRows] = await Promise.all([
+    db
+      .select({
+        id: suppliers.id,
+        name: suppliers.name,
+        phone: suppliers.phone,
+        isActive: suppliers.isActive,
+      })
+      .from(suppliers)
+      .where(eq(suppliers.tenantId, tenantId)),
+    db
+      .select({
+        supplierId: purchaseOrders.supplierId,
+        poNumber: purchaseOrders.poNumber,
+        totalAmountSar: purchaseOrders.totalAmountSar,
+        paidAmountSar: purchaseOrders.paidAmountSar,
+        purchaseDate: purchaseOrders.purchaseDate,
+        dueDate: purchaseOrders.dueDate,
+        status: purchaseOrders.status,
+      })
+      .from(purchaseOrders)
+      .where(and(eq(purchaseOrders.tenantId, tenantId), ne(purchaseOrders.status, "CANCELLED"))),
+  ]);
+
+  const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+
+  const emptyBuckets = () => ({ current: 0, d1_30: 0, d31_60: 0, d61_90: 0, d90_plus: 0 });
+
+  const bySupplier = new Map<string, SupplierAgingRow>();
+  for (const s of supplierRows) {
+    bySupplier.set(s.id, {
+      supplierId: s.id,
+      supplierName: s.name,
+      phone: s.phone,
+      openPoCount: 0,
+      balanceSar: 0,
+      overdueSar: 0,
+      oldestOpenDate: null,
+      buckets: emptyBuckets(),
+    });
+  }
+
+  for (const po of poRows) {
+    const balance = po.totalAmountSar - po.paidAmountSar;
+    if (balance <= 0) continue; // settled — nothing to age
+    const row = bySupplier.get(po.supplierId);
+    if (!row) continue; // supplier hard-deleted (FK says impossible, stay safe)
+
+    const anchor = parseDateOnly(po.dueDate) ?? parseDateOnly(po.purchaseDate);
+    const days = anchor ? Math.floor((startOfToday.getTime() - anchor.getTime()) / MS_PER_DAY) : 0;
+
+    row.openPoCount += 1;
+    row.balanceSar += balance;
+    if (days > 0) row.overdueSar += balance;
+    if (!row.oldestOpenDate) row.oldestOpenDate = toDateString(anchor ?? startOfToday);
+
+    if (days <= 0) row.buckets.current += balance;
+    else if (days <= 30) row.buckets.d1_30 += balance;
+    else if (days <= 60) row.buckets.d31_60 += balance;
+    else if (days <= 90) row.buckets.d61_90 += balance;
+    else row.buckets.d90_plus += balance;
+  }
+
+  const rows = [...bySupplier.values()]
+    .filter((r) => r.balanceSar > 0)
+    .sort((a, b) => b.balanceSar - a.balanceSar);
+
+  const totals = {
+    supplierCount: rows.length,
+    balanceSar: rows.reduce((s, r) => s + r.balanceSar, 0),
+    overdueSar: rows.reduce((s, r) => s + r.overdueSar, 0),
+    buckets: {
+      current: rows.reduce((s, r) => s + r.buckets.current, 0),
+      d1_30: rows.reduce((s, r) => s + r.buckets.d1_30, 0),
+      d31_60: rows.reduce((s, r) => s + r.buckets.d31_60, 0),
+      d61_90: rows.reduce((s, r) => s + r.buckets.d61_90, 0),
+      d90_plus: rows.reduce((s, r) => s + r.buckets.d90_plus, 0),
+    },
+  };
+
+  return { rows, totals };
 }

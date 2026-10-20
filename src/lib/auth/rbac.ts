@@ -171,6 +171,29 @@ export const PERMISSIONS = {
   /** Final approval + disbursement (procurement manager / plant owner). */
   PROCURE_APPROVE: "procure:approve",
 
+  // ── Suppliers & purchase orders (الموردون وأوامر الشراء) ────────────
+  /**
+   * See the supplier register and its purchase orders.
+   *
+   * Deliberately NOT FINANCE_READ: the purchasing manager has to know who he
+   * is buying from and what has been ordered, but FINANCE_READ is the whole
+   * finance module — ledger, invoices, collections, client risk. Reading who
+   * the plant buys cement from should not hand over the cash book, so these
+   * supplier routes accept EITHER this or FINANCE_READ: the roles that already
+   * read them keep working unchanged, and this lets a narrower role in.
+   */
+  SUPPLIER_READ: "supplier:read",
+  /**
+   * Create or edit a supplier, raise a purchase order, receive it and record
+   * its payments.
+   *
+   * Same split as SUPPLIER_READ, and for the same reason: FINANCE_CLIENT_UPDATE
+   * is the ledger/expenses/salaries write key, and a purchasing manager who can
+   * book a supplier payment must not thereby be able to book a salary or a
+   * journal entry. The three supplier write routes accept either key.
+   */
+  SUPPLIER_MANAGE: "supplier:manage",
+
   // ── Warehouse: Spares (قطع الغيار) + Scrap (الهالك) ───────────
   WAREHOUSE_READ: "warehouse:read",
   WAREHOUSE_WRITE: "warehouse:write",
@@ -807,6 +830,27 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     PERMISSIONS.SITE_READ,
     PERMISSIONS.FLEET_POSITION_READ,
   ],
+
+  // ── Primary role: Purchasing Manager (مدير المشتروات) ─────────────────────
+  //  Owns the buying chain end to end: who we buy from (supplier register),
+  //  what we ordered (purchase orders), the requisition → 3 quotes → approvals
+  //  chain, and receiving what arrived. Deliberately NOT finance and NOT HR:
+  //  SUPPLIER_READ/MANAGE are the narrow supplier keys rather than
+  //  FINANCE_READ/FINANCE_CLIENT_UPDATE, so he cannot open the ledger, book
+  //  expenses or edit salaries — he buys, and finance pays.
+  //  INVENTORY_RECEIVE is what closes the loop (raise a raw-material request,
+  //  receive a PO against the silos) and WAREHOUSE_READ/SITE_READ are context.
+  PURCHASING_MGR: [
+    PERMISSIONS.PROCURE_REQUEST,   // طلب شراء + إرفاق العروض
+    PERMISSIONS.PROCURE_REVIEW,    // مراجعة واختيار عرض
+    PERMISSIONS.PROCURE_APPROVE,   // الاعتماد النهائي + التوريد المالي
+    PERMISSIONS.SUPPLIER_READ,     // سجل الموردين + أوامر الشراء
+    PERMISSIONS.SUPPLIER_MANAGE,   // إنشاء/تعديل مورد · أمر شراء · استلام · سداد
+    PERMISSIONS.INVENTORY_READ,    // رصيد الخرسانة والمواد
+    PERMISSIONS.INVENTORY_RECEIVE, // طلب مواد خام + استلام أمر الشراء بالسيلوز
+    PERMISSIONS.WAREHOUSE_READ,    // قطع الغيار (قراءة فقط — الصرف لأمين المخزن)
+    PERMISSIONS.SITE_READ,          // اسم الفرع/المصنع كسياق
+  ],
 };
 
 // ─── Permission Check Functions ───────────────────────────────────────────────
@@ -912,6 +956,8 @@ export const MODULE_ACCESS_MAP: Record<string, Permission> = {
   audit: PERMISSIONS.AUDIT_LOG_READ,
   settings: PERMISSIONS.SYSTEM_SETTINGS,
   warehouse: PERMISSIONS.WAREHOUSE_READ,
+  procurement: PERMISSIONS.PROCURE_REQUEST,
+  suppliers: PERMISSIONS.SUPPLIER_READ,
   equipment: PERMISSIONS.QR_SCAN,
   employees: PERMISSIONS.EMPLOYEE_READ,
 };
