@@ -53,6 +53,14 @@ export class DepreciationAssetNotFoundError extends Error {
   }
 }
 
+/** 409 — the vehicle/equipment is already registered as a depreciating asset. */
+export class DepreciationAssetExistsError extends Error {
+  constructor() {
+    super("هذه المركبة/المعدة مضافة بالإهلاك بالفعل");
+    this.name = "DepreciationAssetExistsError";
+  }
+}
+
 /** 409 — the asset already has posted entries; deactivate instead of deleting. */
 export class DepreciationAssetHasEntriesError extends Error {
   constructor() {
@@ -312,6 +320,27 @@ export async function createDepreciationAsset(
   input: UpsertDepreciationAssetInput
 ) {
   const assetLabel = await labelFor(tenantId, input);
+
+  // A vehicle/equipment belongs to exactly one asset row (partial unique
+  // index in the DB). Pre-check so the caller gets a clean 409 instead of
+  // a raw constraint violation.
+  if (input.source === "vehicle" && input.vehicleId) {
+    const [dupe] = await db
+      .select({ id: depreciationAssets.id })
+      .from(depreciationAssets)
+      .where(and(eq(depreciationAssets.tenantId, tenantId), eq(depreciationAssets.vehicleId, input.vehicleId)))
+      .limit(1);
+    if (dupe) throw new DepreciationAssetExistsError();
+  }
+  if (input.source === "equipment" && input.equipmentId) {
+    const [dupe] = await db
+      .select({ id: depreciationAssets.id })
+      .from(depreciationAssets)
+      .where(and(eq(depreciationAssets.tenantId, tenantId), eq(depreciationAssets.equipmentId, input.equipmentId)))
+      .limit(1);
+    if (dupe) throw new DepreciationAssetExistsError();
+  }
+
   const [row] = await db
     .insert(depreciationAssets)
     .values({

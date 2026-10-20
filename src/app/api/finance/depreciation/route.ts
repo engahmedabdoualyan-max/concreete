@@ -11,6 +11,7 @@ import { PERMISSIONS } from "@/lib/auth/rbac";
 import {
   listDepreciation,
   createDepreciationAsset,
+  DepreciationAssetExistsError,
 } from "@/lib/services/depreciation.service";
 import { z } from "zod";
 
@@ -84,11 +85,10 @@ export async function POST(req: NextRequest) {
     });
     return successResponse(row, "تمت إضافة الأصل");
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Unknown error";
-    // unique(tenant, vehicle) violation → the vehicle is already an asset
-    if (message.includes("uq_dep_assets_")) {
-      return errorResponse("ASSET_EXISTS", "هذه المركبة/المعدة مضافة بالإهلاك بالفعل", 409);
+    if (err instanceof DepreciationAssetExistsError) {
+      return errorResponse("ASSET_EXISTS", err.message, 409);
     }
+    const message = err instanceof Error ? err.message : "Unknown error";
     console.error("[POST /api/finance/depreciation]", err);
     return errorResponse("DEPRECIATION_ERROR", message, 500);
   }
