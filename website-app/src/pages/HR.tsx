@@ -20,7 +20,7 @@ import { downloadExcel, openPrintPDF, type ExportColumn, type ExportRow } from '
  * (HR_READ / HR_WRITE); every tab degrades independently.
  */
 
-type Tab = 'requests' | 'team' | 'attendance' | 'broadcasts' | 'payroll' | 'actions' | 'investigations' | 'custody' | 'vehicles' | 'violations' | 'deductions' | 'company' | 'petty' | 'leave' | 'vlog' | 'overtime' | 'expenses' | 'modules' | 'org' | 'equipment' | 'tree' | 'exit';
+type Tab = 'requests' | 'team' | 'attendance' | 'broadcasts' | 'payroll' | 'advances' | 'actions' | 'investigations' | 'custody' | 'vehicles' | 'violations' | 'deductions' | 'company' | 'petty' | 'leave' | 'vlog' | 'overtime' | 'expenses' | 'modules' | 'org' | 'equipment' | 'tree' | 'exit';
 
 const COUNTRIES = [
   { code: 'SA', ar: 'السعودية', flag: '🇸🇦' }, { code: 'EG', ar: 'مصر', flag: '🇪🇬' },
@@ -598,6 +598,26 @@ export default function HR() {
   const [openRun, setOpenRun] = useState<string | null>(null);
   const [runLines, setRunLines] = useState<any[]>([]);
   const [paySearch, setPaySearch] = useState('');
+
+// Advances state
+const [advRows, setAdvRows] = useState<any[]>([]);
+const [advSearch, setAdvSearch] = useState('');
+const [advStatusFilter, setAdvStatusFilter] = useState('ALL');
+const [showAdvanceForm, setShowAdvanceForm] = useState(false);
+const [advForm, setAdvForm] = useState({
+  employeeId: '',
+  principalSar: 0,
+  repaymentMode: 'FIXED' as 'FIXED' | 'PERCENTAGE',
+  installmentAmountSar: 0,
+  installmentPct: 0,
+  totalInstallments: 1,
+  nextDeductionPeriod: new Date().toISOString().slice(0, 7),
+  approvalNote: '',
+});
+const [advSaving, setAdvSaving] = useState(false);
+const [cancelAdvance, setCancelAdvance] = useState<{ id: string; employeeName: string } | null>(null);
+const [cancelReason, setCancelReason] = useState('');
+const [cancelBusy, setCancelBusy] = useState(false);
   const [note, setNote] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState('');
   const [msg, setMsg] = useState('');
@@ -2033,6 +2053,84 @@ function ageOf(raw: unknown): number | null {
     }
   };
 
+  // ===== Advances functions =====
+  const loadAdvances = async () => {
+    try {
+      const res = await api.get<{ advances: any[] }>(`/api/hr/advances?status=${advStatusFilter === 'ALL' ? '' : advStatusFilter}`);
+      setAdvRows(res?.advances ?? []);
+    } catch { setAdvRows([]); }
+  };
+
+  const saveAdvance = async () => {
+    if (!advForm.employeeId || !advForm.principalSar || !advForm.totalInstallments || !advForm.nextDeductionPeriod) {
+      setMsg(ar ? '❌ كل الحقول مطلوبة' : 'All fields required');
+      return;
+    }
+    if (advForm.repaymentMode === 'FIXED' && !advForm.installmentAmountSar) {
+      setMsg(ar ? '❌ قيمة القسط مطلوبة للوضع الثابت' : 'Installment amount required for FIXED');
+      return;
+    }
+    if (advForm.repaymentMode === 'PERCENTAGE' && !advForm.installmentPct) {
+      setMsg(ar ? '❌ النسبة مطلوبة لوضع النسبة' : 'Percentage required for PERCENTAGE');
+      return;
+    }
+    setAdvSaving(true);
+    try {
+      const body = {
+        employeeId: advForm.employeeId,
+        principalSar: advForm.principalSar,
+        repaymentMode: advForm.repaymentMode,
+        installmentAmountSar: advForm.repaymentMode === 'FIXED' ? advForm.installmentAmountSar : undefined,
+        installmentPct: advForm.repaymentMode === 'PERCENTAGE' ? advForm.installmentPct : undefined,
+        totalInstallments: advForm.totalInstallments,
+        nextDeductionPeriod: advForm.nextDeductionPeriod,
+        approvalNote: advForm.approvalNote || undefined,
+      };
+      await api.post('/api/hr/advances', body);
+      setMsg('✅ ' + (ar ? 'تم إنشاء السلفة' : 'Advance created'));
+      setShowAdvanceForm(false);
+      setAdvForm({ employeeId: '', principalSar: 0, repaymentMode: 'FIXED', installmentAmountSar: 0, installmentPct: 0, totalInstallments: 1, nextDeductionPeriod: new Date().toISOString().slice(0, 7), approvalNote: '' });
+      await loadAdvances();
+    } catch (e: any) {
+      setMsg(`❌ ${e?.message ?? (ar ? 'فشل الحفظ' : 'Save failed')}`);
+    } finally {
+      setAdvSaving(false);
+    }
+  };
+
+  const approveAdvance = async (id: string) => {
+    setBusy('advapp' + id);
+    try {
+      await api.patch(`/api/hr/advances/${id}`, { approvalNote: '' });
+      setMsg('✅ ' + (ar ? 'تم اعتماد السلفة' : 'Advance approved'));
+      await loadAdvances();
+    } catch (e: any) {
+      setMsg(`❌ ${e?.message ?? (ar ? 'فشل الاعتماد' : 'Approval failed')}`);
+    } finally {
+      setBusy('');
+    }
+  };
+
+  const openCancelAdvance = (a: { id: string; employeeName: string } | null) => {
+    setCancelAdvance(a);
+    setCancelReason('');
+  };
+
+  const confirmCancelAdvance = async () => {
+    if (!cancelAdvance || !cancelReason.trim()) return;
+    setCancelBusy(true);
+    try {
+      await api.patch(`/api/hr/advances/${cancelAdvance.id}`, { cancelReason: cancelReason.trim() });
+      setMsg('✅ ' + (ar ? 'تم إلغاء السلفة' : 'Advance cancelled'));
+      setCancelAdvance(null);
+      await loadAdvances();
+    } catch (e: any) {
+      setMsg(`❌ ${e?.message ?? (ar ? 'فشل الإلغاء' : 'Cancel failed')}`);
+    } finally {
+      setCancelBusy(false);
+    }
+  };
+
   // Upload the signed سند قبض for one employee/month, then attach it.
   const uploadPayReceipt = async (employeeId: string, file?: File) => {
     if (!file) return;
@@ -2219,6 +2317,12 @@ function ageOf(raw: unknown): number | null {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab, payMonth]);
 
+  useEffect(() => {
+    if (tab !== 'advances') return;
+    void loadAdvances();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, advStatusFilter]);
+
   const review = async (id: string, decision: 'APPROVED' | 'REJECTED') => {    setBusy(id + decision);
     setMsg('');
     try {
@@ -2248,6 +2352,7 @@ function ageOf(raw: unknown): number | null {
     { id: 'attendance', ar: '🕐 الحضور', en: 'Attendance', mod: 'attendance' },
     { id: 'broadcasts', ar: '📢 الإعلانات', en: 'Broadcasts', mod: 'broadcasts' },
     { id: 'payroll', ar: '💰 الرواتب', en: 'Payroll', mod: 'payroll' },
+    { id: 'advances', ar: '💸 السلف', en: 'Advances', mod: 'advances' },
     { id: 'actions', ar: '⚖️ الجزاءات والمكافآت', en: 'Actions', mod: 'actions' },
     { id: 'investigations', ar: '🔍 التحقيقات', en: 'Investigations', mod: 'investigations' },
     { id: 'custody', ar: '🎒 العهد', en: 'Custody', mod: 'custody' },
@@ -2269,8 +2374,8 @@ function ageOf(raw: unknown): number | null {
 
   const MOD_AR: Record<string, string> = {
     requests: 'الطلبات', team: 'فريق العمل', attendance: 'الحضور والتقارير',
-    broadcasts: 'الإعلانات', payroll: 'الرواتب', actions: 'الجزاءات والمكافآت',
-    investigations: 'التحقيقات', custody: 'العهد', vehicles: 'المركبات', violations: 'المخالفات',
+    broadcasts: 'الإعلانات', payroll: 'الرواتب', advances: 'السلف',
+    actions: 'الجزاءات والمكافآت', investigations: 'التحقيقات', custody: 'العهد', vehicles: 'المركبات', violations: 'المخالفات',
     deductions: 'كشف الخصومات', company: 'أوراق الشركة', petty: 'العهدة المالية',
     leaveBalances: 'أرصدة الإجازات', vehicleLog: 'سجل المركبات', overtime: 'الأجر الإضافي',
     expenses: 'مطالبات المصاريف', org: 'الهيكل الوظيفي', equipment: 'هيكل المعدات', tree: 'حسابات الدخول', exit: 'إخلاء الطرف',
@@ -3343,6 +3448,176 @@ function ageOf(raw: unknown): number | null {
                 )}
               </div>
             ))}
+          </div>
+        )}
+
+        {/* ===== advances: employee salary advances ===== */}
+        {tab === 'advances' && (
+          <div className="mt-4">
+            <div className="flex flex-wrap items-center gap-2 mb-3">
+              <button onClick={() => setShowAdvanceForm((v) => !v)}
+                className="text-[11px] font-black rounded-lg px-3 py-1.5 border border-emerald-500/50 bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25">
+                ➕ {ar ? 'سلفة جديدة' : 'New Advance'}
+              </button>
+              <input value={advSearch} onChange={(e) => setAdvSearch(e.target.value)}
+                placeholder={ar ? '🔍 بحث بالاسم / الكود…' : 'Search name / code…'}
+                className="flex-1 min-w-[200px] bg-white/[0.04] border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white outline-none" />
+              <select value={advStatusFilter} onChange={(e) => setAdvStatusFilter(e.target.value)}
+                className="bg-white/[0.04] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none">
+                <option value="ALL">{ar ? 'كل الحالات' : 'All'}</option>
+                <option value="PENDING">{ar ? 'قيد المراجعة' : 'Pending'}</option>
+                <option value="ACTIVE">{ar ? 'قيد السداد' : 'Active'}</option>
+                <option value="COMPLETED">{ar ? 'مسدد' : 'Completed'}</option>
+                <option value="CANCELLED">{ar ? 'ملغى' : 'Cancelled'}</option>
+              </select>
+              <ExportBar
+                title={ar ? 'كشف السلف' : 'Advances'}
+                subtitle={advStatusFilter}
+                fileBase={`advances-${advStatusFilter}`}
+                columns={[
+                  { header: 'الموظف', key: 'employeeName' },
+                  { header: 'الكود', key: 'employeeCode' },
+                  { header: 'المبلغ', key: 'principalSar' },
+                  { header: 'نوع السداد', key: 'repaymentMode' },
+                  { header: 'قسط/نسبة', key: 'installment' },
+                  { header: 'الأقساط', key: 'installments' },
+                  { header: 'المسددة', key: 'paidInstallments' },
+                  { header: 'المتبقي', key: 'remainingSar' },
+                  { header: 'الحالة', key: 'status' },
+                  { header: 'الخصم القادم', key: 'nextPeriod' },
+                ]}
+                branding={brandParam}
+                rows={advRows.map((a) => ({
+                  employeeName: a.employeeName,
+                  employeeCode: a.employeeCode,
+                  principalSar: a.principalSar.toLocaleString('en-US', { maximumFractionDigits: 2 }),
+                  repaymentMode: a.repaymentMode === 'FIXED' ? (ar ? 'قسط ثابت' : 'Fixed') : (ar ? 'نسبة من الراتب' : 'Percentage'),
+                  installment: a.repaymentMode === 'FIXED'
+                    ? (a.installmentAmountSar ? `${a.installmentAmountSar.toLocaleString('en-US', { maximumFractionDigits: 2 })} SAR` : '')
+                    : (a.installmentPct ? `${a.installmentPct}%` : ''),
+                  installments: a.totalInstallments,
+                  paidInstallments: a.paidInstallments,
+                  remainingSar: a.remainingSar.toLocaleString('en-US', { maximumFractionDigits: 2 }),
+                  status: a.statusLabel,
+                  nextPeriod: a.nextDeductionPeriod ?? '',
+                }))}
+              />
+            </div>
+
+            {showAdvanceForm && (
+              <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/[0.06] p-4 mb-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+                  <label className="text-[11px] text-slate-400 font-bold">{ar ? 'الموظف *' : 'Employee *'}
+                    <select value={advForm.employeeId} onChange={(e) => setAdvForm({ ...advForm, employeeId: e.target.value })}
+                      className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none">
+                      <option value="">{ar ? 'اختر الموظف' : 'Select employee'}</option>
+                      {employees.filter(e => e.isActive !== false).map((e) => (
+                        <option key={e.id} value={e.id}>{e.fullName} · {e.employeeCode}</option>
+                      ))}
+                    </select></label>
+                  <label className="text-[11px] text-slate-400 font-bold">{ar ? 'المبلغ (ر.س) *' : 'Amount (SAR) *'}
+                    <input type="number" step="0.01" inputMode="decimal" value={advForm.principalSar} onChange={(e) => setAdvForm({ ...advForm, principalSar: e.target.value === '' ? 0 : Number(e.target.value) })}
+                      className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
+                  <label className="text-[11px] text-slate-400 font-bold">{ar ? 'نوع السداد *' : 'Repayment *'}
+                    <select value={advForm.repaymentMode} onChange={(e) => setAdvForm({ ...advForm, repaymentMode: e.target.value as 'FIXED' | 'PERCENTAGE' })}
+                      className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none">
+                      <option value="FIXED">{ar ? 'قسط ثابت' : 'Fixed installment'}</option>
+                      <option value="PERCENTAGE">{ar ? 'نسبة من الراتب' : 'Percentage of salary'}</option>
+                    </select></label>
+                  <label className="text-[11px] text-slate-400 font-bold">{ar ? 'قيمة القسط (ثابت)' : 'Installment (fixed)'}
+                    <input type="number" step="0.01" inputMode="decimal" value={advForm.installmentAmountSar} onChange={(e) => setAdvForm({ ...advForm, installmentAmountSar: e.target.value === '' ? 0 : Number(e.target.value) })}
+                      disabled={advForm.repaymentMode !== 'FIXED'}
+                      className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
+                  <label className="text-[11px] text-slate-400 font-bold">{ar ? 'النسبة % (راتب)' : 'Percentage %'}
+                    <input type="number" step="0.01" inputMode="decimal" value={advForm.installmentPct} onChange={(e) => setAdvForm({ ...advForm, installmentPct: e.target.value === '' ? 0 : Number(e.target.value) })}
+                      disabled={advForm.repaymentMode !== 'PERCENTAGE'}
+                      className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
+                  <label className="text-[11px] text-slate-400 font-bold">{ar ? 'عدد الأقساط *' : 'Installments *'}
+                    <input type="number" min="1" max="60" value={advForm.totalInstallments} onChange={(e) => setAdvForm({ ...advForm, totalInstallments: Number(e.target.value) || 1 })}
+                      className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
+                  <label className="text-[11px] text-slate-400 font-bold">{ar ? 'أول خصم (YYYY-MM) *' : 'First deduction *'}
+                    <input type="month" value={advForm.nextDeductionPeriod} onChange={(e) => setAdvForm({ ...advForm, nextDeductionPeriod: e.target.value })}
+                      className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none" /></label>
+                  <label className="text-[11px] text-slate-400 font-bold">{ar ? 'ملاحظة الاعتماد' : 'Approval note'}
+                    <textarea value={advForm.approvalNote} onChange={(e) => setAdvForm({ ...advForm, approvalNote: e.target.value })}
+                      rows={2} className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none col-span-2" /></label>
+                </div>
+                <div className="flex gap-2 mt-3">
+                  <button onClick={saveAdvance} disabled={advSaving}
+                    className="text-[11px] font-black rounded-lg px-4 py-1.5 border border-emerald-500/50 bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25 disabled:opacity-50">
+                    {advSaving ? '⏳' : `✅ ${ar ? 'حفظ' : 'Save'}`}
+                  </button>
+                  <button onClick={() => setShowAdvanceForm(false)}
+                    className="text-[11px] font-black rounded-lg px-4 py-1.5 border border-white/10 bg-white/[0.04] text-slate-300 hover:border-slate-400/50">
+                    {ar ? 'إلغاء' : 'Cancel'}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {advRows.length === 0 && <p className="text-xs text-slate-500">{ar ? 'لا توجد سلف.' : 'No advances.'}</p>}
+            <div className="space-y-1">
+              {advRows.map((a, i) => (
+                <div key={a.id ?? i} className="rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-xs">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-black text-white truncate">{a.employeeName} <span className="text-slate-500 font-bold">· {a.employeeCode}</span></span>
+                    <span className="shrink-0 rounded-lg border px-2 py-0.5 font-black
+                      {a.status === 'ACTIVE' ? 'border-emerald-500/60 bg-emerald-500/20 text-emerald-200' :
+                       a.status === 'PENDING' ? 'border-amber-500/60 bg-amber-500/20 text-amber-200' :
+                       a.status === 'COMPLETED' ? 'border-sky-500/60 bg-sky-500/20 text-sky-200' :
+                       'border-slate-500/60 bg-slate-500/20 text-slate-300'}">
+                      {a.status === 'ACTIVE' && '🔄'} {a.status === 'PENDING' && '⏳'} {a.status === 'COMPLETED' && '✅'} {a.status === 'CANCELLED' && '⛔'} {a.statusLabel}
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-slate-400 mt-0.5">
+                    <span>{ar ? 'المبلغ' : 'Amount'}: <b className="text-slate-200">{a.principalSar.toLocaleString('en-US', { maximumFractionDigits: 2 })}</b></span>
+                    <span>{ar ? 'النوع' : 'Mode'}: {a.repaymentMode === 'FIXED' ? (ar ? 'ثابت' : 'Fixed') : (ar ? 'نسبة' : 'Pct')}</span>
+                    <span>{ar ? 'القسط' : 'Inst'}: {a.repaymentMode === 'FIXED' && a.installmentAmountSar ? `${Number(a.installmentAmountSar).toLocaleString('en-US', { maximumFractionDigits: 2 })} SAR` : (a.installmentPct ? `${a.installmentPct}%` : '—')}</span>
+                    <span>{ar ? 'الأقساط' : 'Term'}: {a.paidInstallments}/{a.totalInstallments}</span>
+                    <span>{ar ? 'المتبقي' : 'Remain'}: <b className="text-amber-300">{a.remainingSar.toLocaleString('en-US', { maximumFractionDigits: 2 })}</b></span>
+                    {a.nextDeductionPeriod && <span>{ar ? 'الخصم القادم' : 'Next'}: <b className="text-sky-300">{a.nextDeductionPeriod}</b></span>}
+                    {a.approvalNote && <span className="text-slate-500">📝 {a.approvalNote}</span>}
+                  </div>
+                  {(a.status === 'PENDING' || a.status === 'ACTIVE') && (
+                    <div className="flex gap-2 mt-1.5">
+                      {a.status === 'PENDING' && (
+                        <button onClick={() => approveAdvance(a.id)}
+                          className="text-[10px] font-black rounded-lg px-2 py-1 border border-emerald-500/50 bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25">
+                          ✅ {ar ? 'اعتماد' : 'Approve'}
+                        </button>
+                      )}
+                      {a.status === 'ACTIVE' && (
+                        <button onClick={() => openCancelAdvance(a)}
+                          className="text-[10px] font-black rounded-lg px-2 py-1 border border-red-500/50 bg-red-500/15 text-red-300 hover:bg-red-500/25">
+                          ⛔ {ar ? 'إلغاء' : 'Cancel'}
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {cancelAdvance && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={() => setCancelAdvance(null)}>
+                <div className="w-full max-w-md rounded-2xl border border-white/15 bg-slate-900 p-4" onClick={(e) => e.stopPropagation()}>
+                  <h3 className="text-sm font-black text-white mb-3">{ar ? 'إلغاء السلفة' : 'Cancel advance'}</h3>
+                  <label className="text-[11px] text-slate-400 font-bold block mb-1">{ar ? 'سبب الإلغاء *' : 'Reason *'}</label>
+                  <textarea value={cancelReason} onChange={(e) => setCancelReason(e.target.value)}
+                    rows={3} className="w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none mb-3" />
+                  <div className="flex gap-2 justify-end">
+                    <button onClick={() => confirmCancelAdvance()} disabled={cancelBusy}
+                      className="text-[11px] font-black rounded-lg px-3 py-1.5 border border-red-500/50 bg-red-500/15 text-red-300 hover:bg-red-500/25 disabled:opacity-50">
+                      {ar ? 'تأكيد الإلغاء' : 'Confirm cancel'}
+                    </button>
+                    <button onClick={() => setCancelAdvance(null)}
+                      className="text-[11px] font-black rounded-lg px-3 py-1.5 border border-white/10 text-slate-300 hover:border-slate-400/50">
+                      {ar ? 'تراجع' : 'Back'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
