@@ -18,6 +18,7 @@ import Governance from './pages/Governance';
 import Finance from './pages/Finance';
 import ErpMaterials from './pages/ErpMaterials';
 import MultiPlant from './pages/MultiPlant';
+import Sales from './pages/Sales';
 import Debts from './pages/Debts';
 import Suppliers from './pages/Suppliers';
 import LoginRegister from './components/LoginRegister';
@@ -112,6 +113,7 @@ export default function App() {
           <Route path="/production" element={<Production />} />
           <Route path="/schedule" element={<Schedule />} />
           <Route path="/orders" element={<Orders />} />
+          <Route path="/sales" element={<Sales />} />
           <Route path="/rnd" element={<ResearchDevelopment />} />
           <Route path="/governance" element={<Governance />} />
           <Route path="/finance" element={<Finance />} />

@@ -1,0 +1,544 @@
+import { useEffect, useState, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { api } from '../api/client';
+import { useAuth } from '../context/AuthContext';
+import { useSalesDict } from '../i18n/salesDict';
+import { useOrdersDict } from '../i18n/ordersDict';
+import BrandLogo from '../components/BrandLogo';
+import QuickJump from '../components/QuickJump';
+import DatePicker from '../components/DatePicker';
+import ExportButtons from '../components/ExportButtons';
+import LangSelector from '../components/LangSelector';
+import { loadOrders, saveOrders } from '../firebase/firestore';
+
+interface Order {
+  id: string;
+  orderNo?: string;
+  customerName: string;
+  customerPhone: string;
+  projectName: string;
+  projectLocation: string;
+  orderType: 'concrete' | 'blocks';
+  elementType: string;
+  quantity: number;
+  concreteType?: string;
+  slump?: string;
+  cementType?: string;
+  status: 'pending' | 'approved' | 'scheduled' | 'in_progress' | 'completed' | 'cancelled';
+  scheduledDate?: string;
+  orderDate?: string;
+  orderTime?: string;
+  customerId?: string;
+  notes?: string;
+  executedAt?: string;
+  executedBy?: string;
+}
+
+interface ExecutedOrder {
+  id: string;
+  orderId: string;
+  executedAt: string;
+  executedBy: string;
+  qtyExecuted: number;
+  notes?: string;
+}
+
+const ORDERS_KEY = 'concrete_plant_orders';
+const EXECUTED_KEY = 'concrete_plant_executed';
+
+const fmtTime = (iso?: string) => {
+  if (!iso) return '';
+  const d = new Date(iso);
+  return d.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
+};
+
+const fmtDate = (iso?: string) => {
+  if (!iso) return '';
+  const d = new Date(iso);
+  return d.toLocaleDateString('ar-EG', { day: '2-digit', month: '2-digit', year: 'numeric' });
+};
+
+const getStatusLabel = (status: string, t: any) => {
+  switch (status) {
+    case 'scheduled': return '📅 ' + t('statusScheduled');
+    case 'in_progress': return '🚚 ' + t('statusInProgress');
+    case 'completed': return '✅ ' + t('statusCompleted');
+    case 'cancelled': return '❌ ' + t('statusCancelled');
+    default: return '⏳ ' + t('statusPending');
+  }
+};
+
+function getBlockUnit(t: any, orderType: string) {
+  return orderType === 'concrete' ? t('m3') : t('blocks');
+}
+
+export default function Sales() {
+  const { currentUser, logout } = useAuth();
+  const navigate = useNavigate();
+  const t = useSalesDict();
+  const ot = useOrdersDict();
+
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [executed, setExecuted] = useState<ExecutedOrder[]>([]);
+  const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [tab, setTab] = useState<'schedule' | 'blocks' | 'concrete'>('schedule');
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  // Load orders from localStorage + Firestore
+  useEffect(() => {
+    if (!currentUser) return;
+    import('../firebase/firestore').then(({ loadOrders }) => loadOrders(currentUser.username))
+      .then(data => {
+        if (data && Array.isArray(data) && data.length > 0) setOrders(data);
+        else {
+          const saved = localStorage.getItem('concrete_plant_orders');
+          if (saved) setOrders(JSON.parse(saved));
+        }
+      })
+      .catch(() => {
+        const saved = localStorage.getItem('concrete_plant_orders');
+        if (saved) setOrders(JSON.parse(saved));
+      });
+  }, [currentUser?.username]);
+
+  // Load executed orders
+  useEffect(() => {
+    if (!currentUser) return;
+    import('../firebase/firestore').then(({ loadExecuted }) => loadExecuted(currentUser.username))
+      .then(data => {
+        if (data && Array.isArray(data) && data.length > 0) setExecuted(data);
+        else {
+          const saved = localStorage.getItem('concrete_plant_executed');
+          if (saved) setExecuted(JSON.parse(saved));
+        }
+      })
+      .catch(() => {
+        const saved = localStorage.getItem('concrete_plant_executed');
+        if (saved) setExecuted(JSON.parse(saved));
+      });
+  }, [currentUser?.username]);
+
+  // Save executed to localStorage + Firestore
+  useEffect(() => {
+    if (!currentUser) return;
+    if (executed.length > 0 || localStorage.getItem('concrete_plant_executed')) {
+      localStorage.setItem('concrete_plant_executed', JSON.stringify(executed));
+    }
+    if (executed.length > 0) {
+      import('../firebase/firestore').then(({ saveExecuted }) => saveExecuted(currentUser.username, executed)).catch(() => {});
+    }
+  }, [executed, currentUser?.username]);
+
+  // Filter orders for selected date
+  const dayOrders = orders.filter(o => {
+    const od = (o.scheduledDate || o.orderDate || '').split('T')[0];
+    return od === selectedDate;
+  });
+
+  const todayExecuted = executed.filter(e => e.executedAt.split('T')[0] === selectedDate);
+
+  const [autoCheckResult, setAutoCheckResult] = useState<any | null>(null);
+  const [autoCheckBusy, setAutoCheckBusy] = useState(false);
+
+  const runAutoCheck = async (days: number) => {
+    setAutoCheckBusy(true);
+    setError('');
+    try {
+      const res = await api.get(`/api/inventory/auto-check?days=${days}`);
+      if (res) setAutoCheckResult(res);
+    } catch (e: any) {
+      setError(e?.message || t('autoCheckFail'));
+    } finally {
+      setAutoCheckBusy(false);
+    }
+  };
+
+  // Separate blocks and concrete
+  const blocksPlanned = dayOrders.filter(o => o.orderType === 'blocks');
+  const concretePlanned = dayOrders.filter(o => o.orderType === 'concrete');
+  const blocksExecuted = todayExecuted.filter(e => {
+    const o = orders.find(o => o.id === e.orderId);
+    return o?.orderType === 'blocks';
+  });
+  const concreteExecuted = todayExecuted.filter(e => {
+    const o = orders.find(o => o.id === e.orderId);
+    return o?.orderType === 'concrete';
+  });
+
+  // Summary calculations
+  const blocksPlannedQty = blocksPlanned.reduce((sum, o) => sum + (o.quantity || 0), 0);
+  const concretePlannedQty = concretePlanned.reduce((sum, o) => sum + (o.quantity || 0), 0);
+  const blocksExecutedQty = blocksExecuted.reduce((sum, e) => sum + (e.qtyExecuted || 0), 0);
+  const concreteExecutedQty = concreteExecuted.reduce((sum, e) => sum + (e.qtyExecuted || 0), 0);
+  const blocksRemaining = Math.max(0, blocksPlannedQty - blocksExecutedQty);
+  const concreteRemaining = Math.max(0, concretePlannedQty - concreteExecutedQty);
+  const blocksRate = blocksPlannedQty > 0 ? Math.round((blocksExecutedQty / blocksPlannedQty) * 100) : 0;
+  const concreteRate = concretePlannedQty > 0 ? Math.round((concreteExecutedQty / concretePlannedQty) * 100) : 0;
+
+  const handleDateChange = (date: string) => {
+    setSelectedDate(date);
+  };
+
+  const markExecuted = (orderId: string) => {
+    const order = orders.find(o => o.id === orderId);
+    if (!order) return;
+    const existing = executed.find(e => e.orderId === orderId);
+    if (existing) return alert(ot('alreadyExecuted') || 'Already marked as executed');
+    
+    const newExec: ExecutedOrder = {
+      id: Date.now().toString(),
+      orderId,
+      executedAt: new Date().toISOString(),
+      executedBy: currentUser?.fullName || currentUser?.username || 'Unknown',
+      qtyExecuted: order.quantity,
+    };
+    setExecuted(prev => [...prev, newExec]);
+  };
+
+  const undoExecuted = (execId: string) => {
+    setExecuted(prev => prev.filter(e => e.id !== execId));
+  };
+
+  if (!currentUser) {
+    return (
+      <div className="min-h-screen bg-[#0B111E] flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-red-400 text-xl mb-4">🔒 {t('backLogin') || 'Access Denied'}</p>
+        </div>
+      </div>
+    );
+  }
+
+  const todayStr = new Date().toISOString().split('T')[0];
+  const isToday = selectedDate === todayStr;
+
+  return (
+    <div className="min-h-screen bg-[#0B111E] text-slate-200">
+      {/* Header */}
+      <div className="bg-[#0B111E]/80 backdrop-blur-xl border-b border-white/10 px-6 py-2.5 flex flex-wrap justify-between items-center gap-x-3 gap-y-1.5 sticky top-0 z-50 shadow-lg">
+        <div className="flex flex-wrap items-center gap-3">
+          <BrandLogo width={56} />
+          <button onClick={() => navigate('/')} className="text-slate-400 text-xs border border-white/10 px-2 py-1 rounded hover:text-white">← Dashboard</button>
+          <QuickJump />
+          <LangSelector />
+          <h1 className="text-sm font-black tracking-tight text-white">{t('salesTitle')}</h1>
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <DatePicker
+            value={selectedDate}
+            onChange={handleDateChange}
+            label={t('selectDate')}
+            max={todayStr}
+          />
+          <span className="bg-emerald-500/15 text-emerald-500 text-xs px-3 py-1.5 rounded-lg font-bold border border-emerald-500/30">🟢 {currentUser.plantName}</span>
+          <button onClick={() => { logout(); navigate('/'); }} className="bg-white/[0.05] text-slate-300 text-xs px-3 py-1.5 rounded-lg font-bold border border-white/10 hover:border-red-400/60 hover:text-red-300">{t('logout')}</button>
+        </div>
+      </div>
+
+      <div className="max-w-7xl mx-auto p-6">
+        {/* Date indicator */}
+        <div className="mb-6">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <h2 className="text-lg font-black text-white">{t('salesTitle')}</h2>
+              <p className="text-xs text-slate-400">{t('subtitle')}</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <DatePicker
+                value={selectedDate}
+                onChange={handleDateChange}
+                label={t('selectDate')}
+                max={todayStr}
+              />
+              <button onClick={() => setSelectedDate(todayStr)} className="text-[11px] font-black rounded-lg px-3 py-1.5 border border-sky-500/50 bg-sky-500/15 text-sky-300 hover:bg-sky-500/25">{t('today')}</button>
+              <button className="text-[11px] font-black rounded-lg px-3 py-1.5 border border-white/10 bg-white/[0.04] text-slate-300 hover:border-sky-400/50">{t('refresh')}</button>
+            </div>
+            <p className="text-xs text-slate-400">{t('subtitle')}</p>
+          </div>
+
+          {/* Summary Cards */}
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3 mb-6">
+            <div className="bg-white/[0.04] border border-emerald-500/30 rounded-lg p-4">
+              <p className="text-xs text-slate-400 mb-1">{t('blocksTotal')}</p>
+              <p className="text-2xl font-bold text-white">{blocksPlannedQty.toLocaleString()} {t('blocks')}</p>
+              <p className="text-[10px] text-slate-400">{t('planned')}</p>
+            </div>
+            <div className="bg-white/[0.04] border border-sky-500/30 rounded-lg p-4">
+              <p className="text-xs text-slate-400 mb-1">{t('concreteTotal')}</p>
+              <p className="text-2xl font-bold text-white">{concretePlannedQty.toLocaleString()} m³</p>
+              <p className="text-[10px] text-slate-400">{t('planned')}</p>
+            </div>
+            <div className="bg-white/[0.04] border border-emerald-500/30 rounded-lg p-4">
+              <p className="text-xs text-slate-400 mb-1">{t('blocksExecuted') || 'Blocks Executed'}</p>
+              <p className="text-2xl font-bold text-emerald-400">{blocksExecutedQty.toLocaleString()} {t('blocks')}</p>
+              <p className="text-[10px] text-emerald-400">{blocksRate}% {t('completionRate')}</p>
+            </div>
+            <div className="bg-white/[0.04] border border-sky-500/30 rounded-lg p-4">
+              <p className="text-xs text-slate-400 mb-1">{t('concreteExecuted')}</p>
+              <p className="text-2xl font-bold text-sky-400">{concreteExecutedQty.toLocaleString()} m³</p>
+              <p className="text-[10px] text-sky-400">{concreteRate}% {t('completionRate')}</p>
+            </div>
+            <div className="bg-white/[0.04] border border-yellow-500/30 rounded-lg p-4">
+              <p className="text-xs text-slate-400 mb-1">{t('remaining')}</p>
+              <p className="text-2xl font-bold text-yellow-400">{blocksRemaining.toLocaleString()} {t('blocks')}</p>
+              <p className="text-[10px] text-slate-400">{t('blocks')}</p>
+            </div>
+            <div className="bg-white/[0.04] border border-yellow-500/30 rounded-lg p-4">
+              <p className="text-xs text-slate-400 mb-1">{t('remaining')}</p>
+              <p className="text-2xl font-bold text-yellow-400">{concreteRemaining.toLocaleString()} m³</p>
+              <p className="text-[10px] text-slate-400">{t('m3')}</p>
+            </div>
+            <div className="bg-white/[0.04] border border-emerald-500/30 rounded-lg p-4">
+              <p className="text-xs text-slate-400 mb-1">{t('totalExecuted')}</p>
+              <p className="text-2xl font-bold text-emerald-400">{blocksExecutedQty + Math.round(concreteExecutedQty).toLocaleString()}</p>
+              <p className="text-[10px] text-slate-400">{t('totalExecuted')}</p>
+            </div>
+            <div className="bg-white/[0.04] border border-purple-500/30 rounded-lg p-4">
+              <p className="text-xs text-slate-400 mb-1">{t('completionRate')}</p>
+              <p className="text-2xl font-bold text-purple-400">
+                {blocksPlannedQty + concretePlannedQty > 0
+                  ? Math.round(((blocksExecutedQty + concreteExecutedQty) / (blocksPlannedQty + concretePlannedQty)) * 100)
+                  : 0}%
+              </p>
+              <p className="text-[10px] text-slate-400">{t('completionRate')}</p>
+            </div>
+          </div>
+
+          {/* Tabs */}
+          <div className="flex bg-white/[0.04] border border-white/10 rounded-lg overflow-hidden mb-4">
+            <button onClick={() => setTab('schedule')} className={`px-4 py-2 text-xs font-bold ${tab === 'schedule' ? 'bg-emerald-500 text-white' : 'text-slate-400'}`}>{t('tabSchedule')}</button>
+            <button onClick={() => setTab('blocks')} className={`px-4 py-2 text-xs font-bold ${tab === 'blocks' ? 'bg-emerald-500 text-white' : 'text-slate-400'}`}>{t('tabBlocks')}</button>
+            <button onClick={() => setTab('concrete')} className={`px-4 py-2 text-xs font-bold ${tab === 'concrete' ? 'bg-sky-500 text-white' : 'text-slate-400'}`}>{t('tabConcrete')}</button>
+          </div>
+
+          {error && <div className="text-xs text-red-400 bg-red-500/10 border border-red-500/30 rounded p-2 mb-3">{error}</div>}
+
+          {/* Schedule Tab */}
+          {tab === 'schedule' && (
+            <div className="space-y-4">
+              {/* Planned Blocks */}
+              <div className="bg-white/[0.02] border border-emerald-500/20 rounded-xl p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-sm font-bold text-white">{t('tabBlocks')} - {t('plannedOrders')}</h3>
+                  <button
+                    onClick={() => runAutoCheck(7)}
+                    disabled={autoCheckBusy}
+                    className="text-[11px] font-black rounded-lg px-3 py-1.5 border border-sky-500/50 bg-sky-500/15 text-sky-300 hover:bg-sky-500/25 disabled:opacity-50"
+                  >
+                    {autoCheckBusy ? '⏳' : '🤖 ' + t('autoCheck')}
+                  </button>
+                </div>
+
+                {autoCheckResult && (
+                  <div className={`mb-3 rounded-lg border p-3 ${autoCheckResult.summary.critical > 0 ? 'bg-red-500/10 border-red-500/40' : autoCheckResult.summary.warnings > 0 ? 'bg-yellow-500/10 border-yellow-500/40' : 'bg-emerald-500/10 border-emerald-500/40'}`}>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs font-bold text-white">🤖 {t('autoCheckResult')} ({autoCheckResult.horizonDays} {t('days')})</span>
+                      <span className={`text-[10px] px-2 py-0.5 rounded font-bold ${autoCheckResult.summary.critical > 0 ? 'bg-red-500/20 text-red-200' : autoCheckResult.summary.warnings > 0 ? 'bg-yellow-500/20 text-yellow-200' : 'bg-emerald-500/20 text-emerald-300'}`}>
+                        {autoCheckResult.summary.critical > 0 && '🚨 ' + autoCheckResult.summary.critical + ' ' + t('critical')}
+                        {autoCheckResult.summary.warnings > 0 && ' ⚠️ ' + autoCheckResult.summary.warnings + ' ' + t('warnings')}
+                        {autoCheckResult.summary.critical === 0 && autoCheckResult.summary.warnings === 0 && '✅ ' + t('allGood')}
+                      </span>
+                    </div>
+                    <div className="space-y-1 text-[10px]">
+                      {autoCheckResult.materialDetails.map((m) => (
+                        <div key={m.category} className={`flex justify-between ${m.status === 'SHORTAGE' ? 'text-red-300' : m.status === 'LOW' ? 'text-yellow-300' : 'text-emerald-300'}`}>
+                          <span>{m.category}: {m.requiredKg.toLocaleString()} kg / {m.availableKg.toLocaleString()} kg</span>
+                          <span>
+                            {m.shortageKg > 0 && '🚨 نقص ' + m.shortageKg.toLocaleString() + ' kg'}
+                            {m.status === 'LOW' && '⚠️ ' + m.daysCoverage + ' ' + t('daysCoverage')}
+                            {m.status === 'OK' && '✅ ' + m.daysCoverage + ' ' + t('daysCoverage')}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {blocksPlanned.length === 0 ? (
+                  <p className="text-xs text-slate-500 text-center py-4">{t('noPlanned')}</p>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs text-slate-300">
+                      <thead className="bg-white/[0.04] text-slate-400 text-[10px]">
+                        <tr>
+                          <th className="p-2 text-right">{ot('thOrderNo')}</th>
+                          <th className="p-2 text-right">{ot('thCustomer')}</th>
+                          <th className="p-2 text-right">{ot('thProject')}</th>
+                          <th className="p-2">{ot('thQty')}</th>
+                          <th className="p-2">{ot('thStatus')}</th>
+                          <th className="p-2 text-right">{ot('thActions')}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {blocksPlanned.map(o => (
+                          <tr key={o.id} className="border-b border-white/10">
+                            <td className="p-2 font-mono" dir="ltr">{o.orderNo}</td>
+                            <td className="p-2">{o.customerName}</td>
+                            <td className="p-2">{o.projectName}</td>
+                            <td className="p-2 font-mono">{o.quantity} {ot('blocks')}</td>
+                            <td className="p-2">{getStatusLabel(o.status, t)}</td>
+                            <td className="p-2 flex gap-1 justify-end">
+                              <button
+                                onClick={() => markExecuted(o.id)}
+                                disabled={o.status === 'completed' || o.status === 'cancelled'}
+                                className="text-[10px] font-black rounded-lg px-2 py-1 border border-emerald-500/50 bg-emerald-500/15 text-emerald-300 disabled:opacity-50"
+                              >
+                                ✅ {t('markExecuted')}
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+
+              {/* Planned Concrete */}
+              <div className="bg-white/[0.02] border border-sky-500/20 rounded-xl p-4">
+                <h3 className="text-sm font-bold text-white mb-3">{t('tabConcrete')} - {t('plannedOrders')}</h3>
+                {concretePlanned.length === 0 ? (
+                  <p className="text-xs text-slate-500 text-center py-4">{t('noPlanned')}</p>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs text-slate-300">
+                      <thead className="bg-white/[0.04] text-slate-400 text-[10px]">
+                        <tr>
+                          <th className="p-2 text-right">{ot('thOrderNo')}</th>
+                          <th className="p-2 text-right">{ot('thCustomer')}</th>
+                          <th className="p-2 text-right">{ot('thProject')}</th>
+                          <th className="p-2">{ot('thQty')}</th>
+                          <th className="p-2">{ot('thStrength')}</th>
+                          <th className="p-2">{ot('slump')}</th>
+                          <th className="p-2">{ot('cementType')}</th>
+                          <th className="p-2">{ot('thStatus')}</th>
+                          <th className="p-2 text-right">{ot('thActions')}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {concretePlanned.map(o => (
+                          <tr key={o.id} className="border-b border-white/10">
+                            <td className="p-2 font-mono" dir="ltr">{o.orderNo}</td>
+                            <td className="p-2">{o.customerName}</td>
+                            <td className="p-2">{o.projectName}</td>
+                            <td className="p-2 font-mono">{o.quantity} m³</td>
+                            <td className="p-2">{o.concreteType}</td>
+                            <td className="p-2">{o.slump} cm</td>
+                            <td className="p-2">{o.cementType === 'resistant' ? 'SRC' : 'OPC'}</td>
+                            <td className="p-2">{getStatusLabel(o.status, t)}</td>
+                            <td className="p-2 flex gap-1 justify-end">
+                              <button
+                                onClick={() => markExecuted(o.id)}
+                                disabled={o.status === 'completed' || o.status === 'cancelled'}
+                                className="text-[10px] font-black rounded-lg px-2 py-1 border border-sky-500/50 bg-sky-500/15 text-sky-300 disabled:opacity-50"
+                              >
+                                ✅ {t('markExecuted')}
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Blocks Executed Tab */}
+          {tab === 'blocks' && (
+            <div className="space-y-4">
+              <div className="bg-white/[0.02] border border-emerald-500/20 rounded-xl p-4">
+                <h3 className="text-sm font-bold text-white mb-3">{t('executedBlocks')}</h3>
+                {blocksExecuted.length === 0 ? (
+                  <p className="text-xs text-slate-500 text-center py-4">{t('noExecuted')}</p>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs text-slate-300">
+                      <thead className="bg-white/[0.04] text-slate-400 text-[10px]">
+                        <tr>
+                          <th className="p-2 text-right">{ot('thOrderNo')}</th>
+                          <th className="p-2 text-right">{ot('thCustomer')}</th>
+                          <th className="p-2 text-right">{ot('thProject')}</th>
+                          <th className="p-2">{ot('thQty')}</th>
+                          <th className="p-2">{ot('executedTime')}</th>
+                          <th className="p-2 text-right">{ot('actions')}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {blocksExecuted.map(e => {
+                          const o = orders.find(o => o.id === e.orderId);
+                          return (
+                            <tr key={e.id} className="border-b border-white/10">
+                              <td className="p-2 font-mono" dir="ltr">{o?.orderNo}</td>
+                              <td className="p-2">{o?.customerName}</td>
+                              <td className="p-2">{o?.projectName}</td>
+                              <td className="p-2 font-mono">{e.qtyExecuted} {ot('blocks')}</td>
+                              <td className="p-2">{fmtTime(e.executedAt)}</td>
+                              <td className="p-2 flex gap-1 justify-end">
+                                <button onClick={() => undoExecuted(e.id)} className="text-[10px] font-black rounded-lg px-2 py-1 border border-red-500/50 bg-red-500/15 text-red-300">{t('undoExecuted')}</button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Concrete Executed Tab */}
+          {tab === 'concrete' && (
+            <div className="space-y-4">
+              <div className="bg-white/[0.02] border border-sky-500/20 rounded-xl p-4">
+                <h3 className="text-sm font-bold text-white mb-3">{t('executedConcrete')}</h3>
+                {concreteExecuted.length === 0 ? (
+                  <p className="text-xs text-slate-500 text-center py-4">{t('noExecuted')}</p>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs text-slate-300">
+                      <thead className="bg-white/[0.04] text-slate-400 text-[10px]">
+                        <tr>
+                          <th className="p-2 text-right">{ot('thOrderNo')}</th>
+                          <th className="p-2 text-right">{ot('thCustomer')}</th>
+                          <th className="p-2 text-right">{ot('thProject')}</th>
+                          <th className="p-2">{ot('thQty')}</th>
+                          <th className="p-2">{ot('strength')}</th>
+                          <th className="p-2">{ot('slump')}</th>
+                          <th className="p-2">{ot('executedTime')}</th>
+                          <th className="p-2 text-right">{ot('actions')}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {concreteExecuted.map(e => {
+                          const o = orders.find(o => o.id === e.orderId);
+                          return (
+                            <tr key={e.id} className="border-b border-white/10">
+                              <td className="p-2 font-mono" dir="ltr">{o?.orderNo}</td>
+                              <td className="p-2">{o?.customerName}</td>
+                              <td className="p-2">{o?.projectName}</td>
+                              <td className="p-2 font-mono">{e.qtyExecuted} m³</td>
+                              <td className="p-2">{o?.concreteType}</td>
+                              <td className="p-2">{o?.slump} cm</td>
+                              <td className="p-2">{fmtTime(e.executedAt)}</td>
+                              <td className="p-2 flex gap-1 justify-end">
+                                <button onClick={() => undoExecuted(e.id)} className="text-[10px] font-black rounded-lg px-2 py-1 border border-red-500/50 bg-red-500/15 text-red-300">{t('undoExecuted')}</button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}

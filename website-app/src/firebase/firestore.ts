@@ -946,6 +946,16 @@ export async function loadOrders(userId: string) {
   });
 }
 
+export async function saveExecuted(userId: string, records: any[]) {
+  await saveUserData(userId, 'executed', records);
+}
+export async function loadExecuted(userId: string) {
+  const snap = await getDoc(userDoc(userId, 'executed'));
+  if (!snap.exists()) return null;
+  const doc = snap.data();
+  return Array.isArray(doc?.data) ? doc.data : null;
+}
+
 /**
  * Server-stamp an audit timestamp for an order. Writes to the same
  * `orderTimes.{orderId}.{field}` map the mobile app uses, via the Firestore
