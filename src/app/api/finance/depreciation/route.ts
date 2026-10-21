@@ -1,7 +1,8 @@
 /**
  * /api/finance/depreciation
  * GET  — قسم «اهلاك معدات»: الأصول + الحسابات (الإهلاك الشهري/المُتراكم/
- *        القيمة الدفترية) + خيارات المركبات والمعدات (?period=YYYY-MM)
+ *        القيمة الدفترية) + صندوق تجديد الأصول + خيارات المركبات والمعدات
+ *        (?period=YYYY-MM)
  * POST — إضافة أصل إهلاك (مركبة أو معدة) بمعدل سنوي
  */
 
@@ -27,6 +28,17 @@ const CreateAssetSchema = z.object({
   /** 25 = 25% سنوياً (خطي) */
   annualRatePct: z.number().positive("المعدل يجب أن يكون موجباً").max(100, "المعدل لا يتجاوز 100%"),
   salvageValueSar: z.number().int().min(0).optional(),
+  /** عمر افتراضي بالسنوات */
+  usefulLifeYears: z.number().int().min(1).max(60).optional().nullable(),
+  /** كيف تم تحديد العمر */
+  lifeSource: z.enum(["type_default", "manual", "manufacture_year"]).optional(),
+  /** ثمن معدة جديدة مشابهة اليوم — SAR cents */
+  replacementCostEstSar: z.number().int().min(0).optional(),
+  /** معدل تضخم سنوي % */
+  inflationRatePct: z.number().min(0).max(100).optional(),
+  /** قيمة التقييم بحالة حالية — SAR cents */
+  assessmentValueSar: z.number().int().min(0).optional(),
+  replacementSource: z.string().max(40).optional().nullable(),
   notes: z.string().optional().nullable(),
 });
 
@@ -81,6 +93,12 @@ export async function POST(req: NextRequest) {
       purchaseDate: d.purchaseDate ? new Date(d.purchaseDate) : null,
       annualRatePct: d.annualRatePct,
       salvageValueSar: d.salvageValueSar ?? 0,
+      usefulLifeYears: d.usefulLifeYears ?? null,
+      lifeSource: d.lifeSource ?? "manual",
+      replacementCostEstSar: d.replacementCostEstSar ?? 0,
+      inflationRatePct: d.inflationRatePct ?? 0,
+      assessmentValueSar: d.assessmentValueSar ?? 0,
+      replacementSource: d.replacementSource ?? null,
       notes: d.notes ?? null,
     });
     return successResponse(row, "تمت إضافة الأصل");

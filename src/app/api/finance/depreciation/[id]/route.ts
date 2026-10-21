@@ -1,6 +1,7 @@
 /**
  * /api/finance/depreciation/:id
- * PUT    — تعديل أصل (التكلفة/المعدل/القيمة التخلصية) أو تفعيل/إيقافه
+ * PUT    — تعديل أصل (التكلفة/المعدل/قيمة التقييم/العمر/صندوق التجديد)
+ *          أو تفعيل/إيقافه
  * DELETE — حذف أصل لم يُهلك بعد (الأصول ذات القيود تُوقف تفعيلها حفاظاً على التاريخ)
  */
 
@@ -24,6 +25,12 @@ const UpdateAssetSchema = z.object({
   purchaseDate: z.string().nullable().optional(),
   annualRatePct: z.number().positive().max(100, "المعدل لا يتجاوز 100%").optional(),
   salvageValueSar: z.number().int().min(0).optional(),
+  usefulLifeYears: z.number().int().min(1).max(60).nullable().optional(),
+  lifeSource: z.enum(["type_default", "manual", "manufacture_year"]).optional(),
+  replacementCostEstSar: z.number().int().min(0).optional(),
+  inflationRatePct: z.number().min(0).max(100).optional(),
+  assessmentValueSar: z.number().int().min(0).optional(),
+  replacementSource: z.string().max(40).nullable().optional(),
   notes: z.string().nullable().optional(),
   isActive: z.boolean().optional(),
 });
@@ -54,6 +61,12 @@ export async function PUT(req: NextRequest, { params }: Params) {
       purchaseDate: d.purchaseDate === undefined ? undefined : d.purchaseDate ? new Date(d.purchaseDate) : null,
       annualRatePct: d.annualRatePct,
       salvageValueSar: d.salvageValueSar,
+      usefulLifeYears: d.usefulLifeYears,
+      lifeSource: d.lifeSource,
+      replacementCostEstSar: d.replacementCostEstSar,
+      inflationRatePct: d.inflationRatePct,
+      assessmentValueSar: d.assessmentValueSar,
+      replacementSource: d.replacementSource,
       notes: d.notes,
       isActive: d.isActive,
     });

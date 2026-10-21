@@ -1506,6 +1506,7 @@ export const miscExpenses = pgTable(
 );
 
 export const depreciationSourceEnum = pgEnum("depreciation_source", ["vehicle", "equipment"]);
+export const depreciationLifeSourceEnum = pgEnum("depreciation_life_source", ["type_default", "manual", "manufacture_year"]);
 
 /**
  * depreciationAssets — قسم «اهلاك معدات»: أصل واحد لكل مركبة/معدات،
@@ -1535,6 +1536,21 @@ export const depreciationAssets = pgTable(
     annualRatePct: decimal("annual_rate_pct", { precision: 5, scale: 2 }).notNull(),
     /** SAR cents */
     salvageValueSar: integer("salvage_value_sar").notNull().default(0),
+    usefulLifeYears: integer("useful_life_years"),
+    lifeSource: depreciationLifeSourceEnum("life_source").notNull().default("manual"),
+    /** ثمن معدة جديدة مشابهة مقترح (SAR cents) */
+    replacementCostEstSar: integer("replacement_cost_est_sar").notNull().default(0),
+    /** معدل تضخم سنوي % */
+    /** معدل تضخم سنوي % — NULL = خد معدل المنشأة الافتراضي */
+    inflationRatePct: decimal("inflation_rate_pct", { precision: 5, scale: 2 }),
+    /** قيمة تقييم بحالة حالية / تسييل (SAR cents) */
+    assessmentValueSar: integer("assessment_value_sar").notNull().default(0),
+    replacementSource: varchar("replacement_source", { length: 40 }),
+    /**
+     * هدف التجديد المثبّت (SAR cents): ثمن معدة جديدة مضافاً إليه التضخم
+     * حتى آخر عمر الأصل. بيتثبّت وقت الحفظ عشان ما ينقصش مع الوقت.
+     */
+    replacementTargetSar: integer("replacement_target_sar").notNull().default(0),
     isActive: boolean("is_active").notNull().default(true),
     notes: text("notes"),
     createdById: uuid("created_by_id")
@@ -1550,6 +1566,29 @@ export const depreciationAssets = pgTable(
   ]
 );
 
+/**
+ * depreciationSettings — إعدادات إهلاك الأصول على مستوى المنشأة:
+ * معدل التضخم الافتراضي المستخدم في حساب «صندوق تجديد الأصول»
+ * والعمر الافتراضي المقترح. صف واحد لكل منشأة.
+ */
+export const depreciationSettings = pgTable(
+  "depreciation_settings",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    defaultInflationRatePct: decimal("default_inflation_rate_pct", { precision: 5, scale: 2 })
+      .notNull()
+      .default("3.00"),
+    defaultLifeYears: integer("default_life_years").notNull().default(10),
+    updatedById: uuid("updated_by_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("uq_dep_settings_tenant").on(t.tenantId)]
+);
+
 /** One row per depreciated month per asset — the ledger posting trail. */
 export const depreciationEntries = pgTable(
   "depreciation_entries",
@@ -1563,8 +1602,10 @@ export const depreciationEntries = pgTable(
       .references(() => depreciationAssets.id, { onDelete: "cascade" }),
     /** First day of the depreciated month */
     periodMonth: date("period_month").notNull(),
-    /** SAR cents */
+    /** SAR cents — total charge (book depreciation + replacement-fund top-up) */
     amountSar: integer("amount_sar").notNull(),
+    /** SAR cents — the accounting part only (lowers the book value) */
+    bookAmountSar: integer("book_amount_sar").notNull().default(0),
     ledgerEntryId: uuid("ledger_entry_id").references(() => ledgerEntries.id, {
       onDelete: "set null",
     }),
