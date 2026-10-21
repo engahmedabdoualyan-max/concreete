@@ -118,7 +118,7 @@ function fileColorOf(e: any): { color: string; red: FileColorReason[]; yellow: F
   return { color: red.length ? 'RED' : yellow.length ? 'YELLOW' : 'GREEN', red, yellow };
 }
 
-const SPONSORSHIP_OPTS = ['المطور', 'زاوية المطور', 'مؤسسة عبد الإله', 'أبو مبارك', 'مبارك', 'مشاري', 'عبد العزيز', 'عزبية'];
+const SPONSORSHIP_OPTS = ['المطور', 'كفالة خارجية', 'زاوية المطور', 'مؤسسة عبد الإله', 'أبو مبارك', 'مبارك', 'مشاري', 'عبد العزيز', 'عزبية'];
 
 const STATUS_AR: Record<string, string> = { PENDING: 'بانتظار', APPROVED: 'مقبول', REJECTED: 'مرفوض', CANCELLED: 'ملغي' };
 
