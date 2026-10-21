@@ -21,10 +21,13 @@ import { DeviceStatusBadge } from '../components/DeviceHub';
 import { useFinanceDict } from '../i18n/financeDict';
 
 /**
- * أدوار قسمي «نثريات» و«اهلاك معدات»: نفس بوابة أقسام الحسابات القائمة
- * (الأدوار القديمة sysadmin/accountant/ptown) + أدوار الحسابات الفعلية في
- * قاعدة البيانات — وكلها تملك finance:read / finance:client_update فعلاً،
- * فلا يظهر القسم لدور لا يستطيع قراءته (مبدأ عدم إظهار صفحة تُرجع 403).
+ * أدوار أقسام الحسابات في الصفحة دي: الأدوار القديمة (sysadmin/accountant/
+ * ptown) + أدوار الحسابات الفعلية في قاعدة البيانات.
+ *
+ * ملاحظة مهمة: الأدوار القديمة بحروف صغيرة **مش موجودة** في `user_role`
+ * (الـ enum كله بحروف كبيرة)، فقبل التعديل دي البوابة كانت بتخفي كل الأقسام
+ * عن كل المستخدمين — حتى SUPER_ADMIN. وبما إن كل الأدوار اللي تحتها تملك
+ * finance:read / finance:client_update فعلاً، فمفيش حد هيشوف قسم يرجّع 403.
  */
 const FINANCE_SECTION_ROLES = [
   'sysadmin', 'accountant', 'ptown',
@@ -381,20 +384,23 @@ export default function Finance() {
           <button onClick={() => setTab('price')} className={`py-2 px-4 rounded-lg font-bold text-sm ${tab === 'price' ? 'bg-sky-500 text-white' : 'text-slate-400 hover:text-sky-300'}`}>📊 تحليل السعر</button>
         </div>
 
-        {['sysadmin', 'accountant', 'ptown'].includes(currentUser.role || '') && <ErpFinance />}
-        {['sysadmin', 'accountant', 'ptown'].includes(currentUser.role || '') && <ErpLedger />}
-        {['sysadmin', 'accountant', 'ptown'].includes(currentUser.role || '') && <ErpCommitments />}
-        {['sysadmin', 'accountant', 'ptown'].includes(currentUser.role || '') && <ErpExpenses />}
-        {['sysadmin', 'accountant', 'ptown'].includes(currentUser.role || '') && <ErpSuppliers />}
+        {/* الأقسام المالية — كلها لأدوار اللي تملك finance:read فعلياً */}
+        <SectionGuard>
+          <ErpFinance />
+          <ErpLedger />
+          <ErpCommitments />
+          <ErpExpenses />
+          <ErpSuppliers />
+        </SectionGuard>
 
-        {/* نثريات الموظفين + اهلاك معدات — للأدوار القديمة وأدوار الحسابات الفعلية */}
+        {/* نثريات الموظفين + اهلاك معدات — نفس البوابة */}
         <SectionGuard>
           <ErpMiscExpenses />
           <ErpDepreciation />
         </SectionGuard>
 
         {/* ربط المحاسبة */}
-        {['sysadmin', 'accountant', 'ptown'].includes(currentUser.role || '') && (
+        <SectionGuard>
           <div className="bg-white/[0.04] border border-white/10 rounded-xl p-6 backdrop-blur-xl mt-4">
             <div className="flex items-center justify-between mb-4">
               <div>
@@ -406,7 +412,7 @@ export default function Finance() {
               </button>
             </div>
           </div>
-        )}
+        </SectionGuard>
 
         {tab === 'payments' && (
           <div className="grid grid-cols-1 lg:grid-cols-[380px_1fr] gap-6">

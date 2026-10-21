@@ -324,6 +324,7 @@ const DICT: PageDict = {
   approveOrder: { en: '✓ Approve', ar: '✓ اعتماد', ru: '✓ Одобрить', de: '✓ Genehmigen', it: '✓ Approva', hi: '✓ अनुमोदन', ur: '✓ منظوری', ja: '✓ 承認', zh: '✓ 批准' },
   rejectOrder: { en: '✕ Reject', ar: '✕ رفض', ru: '✕ Отклонить', de: '✕ Ablehnen', it: '✕ Rifiuta', hi: '✕ अस्वीकार', ur: '✕ مسترد', ja: '✕ 却下', zh: '✕ 拒绝' },
   rejectReasonPlaceholder: { en: 'Rejection reason (required)', ar: 'سبب الرفض (إلزامي)', ru: 'Причина отклонения (обязательно)', de: 'Ablehnungsgrund (Pflichtfeld)', it: 'Motivo del rifiuto (obbligatorio)', hi: 'अस्वीकृति का कारण (आवश्यक)', ur: 'مسترد کرنے کی وجہ (لازمی)', ja: '却下理由（必須）', zh: '拒绝原因（必填）' },
+  financeReadOnlyHint: { en: 'Read-only — approving or rejecting an order needs the finance-approver permission.', ar: 'عرض فقط — اعتماد أو رفض طلب محتاج صلاحية «اعتماد مالي».', ru: 'Только просмотр — для утверждения или отклонения заказа нужен доступ «финансовое утверждение».', de: 'Nur Ansicht — zum Genehmigen oder Ablehnen ist die Finanz-Genehmigungsberechtigung nötig.', it: 'Solo lettura — approvare o rifiutare richiede il permesso di approvazione finanziaria.', hi: 'केवल पढ़ने के लिए — अनुमोदन या अस्वीकृति के लिए वित्त अनुमोदन अनुमति चाहिए।', ur: 'صرفِ نظر — منظور کرنے یا مسترد کرنے کے لیے مالی منظوری کی اجازت درکار ہے۔', ja: '読み取り専用 — 承認または却下には財務承認権限が必要です。', zh: '仅查看 — 批准或拒绝订单需要财务审批权限。' },
 
   /* ── Admin overview page ── */
   refreshAdmin: { en: '🔄 Update', ar: '🔄 تحديث', ru: '🔄 Обновить', de: '🔄 Aktualisieren', it: '🔄 Aggiorna', hi: '🔄 अपडेट', ur: '🔄 اپ ڈیٹ', ja: '🔄 更新', zh: '🔄 刷新' },

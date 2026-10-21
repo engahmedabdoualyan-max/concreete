@@ -12,6 +12,17 @@ import { useEffect, useState } from 'react';
 import { api } from '../api/client';
 import ExportButtons from './ExportButtons';
 import { useErpDict } from '../i18n/erpDict';
+import { useAuth } from '../context/AuthContext';
+
+/**
+ * اعتماد/رفض طلبات الاعتماد المالي محتاج صلاحية `order:approve_finance` /
+ * `order:reject_finance` — دي مش في كل أدوار الحسابات (مدير المصنع مثلاً
+ * عنده finance:client_update بس). فنخفي الأزرار بدل ما تطلع 403.
+ */
+const FINANCE_APPROVER_ROLES = [
+  'sysadmin', 'accountant', 'ptown',
+  'SUPER_ADMIN', 'ACCOUNTANT', 'FINANCE', 'CFO',
+];
 
 interface PendingOrder {
   id: string;
@@ -70,6 +81,8 @@ const RISK_STYLE: Record<string, { badge: string; border: string }> = {
 
 export default function ErpFinance() {
   const t = useErpDict();
+  const { currentUser } = useAuth();
+  const canApprove = FINANCE_APPROVER_ROLES.includes(currentUser?.role || '');
   const [data, setData] = useState<FinanceData | null>(null);
   const [error, setError] = useState('');
   const [busyId, setBusyId] = useState('');
@@ -303,26 +316,32 @@ export default function ErpFinance() {
                 </div>
 
                 <div className="mt-2 flex flex-wrap items-center gap-2">
-                  <button
-                    onClick={() => approve(o.id)}
-                    disabled={busyId === o.id}
-                    className="text-[11px] bg-gradient-to-r from-emerald-500 to-green-500 text-white font-bold rounded px-3 py-1.5 hover:from-emerald-400 hover:to-green-400 disabled:opacity-40"
-                  >
-                    {t('approveOrder')}
-                  </button>
-                  <input
-                    value={reason[o.id] || ''}
-                    onChange={e => setReason(r => ({ ...r, [o.id]: e.target.value }))}
-                    placeholder={t('rejectReasonPlaceholder')}
-                    className="flex-1 min-w-[160px] text-[11px] bg-white/[0.04] border border-white/10 rounded px-2 py-1.5 text-slate-200 outline-none focus:border-red-400/60"
-                  />
-                  <button
-                    onClick={() => reject(o.id)}
-                    disabled={busyId === o.id}
-                    className="text-[11px] bg-red-500/20 text-red-300 border border-red-500/40 rounded px-3 py-1.5 hover:bg-red-500/30 disabled:opacity-40"
-                  >
-                    {t('rejectOrder')}
-                  </button>
+                  {canApprove ? (
+                    <>
+                      <button
+                        onClick={() => approve(o.id)}
+                        disabled={busyId === o.id}
+                        className="text-[11px] bg-gradient-to-r from-emerald-500 to-green-500 text-white font-bold rounded px-3 py-1.5 hover:from-emerald-400 hover:to-green-400 disabled:opacity-40"
+                      >
+                        {t('approveOrder')}
+                      </button>
+                      <input
+                        value={reason[o.id] || ''}
+                        onChange={e => setReason(r => ({ ...r, [o.id]: e.target.value }))}
+                        placeholder={t('rejectReasonPlaceholder')}
+                        className="flex-1 min-w-[160px] text-[11px] bg-white/[0.04] border border-white/10 rounded px-2 py-1.5 text-slate-200 outline-none focus:border-red-400/60"
+                      />
+                      <button
+                        onClick={() => reject(o.id)}
+                        disabled={busyId === o.id}
+                        className="text-[11px] bg-red-500/20 text-red-300 border border-red-500/40 rounded px-3 py-1.5 hover:bg-red-500/30 disabled:opacity-40"
+                      >
+                        {t('rejectOrder')}
+                      </button>
+                    </>
+                  ) : (
+                    <div className="text-[10px] text-slate-500">{t('financeReadOnlyHint')}</div>
+                  )}
                 </div>
               </div>
             ))}
