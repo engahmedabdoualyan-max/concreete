@@ -343,6 +343,7 @@ export default function HR() {
   const [fileColorMenu, setFileColorMenu] = useState<string | null>(null);
   const [fileColorSaving, setFileColorSaving] = useState('');
   const [search, setSearch] = useState('');
+  const [sponsorFilter, setSponsorFilter] = useState('ALL');
   const [showInactive, setShowInactive] = useState(false);
   const [orgView, setOrgView] = useState<'depts' | 'branches'>('depts');
   const [orgBranchSel, setOrgBranchSel] = useState('ALL');
@@ -2383,8 +2384,10 @@ function ageOf(raw: unknown): number | null {
 
   const team = employees.filter((e) => {
     const q = search.trim().toLowerCase();
-    if (!q) return true;
-    return [e.fullName, e.full_name, e.email, e.employeeCode, e.phone, e.department, e.nationalId, e.sponsorship].filter(Boolean).join(' ').toLowerCase().includes(q);
+    const sponsor = (e.sponsorship ?? 'المطور').toLowerCase();
+    const sponsorMatch = sponsorFilter === 'ALL' || sponsor === sponsorFilter.toLowerCase();
+    if (!q) return sponsorMatch;
+    return sponsorMatch && [e.fullName, e.full_name, e.email, e.employeeCode, e.phone, e.department, e.nationalId, e.sponsorship].filter(Boolean).join(' ').toLowerCase().includes(q);
   });
 
   /** ملخص ألوان ملفات الفريق المعروض (🟢/🟡/🔴/⚪). */
@@ -2829,6 +2832,12 @@ function ageOf(raw: unknown): number | null {
               <input value={search} onChange={(e) => setSearch(e.target.value)}
                 placeholder={ar ? '🔍 بحث بالاسم / الكود / الجوال / الإقامة…' : 'Search name / code / phone / iqama…'}
                 className="flex-1 min-w-[200px] max-w-md bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2 text-sm text-white outline-none" />
+              <select value={sponsorFilter} onChange={(e) => setSponsorFilter(e.target.value)}
+                className="bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2 text-sm text-white outline-none"
+                title={ar ? 'تصفية بالكفيل' : 'Filter by sponsor'}>
+                <option value="ALL">{ar ? 'كل الكفلاء' : 'All sponsors'}</option>
+                {SPONSORSHIP_OPTS.map((o) => <option key={o} value={o}>{o}</option>)}
+              </select>
               <button onClick={() => { setEditingEmp(null); setShowAdd((v) => !v); }}
                 className="text-[11px] font-black rounded-lg px-3 py-2 border border-sky-500/50 bg-sky-500/15 text-sky-300 hover:bg-sky-500/25">
                 ➕ {ar ? 'إضافة موظف' : 'Add employee'}
