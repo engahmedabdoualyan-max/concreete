@@ -7,6 +7,8 @@ import LangSelector from '../components/LangSelector';
 import QuickJump from '../components/QuickJump';
 import BrandLogo from '../components/BrandLogo';
 import { FORMS, DEPTS, type FormDef } from '../lib/formsCatalog';
+import ExportButtons from '../components/ExportButtons';
+import { useExportButtonsDict } from '../i18n/exportButtonsDict';
 
 type Rec = { id: string; formCode: string; title: string; formDate: string | null; status: string };
 
@@ -15,6 +17,7 @@ export default function Forms() {
   const { lang } = useLang();
   const ar = lang === 'ar';
   const L = (a: string, e: string) => (ar ? a : e);
+  const tExport = useExportButtonsDict();
 
   const [dept, setDept] = useState<string>('');
   const [sel, setSel] = useState<FormDef | null>(null);
@@ -27,6 +30,7 @@ export default function Forms() {
   const [busy, setBusy] = useState(false);
   const [fleet, setFleet] = useState<any[]>([]);
   const [emps, setEmps] = useState<any[]>([]);
+  const [showPreview, setShowPreview] = useState(false);
 
   const loadRecs = async (code?: string) => {
     try {
@@ -261,6 +265,71 @@ export default function Forms() {
     w.document.close();
   };
 
+  // ===== Export helpers =====
+  const buildFormExportData = () => {
+    if (!sel) return { columns: [] as any[], rows: [] as any[] };
+    const data: Record<string, any> = { ...vals };
+    for (const t of sel.tables ?? []) data[`__table_${t.key}`] = rows[t.key] ?? [];
+
+    const columns = [
+      { header: ar ? 'الحقل' : 'Field', key: 'field' },
+      { header: ar ? 'القيمة' : 'Value', key: 'value' },
+    ];
+    const fieldRows = (sel.fields ?? []).map((fl) => ({
+      field: fl.label,
+      value: data[fl.key] ?? '',
+    }));
+
+    // Table rows flattened
+    const tableRows = (sel.tables ?? []).flatMap((t) => {
+      const rr: string[][] = data[`__table_${t.key}`] ?? [];
+      return rr.map((r, ri) =>
+        t.columns.reduce(
+          (acc, col, ci) => ({ ...acc, [`${t.title} · ${col} (${ri + 1})`]: r[ci] ?? '' }),
+          {} as Record<string, any>
+        )
+      );
+    });
+
+    const rowsOut = [
+      ...fieldRows,
+      ...tableRows,
+      ...docs.map((d, i) => ({ field: `مرفق ${i + 1}`, value: d.name })),
+    ];
+
+    return { columns, rows: rowsOut };
+  };
+
+  const shareWhatsApp = () => {
+    if (!sel) return;
+    const data = { ...vals };
+    for (const t of sel.tables ?? []) data[`__table_${t.key}`] = rows[t.key] ?? [];
+
+    let text = `*${sel.title}* (${sel.code})\n`;
+    text += `${ar ? 'تاريخ' : 'Date'}: ${vals.date ?? new Date().toISOString().slice(0, 10)}\n\n`;
+    for (const fl of sel.fields ?? []) {
+      const v = data[fl.key];
+      if (v !== '' && v !== undefined) text += `${fl.label}: ${v}\n`;
+    }
+    if (sel.tables?.length) {
+      text += `\n*${ar ? 'جداول' : 'Tables'}:*\n`;
+      for (const t of sel.tables) {
+        text += `\n${t.title}:\n`;
+        const rr = data[`__table_${t.key}`] ?? [];
+        if (rr.length) {
+          text += t.columns.join(' | ') + '\n';
+          rr.forEach((r) => { text += r.join(' | ') + '\n'; });
+        } else {
+          text += `${ar ? 'فارغ' : 'Empty'}\n`;
+        }
+      }
+    }
+    if (docs.length) text += `\n📎 ${ar ? 'مرفقات' : 'Attachments'}: ${docs.map(d => d.name).join(', ')}`;
+
+    const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
+    window.open(url, '_blank');
+  };
+
   if (!currentUser) {
     return (
       <div className="min-h-screen bg-[#080C14] text-slate-200 flex items-center justify-center p-6 text-center">
@@ -354,11 +423,28 @@ export default function Forms() {
           <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-4 mb-4">
             <div className="flex items-center justify-between flex-wrap gap-2 mb-2">
               <h3 className="text-sm font-black text-white">{sel.title} <span className="text-slate-500 font-mono text-[10px]" dir="ltr">{sel.code}</span></h3>
-              <span className="flex gap-2">
+              <span className="flex flex-wrap gap-2">
                 {sel.autofill && (
                   <button disabled={busy} onClick={autofill} className="text-[11px] font-black rounded-lg px-3 py-1.5 border border-emerald-500/50 bg-emerald-500/15 text-emerald-300 disabled:opacity-50">
                     ⚡ {L('تعبئة من النظام', 'Autofill')}
                   </button>
+                )}
+                <button onClick={() => setShowPreview((v) => !v)} className={`text-[11px] font-black rounded-lg px-3 py-1.5 border ${showPreview ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-300' : 'border-white/15 text-slate-200'}`}>
+                  👁 {L('معاينة', 'Preview')}
+                </button>
+                <button onClick={shareWhatsApp} className="text-[11px] font-black rounded-lg px-3 py-1.5 border border-green-500/50 bg-green-500/15 text-green-300 hover:bg-green-500/25">
+                  📱 {L('واتساب', 'WhatsApp')}
+                </button>
+                {sel && (
+                  <>
+                    <ExportButtons
+                      filename={`${sel.code}-${vals.date ?? new Date().toISOString().slice(0, 10)}`}
+                      title={sel.title}
+                      subtitle={L('نموذج', 'Form') + ` ${sel.code}`}
+                      columns={buildFormExportData().columns}
+                      rows={buildFormExportData().rows}
+                    />
+                  </>
                 )}
                 <button onClick={printCurrent} className="text-[11px] font-black rounded-lg px-3 py-1.5 border border-white/15 text-slate-200">
                   🖨️ {L('طباعة', 'Print')}
@@ -455,6 +541,89 @@ export default function Forms() {
                   </span>
                 </div>
               ))}
+            </div>
+          </div>
+        )}
+
+        {/* ===== Live Preview ===== */}
+        {showPreview && sel && !sel.link && (
+          <div className="mt-6 rounded-2xl border border-emerald-500/30 bg-emerald-500/[0.04] p-4">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-black text-emerald-300">👁 {L('معاينة مباشرة', 'Live Preview')}</h3>
+              <button onClick={() => setShowPreview(false)} className="text-[11px] border border-white/15 rounded px-2 py-0.5 text-slate-300 hover:text-white">
+                ✕ {L('إخفاء', 'Hide')}
+              </button>
+            </div>
+            <div className="bg-white/[0.03] border border-white/10 rounded-xl p-4 max-h-[600px] overflow-y-auto">
+              <div className="text-center mb-4">
+                <h2 className="text-lg font-black text-white">{sel.title}</h2>
+                <p className="text-xs text-slate-400 font-mono" dir="ltr">{sel.code} · {vals.date ?? new Date().toISOString().slice(0, 10)}</p>
+              </div>
+              {(sel.staticBody ?? []).length > 0 && (
+                <div className="mb-4 text-sm text-slate-300 leading-relaxed">
+                  {sel.staticBody!.map((p, i) => <p key={i} className="mb-2">{p}</p>)}
+                </div>
+              )}
+              <table className="w-full text-xs mb-4">
+                <tbody>
+                  {(sel.fields ?? []).map((fl) => (
+                    <tr key={fl.key} className="border-b border-white/5">
+                      <td className="text-right p-2 text-slate-400 font-bold w-1/3">{fl.label}</td>
+                      <td className="text-right p-2 text-white">{vals[fl.key] ?? <span className="text-slate-500">—</span>}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {(sel.tables ?? []).map((t) => (
+                <div key={t.key} className="mb-4">
+                  <h4 className="text-sm font-black text-sky-300 mb-2">{t.title}</h4>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs border border-white/10">
+                      <thead>
+                        <tr className="bg-white/[0.03] text-slate-400 text-[10px]">
+                          {t.columns.map((c) => <th key={c} className="text-right p-1.5 font-bold">{c}</th>)}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(rows[t.key] ?? []).length > 0 ? (
+                          (rows[t.key] ?? []).map((r, ri) => (
+                            <tr key={ri} className="border-b border-white/5">
+                              {t.columns.map((_, ci) => (
+                                <td key={ci} className="text-right p-1.5">{r[ci] ?? <span className="text-slate-500">—</span>}</td>
+                              ))}
+                            </tr>
+                          ))
+                        ) : (
+                          <tr><td colSpan={t.columns.length} className="text-center p-4 text-slate-500">{L('لا توجد بيانات', 'No data')}</td></tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              ))}
+              {docs.length > 0 && (
+                <div className="mt-4 p-3 bg-white/[0.03] border border-white/10 rounded-lg">
+                  <p className="text-xs font-black text-slate-300 mb-2">📎 {L('المرفقات', 'Attachments')}</p>
+                  <div className="flex flex-wrap gap-2">
+                    {docs.map((d, i) => (
+                      <span key={i} className="text-[11px] text-sky-300 border border-sky-500/30 rounded px-2 py-1">
+                        📎 {d.name}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {(sel.sigs ?? []).length > 0 && (
+                <div className="mt-4 space-y-3">
+                  <p className="text-xs font-black text-slate-300">✍️ {L('التوقيعات', 'Signatures')}</p>
+                  {(sel.sigs ?? []).map((s, i) => (
+                    <div key={i} className="border-t border-white/10 pt-2 text-[11px] text-slate-300">
+                      {s}<br />
+                      <span className="text-slate-500">{ar ? 'الاسم: ..........  التوقيع: ..........  التاريخ: ..../..../....' : 'Name: ..........  Signature: ..........  Date: ..../..../....'}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         )}
