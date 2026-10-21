@@ -2508,7 +2508,7 @@ function ageOf(raw: unknown): number | null {
                       className="mt-0.5 w-full bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none">
                       {SPONSORSHIP_OPTS.map((o) => <option key={o} value={o}>{o}</option>)}
                       {form.sponsorship && !SPONSORSHIP_OPTS.includes(form.sponsorship) && (
-                        <option value={form.sponsorship}>{form.sponsorship} {ar ? '(مسجلة سابقاً)' : '(previously saved)'}</option>
+                        <option value={form.sponsorship}>{form.sponsorship}</option>
                       )}
                     </select></label>
                   <label className="text-[11px] text-slate-400 font-bold">{ar ? 'التأمين' : 'Insurance'}
