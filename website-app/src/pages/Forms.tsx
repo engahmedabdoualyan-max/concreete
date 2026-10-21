@@ -9,6 +9,7 @@ import BrandLogo from '../components/BrandLogo';
 import { FORMS, DEPTS, type FormDef } from '../lib/formsCatalog';
 import ExportButtons from '../components/ExportButtons';
 import { useExportButtonsDict } from '../i18n/exportButtonsDict';
+import { useTenant } from '../hooks/useTenant';
 
 type Rec = { id: string; formCode: string; title: string; formDate: string | null; status: string };
 
@@ -18,6 +19,8 @@ export default function Forms() {
   const ar = lang === 'ar';
   const L = (a: string, e: string) => (ar ? a : e);
   const tExport = useExportButtonsDict();
+  const tenant = useTenant();
+  const brandParam = tenant ? { companyName: tenant.companyName, logoDataUrl: tenant.logoUrl ?? undefined } : undefined;
 
   const [dept, setDept] = useState<string>('');
   const [sel, setSel] = useState<FormDef | null>(null);
@@ -306,6 +309,7 @@ export default function Forms() {
     for (const t of sel.tables ?? []) data[`__table_${t.key}`] = rows[t.key] ?? [];
 
     let text = `*${sel.title}* (${sel.code})\n`;
+    if (tenant?.companyName) text += `${tenant.companyName}\n`;
     text += `${ar ? 'تاريخ' : 'Date'}: ${vals.date ?? new Date().toISOString().slice(0, 10)}\n\n`;
     for (const fl of sel.fields ?? []) {
       const v = data[fl.key];
@@ -443,6 +447,7 @@ export default function Forms() {
                       subtitle={L('نموذج', 'Form') + ` ${sel.code}`}
                       columns={buildFormExportData().columns}
                       rows={buildFormExportData().rows}
+                      branding={brandParam}
                     />
                   </>
                 )}
@@ -555,6 +560,22 @@ export default function Forms() {
               </button>
             </div>
             <div className="bg-white/[0.03] border border-white/10 rounded-xl p-4 max-h-[600px] overflow-y-auto">
+              {/* Company Letterhead */}
+              <div className="flex items-center justify-between mb-4 p-3 bg-white/[0.02] border border-white/10 rounded-lg">
+                <div className="flex items-center gap-3">
+                  {tenant?.logoUrl && (
+                    <img src={tenant.logoUrl} alt={tenant.companyName} className="w-14 h-14 rounded-lg object-contain bg-white p-1" />
+                  )}
+                  <div>
+                    <p className="text-lg font-black text-white">{tenant?.companyName ?? (ar ? 'شركة الخرسانة' : 'Concrete Company')}</p>
+                    <p className="text-xs text-slate-400">{tenant?.plantName ?? (ar ? 'مصنع الخرسانة' : 'Concrete Plant')}</p>
+                  </div>
+                </div>
+                <div className="text-left text-xs text-slate-400">
+                  <p>{sel.code}</p>
+                  <p>{vals.date ?? new Date().toISOString().slice(0, 10)}</p>
+                </div>
+              </div>
               <div className="text-center mb-4">
                 <h2 className="text-lg font-black text-white">{sel.title}</h2>
                 <p className="text-xs text-slate-400 font-mono" dir="ltr">{sel.code} · {vals.date ?? new Date().toISOString().slice(0, 10)}</p>
