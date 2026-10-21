@@ -924,7 +924,44 @@ export const mixDesigns = pgTable(
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
+ * plants — Physical plants under sites (Concrete Plant | Block Plant)
+ * A site can have multiple plants (e.g., 2 Concrete + 1 Block)
+ */
+export const plantTypeEnum = pgEnum("plant_type", [
+  "CONCRETE", // بلانت خرسانة
+  "BLOCK",    // بلانت بلك
+]);
+
+export const plants = pgTable(
+  "plants",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    siteId: uuid("site_id")
+      .notNull()
+      .references(() => sites.id, { onDelete: "restrict" }),
+    plantCode: varchar("plant_code", { length: 20 }).notNull(),
+    plantName: varchar("plant_name", { length: 120 }).notNull(),
+    plantType: plantTypeEnum("plant_type").notNull(), // CONCRETE | BLOCK
+    description: text("description"),
+    isActive: boolean("is_active").notNull().default(true),
+    createdById: uuid("created_by_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("plants_tenant_code_unique").on(t.tenantId, t.plantCode),
+    index("idx_plants_tenant").on(t.tenantId),
+    index("idx_plants_site").on(t.siteId),
+    index("idx_plants_type").on(t.plantType),
+  ]
+);
+
+/**
  * inventory_silos — Physical storage units (cement silos, aggregate bins, tanks)
+ * Now linked to plants for hierarchical organization
  */
 export const inventorySilos = pgTable(
   "inventory_silos",
@@ -933,6 +970,7 @@ export const inventorySilos = pgTable(
     tenantId: uuid("tenant_id")
       .notNull()
       .references(() => tenants.id, { onDelete: "restrict" }),
+    plantId: uuid("plant_id").references(() => plants.id, { onDelete: "set null" }),
     siloCode: varchar("silo_code", { length: 20 }).notNull().unique(), // e.g. "SLO-C1", "BIN-S1"
     siloName: varchar("silo_name", { length: 100 }).notNull(),
     materialCategory: materialCategoryEnum("material_category").notNull(),
@@ -958,6 +996,7 @@ export const inventorySilos = pgTable(
     index("idx_silos_category").on(t.materialCategory),
     index("idx_silos_code").on(t.siloCode),
     index("idx_silos_tenant").on(t.tenantId),
+    index("idx_silos_plant").on(t.plantId),
   ]
 );
 
@@ -6037,6 +6076,7 @@ export type PumpSessionStatus = (typeof pumpSessionStatusEnum.enumValues)[number
 export type TipperIntakeStatus = (typeof tipperIntakeStatusEnum.enumValues)[number];
 export type CalibrationResult = (typeof calibrationResultEnum.enumValues)[number];
 export type PlantStatus = (typeof plantStatusEnum.enumValues)[number];
+export type PlantType = (typeof plantTypeEnum.enumValues)[number];
 export type PurchaseRequestStatus = (typeof purchaseRequestStatusEnum.enumValues)[number];
 export type CreditHoldStatus = (typeof creditHoldStatusEnum.enumValues)[number];
 export type ClientRisk = (typeof clientRiskEnum.enumValues)[number];
@@ -6149,6 +6189,28 @@ export const hrAdvancesRelations = relations(hrAdvances, ({ one }) => ({
   request: one(hrRequests, {
     fields: [hrAdvances.requestId],
     references: [hrRequests.id],
+  }),
+}));
+
+
+// ─── Plants & Silos relations ────────────────────────────────────────────────
+
+export const plantsRelations = relations(plants, ({ one, many }) => ({
+  site: one(sites, {
+    fields: [plants.siteId],
+    references: [sites.id],
+  }),
+  createdBy: one(users, {
+    fields: [plants.createdById],
+    references: [users.id],
+  }),
+  silos: many(inventorySilos),
+}));
+
+export const inventorySilosRelations = relations(inventorySilos, ({ one }) => ({
+  plant: one(plants, {
+    fields: [inventorySilos.plantId],
+    references: [plants.id],
   }),
 }));
 
