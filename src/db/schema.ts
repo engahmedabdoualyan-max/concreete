@@ -4160,6 +4160,62 @@ export const hrRequests = pgTable(
 );
 
 /**
+ * hr_advances — Employee salary advances with repayment schedule.
+ * Linked to payroll_payments for auto-deduction each payroll period.
+ * Status: PENDING | APPROVED | ACTIVE | COMPLETED | CANCELLED
+ * Repayment: FIXED (installment_amount_sar) | PERCENTAGE (installment_pct of base salary)
+ */
+export const hrAdvances = pgTable(
+  "hr_advances",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    employeeId: uuid("employee_id")
+      .notNull()
+      .references(() => payrollEmployees.id, { onDelete: "cascade" }),
+    requestId: uuid("request_id").references(() => hrRequests.id, { onDelete: "set null" }),
+
+    // Core amounts
+    principalSar: decimal("principal_sar", { precision: 12, scale: 2 }).notNull(),
+    repaymentMode: varchar("repayment_mode", { length: 16 }).notNull(), // FIXED | PERCENTAGE
+    installmentAmountSar: decimal("installment_amount_sar", { precision: 12, scale: 2 }),
+    installmentPct: decimal("installment_pct", { precision: 5, scale: 2 }),
+    totalInstallments: integer("total_installments").notNull().default(1),
+
+    // Status & tracking
+    status: varchar("status", { length: 16 }).notNull().default("PENDING"),
+    paidInstallments: integer("paid_installments").notNull().default(0),
+    remainingSar: decimal("remaining_sar", { precision: 12, scale: 2 }).notNull().default("0"),
+    nextDeductionPeriod: varchar("next_deduction_period", { length: 7 }),
+
+    // Approval
+    requestedById: uuid("requested_by_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    requestedAt: timestamp("requested_at").notNull().defaultNow(),
+    approvedById: uuid("approved_by_id").references(() => users.id, { onDelete: "set null" }),
+    approvedAt: timestamp("approved_at"),
+    approvalNote: varchar("approval_note", { length: 500 }),
+
+    // Cancellation (if terminated, etc.)
+    cancelledById: uuid("cancelled_by_id").references(() => users.id, { onDelete: "set null" }),
+    cancelledAt: timestamp("cancelled_at"),
+    cancelReason: varchar("cancel_reason", { length: 500 }),
+
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("idx_hr_adv_tenant").on(t.tenantId),
+    index("idx_hr_adv_employee").on(t.employeeId),
+    index("idx_hr_adv_status").on(t.status),
+    index("idx_hr_adv_period").on(t.nextDeductionPeriod),
+  ]
+);
+
+/**
  * hr_penalties — HR → employee disciplinary actions.
  * Kinds: WARNING (verbal/written), DEDUCTION (salary cut in SAR),
  * SUSPENSION (days), TERMINATION. A deduction here is a record; it reaches
@@ -6070,3 +6126,29 @@ export const warehouseItemUnitsRelations = relations(
     movements: many(stockMovements),
   })
 );
+
+// ─── HR Advances relations ────────────────────────────────────────────────────
+
+export const hrAdvancesRelations = relations(hrAdvances, ({ one }) => ({
+  employee: one(payrollEmployees, {
+    fields: [hrAdvances.employeeId],
+    references: [payrollEmployees.id],
+  }),
+  requester: one(users, {
+    fields: [hrAdvances.requestedById],
+    references: [users.id],
+  }),
+  approver: one(users, {
+    fields: [hrAdvances.approvedById],
+    references: [users.id],
+  }),
+  canceller: one(users, {
+    fields: [hrAdvances.cancelledById],
+    references: [users.id],
+  }),
+  request: one(hrRequests, {
+    fields: [hrAdvances.requestId],
+    references: [hrRequests.id],
+  }),
+}));
+
