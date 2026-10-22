@@ -9,6 +9,7 @@ import BrandLogo from '../components/BrandLogo';
 import NotificationsBell from '../components/NotificationsBell';
 import LabReport from '../components/LabReport';
 import { useMixingQualityDict } from '../i18n/mixingQualityDict';
+import { cementContentOptions, gradeForCement, parseFc, recipeForCement } from '../lib/mixDesign';
 import { pullCloud, pushCloud } from '../lib/reportSync';
 
 // ============ Interfaces ============
@@ -52,6 +53,13 @@ export default function MixingQuality() {
     cementType: 'OPC', aggregateType: 'Crushed', waterAbsorption: '1.5',
     ambientTemp: '25', humidity: '60',
   });
+  /**
+   * How the mix is specified: by the grade the client ordered, or by the
+   * cement content the plant batches. The batching engineer works in kg/m³;
+   * the client orders in MPa. Both must be answerable.
+   */
+  const [designBasis, setDesignBasis] = useState<'grade' | 'cement'>('grade');
+  const [cementContent, setCementContent] = useState('300');
   const [designerResult, setDesignerResult] = useState<CompensatedResult | null>(null);
   const [qcForm, setQcForm] = useState({ truck: 'm01', design: 'C30', slump: '', break7d: '', break28d: '', blade: 'Optimal', bonNo: '', customer: '', site: '', mixDesignCode: '', orderId: '' });
   const [aiForm, setAiForm] = useState({ design: 'C30', slump: '12', break7d: '22' });
@@ -161,7 +169,6 @@ export default function MixingQuality() {
   // ============ Mix Designer Functions (with environment compensation) ============
   const calculateMixDesign = (e: React.FormEvent) => {
     e.preventDefault();
-    const target = parseFloat(designerForm.targetStrength);
     const maxAgg = parseFloat(designerForm.maxAggregateSize);
     const slump = parseFloat(designerForm.slump);
     const fm = parseFloat(designerForm.fineModulus);
@@ -172,16 +179,68 @@ export default function MixingQuality() {
     else if (maxAgg <= 20) waterEstimate = slump <= 10 ? 160 : 185;
     else if (maxAgg <= 40) waterEstimate = slump <= 10 ? 145 : 165;
     else waterEstimate = slump <= 10 ? 130 : 150;
-    let wcRatio = 0.5;
-    if (target >= 40) wcRatio = 0.35; else if (target >= 35) wcRatio = 0.40; else if (target >= 30) wcRatio = 0.45; else if (target >= 25) wcRatio = 0.50; else wcRatio = 0.58;
-    const cement = Math.round(waterEstimate / wcRatio);
+    const wcFor = (target: number) => {
+      if (target >= 40) return 0.35;
+      if (target >= 35) return 0.40;
+      if (target >= 30) return 0.45;
+      if (target >= 25) return 0.50;
+      return 0.58;
+    };
+
+    let target: number;
+    let cement: number;
+    let baseWater: number;
+    let basisNote = '';
+
+    if (designBasis === 'cement') {
+      /* ── by CEMENT CONTENT (kg/m³) ──
+         The batching engineer works in cement, so this is the real entry
+         point. The grade is read off the plant's own recipes, and when the
+         plant already batches this cement content, its whole mix is used
+         as-is — that mix is proven, so there is nothing to recalculate. */
+      const cc = Number(cementContent);
+      const match = recipeForCement(recipes, cc);
+      if (match) {
+        setDesignerResult({
+          base: {
+            code: match.code,
+            cement: match.cement,
+            sand: match.sand,
+            gravel: match.gravel,
+            water: match.water,
+            admixture: match.admixture,
+          },
+          water: match.water,
+          admixture: match.admixture,
+          temp,
+          humidity,
+          note: `♻️ ${match.code} taken from the plant's own mixes — ${match.cement} kg/m³ cement, ${match.water} kg/m³ water.`,
+        });
+        return;
+      }
+      // No recipe at this cement content: the cement is fixed, the grade
+      // comes from the plant's own cement–grade line, and the water follows
+      // the w/c that grade needs.
+      cement = Math.round(cc);
+      target = gradeForCement(recipes, cement);
+      if (!target) { alert('⚠️ No mixes on file yet — add one on the Recipes tab first.'); return; }
+      baseWater = Math.round(cement * wcFor(target));
+      basisNote = `📦 ${cement} kg/m³ cement → ${target} MPa (read from this plant's own mixes) · w/c ${wcFor(target).toFixed(2)}`;
+    } else {
+      /* ── by GRADE (MPa) ── */
+      target = parseFloat(designerForm.targetStrength);
+      cement = Math.round(waterEstimate / wcFor(target));
+      baseWater = waterEstimate;
+      basisNote = `🎯 ${target} MPa target · w/c ${wcFor(target).toFixed(2)}`;
+    }
+
     let coarseAggVol = 0.65;
     if (fm >= 2.8) coarseAggVol = maxAgg <= 20 ? 0.67 : 0.73;
     else if (fm >= 2.4) coarseAggVol = maxAgg <= 20 ? 0.65 : 0.71;
     else coarseAggVol = maxAgg <= 20 ? 0.63 : 0.69;
     const coarseAggDensity = 2.65; const fineAggDensity = 2.60; const cementDensity = 3.15;
     const coarseAgg = Math.round(coarseAggVol * coarseAggDensity * 1000);
-    const cementVol = cement / (cementDensity * 1000); const waterVol = waterEstimate / 1000; const coarseAggAbsVol = coarseAgg / (coarseAggDensity * 1000); const airVol = 0.02;
+    const cementVol = cement / (cementDensity * 1000); const waterVol = baseWater / 1000; const coarseAggAbsVol = coarseAgg / (coarseAggDensity * 1000); const airVol = 0.02;
     const fineAggVol = 1 - cementVol - waterVol - coarseAggAbsVol - airVol;
     const sand = Math.round(fineAggVol * fineAggDensity * 1000);
     const baseAdmix = Math.round(cement * 1.2) / 100;
@@ -189,13 +248,13 @@ export default function MixingQuality() {
     // Environment compensation factors
     const waterCorr = (temp - 25) * 0.6 + (60 - humidity) * 0.4;
     const admixCorr = (temp - 25) * 0.05 + (60 - humidity) * 0.02;
-    const water = Math.round((waterEstimate + waterCorr) * 10) / 10;
+    const water = Math.round((baseWater + waterCorr) * 10) / 10;
     const admixture = parseFloat((baseAdmix + admixCorr).toFixed(2));
-    const note = waterCorr > 1.5 ? '⚠️ Hot/dry weather: water & admixture increased to protect workability' : waterCorr < -1.5 ? '🧊 Cool/humid weather: water & admixture reduced' : '✓ Ambient conditions within standard range';
+    const envNote = waterCorr > 1.5 ? '⚠️ Hot/dry weather: water & admixture increased to protect workability' : waterCorr < -1.5 ? '🧊 Cool/humid weather: water & admixture reduced' : '✓ Ambient conditions within standard range';
 
     setDesignerResult({
-      base: { code: `C${target}`, cement: Math.round(cement / 5) * 5, sand: Math.round(sand / 5) * 5, gravel: Math.round(coarseAgg / 5) * 5, water: Math.round(waterEstimate), admixture: parseFloat(baseAdmix.toFixed(1)) },
-      water, admixture, temp, humidity, note,
+      base: { code: `C${target}`, cement: Math.round(cement / 5) * 5, sand: Math.round(sand / 5) * 5, gravel: Math.round(coarseAgg / 5) * 5, water: Math.round(baseWater), admixture: parseFloat(baseAdmix.toFixed(1)) },
+      water, admixture, temp, humidity, note: `${basisNote} · ${envNote}`,
     });
   };
 
@@ -505,7 +564,45 @@ export default function MixingQuality() {
             <div className="bg-white/[0.04] border border-white/10 rounded-xl p-6">
               <h3 className="text-lg font-black tracking-tight text-white mb-4">🧮 Mix Design Calculator</h3>
               <form onSubmit={calculateMixDesign} className="space-y-3">
-                <div><label className="text-xs text-slate-400 font-semibold">{L('mqTargetStr')}</label><input type="number" value={designerForm.targetStrength} onChange={e => setDesignerForm({ ...designerForm, targetStrength: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]" required /></div>
+                {/* How the mix is specified — by the grade the client ordered,
+                    or by the cement content the plant batches. */}
+                <div>
+                  <label className="text-xs text-slate-400 font-semibold">{L('mqDesignBasis')}</label>
+                  <div className="flex rounded-lg overflow-hidden border border-white/10 text-xs font-bold">
+                    {([['grade', L('mqBasisGrade')], ['cement', L('mqBasisCement')]] as const).map(([k, label]) => (
+                      <button
+                        key={k}
+                        type="button"
+                        onClick={() => setDesignBasis(k)}
+                        className={`flex-1 py-2.5 ${designBasis === k ? 'bg-sky-500 text-white' : 'bg-white/[0.03] text-slate-400 hover:text-white'}`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                {designBasis === 'grade' ? (
+                  <div><label className="text-xs text-slate-400 font-semibold">{L('mqTargetStr')}</label><input type="number" value={designerForm.targetStrength} onChange={e => setDesignerForm({ ...designerForm, targetStrength: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]" required /></div>
+                ) : (
+                  <div>
+                    <label className="text-xs text-slate-400 font-semibold">{L('mqCementContent')}</label>
+                    <select value={cementContent} onChange={e => setCementContent(e.target.value)} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]">
+                      {cementContentOptions(recipes).map(c => {
+                        const m = recipeForCement(recipes, c);
+                        return (
+                          <option key={c} value={c} className="bg-slate-900">
+                            {c} kg/m³{m ? ` — ${m.code} (${parseFc(m.code)} MPa)` : ''}
+                          </option>
+                        );
+                      })}
+                    </select>
+                    <p className="text-[10px] text-slate-500 mt-1">
+                      {recipeForCement(recipes, Number(cementContent))
+                        ? L('mqCementHasRecipe')
+                        : L('mqCementNoRecipe')}
+                    </p>
+                  </div>
+                )}
                 <div><label className="text-xs text-slate-400 font-semibold">{L('mqMaxAgg')}</label>
                   <select value={designerForm.maxAggregateSize} onChange={e => setDesignerForm({ ...designerForm, maxAggregateSize: e.target.value })} className="w-full bg-white/[0.04] border border-white/10 rounded-lg p-2.5 text-white text-sm outline-none focus:border-sky-400/70 focus:shadow-[0_0_12px_rgba(56,189,248,0.25)]">
                     <option value="10">10mm</option><option value="20">20mm</option><option value="40">40mm</option>
@@ -541,7 +638,11 @@ export default function MixingQuality() {
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
-                    <div className="bg-[#0B111E] rounded-lg p-4"><p className="text-xs text-slate-400">{L('mqCement')}</p><p className="text-lg font-black tracking-tight text-white">{designerResult.base.cement} kg</p></div>
+                    <div className="bg-[#0B111E] rounded-lg p-4">
+                      <p className="text-xs text-slate-400">{L('mqCement')}</p>
+                      <p className="text-lg font-black tracking-tight text-white">{designerResult.base.cement} kg/m³</p>
+                      <p className="text-[10px] text-sky-400 font-bold">{designerResult.base.code}</p>
+                    </div>
                     <div className="bg-[#0B111E] rounded-lg p-4"><p className="text-xs text-slate-400">{L('mqSand')}</p><p className="text-lg font-black tracking-tight text-white">{designerResult.base.sand} kg</p></div>
                     <div className="bg-[#0B111E] rounded-lg p-4"><p className="text-xs text-slate-400">{L('mqGravel')}</p><p className="text-lg font-black tracking-tight text-white">{designerResult.base.gravel} kg</p></div>
                     <div className="bg-[#0B111E] rounded-lg p-4"><p className="text-xs text-slate-400">{L('mqWaterAdj')}</p><p className="text-lg font-bold text-yellow-300">{designerResult.water} kg</p></div>

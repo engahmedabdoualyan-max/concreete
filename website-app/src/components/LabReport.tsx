@@ -24,6 +24,7 @@ import { usePageDict, type PageDict } from '../i18n/pageDict';
 import { useLang } from '../context/LangContext';
 import { loadCustomers, loadPlantProfile, loadLabReports, saveLabReports } from '../firebase/firestore';
 import { mergeByKey, pullCloud, pushCloud } from '../lib/reportSync';
+import { parseFc } from '../lib/mixDesign';
 import { shareImageViaLink } from '../lib/sharePdf';
 
 const esc = (s: unknown) =>
@@ -114,17 +115,64 @@ function buildLabDoc(p: ReportPayload, emblem: string, footer: string, chartSvg:
     `<p style="font-size:11px;font-weight:bold;" dir="rtl">النتيجة: ${p.avgMpa.toFixed(2)} MPa = ${p.pct.toFixed(1)}% من المطلوب (${p.target} MPa) — ${esc(p.verdict)}</p>` +
     `<p style="font-size:11px;font-weight:bold;" dir="rtl">مدة الاختبار: ${p.testAge ?? '—'} يوم (المطلوب ${p.target} ميجاباسكال)</p>` +
     `<p style="font-size:11px;font-weight:bold;" dir="rtl">نوع الإسمانت: ${esc(cementTypeLabelAr(p))} — معامل ACI 209R-92 عند هذا العمر: ${p.aciFactor !== undefined ? (p.aciFactor * 100).toFixed(1) : '—'}%</p>` +
-    `<p style="font-size:9.5px;color:#333;">Strength development per ACI 209R-92 / ASTM C150: f'c(t) = f'c(28) × t / (α + β·t). ` +
-    `At 28 days the specified strength f'c(28) = ${p.exp28} MPa is the acceptance target (ACI 318 §26.3.2.2). ` +
-    `Testing per ASTM C39.</p>` +
     chart +
     (p.remarks ? `<p style="font-size:10.5px;" dir="rtl"><b>ملاحظات:</b> ${esc(p.remarks)}</p>` : '') +
     `<p style="font-size:10px;color:#333;">Batch weight adjustments vary on the daily moisture content of aggregates at the time of batching.<br>` +
     `Concrete will be supplied according to ASTM C94. Concrete mixes are designed according to project specification.</p>` +
     `<p style="font-size:10.5px;text-align:center;font-weight:bold;text-decoration:underline;margin-top:8px;">TEST PERFOMED BY</p>` +
     `<p style="font-size:10.5px;"><b>Name:</b> ${esc(p.tester) || 'LAB/ Engineer'} &nbsp;&nbsp; <b>Signature:</b> ........................ &nbsp;&nbsp; <b>Date:</b> ${esc(p.tested)}</p>` +
+    methodBlock(p) +
     `<img src="${footer}" style="width:100%;margin-top:8px;">` +
     `</div></body></html>`;
+}
+
+/**
+ * The method and the codes the verdict rests on, printed at the foot of the
+ * report.
+ *
+ * A lab report that states a number without stating the formula behind it
+ * is not defensible: the consultant computes the required strength his own
+ * way, and the two documents disagree. So the equation, the constants that
+ * were actually used, the value they produced here, and the acceptance rule
+ * are all printed — the reader can reproduce the verdict from this page
+ * alone.
+ */
+function methodBlock(p: ReportPayload): string {
+  const c = cementTypeOf(p);
+  const factor = p.aciFactor !== undefined ? p.aciFactor : c ? 0 : 0;
+  return (
+    `<div style="border:1px solid #111;margin-top:10px;font-size:9.5px;line-height:1.5;">` +
+    `<div style="background:#f0f0f0;padding:3px;font-weight:bold;text-align:center;">METHOD &amp; STANDARDS</div>` +
+    `<div style="padding:5px 7px;">` +
+    `<b>Strength development</b> — ACI 209R-92 / ASTM C150:<br>` +
+    `<span style="font-family:'Cambria Math','Times New Roman',serif;font-size:11px;">` +
+    `f'c(t) = f'c(28) × t / ( α + β·t )` +
+    `</span><br>` +
+    `Cement type: <b>${esc(c.en)}</b> &nbsp;→&nbsp; α = ${c.alpha.toFixed(2)}, β = ${c.beta.toFixed(2)}<br>` +
+    `f'c(28) = <b>${p.exp28} MPa</b> &nbsp;·&nbsp; test age = <b>${p.testAge ?? '—'} days</b> &nbsp;→&nbsp; ` +
+    `factor t/(α+β·t) = <b>${factor.toFixed(4)}</b> (${(factor * 100).toFixed(1)}%) &nbsp;→&nbsp; ` +
+    `required f'c = <b>${p.target} MPa</b><br>` +
+    `At 28 days the specified strength f'c(28) = ${p.exp28} MPa is the acceptance target ` +
+    `(ACI 318 §26.3.2.2); the raw equation returns 1.0071 × f'c(28) there, which is a calibration offset and not extra strength.<br>` +
+    `<b>Acceptance</b> — ACI 318 §26.3.2.2: average of the specimens ≥ required f'c, ` +
+    `and no single specimen below (required f'c − 3.5 MPa). ` +
+    `Measured average <b>${p.avgMpa.toFixed(2)} MPa</b> = <b>${p.pct.toFixed(1)}%</b> of required → <b>${esc(p.verdict)}</b>.<br>` +
+    `<b>Compressive strength test</b> — ASTM C39 (C40/C60), Ø150 × 300 mm cylinder, cross-section 176.625 cm² ` +
+    `(load in kN = MPa × 17.6625).<br>` +
+    `<b>References</b> — ACI 318 (Building Code Requirements for Structural Concrete) · ` +
+    `ACI 209R-92 (Prediction of Creep, Shrinkage, and Temperature Effects in Concrete Structures) · ` +
+    `ASTM C39 (Compressive Strength of Cylindrical Concrete Specimens) · ` +
+    `ASTM C150 (Portland Cement) · ASTM C94 (Ready-Mix Concrete).` +
+    `<div dir="rtl" style="margin-top:4px;border-top:1px solid #111;padding-top:4px;">` +
+    `<b>المراجع:</b> ACI 318 · ACI 209R-92 · ASTM C39 · ASTM C150 · ASTM C94<br>` +
+    `تطور المقاومة مع الزمن حسب ACI 209R-92 / ASTM C150: f'c(t) = f'c(28) × t / ( α + β·t ) — ` +
+    `نوع الإسمانت ${esc(cementTypeLabelAr(p))} (α = ${c.alpha.toFixed(2)}, β = ${c.beta.toFixed(2)})، ` +
+    `f'c(28) = ${p.exp28} ميجاباسكال، عمر الاختبار ${p.testAge ?? '—'} يوم، المعامل ${factor.toFixed(4)}، ` +
+    `المطلوب ${p.target} ميجاباسكال.<br>` +
+    `القبول حسب ACI 318 §26.3.2.2: متوسط العيّنات ≥ المطلوب، ولا تقل أي عيّنة عن (المطلوب − 3.5 ميجاباسكال).` +
+    `</div>` +
+    `</div></div>`
+  );
 }
 
 export interface LabRecipe {
@@ -234,7 +282,9 @@ const DICT: PageDict = {
   cementTypeLabel: { en: 'Cement type (ACI 209R-92)', ar: 'نوع الإسمانت (ACI 209R-92)', ur: 'سیمنٹ کی قسم (ACI 209R-92)', ru: 'Тип цемента (ACI 209R-92)', de: 'Zementart (ACI 209R-92)', it: 'Tipo di cemento (ACI 209R-92)', hi: 'सीमेंट प्रकार (ACI 209R-92)', ja: 'セメントの種類（ACI 209R-92）', zh: '水泥品种 (ACI 209R-92)' },
   aciCurve: { en: 'ACI 209R-92: α, β', ar: 'ACI 209R-92: α، β', ur: 'ACI 209R-92: α، β', ru: 'ACI 209R-92: α, β', de: 'ACI 209R-92: α, β', it: 'ACI 209R-92: α, β', hi: 'ACI 209R-92: α, β', ja: 'ACI 209R-92: α, β', zh: 'ACI 209R-92: α, β' },
   aciFactor: { en: 'ACI 209R-92 factor', ar: 'معامل ACI 209R-92', ur: 'ACI 209R-92 فیکٹر', ru: 'Коэффициент ACI 209R-92', de: 'ACI 209R-92 Faktor', it: 'Fattore ACI 209R-92', hi: 'ACI 209R-92 कारक', ja: 'ACI 209R-92 係数', zh: 'ACI 209R-92 系数' },
-  sLoad: { en: 'Load (kN)', ar: 'الحمل (kN)', ur: 'لوڈ (kN)', ru: 'Нагрузка (кН)', de: 'Last (kN)', it: 'Carico (kN)', hi: 'लोड (kN)', ja: '荷重 (kN)', zh: '荷载 (kN)' },
+  autoFromCurve: { en: 'Auto — from the ACI 209R-92 curve', ar: 'تلقائي — من منحنى ACI 209R-92', ur: 'خودکار — من منحنی ACI 209R-92', ru: 'Авто — по кривой ACI 209R-92', de: 'Automatisch — aus der ACI 209R-92-Kurve', it: 'Automatico — dalla curva ACI 209R-92', hi: 'स्वतः — ACI 209R-92 वक्र से', ja: '自動 — ACI 209R-92 カーブより', zh: '自动 — 取自 ACI 209R-92 曲线' },
+  fc28Anchor: { en: "f'c(28) — the anchor of the curve", ar: "f'c(28) — أساس المنحنى", ur: "f'c(28) — منحنی کا بنیاد", ru: "f'c(28) — опора кривой", de: "f'c(28) — Ankerpunkt der Kurve", it: "f'c(28) — il punto di riferimento della curva", hi: "f'c(28) — वक्र का आधार", ja: "f'c(28) — カーブの基準値", zh: "f'c(28) — 曲线基准值" },
+  sLoad: { en: 'Load', ar: 'الحمل', ur: 'لوڈ', ru: 'Нагрузка', de: 'Last', it: 'Carico', hi: 'लोड', ja: '荷重', zh: '荷载' },
   sWeight: { en: 'Weight (g)', ar: 'الوزن (جم)', ur: 'وزن (g)', ru: 'Масса (г)', de: 'Gewicht (g)', it: 'Peso (g)', hi: 'वजन (g)', ja: '質量 (g)', zh: '重量 (g)' },
   slump: { en: 'Slump (mm)', ar: 'الهبوط (مم)', ur: 'سلンプ (mm)', ru: 'Осадка (мм)', de: 'Setzmaß (mm)', it: 'Slump (mm)', hi: 'स्लंप (mm)', ja: 'スランプ (mm)', zh: '坍落度 (mm)' },
   tempC: { en: 'Concrete temp (°C)', ar: 'حرارة الخرسانة (°م)', ur: 'کنکریٹ درجہ حرارت (°C)', ru: 'Температура бетона (°C)', de: 'Betontemperatur (°C)', it: 'Temp. calcestruzzo (°C)', hi: 'कंक्रीट तापमान (°C)', ja: 'コンクリート温度 (°C)', zh: '混凝土温度 (°C)' },
@@ -347,10 +397,6 @@ const addDays = (iso: string, n: number) => {
 const diffDays = (a: string, b: string) =>
   Math.round((new Date(b + 'T12:00:00').getTime() - new Date(a + 'T12:00:00').getTime()) / 86400000);
 const f2 = (n: number) => (Number.isFinite(n) ? n.toFixed(2) : '—');
-const parseFc = (code: string): number => {
-  const m = /C\s*(\d+)/i.exec(code || '');
-  return m ? parseInt(m[1], 10) : 0;
-};
 
 function InfoLine({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -565,6 +611,54 @@ function ReportSheet({ p, paper }: { p: ReportPayload; paper: 'company' | 'plain
         <p><b>Date:</b> {p.tested}</p>
       </div>
 
+      {/* The method and the codes, so the verdict can be reproduced from this
+          sheet alone — the same block the printed report carries. */}
+      <div className="border border-slate-900 mt-2 text-[9.5px] leading-[1.5]" dir="ltr">
+        <p className="font-bold bg-slate-100 border-b border-slate-900 px-1.5 py-[3px] text-center">METHOD &amp; STANDARDS</p>
+        <div className="px-2 py-1.5">
+          <p><b>Strength development</b> — ACI 209R-92 / ASTM C150:</p>
+          <p className="font-serif text-[11px] my-0.5">f&apos;c(t) = f&apos;c(28) × t / ( α + β·t )</p>
+          <p>
+            Cement type: <b>{cementTypeLabel(p)}</b> → α = {p.aciAlpha?.toFixed(2) ?? '—'}, β = {p.aciBeta?.toFixed(2) ?? '—'}
+          </p>
+          <p>
+            f&apos;c(28) = <b>{p.exp28} MPa</b> · test age = <b>{p.testAge ?? '—'} days</b> → factor t/(α+β·t) ={' '}
+            <b>{p.aciFactor !== undefined ? p.aciFactor.toFixed(4) : '—'}</b>
+            {p.aciFactor !== undefined ? ` (${(p.aciFactor * 100).toFixed(1)}%)` : ''} → required f&apos;c = <b>{p.target} MPa</b>
+          </p>
+          <p className="mt-1">
+            At 28 days the specified strength f&apos;c(28) = {p.exp28} MPa is the acceptance target (ACI 318 §26.3.2.2); the raw
+            equation returns 1.0071 × f&apos;c(28) there, which is a calibration offset and not extra strength.
+          </p>
+          <p className="mt-1">
+            <b>Acceptance</b> — ACI 318 §26.3.2.2: average of the specimens ≥ required f&apos;c, and no single specimen below
+            (required f&apos;c − 3.5 MPa). Measured average <b>{p.avgMpa.toFixed(2)} MPa</b> = <b>{p.pct.toFixed(1)}%</b> of required →{' '}
+            <b>{p.verdict}</b>.
+          </p>
+          <p className="mt-1">
+            <b>Compressive strength test</b> — ASTM C39 (C40/C60), Ø150 × 300 mm cylinder, cross-section 176.625 cm²
+            (load in kN = MPa × 17.6625).
+          </p>
+          <p className="mt-1">
+            <b>References</b> — ACI 318 · ACI 209R-92 · ASTM C39 · ASTM C150 · ASTM C94.
+          </p>
+          <div dir="rtl" className="mt-2 border-t border-slate-900 pt-1.5">
+            <p>
+              <b>المراجع:</b> ACI 318 · ACI 209R-92 · ASTM C39 · ASTM C150 · ASTM C94
+            </p>
+            <p className="mt-1">
+              تطور المقاومة مع الزمن حسب ACI 209R-92 / ASTM C150: f'c(t) = f'c(28) × t / ( α + β·t ) —{' '}
+              نوع الإسمانت {cementTypeLabelAr(p)} (α = {p.aciAlpha?.toFixed(2) ?? '—'}، β = {p.aciBeta?.toFixed(2) ?? '—'})،{' '}
+              f'c(28) = {p.exp28} ميجاباسكال، عمر الاختبار {p.testAge ?? '—'} يوم، المعامل{' '}
+              {p.aciFactor !== undefined ? p.aciFactor.toFixed(4) : '—'}، المطلوب {p.target} ميجاباسكال.
+            </p>
+            <p className="mt-1">
+              القبول حسب ACI 318 §26.3.2.2: متوسط العيّنات ≥ المطلوب، ولا تقل أي عيّنة عن (المطلوب − 3.5 ميجاباسكال).
+            </p>
+          </div>
+        </div>
+      </div>
+
       <img src={labFooter} alt="ALMOTWR footer" className="w-full mt-2" style={paper === 'company' ? undefined : { display: 'none' }} />
     </div>
   );
@@ -597,9 +691,7 @@ export default function LabReport({ recipes, username, plantName, onToast }: {
   // the test/report date always follows it automatically (+7 days).
   const [casting, setCasting] = useState('');
   const [tested, setTested] = useState('');
-  const [exp7, setExp7] = useState('');
   const [exp28, setExp28] = useState('');
-  const [exp3, setExp3] = useState('');
   const [expTouched, setExpTouched] = useState(false);
   /**
    * Test age in days — ANY whole day from 3 to 28.
@@ -642,6 +734,16 @@ export default function LabReport({ recipes, username, plantName, onToast }: {
     setMixType(cemMem()[code] ?? '');
   };
   const [samples, setSamples] = useState<SampleIn[]>([{ load: '', weight: '' }, { load: '', weight: '' }, { load: '', weight: '' }]);
+  /**
+   * The unit the crushing LOAD is typed in.
+   *
+   * The machine prints kN, but the consultant's report and the client's
+   * engineer often quote MPa — and re-deriving one from the other in the
+   * field is how a 0.5 MPa slip happens. The stored value is ALWAYS kN
+   * (that is what the payload and the report carry); this only changes what
+   * the technician types.
+   */
+  const [loadUnit, setLoadUnit] = useState<'kN' | 'MPa'>('kN');
   const [slump, setSlump] = useState('120');
   // Concrete temp: ice in use, code ceiling 32°C — always kept below it.
   const [tempC, setTempC] = useState('28');
@@ -773,8 +875,11 @@ export default function LabReport({ recipes, username, plantName, onToast }: {
   const aciFactorApplied = (t: number): number => aciFactor(t);
 
   const effExp28 = expTouched && exp28 !== '' ? Number(exp28) : fc;
-  const effExp7 = expTouched && exp7 !== '' ? Number(exp7) : Math.round(effExp28 * aciFactorApplied(7) * 10) / 10;
-  const effExp3 = expTouched && exp3 !== '' ? Number(exp3) : Math.round(effExp28 * aciFactorApplied(3) * 10) / 10;
+  // 3 and 7 days are READ OFF THE CURVE — they move by themselves when
+  // f'c(28) or the cement type changes, so there is no second number that
+  // can disagree with the first.
+  const effExp7 = Math.round(effExp28 * aciFactor(7) * 10) / 10;
+  const effExp3 = Math.round(effExp28 * aciFactor(3) * 10) / 10;
   const effCement = cementTouched && cementInfo !== '' ? cementInfo : recipe ? `${recipe.cement} kg/m³` : '';
   const age = casting && tested ? diffDays(casting, tested) : 0;
 
@@ -903,9 +1008,7 @@ export default function LabReport({ recipes, username, plantName, onToast }: {
     setTested(p.tested ?? '');
     setTestAge(p.testAge >= 3 && p.testAge <= 28 ? p.testAge : null);
     setCementType(p.cementType === 'III' ? 'III' : 'I');
-    setExp7(p.exp7 !== undefined ? String(p.exp7) : '');
     setExp28(p.exp28 !== undefined ? String(p.exp28) : '');
-    setExp3(p.exp3 !== undefined ? String(p.exp3) : '');
     setExpTouched(true);
     setSlump(p.slump ?? '120');
     setTempC(p.tempC ?? '28');
@@ -1045,7 +1148,13 @@ export default function LabReport({ recipes, username, plantName, onToast }: {
           <div>
             <label className={labelCls}>{t('mix')}</label>
             <select value={mixCode} onChange={e => { setMixCode(e.target.value); setExpTouched(false); setCementTouched(false); applyCementMemory(e.target.value); }} className={inputCls}>
-              {recipes.map(r => <option key={r.code} value={r.code} className="bg-slate-900">{r.code}{parseFc(r.code) ? ` (${parseFc(r.code)} MPa)` : ''}</option>)}
+              {recipes.map(r => (
+                <option key={r.code} value={r.code} className="bg-slate-900">
+                  {r.code}
+                  {parseFc(r.code) ? ` (${parseFc(r.code)} MPa)` : ''}
+                  {r.cement ? ` · ${r.cement} kg/m³ cement` : ''}
+                </option>
+              ))}
             </select>
           </div>
           <div>
@@ -1117,15 +1226,23 @@ export default function LabReport({ recipes, username, plantName, onToast }: {
           </div>
           <div>
             <label className={labelCls}>{t('exp3')}</label>
-            <input type="number" value={expTouched ? exp3 : effExp3} onChange={e => { setExp3(e.target.value); setExpTouched(true); }} className={inputCls} />
+            {/* Automatic: read off the ACI 209R-92 curve for the chosen
+                cement type. It moves by itself when f'c(28) or the cement
+                type changes — no second number to keep in sync. */}
+            <input type="number" value={effExp3} readOnly className={`${inputCls} opacity-70 cursor-not-allowed`} />
+            <p className="text-[10px] text-slate-500 mt-1">{t('autoFromCurve')}</p>
           </div>
           <div>
             <label className={labelCls}>{t('exp7')}</label>
-            <input type="number" value={expTouched ? exp7 : effExp7} onChange={e => { setExp7(e.target.value); setExpTouched(true); }} className={inputCls} />
+            <input type="number" value={effExp7} readOnly className={`${inputCls} opacity-70 cursor-not-allowed`} />
+            <p className="text-[10px] text-slate-500 mt-1">{t('autoFromCurve')}</p>
           </div>
           <div>
             <label className={labelCls}>{t('exp28')}</label>
-            <input type="number" value={expTouched ? exp28 : effExp28} onChange={e => { setExp28(e.target.value); setExpTouched(true); }} className={inputCls} />
+            {/* f'c(28) — the anchor the whole curve is built on, and the only
+                strength the technician types by hand. */}
+            <input type="number" value={expTouched && exp28 !== '' ? exp28 : effExp28} onChange={e => { setExp28(e.target.value); setExpTouched(true); }} className={inputCls} />
+            <p className="text-[10px] text-slate-500 mt-1">{t('fc28Anchor')}</p>
           </div>
           <div>
             <label className={labelCls}>{t('jobNo')}</label>
@@ -1154,8 +1271,38 @@ export default function LabReport({ recipes, username, plantName, onToast }: {
           {samples.map((s, i) => (
             <div key={i} className="bg-white/[0.02] border border-white/10 rounded-lg p-3">
               <p className="text-xs font-black text-sky-300 mb-2">A{i + 1}</p>
-              <label className={labelCls}>{t('sLoad')}</label>
-              <input type="number" step="0.1" value={s.load} onChange={e => setS(i, 'load', e.target.value)} placeholder="412.7" className={inputCls} style={s.load.trim() ? undefined : RED_IF_EMPTY} />
+              <div className="flex items-center justify-between gap-2 mb-1">
+                <label className={labelCls + ' mb-0'}>{t('sLoad')} ({loadUnit})</label>
+                {/* The load can be read off the machine in kN or quoted in MPa —
+                    the field accepts either, the report always carries kN. */}
+                <div className="flex rounded overflow-hidden border border-white/15 text-[10px] font-black">
+                  {(['kN', 'MPa'] as const).map(u => (
+                    <button
+                      key={u}
+                      type="button"
+                      onClick={() => setLoadUnit(u)}
+                      className={`px-2 py-0.5 ${loadUnit === u ? 'bg-sky-500 text-white' : 'bg-white/[0.04] text-slate-400 hover:text-white'}`}
+                    >
+                      {u}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <input
+                type="number"
+                step="0.1"
+                value={loadUnit === 'MPa' && s.load !== '' ? String(Number(s.load) / AREA_DIV) : s.load}
+                onChange={e => {
+                  const raw = e.target.value;
+                  if (raw === '') { setS(i, 'load', ''); return; }
+                  const n = Number(raw);
+                  if (!Number.isFinite(n)) return;
+                  setS(i, 'load', String(loadUnit === 'MPa' ? n * AREA_DIV : n));
+                }}
+                placeholder={loadUnit === 'MPa' ? '23.4' : '412.7'}
+                className={inputCls}
+                style={s.load.trim() ? undefined : RED_IF_EMPTY}
+              />
               <div className="mt-2"><label className={labelCls}>{t('sWeight')}</label>
               <input type="number" value={s.weight} onChange={e => setW(i, e.target.value)} placeholder="12393" className={inputCls} style={s.weight.trim() ? undefined : RED_IF_EMPTY} /></div>
               <p className="text-[11px] text-slate-400 mt-2" dir="ltr">
