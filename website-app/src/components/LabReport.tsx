@@ -75,7 +75,7 @@ function buildLabDoc(p: ReportPayload, emblem: string, footer: string, chartSvg:
     `<td style="padding:2px"><b>SLUMP</b> ............ ${esc(p.slump)} mm</td></tr>` +
     `<tr><td colspan="2" style="padding:3px;border:1px solid #111;background:#f0f0f0;font-weight:bold">` +
     `TEST DURATION / TEST AGE ............ ${p.testAge ?? '—'} DAYS` +
-    ` &nbsp;&nbsp;(REQUIRED STRENGTH: ${p.testAge === 28 ? `${p.exp28}` : p.testAge === 3 ? `${p.exp3}` : `${p.exp7}`} MPa)</td></tr>` +
+    ` &nbsp;&nbsp;(REQUIRED STRENGTH: ${p.target} MPa)</td></tr>` +
     `<tr><td style="padding:2px"><b>CEMENT</b> ............ ${esc(p.cement) || '—'}</td>` +
     `<td style="padding:2px"><b>TEMP</b> ............ ${esc(p.tempC)}°C / ${esc(p.airTemp)}°C</td></tr>` +
     `</table>` +
@@ -96,7 +96,7 @@ function buildLabDoc(p: ReportPayload, emblem: string, footer: string, chartSvg:
     `<td style="border:1px solid #111;padding:3px;text-align:center;font-weight:bold">${p.avgMpa.toFixed(2)}</td></tr>` +
     `</table>` +
     `<p style="font-size:11px;font-weight:bold;" dir="rtl">النتيجة: ${p.avgMpa.toFixed(2)} MPa = ${p.pct.toFixed(1)}% من المطلوب (${p.target} MPa) — ${esc(p.verdict)}</p>` +
-    `<p style="font-size:11px;font-weight:bold;" dir="rtl">مدة الاختبار: ${p.testAge ?? '—'} يوم (المطلوب ${p.testAge === 28 ? `${p.exp28}` : p.testAge === 3 ? `${p.exp3}` : `${p.exp7}`} ميجاباسكال)</p>` +
+    `<p style="font-size:11px;font-weight:bold;" dir="rtl">مدة الاختبار: ${p.testAge ?? '—'} يوم (المطلوب ${p.target} ميجاباسكال)</p>` +
     chart +
     (p.remarks ? `<p style="font-size:10.5px;" dir="rtl"><b>ملاحظات:</b> ${esc(p.remarks)}</p>` : '') +
     `<p style="font-size:10px;color:#333;">Batch weight adjustments vary on the daily moisture content of aggregates at the time of batching.<br>` +
@@ -200,7 +200,8 @@ const DICT: PageDict = {
   exp7: { en: 'Required 7-day (MPa)', ar: 'المطلوب بعد 7 أيام (MPa)', ur: 'مطلوبہ 7 دن (MPa)', ru: 'Норма 7 сут (МПа)', de: 'Soll 7 Tage (MPa)', it: 'Richiesto 7 gg (MPa)', hi: 'आवश्यक 7-दिन (MPa)', ja: '7日要求値 (MPa)', zh: '7天要求值 (MPa)' },
   exp28: { en: 'Required 28-day (MPa)', ar: 'المطلوب بعد 28 يوم (MPa)', ur: 'مطلوبہ 28 دن (MPa)', ru: 'Норма 28 сут (МПа)', de: 'Soll 28 Tage (MPa)', it: 'Richiesto 28 gg (MPa)', hi: 'आवश्यक 28-दिन (MPa)', ja: '28日要求値 (MPa)', zh: '28天要求值 (MPa)' },
   exp3: { en: 'Required 3-day (MPa)', ar: 'المطلوب بعد 3 أيام (MPa)', ur: 'مطلوبہ 3 دن (MPa)', ru: 'Норма 3 сут (МПа)', de: 'Soll 3 Tage (MPa)', it: 'Richiesto 3 gg (MPa)', hi: 'आवश्यक 3-दिन (MPa)', ja: '3日要求値 (MPa)', zh: '3天要求值 (MPa)' },
-  testAge: { en: 'Test age', ar: 'عمر الاختبار', ur: 'ٹیسٹ عمر', ru: 'Возраст', de: 'Prüfalter', it: 'Età prova', hi: 'परीक्षण आयु', ja: '材齢', zh: '试验龄期' },
+  testAge: { en: 'Test age (3–28 days)', ar: 'عمر الاختبار (3–28 يوم)', ur: 'ٹیسٹ عمر (3–28 دن)', ru: 'Возраст испытания (3–28 сут)', de: 'Prüfalter (3–28 Tage)', it: 'Età prova (3–28 giorni)', hi: 'परीक्षण आयु (3–28 दिन)', ja: '材齢（3〜28日）', zh: '试验龄期（3–28天）' },
+  requiredAtAge: { en: 'Required strength at this age', ar: 'المطلوب عند هذا العمر', ur: 'اس عمر پر مطلوبہ مضبوط', ru: 'Норма для этого возраста', de: 'Sollwert bei diesem Alter', it: 'Resistenza richiesta a questa età', hi: 'इस आयु पर आवश्यक शक्ति', ja: 'この材齢での要求値', zh: '该龄期的要求强度' },
   sLoad: { en: 'Load (kN)', ar: 'الحمل (kN)', ur: 'لوڈ (kN)', ru: 'Нагрузка (кН)', de: 'Last (kN)', it: 'Carico (kN)', hi: 'लोड (kN)', ja: '荷重 (kN)', zh: '荷载 (kN)' },
   sWeight: { en: 'Weight (g)', ar: 'الوزن (جم)', ur: 'وزن (g)', ru: 'Масса (г)', de: 'Gewicht (g)', it: 'Peso (g)', hi: 'वजन (g)', ja: '質量 (g)', zh: '重量 (g)' },
   slump: { en: 'Slump (mm)', ar: 'الهبوط (مم)', ur: 'سلンプ (mm)', ru: 'Осадка (мм)', de: 'Setzmaß (mm)', it: 'Slump (mm)', hi: 'स्लंप (mm)', ja: 'スランプ (mm)', zh: '坍落度 (mm)' },
@@ -214,7 +215,7 @@ const DICT: PageDict = {
   saved: { en: 'Report saved', ar: 'تم حفظ التقرير', ur: 'رپورٹ محفوظ ہو گئی', ru: 'Отчёт сохранён', de: 'Bericht gespeichert', it: 'Report salvato', hi: 'रिपोर्ट सहेजी गई', ja: '保存しました', zh: '已保存' },
   needLoads: { en: 'Enter at least one crushing load first.', ar: 'أدخل حمل تكسيير واحداً على الأقل أولاً.', ur: 'پہلے کم از کم ایک کرشنگ لوڈ درج کریں۔', ru: 'Сначала введите хотя бы одну нагрузку.', de: 'Zuerst mindestens eine Last eingeben.', it: 'Inserire prima almeno un carico.', hi: 'पहले कम से कम एक लोड दर्ज करें।', ja: 'まず荷重を1つ入力してください。', zh: '请先输入至少一个荷载。' },
   needCasting: { en: 'Enter the casting date first.', ar: 'أدخل تاريخ الصب أولاً.', ur: 'پہلے کاسٹنگ کی تاریخ درج کریں۔', ru: 'Сначала введите дату заливки.', de: 'Zuerst Betonierdatum eingeben.', it: 'Inserire prima la data del getto.', hi: 'पहले कास्टिंग तिथि दर्ज करें।', ja: 'まず打設日を入力してください。', zh: '请先输入浇筑日期。' },
-  needAge: { en: 'Pick the test age (3 / 7 / 28 days).', ar: 'اختر عمر الاختبار (3 / 7 / 28 يوم).', ur: 'ٹیسٹ عمر منتخب کریں (3 / 7 / 28 دن)۔', ru: 'Выберите возраст (3/7/28 сут).', de: 'Prüfalter wählen (3/7/28 Tage).', it: 'Scegli età di prova (3/7/28 gg).', hi: 'परीक्षण आयु चुनें (3/7/28 दिन)।', ja: '材齢を選択（3/7/28日）。', zh: '选择试验龄期（3/7/28天）。' },
+  needAge: { en: 'Pick the test age (any day from 3 to 28).', ar: 'اختر عمر الاختبار (أي يوم من 3 إلى 28).', ur: 'ٹیسٹ عمر منتخب کریں (3 سے 28 تک کوئی بھی دن)۔', ru: 'Выберите возраст (любой день от 3 до 28).', de: 'Prüfalter wählen (beliebiger Tag von 3 bis 28).', it: 'Scegli età di prova (qualsiasi giorno da 3 a 28).', hi: 'परीक्षण आयु चुनें (3 से 28 तक कोई भी दिन)।', ja: '材齢を選択（3日から28日のいずれか）。', zh: '选择试验龄期（3至28天之间任一天）。' },
   needCement: { en: 'Pick the cement type.', ar: 'اختر نوع الأسمنت.', ur: 'سیمنٹ کی قسم منتخب کریں۔', ru: 'Выберите тип цемента.', de: 'Zementtyp wählen.', it: 'Scegli il tipo di cemento.', hi: 'सीमेंट प्रकार चुनें।', ja: 'セメント種類を選択。', zh: '选择水泥类型。' },
   tempCapped: { en: 'Concrete temp capped at 30°C (code limit 32, ice in use).', ar: 'تم تثبيت حرارة الخلطة عند 30° (حد الكود 32 — نستخدم ثلج).', ur: 'کنکریٹ درجہ حرارت 30°C پر محدود (کوڈ حد 32، برف استعمال ہوتی ہے)۔', ru: 'Температура ограничена 30°C (норма 32, используется лёд).', de: 'Betontemperatur auf 30°C begrenzt (Norm 32, Eis im Einsatz).', it: 'Temperatura limitata a 30°C (norma 32, ghiaccio in uso).', hi: 'कंक्रीट तापमान 30°C पर सीमित (मानक 32, बर्फ उपयोग में)।', ja: '温度は30°Cに制限（基準32、氷使用）。', zh: '温度限制为30°C（规范32，用冰）。' },
   autoW: { en: 'Empty weights auto-fill from A1 (editable).', ar: 'الأوزان الفارغة تُملأ تلقائياً من A1 (قابلة للتعديل).', ur: 'خالی وزن A1 سے خودکار (قابل ترمیم)۔', ru: 'Пустые массы берутся из A1 (можно менять).', de: 'Leere Gewichte werden aus A1 übernommen (änderbar).', it: 'Pesi vuoti copiati da A1 (modificabili).', hi: 'खाली वजन A1 से स्वतः भरें (बदल सकते हैं)।', ja: '空の質量はA1から自動入力（編集可）。', zh: '空重量自动取自A1（可改）。' },
@@ -253,6 +254,16 @@ const DICT: PageDict = {
 
 const ELEMENTS = ['قواعد', 'ميدة', 'أعمدة', 'أسقف', 'جسور', 'خزانات', 'مسبح', 'صبة خرسانة مسلحة', 'رقابى'];
 const MIX_TYPES = ['عادي', 'SRC', 'مقاوم للكبريتات'];
+
+/**
+ * Test ages the technician may record: every whole day from 3 to 28.
+ *
+ * The old dropdown offered only 3, 7 and 28, which forced a lie whenever a
+ * cylinder was crushed at any other age (an 11-day sample being the common
+ * one). The required strength is then interpolated for the chosen age, so the
+ * verdict is judged against the right number.
+ */
+const AGE_OPTIONS: number[] = Array.from({ length: 26 }, (_, i) => i + 3);
 
 // Temporary demo clients (real PDF filenames from the lab archive) until the
 // real customer file arrives — used only when no sales customers exist yet.
@@ -418,6 +429,10 @@ function ReportSheet({ p, paper }: { p: ReportPayload; paper: 'company' | 'plain
             <span>TEST DURATION / TEST AGE</span>
             <span dir="ltr">{p.testAge ?? '—'} DAYS</span>
           </div>
+          <div className="col-span-2 border border-slate-900 bg-slate-100 px-1.5 py-[3px] font-black flex justify-between">
+            <span>REQUIRED STRENGTH AT THIS AGE</span>
+            <span dir="ltr">{p.target} Mpa</span>
+          </div>
         </div>
         <div className="border border-slate-900 text-[10px] h-fit" dir="ltr">
           <SpecCell label="Area">176.625 cm²</SpecCell>
@@ -525,8 +540,17 @@ export default function LabReport({ recipes, username, plantName, onToast }: {
   const [exp28, setExp28] = useState('');
   const [exp3, setExp3] = useState('');
   const [expTouched, setExpTouched] = useState(false);
-  const [testAge, setTestAge] = useState<3 | 7 | 28 | null>(null);
-  const pickAge = (v: 3 | 7 | 28 | null) => {
+  /**
+   * Test age in days — ANY whole day from 3 to 28.
+   *
+   * It used to be a fixed 3 | 7 | 28 choice, which was wrong for the plant:
+   * a cylinder is often crushed at an age that is none of the three (an
+   * 11-day sample, a 14-day contractual check, a 10-day mix trial). Forcing
+   * the technician to lie about the age to fit the dropdown is exactly the
+   * kind of fudge that makes a lab report worthless.
+   */
+  const [testAge, setTestAge] = useState<number | null>(null);
+  const pickAge = (v: number | null) => {
     setTestAge(v);
     if (casting && v) setTested(addDays(casting, v));
     else if (!casting) setTested('');
@@ -682,7 +706,31 @@ export default function LabReport({ recipes, username, plantName, onToast }: {
   const valid = rows.filter(r => r.load > 0);
   const avgMpa = valid.length ? valid.reduce((a, r) => a + r.mpa, 0) / valid.length : 0;
   const avgKg = valid.length ? valid.reduce((a, r) => a + r.kg, 0) / valid.length : 0;
-  const target = testAge === 3 ? effExp3 : testAge === 28 ? effExp28 : effExp7;
+
+  /**
+   * Required compressive strength at ANY age between 3 and 28 days.
+   *
+   * The plant knows three anchors — 3, 7 and 28 days. Between them the
+   * strength is interpolated on log(time), which is the same curve ACI 318
+   * uses for age-to-strength conversion, so an 11-day sample is judged
+   * against the strength a sound mix should show at 11 days rather than
+   * against the 7-day number.
+   *
+   * Outside 3–28 the nearest anchor is used: below 3 days the 3-day value
+   * (a very young cylinder is weak, and the 3-day value is the strictest
+   * sensible one), and at/after 28 days the 28-day value.
+   */
+  const requiredAtAge = (ageDays: number): number => {
+    if (ageDays <= 3) return effExp3;
+    if (ageDays >= 28) return effExp28;
+    if (ageDays <= 7) {
+      const w = (Math.log(ageDays) - Math.log(3)) / (Math.log(7) - Math.log(3));
+      return effExp3 + w * (effExp7 - effExp3);
+    }
+    const w = (Math.log(ageDays) - Math.log(7)) / (Math.log(28) - Math.log(7));
+    return effExp7 + w * (effExp28 - effExp7);
+  };
+  const target = testAge ? Math.round(requiredAtAge(testAge) * 10) / 10 : 0;
   const pct = target > 0 && valid.length ? (avgMpa / target) * 100 : 0;
   // Acceptance (ACI 318 style): average ≥ required AND every sample ≥ required − 3.5 MPa.
   const minMpa = valid.length ? Math.min(...valid.map(r => r.mpa)) : 0;
@@ -762,7 +810,7 @@ export default function LabReport({ recipes, username, plantName, onToast }: {
     setCementTouched(true);
     setCasting(p.casting ?? '');
     setTested(p.tested ?? '');
-    setTestAge(p.testAge === 3 || p.testAge === 7 || p.testAge === 28 ? p.testAge : null);
+    setTestAge(p.testAge >= 3 && p.testAge <= 28 ? p.testAge : null);
     setExp7(p.exp7 !== undefined ? String(p.exp7) : '');
     setExp28(p.exp28 !== undefined ? String(p.exp28) : '');
     setExp3(p.exp3 !== undefined ? String(p.exp3) : '');
@@ -792,7 +840,7 @@ export default function LabReport({ recipes, username, plantName, onToast }: {
       ['Concrete Supplier', p.supplier, '', 'Mix', `${p.mix} (${p.fc} MPa ${p.mixType})`],
       ['Casting Date', p.casting, '', 'Test Date', `${p.tested} (${p.age} days)`],
       ['Age', `${p.age} Days`, '', 'Area', '176.7 cm²'],
-      ['Test Duration / Test Age', `${p.testAge ?? '—'} Days`, '', 'Required for this test', `${p.testAge === 28 ? p.exp28 : p.testAge === 3 ? p.exp3 : p.exp7} MPa`],
+      ['Test Duration / Test Age', `${p.testAge ?? '—'} Days`, '', 'Required for this test', `${p.target} MPa`],
       ['Required 7-day', `${p.exp7} MPa`, '', 'Required 28-day', `${p.exp28} MPa`],
       ['Slump', `${p.slump} mm`, '', 'Temp', `${p.tempC}°C / air ${p.airTemp}°C`],
       [],
@@ -946,10 +994,17 @@ export default function LabReport({ recipes, username, plantName, onToast }: {
           </div>
           <div>
             <label className={labelCls}>{t('testAge')}</label>
-            <select value={testAge ?? ''} onChange={e => pickAge(e.target.value === '' ? null : (Number(e.target.value) as 3 | 7 | 28))} className={inputCls} style={!testAge ? RED_IF_EMPTY : undefined}>
+            <select value={testAge ?? ''} onChange={e => pickAge(e.target.value === '' ? null : Number(e.target.value))} className={inputCls} style={!testAge ? RED_IF_EMPTY : undefined}>
               <option value="" className="bg-slate-900">—</option>
-              {[3, 7, 28].map(n => <option key={n} value={n} className="bg-slate-900">{n} {t('days')}</option>)}
+              {/* Any whole day from 3 to 28 — a 3, 4, 5 … 11 … 28 day sample
+                  must be recordable as the age it really is. */}
+              {AGE_OPTIONS.map(n => <option key={n} value={n} className="bg-slate-900">{n} {t('days')}</option>)}
             </select>
+            {testAge && (
+              <p className="text-[10px] text-slate-400 mt-1">
+                {t('requiredAtAge')}: <b className="text-sky-300" dir="ltr">{target} MPa</b>
+              </p>
+            )}
           </div>
           <div>
             <label className={labelCls}>{t('exp3')}</label>
