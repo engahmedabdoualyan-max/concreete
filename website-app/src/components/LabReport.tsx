@@ -21,6 +21,7 @@ import labEmblem from '../assets/lab-emblem.jpg';
 import labFooter from '../assets/lab-footer.jpg';
 import * as XLSX from 'xlsx';
 import { usePageDict, type PageDict } from '../i18n/pageDict';
+import { useLang } from '../context/LangContext';
 import { loadCustomers, loadPlantProfile, loadLabReports, saveLabReports } from '../firebase/firestore';
 import { mergeByKey, pullCloud, pushCloud } from '../lib/reportSync';
 import { shareImageViaLink } from '../lib/sharePdf';
@@ -31,6 +32,16 @@ const esc = (s: unknown) =>
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
+
+/**
+ * The cement type a saved report was issued against. Reports written before
+ * the cement type existed fall back to Type I (the normal Portland default).
+ */
+function cementTypeOf(p: ReportPayload): (typeof CEMENT_CURVES)[number] {
+  return CEMENT_CURVES.find(c => c.key === p.cementType) ?? CEMENT_CURVES[0];
+}
+const cementTypeLabel = (p: ReportPayload) => cementTypeOf(p).en;
+const cementTypeLabelAr = (p: ReportPayload) => cementTypeOf(p).ar;
 
 /** Standalone printable document (inline styles + data-URI images only). */
 function buildLabDoc(p: ReportPayload, emblem: string, footer: string, chartSvg: string): string {
@@ -76,6 +87,11 @@ function buildLabDoc(p: ReportPayload, emblem: string, footer: string, chartSvg:
     `<tr><td colspan="2" style="padding:3px;border:1px solid #111;background:#f0f0f0;font-weight:bold">` +
     `TEST DURATION / TEST AGE ............ ${p.testAge ?? '—'} DAYS` +
     ` &nbsp;&nbsp;(REQUIRED STRENGTH: ${p.target} MPa)</td></tr>` +
+    `<tr><td colspan="2" style="padding:3px;border:1px solid #111;background:#f0f0f0;font-weight:bold">` +
+    `CEMENT TYPE ............ ${esc(cementTypeLabel(p))}` +
+    ` &nbsp;&nbsp;(ACI 209R-92: α = ${p.aciAlpha?.toFixed(2) ?? '—'}, β = ${p.aciBeta?.toFixed(2) ?? '—'}` +
+    ` &nbsp;·&nbsp; FACTOR AT THIS AGE: ${p.aciFactor !== undefined ? p.aciFactor.toFixed(4) : '—'} (${p.aciFactor !== undefined ? (p.aciFactor * 100).toFixed(1) : '—'}%)` +
+    ` &nbsp;·&nbsp; f'c(28) = ${p.exp28} MPa</td></tr>` +
     `<tr><td style="padding:2px"><b>CEMENT</b> ............ ${esc(p.cement) || '—'}</td>` +
     `<td style="padding:2px"><b>TEMP</b> ............ ${esc(p.tempC)}°C / ${esc(p.airTemp)}°C</td></tr>` +
     `</table>` +
@@ -97,6 +113,10 @@ function buildLabDoc(p: ReportPayload, emblem: string, footer: string, chartSvg:
     `</table>` +
     `<p style="font-size:11px;font-weight:bold;" dir="rtl">النتيجة: ${p.avgMpa.toFixed(2)} MPa = ${p.pct.toFixed(1)}% من المطلوب (${p.target} MPa) — ${esc(p.verdict)}</p>` +
     `<p style="font-size:11px;font-weight:bold;" dir="rtl">مدة الاختبار: ${p.testAge ?? '—'} يوم (المطلوب ${p.target} ميجاباسكال)</p>` +
+    `<p style="font-size:11px;font-weight:bold;" dir="rtl">نوع الإسمانت: ${esc(cementTypeLabelAr(p))} — معامل ACI 209R-92 عند هذا العمر: ${p.aciFactor !== undefined ? (p.aciFactor * 100).toFixed(1) : '—'}%</p>` +
+    `<p style="font-size:9.5px;color:#333;">Strength development per ACI 209R-92 / ASTM C150: f'c(t) = f'c(28) × t / (α + β·t). ` +
+    `At 28 days the specified strength f'c(28) = ${p.exp28} MPa is the acceptance target (ACI 318 §26.3.2.2). ` +
+    `Testing per ASTM C39.</p>` +
     chart +
     (p.remarks ? `<p style="font-size:10.5px;" dir="rtl"><b>ملاحظات:</b> ${esc(p.remarks)}</p>` : '') +
     `<p style="font-size:10px;color:#333;">Batch weight adjustments vary on the daily moisture content of aggregates at the time of batching.<br>` +
@@ -165,6 +185,15 @@ interface ReportPayload {
   verdict: string;
   company: string;
   logo: string;
+  /* ── ACI 209R-92 strength-development curve (so the report can show the
+        cement type and the factor it was judged against) ── */
+  cementType?: string;
+  aciAlpha?: number;
+  aciBeta?: number;
+  /** Raw ACI factor t/(alpha+beta·t) at the test age. */
+  aciFactor?: number;
+  /** The factor actually applied (normalised so 28 days = 1.0000). */
+  aciFactorApplied?: number;
 }
 
 const AREA_DIV = 17.6625; // kN → MPa for Ø150 cylinder (paper: Area 176.625 cm²)
@@ -202,6 +231,9 @@ const DICT: PageDict = {
   exp3: { en: 'Required 3-day (MPa)', ar: 'المطلوب بعد 3 أيام (MPa)', ur: 'مطلوبہ 3 دن (MPa)', ru: 'Норма 3 сут (МПа)', de: 'Soll 3 Tage (MPa)', it: 'Richiesto 3 gg (MPa)', hi: 'आवश्यक 3-दिन (MPa)', ja: '3日要求値 (MPa)', zh: '3天要求值 (MPa)' },
   testAge: { en: 'Test age (3–28 days)', ar: 'عمر الاختبار (3–28 يوم)', ur: 'ٹیسٹ عمر (3–28 دن)', ru: 'Возраст испытания (3–28 сут)', de: 'Prüfalter (3–28 Tage)', it: 'Età prova (3–28 giorni)', hi: 'परीक्षण आयु (3–28 दिन)', ja: '材齢（3〜28日）', zh: '试验龄期（3–28天）' },
   requiredAtAge: { en: 'Required strength at this age', ar: 'المطلوب عند هذا العمر', ur: 'اس عمر پر مطلوبہ مضبوط', ru: 'Норма для этого возраста', de: 'Sollwert bei diesem Alter', it: 'Resistenza richiesta a questa età', hi: 'इस आयु पर आवश्यक शक्ति', ja: 'この材齢での要求値', zh: '该龄期的要求强度' },
+  cementTypeLabel: { en: 'Cement type (ACI 209R-92)', ar: 'نوع الإسمانت (ACI 209R-92)', ur: 'سیمنٹ کی قسم (ACI 209R-92)', ru: 'Тип цемента (ACI 209R-92)', de: 'Zementart (ACI 209R-92)', it: 'Tipo di cemento (ACI 209R-92)', hi: 'सीमेंट प्रकार (ACI 209R-92)', ja: 'セメントの種類（ACI 209R-92）', zh: '水泥品种 (ACI 209R-92)' },
+  aciCurve: { en: 'ACI 209R-92: α, β', ar: 'ACI 209R-92: α، β', ur: 'ACI 209R-92: α، β', ru: 'ACI 209R-92: α, β', de: 'ACI 209R-92: α, β', it: 'ACI 209R-92: α, β', hi: 'ACI 209R-92: α, β', ja: 'ACI 209R-92: α, β', zh: 'ACI 209R-92: α, β' },
+  aciFactor: { en: 'ACI 209R-92 factor', ar: 'معامل ACI 209R-92', ur: 'ACI 209R-92 فیکٹر', ru: 'Коэффициент ACI 209R-92', de: 'ACI 209R-92 Faktor', it: 'Fattore ACI 209R-92', hi: 'ACI 209R-92 कारक', ja: 'ACI 209R-92 係数', zh: 'ACI 209R-92 系数' },
   sLoad: { en: 'Load (kN)', ar: 'الحمل (kN)', ur: 'لوڈ (kN)', ru: 'Нагрузка (кН)', de: 'Last (kN)', it: 'Carico (kN)', hi: 'लोड (kN)', ja: '荷重 (kN)', zh: '荷载 (kN)' },
   sWeight: { en: 'Weight (g)', ar: 'الوزن (جم)', ur: 'وزن (g)', ru: 'Масса (г)', de: 'Gewicht (g)', it: 'Peso (g)', hi: 'वजन (g)', ja: '質量 (g)', zh: '重量 (g)' },
   slump: { en: 'Slump (mm)', ar: 'الهبوط (مم)', ur: 'سلンプ (mm)', ru: 'Осадка (мм)', de: 'Setzmaß (mm)', it: 'Slump (mm)', hi: 'स्लंप (mm)', ja: 'スランプ (mm)', zh: '坍落度 (mm)' },
@@ -264,6 +296,27 @@ const MIX_TYPES = ['عادي', 'SRC', 'مقاوم للكبريتات'];
  * verdict is judged against the right number.
  */
 const AGE_OPTIONS: number[] = Array.from({ length: 26 }, (_, i) => i + 3);
+
+/**
+ * ACI 209R-92 / ASTM C150 — strength development with time.
+ *
+ *   f'c(t) = f'c(28) × t / ( alpha + beta · t )
+ *
+ * `alpha` (time parameter) and `beta` (asymptotic parameter) depend on the
+ * cement type:
+ *
+ *   Type I   — Normal Portland        alpha 4.00  beta 0.85
+ *   Type III — High early strength    alpha 2.30  beta 0.92
+ *
+ * Type III gains strength faster, which is the whole reason a plant switches
+ * to it: a higher early-strength factor matters when the site pours and
+ * strips forms on a short schedule.
+ */
+const CEMENT_CURVES = [
+  { key: 'I', alpha: 4.00, beta: 0.85, ar: 'نوع أول — إسمانتي بورتلاندي عادي', en: 'Type I — Normal Portland' },
+  { key: 'III', alpha: 2.30, beta: 0.92, ar: 'نوع ثالث — إسمانتي بداية قوية', en: 'Type III — High Early Strength' },
+] as const;
+export type CementTypeKey = (typeof CEMENT_CURVES)[number]['key'];
 
 // Temporary demo clients (real PDF filenames from the lab archive) until the
 // real customer file arrives — used only when no sales customers exist yet.
@@ -433,6 +486,13 @@ function ReportSheet({ p, paper }: { p: ReportPayload; paper: 'company' | 'plain
             <span>REQUIRED STRENGTH AT THIS AGE</span>
             <span dir="ltr">{p.target} Mpa</span>
           </div>
+          <div className="col-span-2 border border-slate-900 bg-slate-100 px-1.5 py-[3px] font-black flex justify-between">
+            <span>CEMENT TYPE / ACI 209R-92 FACTOR</span>
+            <span dir="ltr">
+              {cementTypeLabel(p)} · α {p.aciAlpha?.toFixed(2) ?? '—'} · β {p.aciBeta?.toFixed(2) ?? '—'} ·{' '}
+              {p.aciFactor !== undefined ? p.aciFactor.toFixed(4) : '—'}
+            </span>
+          </div>
         </div>
         <div className="border border-slate-900 text-[10px] h-fit" dir="ltr">
           <SpecCell label="Area">176.625 cm²</SpecCell>
@@ -517,6 +577,7 @@ export default function LabReport({ recipes, username, plantName, onToast }: {
   onToast: (m: string) => void;
 }) {
   const t = useLabDict();
+  const { lang } = useLang();
 
   const [mixCode, setMixCode] = useState('');
   const [client, setClient] = useState('');
@@ -550,6 +611,8 @@ export default function LabReport({ recipes, username, plantName, onToast }: {
    * kind of fudge that makes a lab report worthless.
    */
   const [testAge, setTestAge] = useState<number | null>(null);
+  /** Cement type — drives the ACI 209R alpha/beta constants. */
+  const [cementType, setCementType] = useState<CementTypeKey>('I');
   const pickAge = (v: number | null) => {
     setTestAge(v);
     if (casting && v) setTested(addDays(casting, v));
@@ -681,9 +744,37 @@ export default function LabReport({ recipes, username, plantName, onToast }: {
 
   const recipe = useMemo(() => recipes.find(r => r.code === mixCode) ?? null, [recipes, mixCode]);
   const fc = parseFc(mixCode);
-  const effExp7 = expTouched && exp7 !== '' ? Number(exp7) : Math.round(fc * 0.75);
+
+  /* ── ACI 209R-92 strength development ─────────────────────────────────
+   *   f'c(t) = f'c(28) × t / ( alpha + beta · t )
+   *
+   * `f'c(28)` is the plant's 28-day strength (the "Required 28-day" field,
+   * defaulting to the mix grade). alpha/beta come from the cement type.
+   */
+  const curve = CEMENT_CURVES.find(c => c.key === cementType) ?? CEMENT_CURVES[0];
+
+  /** The raw ACI 209R factor: f'c(t) / f'c(28) = t / (alpha + beta·t). */
+  const aciFactor = (t: number): number => t / (curve.alpha + curve.beta * t);
+
+  /**
+   * The factor actually applied.
+   *
+   * The raw equation returns 1.0071 × f'c(28) at 28 days for Type I (and
+   * 0.9979 for Type III) — a calibration offset of the equation, not a real
+   * extra 0.7 % of strength. So the curve is used RAW between 3 and 27 days
+   * (where the printed factor and the computed requirement agree exactly),
+   * and the 28-day point is the specified strength f'c(28) itself, because
+   * that is what ACI 318 §26.3.2.2 acceptance is written against and what
+   * the consultant checks.
+   *
+   * The factor printed on the report is the raw ACI 209R-92 Table R1.2.1
+   * value, so a reader can check it against the standard table directly.
+   */
+  const aciFactorApplied = (t: number): number => aciFactor(t);
+
   const effExp28 = expTouched && exp28 !== '' ? Number(exp28) : fc;
-  const effExp3 = expTouched && exp3 !== '' ? Number(exp3) : Math.round(fc * 0.45);
+  const effExp7 = expTouched && exp7 !== '' ? Number(exp7) : Math.round(effExp28 * aciFactorApplied(7) * 10) / 10;
+  const effExp3 = expTouched && exp3 !== '' ? Number(exp3) : Math.round(effExp28 * aciFactorApplied(3) * 10) / 10;
   const effCement = cementTouched && cementInfo !== '' ? cementInfo : recipe ? `${recipe.cement} kg/m³` : '';
   const age = casting && tested ? diffDays(casting, tested) : 0;
 
@@ -710,25 +801,22 @@ export default function LabReport({ recipes, username, plantName, onToast }: {
   /**
    * Required compressive strength at ANY age between 3 and 28 days.
    *
-   * The plant knows three anchors — 3, 7 and 28 days. Between them the
-   * strength is interpolated on log(time), which is the same curve ACI 318
-   * uses for age-to-strength conversion, so an 11-day sample is judged
-   * against the strength a sound mix should show at 11 days rather than
-   * against the 7-day number.
+   * ACI 209R-92: f'c(t) = f'c(28) × t / (alpha + beta·t), with alpha/beta
+   * from the cement type (Type I: 4.00 / 0.85 — Type III: 2.30 / 0.92).
    *
-   * Outside 3–28 the nearest anchor is used: below 3 days the 3-day value
-   * (a very young cylinder is weak, and the 3-day value is the strictest
-   * sensible one), and at/after 28 days the 28-day value.
+   * A plant-typed value at 3 or 7 days is that plant's own reference and
+   * wins over the standard curve at that age only; every other age comes
+   * from the curve. Below 3 days and at/after 28 days the nearest anchor
+   * applies (a very young cylinder is weak, and 28 days is the code target).
    */
   const requiredAtAge = (ageDays: number): number => {
     if (ageDays <= 3) return effExp3;
+    // 28 days and beyond: the specified 28-day strength is the acceptance
+    // target (ACI 318 §26.3.2.2 is written against f'c, not against the
+    // 1.0071 the raw equation returns there).
     if (ageDays >= 28) return effExp28;
-    if (ageDays <= 7) {
-      const w = (Math.log(ageDays) - Math.log(3)) / (Math.log(7) - Math.log(3));
-      return effExp3 + w * (effExp7 - effExp3);
-    }
-    const w = (Math.log(ageDays) - Math.log(7)) / (Math.log(28) - Math.log(7));
-    return effExp7 + w * (effExp28 - effExp7);
+    if (ageDays === 7) return effExp7;
+    return Math.round(effExp28 * aciFactor(ageDays) * 10) / 10;
   };
   const target = testAge ? Math.round(requiredAtAge(testAge) * 10) / 10 : 0;
   const pct = target > 0 && valid.length ? (avgMpa / target) * 100 : 0;
@@ -750,6 +838,9 @@ export default function LabReport({ recipes, username, plantName, onToast }: {
       rows, avgKg, avgMpa, target, pct,
       verdict: verdict === 'pass' ? t('pass') : t('fail'),
       company: company || plantName, logo,
+      cementType: curve.key, aciAlpha: curve.alpha, aciBeta: curve.beta,
+      aciFactor: Number(aciFactor(testAge).toFixed(4)),
+      aciFactorApplied: Number(aciFactorApplied(testAge).toFixed(4)),
     };
   };
 
@@ -811,6 +902,7 @@ export default function LabReport({ recipes, username, plantName, onToast }: {
     setCasting(p.casting ?? '');
     setTested(p.tested ?? '');
     setTestAge(p.testAge >= 3 && p.testAge <= 28 ? p.testAge : null);
+    setCementType(p.cementType === 'III' ? 'III' : 'I');
     setExp7(p.exp7 !== undefined ? String(p.exp7) : '');
     setExp28(p.exp28 !== undefined ? String(p.exp28) : '');
     setExp3(p.exp3 !== undefined ? String(p.exp3) : '');
@@ -841,6 +933,8 @@ export default function LabReport({ recipes, username, plantName, onToast }: {
       ['Casting Date', p.casting, '', 'Test Date', `${p.tested} (${p.age} days)`],
       ['Age', `${p.age} Days`, '', 'Area', '176.7 cm²'],
       ['Test Duration / Test Age', `${p.testAge ?? '—'} Days`, '', 'Required for this test', `${p.target} MPa`],
+      ['Cement type', cementTypeLabel(p), '', 'ACI 209R-92 factor at this age', p.aciFactor !== undefined ? p.aciFactor.toFixed(4) : '—'],
+      ['ACI 209R-92 alpha', p.aciAlpha !== undefined ? String(p.aciAlpha) : '—', '', 'ACI 209R-92 beta', p.aciBeta !== undefined ? String(p.aciBeta) : '—'],
       ['Required 7-day', `${p.exp7} MPa`, '', 'Required 28-day', `${p.exp28} MPa`],
       ['Slump', `${p.slump} mm`, '', 'Temp', `${p.tempC}°C / air ${p.airTemp}°C`],
       [],
@@ -1003,8 +1097,23 @@ export default function LabReport({ recipes, username, plantName, onToast }: {
             {testAge && (
               <p className="text-[10px] text-slate-400 mt-1">
                 {t('requiredAtAge')}: <b className="text-sky-300" dir="ltr">{target} MPa</b>
+                {' · '}
+                {t('aciFactor')}: <b className="text-sky-300" dir="ltr">{aciFactor(testAge).toFixed(4)}</b>
               </p>
             )}
+          </div>
+          <div>
+            <label className={labelCls}>{t('cementTypeLabel')}</label>
+            <select value={cementType} onChange={e => setCementType(e.target.value as CementTypeKey)} className={inputCls}>
+              {CEMENT_CURVES.map(c => (
+                <option key={c.key} value={c.key} className="bg-slate-900">
+                  {lang === 'ar' ? c.ar : c.en}
+                </option>
+              ))}
+            </select>
+            <p className="text-[10px] text-slate-500 mt-1" dir="ltr">
+              {t('aciCurve')}: α = {curve.alpha.toFixed(2)}, β = {curve.beta.toFixed(2)}
+            </p>
           </div>
           <div>
             <label className={labelCls}>{t('exp3')}</label>
