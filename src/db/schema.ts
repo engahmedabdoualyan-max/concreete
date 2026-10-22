@@ -6157,3 +6157,123 @@ export const hrAdvancesRelations = relations(hrAdvances, ({ one }) => ({
   }),
 }));
 
+// ─── Customer invoices (مبيعات) + ZATCA settings ─────────────────────────────
+//
+// The sales-side mirror of supplier_invoices: a CINV issued to a client, and
+// the payments that settle it. The Drizzle definitions here MUST match
+// drizzle/0070_customer_invoices.sql — the SQL migration creates the tables,
+// this file tells the ORM they exist.
+
+export const customerInvoiceStatusEnum = pgEnum("customer_invoice_status_enum", [
+  "OPEN",
+  "PARTIAL",
+  "PAID",
+  "CANCELLED",
+]);
+
+export const customerPaymentModeEnum = pgEnum("customer_payment_mode_enum", [
+  "BANK",
+  "CASH",
+  "CARD",
+  "WALLET",
+  "OTHER",
+]);
+
+export const customerInvoices = pgTable(
+  "customer_invoices",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    /** CINV-2026-00001 — unique per tenant */
+    invoiceNumber: varchar("invoice_number", { length: 30 }).notNull(),
+    customerId: uuid("customer_id").references(() => clients.id, { onDelete: "restrict" }),
+    orderId: uuid("order_id").references(() => orders.id, { onDelete: "set null" }),
+    invoiceDate: date("invoice_date").notNull(),
+    dueDate: date("due_date"),
+    /** SAR cents */
+    subtotalSar: integer("subtotal_sar").notNull().default(0),
+    vatPercent: integer("vat_percent").notNull().default(15),
+    vatAmountSar: integer("vat_amount_sar").notNull().default(0),
+    totalAmountSar: integer("total_amount_sar").notNull().default(0),
+    paidAmountSar: integer("paid_amount_sar").notNull().default(0),
+    status: customerInvoiceStatusEnum("status").notNull().default("OPEN"),
+    description: text("description"),
+    notes: text("notes"),
+    createdById: uuid("created_by_id").references(() => users.id, { onDelete: "restrict" }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("idx_customer_invoices_tenant").on(t.tenantId),
+    index("idx_customer_invoices_customer").on(t.customerId),
+    index("idx_customer_invoices_order").on(t.orderId),
+    index("idx_customer_invoices_status").on(t.status),
+    uniqueIndex("uq_customer_invoices_number").on(t.tenantId, t.invoiceNumber),
+  ],
+);
+
+export const customerPayments = pgTable(
+  "customer_payments",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    customerId: uuid("customer_id")
+      .notNull()
+      .references(() => clients.id, { onDelete: "restrict" }),
+    /** Optional — a payment may settle an order without an invoice. */
+    invoiceId: uuid("invoice_id").references(() => customerInvoices.id, { onDelete: "restrict" }),
+    orderId: uuid("order_id").references(() => orders.id, { onDelete: "set null" }),
+    amountSar: integer("amount_sar").notNull(),
+    paymentMode: customerPaymentModeEnum("payment_mode").notNull().default("BANK"),
+    paymentDate: date("payment_date").notNull(),
+    dueDate: date("due_date"),
+    referenceNumber: varchar("reference_number", { length: 50 }),
+    remarks: text("remarks"),
+    ledgerEntryId: uuid("ledger_entry_id").references(() => ledgerEntries.id, {
+      onDelete: "set null",
+    }),
+    createdById: uuid("created_by_id").references(() => users.id, { onDelete: "restrict" }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("idx_customer_payments_tenant").on(t.tenantId),
+    index("idx_customer_payments_customer").on(t.customerId),
+    index("idx_customer_payments_invoice").on(t.invoiceId),
+    index("idx_customer_payments_order").on(t.orderId),
+  ],
+);
+
+/** One ZATCA configuration row per tenant — the seller identity on the invoice. */
+export const tenantZatcaSettings = pgTable("tenant_zatca_settings", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  tenantId: uuid("tenant_id")
+    .notNull()
+    .unique()
+    .references(() => tenants.id, { onDelete: "restrict" }),
+  sellerName: varchar("seller_name", { length: 200 }).notNull(),
+  vatNumber: varchar("vat_number", { length: 30 }).notNull(),
+  street: varchar("street", { length: 200 }),
+  city: varchar("city", { length: 100 }),
+  branchName: varchar("branch_name", { length: 100 }),
+  buildingNumber: varchar("building_number", { length: 20 }),
+  additionalNumber: varchar("additional_number", { length: 20 }),
+  district: varchar("district", { length: 100 }),
+  zipCode: varchar("zip_code", { length: 10 }),
+  /** sandbox | simulation | production */
+  env: varchar("env", { length: 20 }).notNull().default("sandbox"),
+  binaryToken: text("binary_token"),
+  secret: text("secret"),
+  binaryTokenUpdatedAt: timestamp("binary_token_updated_at"),
+  secretUpdatedAt: timestamp("secret_updated_at"),
+  configured: boolean("configured").notNull().default(false),
+  lastTestedAt: timestamp("last_tested_at"),
+  lastTestResult: jsonb("last_test_result"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
