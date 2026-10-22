@@ -851,6 +851,44 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     PERMISSIONS.WAREHOUSE_READ,    // قطع الغيار (قراءة فقط — الصرف لأمين المخزن)
     PERMISSIONS.SITE_READ,          // اسم الفرع/المصنع كسياق
   ],
+
+  // ── Logistics manager (مدير النقطليات) ───────────────────────────────────
+  // Owns everything that moves the concrete out of the gate: the fleet record,
+  // the dispatch board, driver assignment, the fuel trail and the weighbridge.
+  //
+  // Narrow by design, the same rule the gate operator follows. It gets NO
+  // production, finance, procurement or HR powers — a transport manager who
+  // can approve a purchase order or change a mix design is a transport manager
+  // who can wreck the plant, and the audit trail stops meaning anything.
+  //
+  // It does not get FLEET_POSITION_READ for the same reason DRIVER does not:
+  // the map is for whoever dispatches, and the logistics manager IS that
+  // person — so here the grant is intentional and is the point of the role.
+  LOGISTICS_MGR: [
+    // Fleet record: vehicles, classes, composition, assigned driver.
+    PERMISSIONS.FLEET_READ,
+    PERMISSIONS.FLEET_POSITION_READ, // where the trucks are — dispatching needs this
+    PERMISSIONS.FLEET_STATUS_MUTATION, // park a truck / put it back in service
+    PERMISSIONS.FLEET_MARK_BREAKDOWN,  // flag a vehicle as broken down
+    // Dispatch: the board, the trips, the checkpoints, the ETA.
+    PERMISSIONS.TRIP_READ,
+    PERMISSIONS.TRIP_CREATE,
+    PERMISSIONS.TRIP_UPDATE_CHECKPOINT,
+    PERMISSIONS.TRIP_CANCEL,
+    PERMISSIONS.ORDER_SCHEDULE,        // place a scheduled order on the board
+    // Weighbridge: open and close the gate ticket for each load.
+    PERMISSIONS.WEIGHBRIDGE_READ,
+    PERMISSIONS.WEIGHBRIDGE_RECORD,
+    // Fuel: record the fill, read the efficiency trail and its anomalies.
+    PERMISSIONS.FUEL_LOG_READ,
+    PERMISSIONS.FUEL_LOG_RECORD,
+    // Driver reports and QR scan at the gate.
+    PERMISSIONS.QR_SCAN,
+    PERMISSIONS.QR_READ_FULL,
+    // Context only: plant name, client of an order, site of a pour.
+    PERMISSIONS.SITE_READ,
+    PERMISSIONS.ORDER_READ,   // the dispatch board reads the order (client, site, m³)
+  ],
 };
 
 // ─── Permission Check Functions ───────────────────────────────────────────────

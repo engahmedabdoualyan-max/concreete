@@ -119,6 +119,11 @@ export const userRoleEnum = pgEnum("user_role", [
   // it is the manager of purchases (مدير المشتروات): suppliers, purchase
   // orders and the requisition/quote/approval chain, without finance or HR.
   "PURCHASING_MGR",
+  // LOGISTICS_MGR sits last because ALTER TYPE … ADD VALUE can only append —
+  // it is the transport/logistics manager (مدير النقطليات): owns the fleet,
+  // dispatch board, driver assignment, fuel logs and weighbridge tickets,
+  // without production, finance or HR.
+  "LOGISTICS_MGR",
 ]);
 
 /** Order lifecycle states — maps directly to the Sales Pipeline module */
