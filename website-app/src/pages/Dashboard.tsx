@@ -145,6 +145,7 @@ const MODULES: ModuleDef[] = [
   { access: 'multiplant', path: 'multiplant', labelKey: 'modMultiPlant', descKey: 'modMultiPlantDesc', icon: ICON.grid },
   { access: 'hr', path: 'hr', en: 'HR', ar: 'الموارد البشرية', desc: 'الإجازات والسلف وفريق العمل', icon: ICON.person },
   { access: 'procurement', path: 'procurement', en: 'Procurement', ar: 'المشتريات', desc: 'طلبات الشراء والاعتمادات', icon: ICON.box },
+  { access: 'logistics', path: 'logistics', en: 'Logistics & Transport', ar: 'النقطليات والنقل', desc: 'لوحة الإرسال والأسطول والسائقون والوقود', icon: ICON.truck },
 ];
 
 const DEFAULT_TRIPS: Trip[] = [
@@ -604,9 +605,9 @@ export default function Dashboard() {
         {/* ===== Layout Architecture ===== */}
         <div className="grid grid-cols-1 lg:grid-cols-[1.2fr_2fr_1.2fr] gap-6 items-stretch w-full max-w-[1280px] mx-auto">
 
-          {/* LEFT column — Operations & Logistics: Orders · Operations · Production · Materials */}
+          {/* LEFT column — Operations & Logistics: Orders · Operations · Production · Materials · Logistics */}
           <div className="order-2 lg:order-1 flex flex-col gap-6 w-full">
-            {[eff(0), eff(1), eff(2), eff(3)].filter(m => m && canAccess(m.access)).map(m => (
+            {[eff(0), eff(1), eff(2), eff(3), eff(14)].filter(m => m && canAccess(m.access)).map(m => (
               <ModuleButton key={m!.path} m={m!} onGo={() => go(m!.path)} showDesc className="flex-1 min-h-[130px] lg:min-h-[150px]" />
             ))}
           </div>

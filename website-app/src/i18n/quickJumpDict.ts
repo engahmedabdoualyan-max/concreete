@@ -15,6 +15,7 @@ const DICT: PageDict = {
   hr: { en: '👔 HR', ar: '👔 الموارد البشرية', ru: '👔 HR', de: '👔 HR', it: '👔 HR', hi: '👔 HR', ur: '👔 HR', ja: '👔 HR', zh: '👔 HR' },
   forms: { en: '📑 Forms library', ar: '📑 مكتبة النماذج', ru: '📑 Forms', de: '📑 Forms', it: '📑 Forms', hi: '📑 Forms', ur: '📑 Forms', ja: '📑 Forms', zh: '📑 Forms' },
   gate: { en: '⚖️ Gate & Scale', ar: '⚖️ البوابة والميزان', ru: '⚖️ Gate', de: '⚖️ Gate', it: '⚖️ Gate', hi: '⚖️ Gate', ur: '⚖️ Gate', ja: '⚖️ Gate', zh: '⚖️ Gate' },
+  logistics: { en: '🚛 Logistics & Transport', ar: '🚛 النقطليات والنقل', ru: '🚛 Логистика', de: '🚛 Logistik', it: '🚛 Logistica', hi: '🚛 लॉजिस्टिक्स', ur: '🚛 لاوجسٹکس', ja: '🚛 物流', zh: '🚛 物流' },
   procurement: { en: '🧾 Procurement', ar: '🧾 المشتريات', ru: '🧾 Procurement', de: '🧾 Procurement', it: '🧾 Procurement', hi: '🧾 Procurement', ur: '🧾 Procurement', ja: '🧾 Procurement', zh: '🧾 Procurement' },
   mixing: { en: '🧪 Lab', ar: '🧪 المختبر', ru: '🧪 Лаборатория', de: '🧪 Labor', it: '🧪 Laboratorio', hi: '🧪 प्रयोगशाला', ur: '🧪 لیب', ja: '🧪 ラボ', zh: '🧪 实验室' },
   production: { en: '🏭 Production & Inventory', ar: '🏭 الإنتاج والمخزون', ru: '🏭 Production', de: '🏭 Production', it: '🏭 Production', hi: '🏭 Production', ur: '🏭 Production', ja: '🏭 Production', zh: '🏭 Production' },

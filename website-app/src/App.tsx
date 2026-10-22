@@ -51,6 +51,7 @@ import CommandCenter from './pages/CommandCenter';
 import HR from './pages/HR';
 import Forms from './pages/Forms';
 import GateScale from './pages/GateScale';
+import Logistics from './pages/Logistics';
 import Procurement from './pages/Procurement';
 import FieldBackButton from './field/FieldBackButton';
 import { useLocation } from 'react-router-dom';
@@ -107,6 +108,7 @@ export default function App() {
           <Route path="/hr" element={<HR />} />
           <Route path="/forms" element={<Forms />} />
           <Route path="/gate" element={<GateScale />} />
+          <Route path="/logistics" element={<Logistics />} />
           <Route path="/procurement" element={<Procurement />} />
           <Route path="/mixing" element={<MixingQuality />} />
           <Route path="/quality" element={<MixingQuality />} />

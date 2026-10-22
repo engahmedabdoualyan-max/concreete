@@ -73,6 +73,9 @@ function buildLabDoc(p: ReportPayload, emblem: string, footer: string, chartSvg:
     `<td style="padding:2px"><b>MIX</b> ............ ${esc(p.mix)} (${p.fc} MPa ${esc(p.mixType)})</td></tr>` +
     `<tr><td style="padding:2px"><b>CASTING</b> ............ ${esc(p.casting)} (${p.age} days)</td>` +
     `<td style="padding:2px"><b>SLUMP</b> ............ ${esc(p.slump)} mm</td></tr>` +
+    `<tr><td colspan="2" style="padding:3px;border:1px solid #111;background:#f0f0f0;font-weight:bold">` +
+    `TEST DURATION / TEST AGE ............ ${p.testAge ?? '—'} DAYS` +
+    ` &nbsp;&nbsp;(REQUIRED STRENGTH: ${p.testAge === 28 ? `${p.exp28}` : p.testAge === 3 ? `${p.exp3}` : `${p.exp7}`} MPa)</td></tr>` +
     `<tr><td style="padding:2px"><b>CEMENT</b> ............ ${esc(p.cement) || '—'}</td>` +
     `<td style="padding:2px"><b>TEMP</b> ............ ${esc(p.tempC)}°C / ${esc(p.airTemp)}°C</td></tr>` +
     `</table>` +
@@ -93,6 +96,7 @@ function buildLabDoc(p: ReportPayload, emblem: string, footer: string, chartSvg:
     `<td style="border:1px solid #111;padding:3px;text-align:center;font-weight:bold">${p.avgMpa.toFixed(2)}</td></tr>` +
     `</table>` +
     `<p style="font-size:11px;font-weight:bold;" dir="rtl">النتيجة: ${p.avgMpa.toFixed(2)} MPa = ${p.pct.toFixed(1)}% من المطلوب (${p.target} MPa) — ${esc(p.verdict)}</p>` +
+    `<p style="font-size:11px;font-weight:bold;" dir="rtl">مدة الاختبار: ${p.testAge ?? '—'} يوم (المطلوب ${p.testAge === 28 ? `${p.exp28}` : p.testAge === 3 ? `${p.exp3}` : `${p.exp7}`} ميجاباسكال)</p>` +
     chart +
     (p.remarks ? `<p style="font-size:10.5px;" dir="rtl"><b>ملاحظات:</b> ${esc(p.remarks)}</p>` : '') +
     `<p style="font-size:10px;color:#333;">Batch weight adjustments vary on the daily moisture content of aggregates at the time of batching.<br>` +
@@ -227,6 +231,16 @@ const DICT: PageDict = {
   history: { en: 'Saved reports', ar: 'التقارير المحفوظة', ur: 'محفوظ رپورٹس', ru: 'Сохранённые отчёты', de: 'Gespeicherte Berichte', it: 'Report salvati', hi: 'सहेजी रिपोर्टें', ja: '保存済み報告', zh: '已保存报告' },
   none: { en: 'No saved reports yet.', ar: 'لا توجد تقارير محفوظة بعد.', ur: 'ابھی کوئی محفوظ رپورٹ نہیں۔', ru: 'Пока нет сохранённых отчётов.', de: 'Noch keine Berichte.', it: 'Nessun report salvato.', hi: 'अभी कोई रिपोर्ट नहीं।', ja: '保存済み報告はありません。', zh: '暂无已保存报告。' },
   reprint: { en: 'View', ar: 'عرض', ur: 'دیکھیں', ru: 'Открыть', de: 'Ansehen', it: 'Vedi', hi: 'देखें', ja: '表示', zh: '查看' },
+  editReport: { en: 'Edit', ar: 'تعديل', ur: 'ترمیم', ru: 'Изменить', de: 'Bearbeiten', it: 'Modifica', hi: 'संपादित करें', ja: '編集', zh: '编辑' },
+  closePreview: { en: 'Close', ar: 'إغلاق', ur: 'بند کریں', ru: 'Закрыть', de: 'Schließen', it: 'Chiudi', hi: 'बंद करें', ja: '閉じる', zh: '关闭' },
+  editLoaded: { en: 'Report loaded for editing — fix the data and press Save.', ar: 'تم تحميل التقرير للتعديل — صحّح البيانات ثم اضغط حفظ.', ur: 'رپورٹ ترمیم کے لیے لوڈ ہو گیا — ڈیٹا درست کریں اور محفوظ کریں۔', ru: 'Отчёт загружен для правки — исправьте данные и сохраните.', de: 'Bericht zum Bearbeiten geladen — Daten korrigieren und speichern.', it: 'Report caricato per la modifica — correggi i dati e salva.', hi: 'रिपोर्ट संपादन के लिए लोड — डेटा ठीक करें और सहेजें।', ja: '編集用にレポートを読み込みました — データを修正して保存してください。', zh: '报告已加载用于编辑 — 修正数据后保存。' },
+  updated: { en: '✅ Report updated', ar: '✅ تم تحديث التقرير', ur: '✅ رپورٹ اپ ڈیٹ ہو گیا', ru: '✅ Отчёт обновлён', de: '✅ Bericht aktualisiert', it: '✅ Report aggiornato', hi: '✅ रिपोर्ट अपडेट हुई', ja: '✅ レポートを更新しました', zh: '✅ 报告已更新' },
+  noEditData: { en: 'This report has no editable data.', ar: 'هذا التقرير لا يحتوي على بيانات قابلة للتعديل.', ur: 'اس رپورٹ میں ترمیم کے قابل ڈیٹا نہیں۔', ru: 'В отчёте нет данных для правки.', de: 'Dieser Bericht hat keine editierbaren Daten.', it: 'Questo report non ha dati modificabili.', hi: 'इस रिपोर्ट में संपादन योग्य डेटा नहीं है।', ja: 'このレポートには編集可能なデータがありません。', zh: '此报告没有可编辑的数据。' },
+  testDuration: { en: 'Test duration', ar: 'مدة الاختبار', ur: 'آزمائش کی مدت', ru: 'Длительность теста', de: 'Testdauer', it: 'Durata test', hi: 'परीक्षण अवधि', ja: 'テスト期間', zh: '测试周期' },
+  saveEdit: { en: '💾 Save changes', ar: '💾 حفظ التعديلات', ur: '💾 تبدیلیاں محفوظ کریں', ru: '💾 Сохранить правки', de: '💾 Änderungen speichern', it: '💾 Salva modifiche', hi: '💾 परिवर्तन सहेजें', ja: '💾 変更を保存', zh: '💾 保存修改' },
+  editingLabel: { en: '✏️ Editing report', ar: '✏️ تعديل التقرير', ur: '✏️ رپورٹ کی ترمیم', ru: '✏️ Правка отчёта', de: '✏️ Bericht bearbeiten', it: '✏️ Modifica report', hi: '✏️ रिपोर्ट संपादन', ja: '✏️ レポート編集中', zh: '✏️ 正在编辑报告' },
+  cancelEdit: { en: 'Cancel edit', ar: 'إلغاء التعديل', ur: 'ترمیم منسوخ', ru: 'Отменить правку', de: 'Bearbeitung abbrechen', it: 'Annulla modifica', hi: 'संपादन रद्द करें', ja: '編集をキャンセル', zh: '取消编辑' },
+  editCancelled: { en: 'Edit cancelled.', ar: 'تم إلغاء التعديل.', ur: 'ترمیم منسوخ ہو گئی۔', ru: 'Правка отменена.', de: 'Bearbeitung abgebrochen.', it: 'Modifica annullata.', hi: 'संपादन रद्द किया गया।', ja: '編集をキャンセルしました。', zh: '已取消编辑。' },
   pass: { en: '✅ PASS', ar: '✅ ناجح', ur: '✅ کامیاب', ru: '✅ Годен', de: '✅ Bestanden', it: '✅ Idoneo', hi: '✅ पास', ja: '✅ 合格', zh: '✅ 合格' },
   fail: { en: '❌ FAIL — review', ar: '❌ راسب — يحتاج مراجعة', ur: '❌ ناکام — جائزہ لیں', ru: '❌ Брак — проверить', de: '❌ Durchgefallen — prüfen', it: '❌ Bocciato — verificare', hi: '❌ फेल — जांचें', ja: '❌ 不合格 — 確認', zh: '❌ 不合格 — 复核' },
   age: { en: 'Age', ar: 'العمر', ur: 'عمر', ru: 'Возраст', de: 'Alter', it: 'Età', hi: 'आयु', ja: '材齢', zh: '龄期' },
@@ -400,6 +414,10 @@ function ReportSheet({ p, paper }: { p: ReportPayload; paper: 'company' | 'plain
           <InfoLine label="CONCRETE GRADE">{p.mix}mpa</InfoLine>
           <InfoLine label="STRENGTH AFTER 28 DAYS">{p.exp28} Mpa</InfoLine>
           <InfoLine label="STRENGTH AFTER 7 DAYS">{p.exp7} Mpa</InfoLine>
+          <div className="col-span-2 border border-slate-900 bg-slate-100 px-1.5 py-[3px] font-black flex justify-between">
+            <span>TEST DURATION / TEST AGE</span>
+            <span dir="ltr">{p.testAge ?? '—'} DAYS</span>
+          </div>
         </div>
         <div className="border border-slate-900 text-[10px] h-fit" dir="ltr">
           <SpecCell label="Area">176.625 cm²</SpecCell>
@@ -566,6 +584,8 @@ export default function LabReport({ recipes, username, plantName, onToast }: {
   const [logo, setLogo] = useState('');
   const [saved, setSaved] = useState<SavedReport[]>([]);
   const [viewIdx, setViewIdx] = useState<number | null>(null);
+  // Report number being edited (kept so saving replaces it in place).
+  const [editNo, setEditNo] = useState<string | null>(null);
   const [paper, setPaper] = useState<'company' | 'plain'>('company');
 
   useEffect(() => {
@@ -703,6 +723,17 @@ export default function LabReport({ recipes, username, plantName, onToast }: {
     const miss = needBasics(); if (miss) { onToast(miss); return; }
     const p = buildPayload();
     if (!p) { onToast(t('needLoads')); return; }
+    // Editing an existing report → keep its number and replace it in place.
+    if (editNo) {
+      const next = saved.map(r => (r.no === editNo
+        ? { ...r, mix: p.mix, client: p.client, project: p.project, avgMpa: Number(p.avgMpa.toFixed(2)), verdict: p.verdict, payload: { ...p, no: r.no } }
+        : r));
+      persist(next);
+      setViewIdx(next.findIndex(r => r.no === editNo));
+      setEditNo(null);
+      onToast(t('updated'));
+      return;
+    }
     try { localStorage.setItem('labReportSeq', String(Number(localStorage.getItem('labReportSeq') ?? '0') + 1)); } catch {}
     persist([{
       no: p.no, createdAt: new Date().toISOString(), mix: p.mix, client: p.client,
@@ -710,6 +741,43 @@ export default function LabReport({ recipes, username, plantName, onToast }: {
     }, ...saved]);
     setViewIdx(0);
     onToast(t('saved'));
+  };
+
+  /* Load a saved report back into the form so a mistake can be corrected.
+     The report number is kept (editNo) so saving replaces it instead of
+     creating a duplicate. */
+  const loadForEdit = (r: SavedReport) => {
+    const p = r.payload;
+    if (!p) { onToast(t('noEditData')); return; }
+    setEditNo(r.no);
+    setMixCode(p.mix);
+    setClient(p.client ?? '');
+    setProject(p.project ?? '');
+    setLocation(p.location ?? '');
+    if (p.element) setElement(p.element);
+    setSupplier(p.supplier ?? '');
+    setMixType(p.mixType ?? '');
+    setJobNo(p.jobNo ?? '');
+    setCementInfo(p.cement ?? '');
+    setCementTouched(true);
+    setCasting(p.casting ?? '');
+    setTested(p.tested ?? '');
+    setTestAge(p.testAge === 3 || p.testAge === 7 || p.testAge === 28 ? p.testAge : null);
+    setExp7(p.exp7 !== undefined ? String(p.exp7) : '');
+    setExp28(p.exp28 !== undefined ? String(p.exp28) : '');
+    setExp3(p.exp3 !== undefined ? String(p.exp3) : '');
+    setExpTouched(true);
+    setSlump(p.slump ?? '120');
+    setTempC(p.tempC ?? '28');
+    if (p.airTemp) { airTouched.current = true; setAirTemp(p.airTemp); }
+    setRemarks(p.remarks ?? '');
+    setTester(p.tester ?? username);
+    setSamples(p.rows.map(row => ({
+      load: row.load ? String(row.load) : '',
+      weight: row.w !== null && row.w !== undefined ? String(row.w) : '',
+    })));
+    setViewIdx(null);
+    onToast(t('editLoaded'));
   };
 
   const doExcel = (p: ReportPayload) => {
@@ -724,6 +792,7 @@ export default function LabReport({ recipes, username, plantName, onToast }: {
       ['Concrete Supplier', p.supplier, '', 'Mix', `${p.mix} (${p.fc} MPa ${p.mixType})`],
       ['Casting Date', p.casting, '', 'Test Date', `${p.tested} (${p.age} days)`],
       ['Age', `${p.age} Days`, '', 'Area', '176.7 cm²'],
+      ['Test Duration / Test Age', `${p.testAge ?? '—'} Days`, '', 'Required for this test', `${p.testAge === 28 ? p.exp28 : p.testAge === 3 ? p.exp3 : p.exp7} MPa`],
       ['Required 7-day', `${p.exp7} MPa`, '', 'Required 28-day', `${p.exp28} MPa`],
       ['Slump', `${p.slump} mm`, '', 'Temp', `${p.tempC}°C / air ${p.airTemp}°C`],
       [],
@@ -784,9 +853,14 @@ export default function LabReport({ recipes, username, plantName, onToast }: {
     }
   };
 
+  /* The report being previewed. A saved report is previewed on its own
+     payload — the gate must NOT depend on the live form samples, otherwise
+     "View" on a saved report silently does nothing when the form is empty. */
+  const viewingSaved: SavedReport | null =
+    viewIdx !== null ? (saved[viewIdx] ?? null) : null;
   const viewing: ReportPayload | null =
-    viewIdx !== null && saved[viewIdx] ? saved[viewIdx].payload
-    : buildPayload();
+    viewingSaved ? viewingSaved.payload : buildPayload();
+  const canPreview = viewingSaved ? true : valid.length > 0;
 
   const setS = (i: number, k: keyof SampleIn, v: string) =>
     setSamples(prev => prev.map((s, j) => (j === i ? { ...s, [k]: v } : s)));
@@ -815,6 +889,15 @@ export default function LabReport({ recipes, username, plantName, onToast }: {
       <div className="bg-white/[0.04] border border-white/10 rounded-xl p-6">
         <h3 className="text-lg font-black tracking-tight text-white mb-1">{t('title')}</h3>
         <p className="text-xs text-slate-400 mb-5">{t('subtitle')}</p>
+
+        {editNo && (
+          <div className="mb-4 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-2.5 text-xs font-bold text-amber-300 flex items-center justify-between gap-3">
+            <span dir="ltr">✏️ {t('editingLabel')}: {editNo}</span>
+            <button onClick={() => { setEditNo(null); setViewIdx(null); onToast(t('editCancelled')); }} className="text-[11px] border border-amber-500/40 rounded px-2 py-0.5 hover:bg-amber-500/20">
+              ✕ {t('cancelEdit')}
+            </button>
+          </div>
+        )}
 
         <div className="grid md:grid-cols-3 gap-3">
           <div>
@@ -927,7 +1010,7 @@ export default function LabReport({ recipes, username, plantName, onToast }: {
         )}
 
         <div className="flex flex-wrap gap-2 mt-4">
-          <button onClick={doSave} className="bg-sky-500 hover:bg-sky-400 text-white font-bold px-5 py-2.5 rounded-lg text-sm">{t('save')}</button>
+          <button onClick={doSave} className="bg-sky-500 hover:bg-sky-400 text-white font-bold px-5 py-2.5 rounded-lg text-sm">{editNo ? t('saveEdit') : t('save')}</button>
           <button onClick={() => { const miss = needBasics(); if (miss) { onToast(miss); return; } const p = buildPayload(); if (p) doExcel(p); else onToast(t('needLoads')); }} className="bg-yellow-500/15 text-yellow-300 border border-yellow-500/40 hover:bg-yellow-500/25 px-5 py-2.5 rounded-lg font-bold text-sm">{t('excel')}</button>
           <button onClick={() => { const miss = needBasics(); if (miss) { onToast(miss); return; } if (valid.length) doPrint(); else onToast(t('needLoads')); }} className="bg-white/[0.05] text-slate-300 border border-white/10 hover:text-white px-5 py-2.5 rounded-lg font-bold text-sm">{t('print')}</button>
           <button onClick={() => void doWhatsApp()} disabled={sharing} className="bg-emerald-500/15 text-emerald-300 border border-emerald-500/40 hover:bg-emerald-500/25 px-5 py-2.5 rounded-lg font-bold text-sm disabled:opacity-50">{sharing ? t('sharing') : t('whatsapp')}</button>
@@ -938,13 +1021,27 @@ export default function LabReport({ recipes, username, plantName, onToast }: {
         </div>
       </div>
 
-      {viewing && valid.length > 0 && (
+      {viewing && canPreview && (
         <div className="bg-white/[0.04] border border-white/10 rounded-xl p-6">
-          <h3 className="text-lg font-black tracking-tight text-white mb-4">{t('preview')}</h3>
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+            <h3 className="text-lg font-black tracking-tight text-white mb-0">
+              {t('preview')}{viewingSaved ? ` — ${viewingSaved.no}` : ''}
+            </h3>
+            {viewingSaved && (
+              <div className="flex gap-2">
+                <button onClick={() => loadForEdit(viewingSaved)} className="bg-amber-500/15 text-amber-300 border border-amber-500/40 hover:bg-amber-500/25 text-xs px-3 py-1.5 rounded-lg font-bold">
+                  ✏️ {t('editReport')}
+                </button>
+                <button onClick={() => { setViewIdx(null); }} className="bg-white/[0.05] text-slate-300 border border-white/10 hover:text-white text-xs px-3 py-1.5 rounded-lg font-bold">
+                  ✕ {t('closePreview')}
+                </button>
+              </div>
+            )}
+          </div>
           <div id="lab-report-print"><ReportSheet p={viewing} paper={paper} /></div>
         </div>
       )}
-      {viewing && valid.length > 0 && createPortal(
+      {viewing && canPreview && createPortal(
         <div id="lab-print-root" style={{ display: 'none' }}><ReportSheet p={viewing} paper={paper} /></div>,
         document.body
       )}
@@ -960,9 +1057,11 @@ export default function LabReport({ recipes, username, plantName, onToast }: {
                 <div className="min-w-0">
                   <p className="font-bold text-white text-sm" dir="ltr">📄 {r.no}</p>
                   <p className="text-[11px] text-slate-500">{r.client || '—'} · {r.mix} · <span dir="ltr">{r.avgMpa} MPa</span> · {r.verdict}</p>
+                  <p className="text-[10px] text-sky-400/80">{t('testDuration')}: {r.payload?.testAge ?? '—'} {t('days')}</p>
                 </div>
                 <div className="flex gap-2 shrink-0">
                   <button onClick={() => setViewIdx(i)} className="bg-white/[0.05] text-slate-300 text-xs px-3 py-1.5 rounded-lg font-bold border border-white/10 hover:text-sky-300">{t('reprint')}</button>
+                  <button onClick={() => loadForEdit(r)} className="bg-amber-500/15 text-amber-300 text-xs px-3 py-1.5 rounded-lg font-bold border border-amber-500/40 hover:bg-amber-500/25">{t('editReport')}</button>
                   <button onClick={() => doExcel(r.payload)} className="bg-yellow-500/10 text-yellow-300 text-xs px-3 py-1.5 rounded-lg font-bold border border-yellow-500/40">{t('excel')}</button>
                 </div>
               </div>

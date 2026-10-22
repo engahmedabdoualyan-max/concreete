@@ -136,13 +136,13 @@ export default function ErpMaterials() {
     }
   };
 
-  const getAutoCheckClass = (result) => {
+  const getAutoCheckClass = (result: { summary: { critical: number; warnings: number } }) => {
     if (result.summary.critical > 0) return 'bg-red-500/10 border-red-500/40';
     if (result.summary.warnings > 0) return 'bg-yellow-500/10 border-yellow-500/40';
     return 'bg-emerald-500/10 border-emerald-500/40';
   };
 
-  const getStatusClass = (result) => {
+  const getStatusClass = (result: { summary: { critical: number; warnings: number } }) => {
     if (result.summary.critical > 0) return 'bg-red-500/20 text-red-200';
     if (result.summary.warnings > 0) return 'bg-yellow-500/20 text-yellow-200';
     return 'bg-emerald-500/20 text-emerald-300';
@@ -333,7 +333,7 @@ export default function ErpMaterials() {
                   </span>
                 </div>
                 <div className="space-y-1 text-[10px]">
-                  {autoCheckResult.materialDetails.map((m) => (
+                  {autoCheckResult.materialDetails.map((m: { category: string; requiredKg: number; availableKg: number; shortageKg: number; status: string; daysCoverage: number }) => (
                     <div key={m.category} className={`flex justify-between ${m.status === 'SHORTAGE' ? 'text-red-300' : m.status === 'LOW' ? 'text-yellow-300' : 'text-emerald-300'}`}>
                       <span>{m.category}: {m.requiredKg.toLocaleString()} kg / {m.availableKg.toLocaleString()} kg</span>
                       <span>

@@ -16,6 +16,7 @@ import ErpSuppliers from '../components/ErpSuppliers';
 import ErpMiscExpenses from '../components/ErpMiscExpenses';
 import ErpDepreciation from '../components/ErpDepreciation';
 import AccountingIntegration from '../components/AccountingIntegration';
+import { CustomerInvoicesTab } from '../components/CustomerInvoicesTab';
 import DemandForecast from '../components/DemandForecast';
 import { DeviceStatusBadge } from '../components/DeviceHub';
 import { useFinanceDict } from '../i18n/financeDict';
@@ -138,7 +139,7 @@ export default function Finance() {
   const { currentUser, logout } = useAuth();
   const navigate = useNavigate();
   const t = useFinanceDict();
-  const [tab, setTab] = useState<'payments' | 'reorder' | 'price'>('payments');
+  const [tab, setTab] = useState<'payments' | 'reorder' | 'price' | 'invoices'>('payments');
 
   /* ── Central API state ── */
   const [ledger, setLedger] = useState<LedgerData | null>(null);
@@ -382,6 +383,7 @@ export default function Finance() {
           <button onClick={() => setTab('payments')} className={`py-2 px-4 rounded-lg font-bold text-sm ${tab === 'payments' ? 'bg-emerald-500 text-white' : 'text-slate-400 hover:text-sky-300'}`}>💳 Payments</button>
           <button onClick={() => setTab('reorder')} className={`py-2 px-4 rounded-lg font-bold text-sm ${tab === 'reorder' ? 'bg-amber-500 text-white' : 'text-slate-400 hover:text-sky-300'}`}>📦 Auto Reorder (POs)</button>
           <button onClick={() => setTab('price')} className={`py-2 px-4 rounded-lg font-bold text-sm ${tab === 'price' ? 'bg-sky-500 text-white' : 'text-slate-400 hover:text-sky-300'}`}>📊 تحليل السعر</button>
+          <button onClick={() => setTab('invoices')} className={`py-2 px-4 rounded-lg font-bold text-sm ${tab === 'invoices' ? 'bg-violet-500 text-white' : 'text-slate-400 hover:text-violet-300'}`}>🧾 فواتير العملاء</button>
         </div>
 
         {/* الأقسام المالية — كلها لأدوار اللي تملك finance:read فعلياً */}
@@ -605,6 +607,10 @@ export default function Finance() {
             </div>
           </div>
         </div>
+        )}
+        {/* Customer Invoices Tab */}
+        {tab === 'invoices' && (
+          <CustomerInvoicesTab />
         )}
       </div>
 

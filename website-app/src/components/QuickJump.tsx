@@ -13,6 +13,7 @@ const ALL_PAGES = [
   { path: '/hr', labelKey: 'hr' as const },
   { path: '/forms', labelKey: 'forms' as const },
   { path: '/gate', labelKey: 'gate' as const },
+  { path: '/logistics', labelKey: 'logistics' as const },
   { path: '/procurement', labelKey: 'procurement' as const },
   { path: '/mixing', labelKey: 'mixing' as const },
   { path: '/production', labelKey: 'production' as const },
@@ -54,6 +55,9 @@ const ROLE_ACCESS: Record<string, string[]> = {
   // entries must not be offered — he cannot open them, and a menu that leads to
   // a 403 reads as "the system is broken".
   PURCHASING_MGR: ['/', '/procurement', '/materials'],
+  // مدير النقطليات: the logistics module + the read sides it needs for the
+  // dispatch board (orders to cover, schedule to place, operations to send).
+  LOGISTICS_MGR: ['/', '/logistics', '/orders', '/schedule', '/operations'],
 
   // ── API roles that used to fall through to the "unknown role sees everything
   //    fallback" above. Each entry mirrors that role's dashboard modules

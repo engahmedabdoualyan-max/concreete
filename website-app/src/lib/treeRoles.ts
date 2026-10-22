@@ -5,7 +5,7 @@ export interface TreeRole {
   mods: string[];
 }
 
-const ALL_MODS = ['operations', 'production', 'workshop', 'mixing', 'schedule', 'orders', 'evaluation', 'rnd', 'governance', 'finance', 'materials', 'multiplant', 'hr'];
+const ALL_MODS = ['operations', 'production', 'workshop', 'mixing', 'schedule', 'orders', 'evaluation', 'rnd', 'governance', 'finance', 'materials', 'multiplant', 'hr', 'logistics'];
 
 export const TREE_ROLES: TreeRole[] = [
   { key: 'sysadmin', ar: 'مدير نظام', perms: ['كل الصلاحيات', 'لوحة الإدارة'], mods: ALL_MODS },
@@ -27,6 +27,7 @@ export const TREE_ROLES: TreeRole[] = [
   { key: 'labTech', ar: 'فني مختبر', perms: ['الفحوصات', 'المعايرة', 'العينات'], mods: ['mixing', 'evaluation', 'rnd', 'materials'] },
   { key: 'rndMgr', ar: 'مدير البحث والتطوير', perms: ['خطط التطوير', 'إسناد المهام', 'المتابعة الأسبوعية', 'تقييم الموظفين', 'ذكاء المنافسين'], mods: ['rnd', 'evaluation', 'orders'] },
   { key: 'hrOfficer', ar: 'موظف الموارد البشرية', perms: ['طلبات الإجازات والسلف', 'إعلانات الموظفين', 'الحضور والانصراف', 'مسيرات الرواتب'], mods: ['hr', 'orders'] },
+  { key: 'logisticsMgr', ar: 'مدير النقطليات', perms: ['لوحة الإرسال', 'إدارة الأسطول', 'إسناد السائقين', 'الوقود والتكاليف', 'الميزان'], mods: ['logistics'] },
 ];
 
 export function treeModsForRole(key: string): string[] {
@@ -81,6 +82,10 @@ const API_ROLE_MODS: Record<string, string[]> = {
   // مدير المشتروات: the requisition chain + the supplier register, which now
   // lives inside '/procurement' (its own view) — no finance card on purpose.
   PURCHASING_MGR: ['procurement', 'materials'],
+  // مدير النقطليات: the transport arm — dispatch board, fleet, drivers, fuel
+  // and the weighbridge. The orders/schedule entries are the READ side he
+  // needs for the board (who to send, where); he never approves or schedules.
+  LOGISTICS_MGR: ['logistics', 'orders', 'schedule', 'operations'],
 };
 
 export const TREE_ROLE_KEYS: string[] = TREE_ROLES.map(r => r.key);
